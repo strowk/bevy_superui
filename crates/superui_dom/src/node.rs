@@ -60,12 +60,10 @@ impl NodeData {
     }
 }
 
-use crate::tree::Dom;
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::node::NodeKind;
+    use crate::tree::Dom;
 
     #[test]
     fn new_dom_has_a_document_root() {
