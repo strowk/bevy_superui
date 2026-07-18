@@ -6,6 +6,21 @@ new_key_type! {
     pub struct NodeId;
 }
 
+use slotmap::Key;
+
+impl NodeId {
+    /// Encode this handle as a stable `u64` (for marshalling to the JS layer).
+    pub fn to_ffi(self) -> u64 {
+        self.data().as_ffi()
+    }
+
+    /// Reconstruct a handle from [`NodeId::to_ffi`]. The result is only valid if
+    /// the original node still exists; accessors return `None` otherwise.
+    pub fn from_ffi(v: u64) -> Self {
+        slotmap::KeyData::from_ffi(v).into()
+    }
+}
+
 /// Monotonic identifier for a registered event listener on a node.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct ListenerId(pub u64);
@@ -25,6 +40,10 @@ pub struct ElementData {
     pub tag: String,
     pub(crate) attrs: Vec<(String, String)>,
     pub(crate) listeners: Vec<Listener>,
+    /// `.value` IDL property once set by JS (`None` = derive from attribute).
+    pub(crate) value: Option<String>,
+    /// `.checked` IDL property once set by JS (`None` = derive from attribute).
+    pub(crate) checked: Option<bool>,
 }
 
 /// The variant of a node.
@@ -99,5 +118,18 @@ mod tests {
         assert_ne!(a, dom.document());
         assert!(dom.get(a).is_some());
         assert!(dom.get(b).is_some());
+    }
+}
+
+#[cfg(test)]
+mod ffi_tests {
+    use crate::Dom;
+
+    #[test]
+    fn node_id_round_trips_through_ffi() {
+        let mut dom = Dom::new();
+        let el = dom.create_element("div");
+        let raw = el.to_ffi();
+        assert_eq!(crate::NodeId::from_ffi(raw), el);
     }
 }
