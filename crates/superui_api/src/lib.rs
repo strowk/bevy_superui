@@ -6,6 +6,7 @@
 mod console;
 mod document;
 mod fetch;
+mod node;
 
 pub use console::console_take;
 
@@ -40,6 +41,7 @@ pub fn install(engine: &mut BoaEngine) {
     console::install_console(context);
     fetch::install_fetch(context);
     document::install_document(context);
+    node::install_node(context);
 }
 
 #[cfg(test)]
@@ -132,5 +134,45 @@ mod tests {
         assert_eq!(check(&mut e, "globalThis.madeIsObject"), "true");
         assert_eq!(check(&mut e, "globalThis.txtIsObject"), "true");
         assert_eq!(check(&mut e, "globalThis.missing"), "true");
+    }
+
+    #[test]
+    fn structural_mutation_and_navigation() {
+        let dom = Rc::new(RefCell::new(Dom::new()));
+        let mut e = BoaEngine::new(dom);
+        install(&mut e);
+        e.eval(
+            r#"
+            var root = document.createElement('div');
+            document.getElementById; // smoke: document usable
+            var a = document.createElement('span');
+            var b = document.createElement('span');
+            root.appendChild(a);
+            root.appendChild(b);
+            globalThis.parentOk = (a.parentNode === root);
+            globalThis.count = root.childNodes.length;
+            globalThis.firstIsA = (root.firstChild === a);
+            globalThis.nextIsB = (a.nextSibling === b);
+            root.insertBefore(document.createElement('em'), b);
+            globalThis.count2 = root.children.length;
+            root.removeChild(a);
+            globalThis.count3 = root.children.length;
+            globalThis.tag = root.tagName;
+            globalThis.ntype = a.nodeType;
+            "#,
+        )
+        .unwrap();
+        let check = |e: &mut BoaEngine, expr: &str| -> String {
+            e.context_mut().eval(boa_engine::Source::from_bytes(expr)).unwrap()
+                .to_string(e.context_mut()).unwrap().to_std_string_escaped()
+        };
+        assert_eq!(check(&mut e, "globalThis.parentOk"), "true");
+        assert_eq!(check(&mut e, "globalThis.count"), "2");
+        assert_eq!(check(&mut e, "globalThis.firstIsA"), "true");
+        assert_eq!(check(&mut e, "globalThis.nextIsB"), "true");
+        assert_eq!(check(&mut e, "globalThis.count2"), "3");
+        assert_eq!(check(&mut e, "globalThis.count3"), "2");
+        assert_eq!(check(&mut e, "globalThis.tag"), "DIV");
+        assert_eq!(check(&mut e, "globalThis.ntype"), "1");
     }
 }
