@@ -76,3 +76,242 @@ impl Default for Dom {
         Self::new()
     }
 }
+
+impl Dom {
+    /// Ordered children of a node (empty slice if node is missing/childless).
+    pub fn children(&self, id: NodeId) -> &[NodeId] {
+        self.nodes.get(id).map(|n| n.children.as_slice()).unwrap_or(&[])
+    }
+
+    /// Parent of a node, if any.
+    pub fn parent(&self, id: NodeId) -> Option<NodeId> {
+        self.nodes.get(id)?.parent
+    }
+
+    /// True if `maybe_ancestor` is `node` or an ancestor of `node`.
+    pub(crate) fn is_inclusive_ancestor(&self, maybe_ancestor: NodeId, node: NodeId) -> bool {
+        let mut cur = Some(node);
+        while let Some(c) = cur {
+            if c == maybe_ancestor {
+                return true;
+            }
+            cur = self.nodes.get(c).and_then(|n| n.parent);
+        }
+        false
+    }
+
+    /// Detach `child` from its current parent, if it has one. Internal helper.
+    fn detach(&mut self, child: NodeId) {
+        let Some(old_parent) = self.nodes.get(child).and_then(|n| n.parent) else { return };
+        if let Some(p) = self.nodes.get_mut(old_parent) {
+            p.children.retain(|&c| c != child);
+        }
+        if let Some(n) = self.nodes.get_mut(child) {
+            n.parent = None;
+        }
+    }
+
+    /// Append `child` as the last child of `parent`, reparenting if needed.
+    pub fn append_child(&mut self, parent: NodeId, child: NodeId) -> Result<(), DomError> {
+        self.insert_before(parent, child, None)
+    }
+
+    /// Insert `child` into `parent` immediately before `reference`
+    /// (or append when `reference` is `None`). Reparents `child` if attached.
+    pub fn insert_before(
+        &mut self,
+        parent: NodeId,
+        child: NodeId,
+        reference: Option<NodeId>,
+    ) -> Result<(), DomError> {
+        if self.nodes.get(parent).is_none() || self.nodes.get(child).is_none() {
+            return Err(DomError::NotFound);
+        }
+        // Inserting an (inclusive) ancestor of `parent` under it would cycle.
+        if self.is_inclusive_ancestor(child, parent) {
+            return Err(DomError::Hierarchy);
+        }
+        let index = match reference {
+            None => self.nodes[parent].children.len(),
+            Some(r) => self.nodes[parent]
+                .children
+                .iter()
+                .position(|&c| c == r)
+                .ok_or(DomError::NotAChild)?,
+        };
+        self.detach(child);
+        self.nodes[parent].children.insert(index, child);
+        self.nodes[child].parent = Some(parent);
+        Ok(())
+    }
+
+    /// Remove `child` from `parent`. Errors if `child` is not a child of `parent`.
+    pub fn remove_child(&mut self, parent: NodeId, child: NodeId) -> Result<(), DomError> {
+        let siblings = &self.nodes.get(parent).ok_or(DomError::NotFound)?.children;
+        if !siblings.contains(&child) {
+            return Err(DomError::NotAChild);
+        }
+        self.nodes[parent].children.retain(|&c| c != child);
+        self.nodes[child].parent = None;
+        Ok(())
+    }
+
+    /// Replace `old` (a child of `parent`) with `new`, preserving position.
+    pub fn replace_child(
+        &mut self,
+        parent: NodeId,
+        new: NodeId,
+        old: NodeId,
+    ) -> Result<(), DomError> {
+        let index = self
+            .nodes
+            .get(parent)
+            .ok_or(DomError::NotFound)?
+            .children
+            .iter()
+            .position(|&c| c == old)
+            .ok_or(DomError::NotAChild)?;
+        if self.nodes.get(new).is_none() {
+            return Err(DomError::NotFound);
+        }
+        if self.is_inclusive_ancestor(new, parent) {
+            return Err(DomError::Hierarchy);
+        }
+        self.detach(new);
+        // `old` may have shifted if `new` was an earlier sibling that got detached.
+        let index = self.nodes[parent].children.iter().position(|&c| c == old).unwrap_or(index);
+        self.nodes[parent].children[index] = new;
+        self.nodes[new].parent = Some(parent);
+        self.nodes[old].parent = None;
+        Ok(())
+    }
+
+    /// Next sibling of `id` within its parent, if any.
+    pub fn next_sibling(&self, id: NodeId) -> Option<NodeId> {
+        let parent = self.parent(id)?;
+        let kids = &self.nodes.get(parent)?.children;
+        let i = kids.iter().position(|&c| c == id)?;
+        kids.get(i + 1).copied()
+    }
+
+    /// Previous sibling of `id` within its parent, if any.
+    pub fn previous_sibling(&self, id: NodeId) -> Option<NodeId> {
+        let parent = self.parent(id)?;
+        let kids = &self.nodes.get(parent)?.children;
+        let i = kids.iter().position(|&c| c == id)?;
+        if i == 0 { None } else { kids.get(i - 1).copied() }
+    }
+}
+
+#[cfg(test)]
+mod mutation_tests {
+    use super::*;
+
+    #[test]
+    fn append_child_sets_parent_and_order() {
+        let mut dom = Dom::new();
+        let root = dom.document();
+        let a = dom.create_element("a");
+        let b = dom.create_element("b");
+        dom.append_child(root, a).unwrap();
+        dom.append_child(root, b).unwrap();
+        assert_eq!(dom.children(root), &[a, b]);
+        assert_eq!(dom.parent(a), Some(root));
+        assert_eq!(dom.parent(b), Some(root));
+    }
+
+    #[test]
+    fn append_child_reparents_detaching_from_old_parent() {
+        let mut dom = Dom::new();
+        let p1 = dom.create_element("p1");
+        let p2 = dom.create_element("p2");
+        let c = dom.create_element("c");
+        dom.append_child(p1, c).unwrap();
+        dom.append_child(p2, c).unwrap();
+        assert_eq!(dom.children(p1), &[]);
+        assert_eq!(dom.children(p2), &[c]);
+        assert_eq!(dom.parent(c), Some(p2));
+    }
+
+    #[test]
+    fn insert_before_places_child_ahead_of_reference() {
+        let mut dom = Dom::new();
+        let root = dom.document();
+        let a = dom.create_element("a");
+        let b = dom.create_element("b");
+        let c = dom.create_element("c");
+        dom.append_child(root, a).unwrap();
+        dom.append_child(root, c).unwrap();
+        dom.insert_before(root, b, Some(c)).unwrap();
+        assert_eq!(dom.children(root), &[a, b, c]);
+    }
+
+    #[test]
+    fn insert_before_none_reference_appends() {
+        let mut dom = Dom::new();
+        let root = dom.document();
+        let a = dom.create_element("a");
+        dom.insert_before(root, a, None).unwrap();
+        assert_eq!(dom.children(root), &[a]);
+    }
+
+    #[test]
+    fn remove_child_detaches() {
+        let mut dom = Dom::new();
+        let root = dom.document();
+        let a = dom.create_element("a");
+        dom.append_child(root, a).unwrap();
+        dom.remove_child(root, a).unwrap();
+        assert_eq!(dom.children(root), &[]);
+        assert_eq!(dom.parent(a), None);
+    }
+
+    #[test]
+    fn remove_child_of_wrong_parent_errors() {
+        let mut dom = Dom::new();
+        let root = dom.document();
+        let a = dom.create_element("a");
+        let stranger = dom.create_element("s");
+        dom.append_child(root, a).unwrap();
+        assert_eq!(dom.remove_child(a, stranger), Err(DomError::NotAChild));
+    }
+
+    #[test]
+    fn replace_child_swaps_in_place() {
+        let mut dom = Dom::new();
+        let root = dom.document();
+        let a = dom.create_element("a");
+        let b = dom.create_element("b");
+        let n = dom.create_element("n");
+        dom.append_child(root, a).unwrap();
+        dom.append_child(root, b).unwrap();
+        dom.replace_child(root, n, a).unwrap();
+        assert_eq!(dom.children(root), &[n, b]);
+        assert_eq!(dom.parent(a), None);
+        assert_eq!(dom.parent(n), Some(root));
+    }
+
+    #[test]
+    fn append_cycle_is_rejected() {
+        let mut dom = Dom::new();
+        let a = dom.create_element("a");
+        let b = dom.create_element("b");
+        dom.append_child(a, b).unwrap();
+        // Making `a` a child of its own descendant `b` must fail.
+        assert_eq!(dom.append_child(b, a), Err(DomError::Hierarchy));
+    }
+
+    #[test]
+    fn siblings_report_neighbors() {
+        let mut dom = Dom::new();
+        let root = dom.document();
+        let a = dom.create_element("a");
+        let b = dom.create_element("b");
+        dom.append_child(root, a).unwrap();
+        dom.append_child(root, b).unwrap();
+        assert_eq!(dom.next_sibling(a), Some(b));
+        assert_eq!(dom.previous_sibling(b), Some(a));
+        assert_eq!(dom.next_sibling(b), None);
+        assert_eq!(dom.previous_sibling(a), None);
+    }
+}
