@@ -81,6 +81,9 @@ fn matches_compound(dom: &Dom, node: NodeId, c: &Compound) -> bool {
 /// the rightmost compound, and the preceding compounds must match ancestors in
 /// order (not necessarily contiguous).
 fn matches_selector(dom: &Dom, node: NodeId, compounds: &[Compound]) -> bool {
+    if compounds.is_empty() {
+        return false;
+    }
     let last = compounds.len() - 1;
     if !matches_compound(dom, node, &compounds[last]) {
         return false;
@@ -192,5 +195,13 @@ mod tests {
         let root = dom.document();
         assert_eq!(dom.query_selector_all(root, ".").len(), 0);
         assert_eq!(dom.query_selector(root, ""), None);
+    }
+
+    #[test]
+    fn descendant_with_id_ancestor() {
+        let (mut dom, section, li1, li2) = fixture();
+        dom.set_attribute(section, "id", "app").unwrap();
+        let root = dom.document();
+        assert_eq!(dom.query_selector_all(root, "#app li"), vec![li1, li2]);
     }
 }
