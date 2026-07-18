@@ -11,7 +11,7 @@ while building), not all up front.
 | # | Crate / deliverable | Scope | Status |
 |---|---|---|---|
 | 1 | `superui_dom` | Headless arena DOM (nodes, mutation, attributes/classList/textContent, W3C capture→target→bubble event dispatch). No Bevy/JS deps. | ✅ Done — merged to `main` ([plan](./2026-07-18-superui-phase1-01-dom.md)) |
-| 2 | `superui_html` | HTML subset → DOM, via `html5ever`. | ⬜ Not started |
+| 2 | `superui_html` | HTML subset → DOM, via `html5ever`. | ✅ Done — merged to `main` ([plan](./2026-07-18-superui-phase1-02-html.md)) |
 | 3 | `superui_js` + `superui_api` | Boa engine behind a `JsEngine` trait; broad DOM/Web API bindings (document, Node/Element, events, classList, style, console, timers, `fetch` warn-stub) + the `window.bevy` bridge. | ⬜ Not started |
 | 4 | `superui_css` | Fork of `bevy_flair` 0.6 (targets Bevy 0.17), extended for real HTML element/attribute selectors and `:hover`/`:focus`/`:checked`. | ⬜ Not started |
 | 5 | `superui_bridge` + `superui` | Reconciler (DOM diff → Bevy ECS commands; picking/input → DOM events), `SuperUiPlugin`, asset loaders, hot reload via `AssetEvent::Modified`, observer-based `window.bevy`. | ⬜ Not started |
@@ -30,9 +30,16 @@ while building), not all up front.
 
 ## Resuming in a fresh session
 
-> Read `docs/superpowers/specs/2026-07-18-bevy-superui-design.md` and this file. Plan 1
-> (`superui_dom`) is done and merged to `main`. Write and execute the next unstarted plan
-> in the table above.
+Copy the block below as the opening prompt for the next session (it targets **Plan 3**,
+the first unstarted row):
+
+> Read `docs/superpowers/specs/2026-07-18-bevy-superui-design.md` and
+> `docs/superpowers/plans/README.md`. Plans 1 (`superui_dom`) and 2 (`superui_html`) are
+> done and merged to `main` (see their plan docs for the delivered public surface). Write
+> and execute Plan 3 of the 6-plan series: `superui_js` + `superui_api` (Boa behind a
+> `JsEngine` trait; broad DOM/Web API bindings + the `window.bevy` bridge).
+
+To resume at any later point, substitute the next `⬜ Not started` row from the table above.
 
 ## Performance strategy
 

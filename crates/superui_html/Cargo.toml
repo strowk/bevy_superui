@@ -1,0 +1,9 @@
+[package]
+name = "superui_html"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+superui_dom = { path = "../superui_dom" }
+html5ever.workspace = true
