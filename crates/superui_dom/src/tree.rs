@@ -131,15 +131,29 @@ impl Dom {
         if self.is_inclusive_ancestor(child, parent) {
             return Err(DomError::Hierarchy);
         }
+        // Validate `reference` is a current child *before* detaching `child`, so
+        // a foreign reference reports NotAChild.
+        if let Some(r) = reference {
+            if !self.nodes[parent].children.contains(&r) {
+                return Err(DomError::NotAChild);
+            }
+            // Inserting `child` before itself leaves it in place (no-op).
+            if r == child {
+                return Ok(());
+            }
+        }
+        // Detach first, THEN compute the index against the updated child list, so
+        // moving an already-attached earlier sibling lands before `reference`
+        // rather than at a stale (pre-detach) position.
+        self.detach(child);
         let index = match reference {
             None => self.nodes[parent].children.len(),
             Some(r) => self.nodes[parent]
                 .children
                 .iter()
                 .position(|&c| c == r)
-                .ok_or(DomError::NotAChild)?,
+                .unwrap_or_else(|| self.nodes[parent].children.len()),
         };
-        self.detach(child);
         self.nodes[parent].children.insert(index, child);
         self.nodes[child].parent = Some(parent);
         Ok(())
@@ -253,6 +267,44 @@ mod mutation_tests {
         let a = dom.create_element("a");
         dom.insert_before(root, a, None).unwrap();
         assert_eq!(dom.children(root), &[a]);
+    }
+
+    #[test]
+    fn insert_before_moving_earlier_sibling_lands_before_reference() {
+        let mut dom = Dom::new();
+        let root = dom.document();
+        let a = dom.create_element("a");
+        let b = dom.create_element("b");
+        let c = dom.create_element("c");
+        dom.append_child(root, a).unwrap();
+        dom.append_child(root, b).unwrap();
+        dom.append_child(root, c).unwrap();
+        // Move `a` (currently first) to just before `c`; must land before `c`.
+        dom.insert_before(root, a, Some(c)).unwrap();
+        assert_eq!(dom.children(root), &[b, a, c]);
+    }
+
+    #[test]
+    fn insert_before_self_is_noop() {
+        let mut dom = Dom::new();
+        let root = dom.document();
+        let a = dom.create_element("a");
+        let b = dom.create_element("b");
+        dom.append_child(root, a).unwrap();
+        dom.append_child(root, b).unwrap();
+        dom.insert_before(root, a, Some(a)).unwrap();
+        assert_eq!(dom.children(root), &[a, b]);
+    }
+
+    #[test]
+    fn insert_before_foreign_reference_errors() {
+        let mut dom = Dom::new();
+        let root = dom.document();
+        let a = dom.create_element("a");
+        let stranger = dom.create_element("s");
+        let x = dom.create_element("x");
+        dom.append_child(root, a).unwrap();
+        assert_eq!(dom.insert_before(root, x, Some(stranger)), Err(DomError::NotAChild));
     }
 
     #[test]
