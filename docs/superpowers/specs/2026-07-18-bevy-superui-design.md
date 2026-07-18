@@ -90,7 +90,9 @@ mutate the DOM → next frame reconciles.
 
 A Cargo workspace. `bevy_flair` is **vendored/forked in-tree** so we can extend its CSS engine
 (real HTML element/attribute selectors, more properties, `:hover`/`:focus`/`:checked` wired to
-our event state) without waiting on upstream.
+our event state) without waiting on upstream. **Fork base = `bevy_flair` 0.6.0** (the newest
+release targeting Bevy 0.17). The 0.8/Bevy-0.19 copy currently vendored in-tree is kept only as
+*reference for the future 0.19 upgrade*, not the fork base.
 
 ```
 bevy_superui/
@@ -132,7 +134,12 @@ All **runtime** dependencies compile to `wasm32-unknown-unknown` (verified):
 - **`rquickjs`** — optional native-only fast JS backend behind the `JsEngine` trait; Boa is the
   engine on every target.
 
-Bevy version: **0.19** (both reference crates target it).
+**Bevy version: 0.17** (the version currently in use). Fork base is `bevy_flair` 0.6.0, which
+targets Bevy 0.17; `bevy_hui` 0.5.0 is the matching 0.17 reference. Newer Bevy (0.18/0.19) and
+the corresponding flair (0.7/0.8, already vendored) are a later, explicitly-planned upgrade —
+the crate boundaries (§4) are designed so the Bevy-touching layers (`superui_bridge`, `superui`,
+forked `superui_css`) absorb version bumps while `superui_dom`/`superui_html`/`superui_js` stay
+version-agnostic.
 
 ## 6. Hot reload — via Bevy's asset system (no `notify`)
 
@@ -164,15 +171,15 @@ implementation.
 - `docs/support/js-dom.md` — every DOM/Web API object/method/event we care about.
 
 **Each row carries:**
-- **Status:** ✅ Supported · 🟡 Planned (makes sense, achievable in theory) · ⛔ Won't support.
+- **Status:** ✅ Supported · 🟡 Roadmap (achievable in theory, planned) · ⛔ Won't support.
 - **Priority tier** (ordering, by game-UI usefulness): **T0** essential (layout, text, click,
   class toggling) · **T1** common (inputs, lists, hover/focus, transitions) · **T2** advanced
   (SVG, canvas, animations, transforms) · **T3** niche.
 - **Notes:** taffy/bevy_ui constraint, degradation behavior, or link to tracking issue.
 
-**"Makes sense to support"** = achievable in theory *regardless of what bevy_ui can do today*
-(so SVG, canvas, transforms are 🟡 Planned, not ⛔). **⛔ Won't** is reserved for things
-fundamentally out of scope — currently: `fetch`/network, cookies, navigation/history,
+**🟡 Roadmap** = achievable in theory *regardless of what bevy_ui can do today* (so SVG,
+canvas, transforms are 🟡 Roadmap, not ⛔). **⛔ Won't** is reserved for things fundamentally
+out of scope — currently: `fetch`/network, cookies, navigation/history,
 multi-document/iframes-to-servers.
 
 Ordering within each file is by tier (T0 first), so the top of each file is the highest-value
@@ -190,14 +197,23 @@ bevy.on("ScoreChanged", e => scoreEl.textContent = e.value); // subscribe to an 
 const hp = await bevy.query("player.health");                // read game state (async)
 ```
 
-Game side registers the allowed surface in Rust:
+Game side registers the allowed surface in Rust, and the bridge is built on **Bevy observers**:
 ```rust
-app.add_superui_command::<SpawnEnemy>()   // deserialize JS payload → Bevy event/command
-   .add_superui_event::<ScoreChanged>()   // Bevy event → JS `bevy.on` callback
+app.add_superui_command::<SpawnEnemy>()   // JS bevy.send("SpawnEnemy", p) → commands.trigger(SpawnEnemy)
+   .add_superui_event::<ScoreChanged>()   // game triggers ScoreChanged → forwarded to JS bevy.on callbacks
    .add_superui_query("player.health", ...);
 ```
-Marshalling is JSON-shaped via `serde`/reflect. This is the *only* API JS sees that is not a
-web standard, and it is deliberately quarantined behind one global.
+Flow:
+- **JS → ECS (`bevy.send`)**: deserialize the JS payload into the registered type and
+  `commands.trigger(...)` it. The game reacts with its *own* observers — SuperUI adds nothing
+  game-specific, it just injects the trigger. Idiomatic Bevy 0.17.
+- **ECS → JS (`bevy.on`)**: SuperUI registers an **observer** per `add_superui_event::<T>()`;
+  when the game triggers `T`, the observer marshals it (serde/reflect, JSON-shaped) and invokes
+  the matching JS callbacks in Boa.
+- **`bevy.query`**: async read of registered state, resolved back into the JS promise.
+
+This is the *only* API JS sees that is not a web standard, and it is deliberately quarantined
+behind one global.
 
 ## 9. Phase 1 — "TodoMVC that runs"
 
