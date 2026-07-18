@@ -10,3 +10,5 @@ license = "MIT OR Apache-2.0"
 [workspace.dependencies]
 slotmap = "1.0"
 html5ever = "0.39"
+boa_engine = "0.21"
+boa_gc = "0.21"
