@@ -9,6 +9,7 @@ mod element;
 mod events;
 mod fetch;
 mod node;
+mod timers;
 
 pub use console::console_take;
 
@@ -46,6 +47,7 @@ pub fn install(engine: &mut BoaEngine) {
     node::install_node(context);
     element::install_element(context);
     events::install_events(context);
+    timers::install_timers(context);
 }
 
 #[cfg(test)]
@@ -280,6 +282,95 @@ mod tests {
             .unwrap()
             .to_std_string_escaped();
         assert_eq!(order, "root-capture,leaf,mid-bubble");
+    }
+
+    #[test]
+    fn timers_fire_when_due() {
+        use superui_js::JsEngine;
+        let dom = Rc::new(RefCell::new(Dom::new()));
+        let mut e = BoaEngine::new(dom);
+        install(&mut e);
+        e.eval(
+            r#"
+            globalThis.fired = 0;
+            setTimeout(function(){ globalThis.fired += 1; }, 100);
+            "#,
+        ).unwrap();
+        e.run_timers(50.0);   // not due yet
+        let before = e.context_mut().eval(boa_engine::Source::from_bytes("globalThis.fired")).unwrap().as_i32().unwrap();
+        assert_eq!(before, 0);
+        e.run_timers(150.0);  // now due
+        let after = e.context_mut().eval(boa_engine::Source::from_bytes("globalThis.fired")).unwrap().as_i32().unwrap();
+        assert_eq!(after, 1);
+        e.run_timers(300.0);  // one-shot does not refire
+        let again = e.context_mut().eval(boa_engine::Source::from_bytes("globalThis.fired")).unwrap().as_i32().unwrap();
+        assert_eq!(again, 1);
+    }
+
+    #[test]
+    fn todomvc_shaped_integration() {
+        use superui_js::JsEngine;
+        // Bootstrap the DOM from HTML (as the real loader will).
+        let dom = Rc::new(RefCell::new(superui_html::parse_document(
+            r#"<section class="todoapp">
+                 <input class="new-todo" id="new-todo">
+                 <ul class="todo-list" id="list"></ul>
+                 <span class="todo-count" id="count"></span>
+               </section>"#,
+        )));
+        let mut e = BoaEngine::new(dom.clone());
+        install(&mut e);
+
+        // A tiny "app.js": addTodo(text) appends <li><input.toggle><label>; the
+        // toggle click toggles completed; renderCount updates the counter.
+        e.eval(r#"
+            var list = document.getElementById('list');
+            var count = document.getElementById('count');
+            function renderCount() {
+                var remaining = 0;
+                var lis = list.childNodes;
+                for (var i = 0; i < lis.length; i++) {
+                    var li = lis[i];
+                    if (!li.classList.contains('completed')) remaining++;
+                }
+                count.textContent = remaining + ' items left';
+            }
+            globalThis.addTodo = function(text) {
+                var li = document.createElement('li');
+                var toggle = document.createElement('input');
+                toggle.setAttribute('type', 'checkbox');
+                toggle.className = 'toggle';
+                var label = document.createElement('label');
+                label.textContent = text;
+                toggle.addEventListener('click', function() {
+                    if (toggle.checked) li.classList.add('completed');
+                    else li.classList.remove('completed');
+                    renderCount();
+                });
+                li.appendChild(toggle);
+                li.appendChild(label);
+                list.appendChild(li);
+                renderCount();
+            };
+            addTodo('Taste JS');
+            addTodo('Buy a unicorn');
+        "#).unwrap();
+
+        // Two todos, counter shows 2 left.
+        let count_text = |e: &mut BoaEngine| e.context_mut()
+            .eval(boa_engine::Source::from_bytes("document.getElementById('count').textContent"))
+            .unwrap().to_string(e.context_mut()).unwrap().to_std_string_escaped();
+        assert_eq!(count_text(&mut e), "2 items left");
+
+        // Toggle the first todo's checkbox: set checked, dispatch click.
+        let first_toggle = { let d = dom.borrow(); d.query_selector(d.document(), ".todo-list .toggle").unwrap() };
+        dom.borrow_mut().set_checked(first_toggle, true);
+        e.dispatch_event(first_toggle, "click", true, true);
+        assert_eq!(count_text(&mut e), "1 items left");
+
+        // The first <li> is now completed.
+        let completed = { let d = dom.borrow(); d.query_selector_all(d.document(), "li.completed").len() };
+        assert_eq!(completed, 1);
     }
 
     #[test]

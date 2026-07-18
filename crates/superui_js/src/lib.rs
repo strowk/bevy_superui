@@ -27,6 +27,10 @@ pub trait JsEngine {
         bubbles: bool,
         cancelable: bool,
     ) -> bool;
+
+    /// Advance the timer clock to `now_ms` and fire all due timers (intervals
+    /// reschedule). Pumps the microtask queue afterward.
+    fn run_timers(&mut self, now_ms: f64);
 }
 
 #[cfg(test)]

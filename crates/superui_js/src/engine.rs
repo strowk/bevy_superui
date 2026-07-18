@@ -115,4 +115,32 @@ impl JsEngine for BoaEngine {
         let prevented = inner.borrow().default_prevented();
         prevented
     }
+
+    fn run_timers(&mut self, now_ms: f64) {
+        with_host_state(&mut self.context, |_s| ()); // ensure state exists
+        crate::state::with_host_state_mut(&mut self.context, |s| s.now_ms = now_ms);
+        loop {
+            // Pop the earliest due timer (short mutable borrow), fire outside it.
+            let due = crate::state::with_host_state_mut(&mut self.context, |s| {
+                let idx = s.timers.iter().enumerate()
+                    .filter(|(_, t)| t.due_ms <= now_ms)
+                    .min_by(|(_, a), (_, b)| a.due_ms.total_cmp(&b.due_ms))
+                    .map(|(i, _)| i);
+                idx.map(|i| {
+                    let t = &s.timers[i];
+                    let cb = t.callback.clone();
+                    match t.interval_ms {
+                        Some(period) => { let due = t.due_ms + period.max(1.0); s.timers[i].due_ms = due; }
+                        None => { s.timers.remove(i); }
+                    }
+                    cb
+                })
+            });
+            match due {
+                Some(cb) => { let _ = cb.call(&JsValue::undefined(), &[], &mut self.context); }
+                None => break,
+            }
+        }
+        let _ = self.context.run_jobs(); // drain any microtasks the callbacks queued
+    }
 }

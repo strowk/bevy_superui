@@ -10,5 +10,8 @@ superui_js = { path = "../superui_js" }
 boa_engine.workspace = true
 boa_gc.workspace = true
 
+[dev-dependencies]
+superui_html = { path = "../superui_html" }
+
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.3", features = ["wasm_js"] }
