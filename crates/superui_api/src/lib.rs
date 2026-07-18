@@ -4,6 +4,7 @@
 //! nothing about Bevy. Headless-testable.
 
 mod console;
+mod document;
 mod fetch;
 
 pub use console::console_take;
@@ -38,7 +39,7 @@ pub fn install(engine: &mut BoaEngine) {
     build_protos(context);
     console::install_console(context);
     fetch::install_fetch(context);
-    // Tasks 6–9 extend install() with document/node/element/events/timers.
+    document::install_document(context);
 }
 
 #[cfg(test)]
@@ -79,5 +80,57 @@ mod tests {
             .unwrap()
             .to_std_string_escaped();
         assert!(caught.contains("fetch is not supported"), "got: {caught}");
+    }
+
+    #[test]
+    fn document_queries_and_factories() {
+        // Seed a DOM: document > div#root > span.item ("hi")
+        let dom = Rc::new(RefCell::new(Dom::new()));
+        {
+            let mut d = dom.borrow_mut();
+            let doc = d.document();
+            let root = d.create_element("div");
+            d.set_attribute(root, "id", "root").unwrap();
+            let span = d.create_element("span");
+            d.set_attribute(span, "class", "item").unwrap();
+            let t = d.create_text("hi");
+            d.append_child(doc, root).unwrap();
+            d.append_child(root, span).unwrap();
+            d.append_child(span, t).unwrap();
+        }
+        let mut e = BoaEngine::new(dom);
+        install(&mut e);
+
+        e.eval(
+            r#"
+            var byId = document.getElementById('root');
+            globalThis.foundById = (byId !== null);
+            globalThis.idStable = (document.getElementById('root') === byId);
+            globalThis.qs = (document.querySelector('.item') !== null);
+            globalThis.qsaLen = document.querySelectorAll('span').length;
+            var made = document.createElement('p');
+            globalThis.madeIsObject = (typeof made === 'object' && made !== null);
+            var txt = document.createTextNode('yo');
+            globalThis.txtIsObject = (typeof txt === 'object' && txt !== null);
+            globalThis.missing = (document.getElementById('nope') === null);
+            "#,
+        )
+        .unwrap();
+
+        let check = |e: &mut BoaEngine, expr: &str| -> String {
+            e.context_mut()
+                .eval(boa_engine::Source::from_bytes(expr))
+                .unwrap()
+                .to_string(e.context_mut())
+                .unwrap()
+                .to_std_string_escaped()
+        };
+        assert_eq!(check(&mut e, "globalThis.foundById"), "true");
+        assert_eq!(check(&mut e, "globalThis.idStable"), "true");
+        assert_eq!(check(&mut e, "globalThis.qs"), "true");
+        assert_eq!(check(&mut e, "globalThis.qsaLen"), "1");
+        assert_eq!(check(&mut e, "globalThis.madeIsObject"), "true");
+        assert_eq!(check(&mut e, "globalThis.txtIsObject"), "true");
+        assert_eq!(check(&mut e, "globalThis.missing"), "true");
     }
 }
