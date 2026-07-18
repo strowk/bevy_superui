@@ -8,7 +8,6 @@ license.workspace = true
 superui_dom = { path = "../superui_dom" }
 superui_js = { path = "../superui_js" }
 boa_engine.workspace = true
-boa_gc.workspace = true
 
 [dev-dependencies]
 superui_html = { path = "../superui_html" }

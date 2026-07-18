@@ -377,19 +377,37 @@ mod tests {
     fn remove_event_listener_stops_delivery() {
         use superui_js::JsEngine;
         let dom = Rc::new(RefCell::new(Dom::new()));
-        let btn = { let mut d = dom.borrow_mut(); let doc = d.document(); let b = d.create_element("button"); d.append_child(doc, b).unwrap(); d.set_attribute(b, "id", "b").unwrap(); b };
+        let (btn, btn2) = {
+            let mut d = dom.borrow_mut();
+            let doc = d.document();
+            let b = d.create_element("button");
+            d.append_child(doc, b).unwrap();
+            d.set_attribute(b, "id", "b").unwrap();
+            let b2 = d.create_element("button");
+            d.append_child(doc, b2).unwrap();
+            d.set_attribute(b2, "id", "b2").unwrap();
+            (b, b2)
+        };
         let mut e = BoaEngine::new(dom);
         install(&mut e);
+        // Button "b": add then immediately remove — listener must NOT fire.
         e.eval(
             r#"
             globalThis.hits = 0;
             globalThis.h = function(){ globalThis.hits++; };
             document.getElementById('b').addEventListener('click', globalThis.h);
             document.getElementById('b').removeEventListener('click', globalThis.h);
+            // Button "b2": add but do NOT remove — listener MUST fire (positive control).
+            globalThis.hits2 = 0;
+            document.getElementById('b2').addEventListener('click', function(){ globalThis.hits2++; });
             "#,
         ).unwrap();
         e.dispatch_event(btn, "click", true, true);
         let hits = e.context_mut().eval(boa_engine::Source::from_bytes("globalThis.hits")).unwrap().as_i32().unwrap_or(-1);
         assert_eq!(hits, 0);
+        // Positive control: listener on b2 was not removed, so it must fire exactly once.
+        e.dispatch_event(btn2, "click", true, true);
+        let hits2 = e.context_mut().eval(boa_engine::Source::from_bytes("globalThis.hits2")).unwrap().as_i32().unwrap_or(-1);
+        assert_eq!(hits2, 1);
     }
 }

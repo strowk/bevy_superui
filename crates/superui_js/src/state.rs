@@ -54,6 +54,8 @@ pub struct HostState {
     /// The live retained DOM. Plain Rust (not GC-managed), so ignored by the tracer.
     #[unsafe_ignore_trace]
     pub dom: Rc<RefCell<Dom>>,
+    // TODO(perf): this cache is never evicted — it grows unbounded for DOMs that churn nodes.
+    // Fine at Phase-1 scale; evict on removeChild or add a GC sweep pass later.
     /// `NodeId.to_ffi()` → JS wrapper, giving stable object identity.
     pub wrappers: HashMap<u64, JsObject>,
     /// `ListenerId.0` → JS callback for registered DOM listeners.

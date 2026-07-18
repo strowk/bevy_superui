@@ -11,7 +11,7 @@ fn fetch_impl(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsRes
         .to_string(context)
         .map(|s| s.to_std_string_escaped())
         .unwrap_or_default();
-    // Warn (via console if present) and reject — never actually hit the network.
+    // Reject immediately — network is out of scope (design §2). fetch never hits the network.
     let msg = format!("fetch is not supported (network is out of scope): {url}");
     let promise = JsPromise::reject(JsNativeError::typ().with_message(msg), context);
     Ok(promise.into())
