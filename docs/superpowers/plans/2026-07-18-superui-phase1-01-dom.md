@@ -122,12 +122,10 @@ git commit -m "chore: workspace + superui_dom crate skeleton"
 Create `crates/superui_dom/src/node.rs`:
 
 ```rust
-use crate::tree::Dom;
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::node::NodeKind;
+    use crate::tree::Dom;
 
     #[test]
     fn new_dom_has_a_document_root() {
@@ -155,11 +153,14 @@ mod tests {
     }
 
     #[test]
-    fn stale_handle_returns_none() {
-        let dom = Dom::new();
-        // A never-inserted key is unavailable via a second empty dom.
-        let other = Dom::new();
-        assert!(dom.get(other.document()).is_none() || other.get(dom.document()).is_none());
+    fn distinct_nodes_get_distinct_handles_and_resolve() {
+        let mut dom = Dom::new();
+        let a = dom.create_element("a");
+        let b = dom.create_element("b");
+        assert_ne!(a, b);
+        assert_ne!(a, dom.document());
+        assert!(dom.get(a).is_some());
+        assert!(dom.get(b).is_some());
     }
 }
 ```
@@ -420,6 +421,44 @@ mod mutation_tests {
     }
 
     #[test]
+    fn insert_before_moving_earlier_sibling_lands_before_reference() {
+        let mut dom = Dom::new();
+        let root = dom.document();
+        let a = dom.create_element("a");
+        let b = dom.create_element("b");
+        let c = dom.create_element("c");
+        dom.append_child(root, a).unwrap();
+        dom.append_child(root, b).unwrap();
+        dom.append_child(root, c).unwrap();
+        // Move `a` (currently first) to just before `c`; must land before `c`.
+        dom.insert_before(root, a, Some(c)).unwrap();
+        assert_eq!(dom.children(root), &[b, a, c]);
+    }
+
+    #[test]
+    fn insert_before_self_is_noop() {
+        let mut dom = Dom::new();
+        let root = dom.document();
+        let a = dom.create_element("a");
+        let b = dom.create_element("b");
+        dom.append_child(root, a).unwrap();
+        dom.append_child(root, b).unwrap();
+        dom.insert_before(root, a, Some(a)).unwrap();
+        assert_eq!(dom.children(root), &[a, b]);
+    }
+
+    #[test]
+    fn insert_before_foreign_reference_errors() {
+        let mut dom = Dom::new();
+        let root = dom.document();
+        let a = dom.create_element("a");
+        let stranger = dom.create_element("s");
+        let x = dom.create_element("x");
+        dom.append_child(root, a).unwrap();
+        assert_eq!(dom.insert_before(root, x, Some(stranger)), Err(DomError::NotAChild));
+    }
+
+    #[test]
     fn remove_child_detaches() {
         let mut dom = Dom::new();
         let root = dom.document();
@@ -453,6 +492,34 @@ mod mutation_tests {
         assert_eq!(dom.children(root), &[n, b]);
         assert_eq!(dom.parent(a), None);
         assert_eq!(dom.parent(n), Some(root));
+    }
+
+    #[test]
+    fn replace_child_with_self_is_noop() {
+        let mut dom = Dom::new();
+        let root = dom.document();
+        let a = dom.create_element("a");
+        dom.append_child(root, a).unwrap();
+        dom.replace_child(root, a, a).unwrap();
+        assert_eq!(dom.children(root), &[a]);
+        assert_eq!(dom.parent(a), Some(root));
+    }
+
+    #[test]
+    fn replace_child_new_is_existing_earlier_sibling() {
+        let mut dom = Dom::new();
+        let root = dom.document();
+        let a = dom.create_element("a");
+        let b = dom.create_element("b");
+        let c = dom.create_element("c");
+        dom.append_child(root, a).unwrap();
+        dom.append_child(root, b).unwrap();
+        dom.append_child(root, c).unwrap();
+        // Replace `c` with `a` (an earlier sibling): `a` moves into c's slot.
+        dom.replace_child(root, a, c).unwrap();
+        assert_eq!(dom.children(root), &[b, a]);
+        assert_eq!(dom.parent(c), None);
+        assert_eq!(dom.parent(a), Some(root));
     }
 
     #[test]
@@ -545,15 +612,29 @@ impl Dom {
         if self.is_inclusive_ancestor(child, parent) {
             return Err(DomError::Hierarchy);
         }
+        // Validate `reference` is a current child *before* detaching `child`, so
+        // a foreign reference reports NotAChild.
+        if let Some(r) = reference {
+            if !self.nodes[parent].children.contains(&r) {
+                return Err(DomError::NotAChild);
+            }
+            // Inserting `child` before itself leaves it in place (no-op).
+            if r == child {
+                return Ok(());
+            }
+        }
+        // Detach first, THEN compute the index against the updated child list, so
+        // moving an already-attached earlier sibling lands before `reference`
+        // rather than at a stale (pre-detach) position.
+        self.detach(child);
         let index = match reference {
             None => self.nodes[parent].children.len(),
             Some(r) => self.nodes[parent]
                 .children
                 .iter()
                 .position(|&c| c == r)
-                .ok_or(DomError::NotAChild)?,
+                .unwrap_or_else(|| self.nodes[parent].children.len()),
         };
-        self.detach(child);
         self.nodes[parent].children.insert(index, child);
         self.nodes[child].parent = Some(parent);
         Ok(())
@@ -577,23 +658,38 @@ impl Dom {
         new: NodeId,
         old: NodeId,
     ) -> Result<(), DomError> {
-        let index = self
+        // Validate that `old` is a current child and `new` exists BEFORE any
+        // mutation, so failures don't touch the tree.
+        let has_old = self
             .nodes
             .get(parent)
             .ok_or(DomError::NotFound)?
             .children
-            .iter()
-            .position(|&c| c == old)
-            .ok_or(DomError::NotAChild)?;
+            .contains(&old);
+        if !has_old {
+            return Err(DomError::NotAChild);
+        }
         if self.nodes.get(new).is_none() {
             return Err(DomError::NotFound);
+        }
+        // Replacing a node with itself is a no-op (it stays in place). Guarding
+        // this is essential: otherwise `detach(new)` below would remove `old`
+        // too, and the index recompute could point past the end and panic.
+        if new == old {
+            return Ok(());
         }
         if self.is_inclusive_ancestor(new, parent) {
             return Err(DomError::Hierarchy);
         }
+        // Detach `new` from wherever it is (possibly an earlier sibling of `old`
+        // in this same parent). Because `new != old`, `old` is guaranteed to
+        // still be present in the child list afterwards.
         self.detach(new);
-        // `old` may have shifted if `new` was an earlier sibling that got detached.
-        let index = self.nodes[parent].children.iter().position(|&c| c == old).unwrap_or(index);
+        let index = self.nodes[parent]
+            .children
+            .iter()
+            .position(|&c| c == old)
+            .expect("old remains a child after detaching a different node");
         self.nodes[parent].children[index] = new;
         self.nodes[new].parent = Some(parent);
         self.nodes[old].parent = None;
@@ -841,13 +937,18 @@ impl Dom {
         }
     }
 
-    /// Remove a class if present. Rewrites the `class` attribute.
+    /// Remove a class if present. Rewrites the `class` attribute, or removes the
+    /// attribute entirely when the last class is removed (no spurious `class=""`).
     pub fn class_remove(&mut self, id: NodeId, class: &str) {
         let mut classes = self.classes(id);
         let before = classes.len();
         classes.retain(|c| c != class);
         if classes.len() != before {
-            let _ = self.set_attribute(id, "class", &classes.join(" "));
+            if classes.is_empty() {
+                self.remove_attribute(id, "class");
+            } else {
+                let _ = self.set_attribute(id, "class", &classes.join(" "));
+            }
         }
     }
 
@@ -1314,7 +1415,7 @@ Add to the `impl Dom` block region in `crates/superui_dom/src/event.rs` (above `
 ```rust
 /// One node's worth of a computed dispatch: which listeners (by id) to invoke,
 /// in order, at a given phase. Owned, so it survives DOM mutation during invocation.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DispatchStep {
     pub node: NodeId,
     pub phase: EventPhase,

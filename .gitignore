@@ -1,0 +1,16 @@
+/target
+/Cargo.lock
+
+# Reference crates copied in for study, not part of this repo's sources
+/bevy_flair
+/bevy_hui
+
+# Subagent-driven-development scratch (ledger, briefs, reports, diffs)
+/.superpowers
+
+# Local editor / tool state
+/.claude/settings.local.json
+
+# Stray test output captures
+/test_output.txt
+**/test_output.txt

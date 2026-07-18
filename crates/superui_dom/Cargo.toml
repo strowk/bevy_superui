@@ -1,0 +1,8 @@
+[package]
+name = "superui_dom"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+slotmap.workspace = true
