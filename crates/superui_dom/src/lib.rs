@@ -6,6 +6,8 @@
 mod node;
 mod tree;
 mod attr;
+mod event;
 
 pub use node::{ElementData, Listener, ListenerId, NodeData, NodeId, NodeKind};
 pub use tree::{Dom, DomError};
+pub use event::{Event, EventPhase};
