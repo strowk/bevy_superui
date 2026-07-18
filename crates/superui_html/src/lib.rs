@@ -144,4 +144,97 @@ mod parse_tests {
         assert!(dom.has_attribute(input, "checked"));
         assert_eq!(dom.get_attribute(input, "checked"), Some(""));
     }
+
+    #[test]
+    fn unclosed_tags_recover_without_panicking() {
+        // Two <li> with no closing tags: the tree builder auto-closes the first.
+        let dom = parse_document("<ul><li>a<li>b</ul>");
+        assert_eq!(count_by_tag(&dom, "li"), 2);
+    }
+
+    #[test]
+    fn mis_nested_tags_do_not_panic() {
+        // Adoption-agency territory; we only require that it parses and a body
+        // exists (exercises reparent_children / remove_from_parent paths).
+        let dom = parse_document("<b><i>x</b>y</i>");
+        assert!(first_by_tag(&dom, "body").is_some());
+        assert!(first_by_tag(&dom, "b").is_some());
+        assert!(first_by_tag(&dom, "i").is_some());
+    }
+
+    #[test]
+    fn get_element_by_id_works_on_the_parsed_tree() {
+        let dom = parse_document(r#"<div><input id="new-todo"></div>"#);
+        let by_id = dom.get_element_by_id("new-todo").expect("element with id");
+        assert_eq!(dom.tag(by_id), Some("input"));
+        assert_eq!(dom.get_element_by_id("missing"), None);
+    }
+
+    #[test]
+    fn parses_a_todomvc_shaped_fragment() {
+        let html = r#"
+            <section class="todoapp">
+              <header class="header">
+                <h1>todos</h1>
+                <input class="new-todo" placeholder="What needs to be done?">
+              </header>
+              <ul class="todo-list">
+                <li class="completed">
+                  <div class="view">
+                    <input class="toggle" type="checkbox" checked>
+                    <label>Taste JavaScript</label>
+                    <button class="destroy"></button>
+                  </div>
+                </li>
+                <li>
+                  <div class="view">
+                    <input class="toggle" type="checkbox">
+                    <label>Buy a unicorn</label>
+                  </div>
+                </li>
+              </ul>
+            </section>
+        "#;
+        let dom = parse_document(html);
+
+        let section = first_by_tag(&dom, "section").expect("<section>");
+        assert!(dom.class_contains(section, "todoapp"));
+
+        // Two todo items.
+        assert_eq!(count_by_tag(&dom, "li"), 2);
+
+        // The first toggle input is checked; the second is not.
+        let toggles: Vec<NodeId> = {
+            let mut v = Vec::new();
+            fn walk(dom: &Dom, node: NodeId, v: &mut Vec<NodeId>) {
+                if dom.tag(node) == Some("input") && dom.class_contains(node, "toggle") {
+                    v.push(node);
+                }
+                for &c in dom.children(node) {
+                    walk(dom, c, v);
+                }
+            }
+            walk(&dom, dom.document(), &mut v);
+            v
+        };
+        assert_eq!(toggles.len(), 2);
+        assert!(dom.has_attribute(toggles[0], "checked"));
+        assert!(!dom.has_attribute(toggles[1], "checked"));
+
+        // Labels carry the expected text.
+        let labels: Vec<String> = {
+            let mut v = Vec::new();
+            fn walk(dom: &Dom, node: NodeId, v: &mut Vec<String>) {
+                if dom.tag(node) == Some("label") {
+                    v.push(dom.text_content(node));
+                }
+                for &c in dom.children(node) {
+                    walk(dom, c, v);
+                }
+            }
+            walk(&dom, dom.document(), &mut v);
+            v
+        };
+        assert_eq!(labels, vec!["Taste JavaScript".to_string(), "Buy a unicorn".to_string()]);
+    }
 }
