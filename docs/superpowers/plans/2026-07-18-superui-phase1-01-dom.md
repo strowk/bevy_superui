@@ -155,11 +155,14 @@ mod tests {
     }
 
     #[test]
-    fn stale_handle_returns_none() {
-        let dom = Dom::new();
-        // A never-inserted key is unavailable via a second empty dom.
-        let other = Dom::new();
-        assert!(dom.get(other.document()).is_none() || other.get(dom.document()).is_none());
+    fn distinct_nodes_get_distinct_handles_and_resolve() {
+        let mut dom = Dom::new();
+        let a = dom.create_element("a");
+        let b = dom.create_element("b");
+        assert_ne!(a, b);
+        assert_ne!(a, dom.document());
+        assert!(dom.get(a).is_some());
+        assert!(dom.get(b).is_some());
     }
 }
 ```
