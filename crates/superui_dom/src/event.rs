@@ -12,7 +12,7 @@ pub enum EventPhase {
 
 /// One node's worth of a computed dispatch: which listeners (by id) to invoke,
 /// in order, at a given phase. Owned, so it survives DOM mutation during invocation.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DispatchStep {
     pub node: NodeId,
     pub phase: EventPhase,

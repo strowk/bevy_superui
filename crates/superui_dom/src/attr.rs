@@ -58,13 +58,18 @@ impl Dom {
         }
     }
 
-    /// Remove a class if present. Rewrites the `class` attribute.
+    /// Remove a class if present. Rewrites the `class` attribute, or removes the
+    /// attribute entirely when the last class is removed (no spurious `class=""`).
     pub fn class_remove(&mut self, id: NodeId, class: &str) {
         let mut classes = self.classes(id);
         let before = classes.len();
         classes.retain(|c| c != class);
         if classes.len() != before {
-            let _ = self.set_attribute(id, "class", &classes.join(" "));
+            if classes.is_empty() {
+                self.remove_attribute(id, "class");
+            } else {
+                let _ = self.set_attribute(id, "class", &classes.join(" "));
+            }
         }
     }
 
@@ -186,6 +191,16 @@ mod tests {
         assert_eq!(dom.class_toggle(el, "b"), false); // was present -> removed
         assert_eq!(dom.class_toggle(el, "c"), true); // was absent -> added
         assert_eq!(dom.classes(el), vec!["c".to_string()]);
+    }
+
+    #[test]
+    fn removing_last_class_removes_class_attribute() {
+        let mut dom = Dom::new();
+        let el = dom.create_element("div");
+        dom.class_add(el, "only");
+        dom.class_remove(el, "only");
+        assert!(!dom.has_attribute(el, "class"));
+        assert_eq!(dom.classes(el), Vec::<String>::new());
     }
 
     #[test]
