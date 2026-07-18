@@ -7,7 +7,10 @@ mod engine;
 mod state;
 
 pub use engine::BoaEngine;
-pub use state::{HostState, NodeHandle, Protos, Timer};
+pub use state::{
+    dom_of, jsstr, node_id_of, with_host_state, with_host_state_mut, wrap_node, wrap_opt_node,
+    HostState, NodeHandle, Protos, Timer,
+};
 
 /// The coarse boundary the Bevy layers consume so they never name Boa. Fine-
 /// grained DOM bindings live in `superui_api`, not here. Extended with
