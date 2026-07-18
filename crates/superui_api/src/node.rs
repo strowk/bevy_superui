@@ -26,7 +26,6 @@ pub(crate) fn set_getter(
 }
 
 /// Attach a getter+setter accessor `name` to `proto`.
-#[allow(dead_code)]
 pub(crate) fn set_accessor(
     proto: &JsObject,
     name: &str,

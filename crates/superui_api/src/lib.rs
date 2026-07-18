@@ -5,6 +5,7 @@
 
 mod console;
 mod document;
+mod element;
 mod fetch;
 mod node;
 
@@ -42,6 +43,7 @@ pub fn install(engine: &mut BoaEngine) {
     fetch::install_fetch(context);
     document::install_document(context);
     node::install_node(context);
+    element::install_element(context);
 }
 
 #[cfg(test)]
@@ -134,6 +136,60 @@ mod tests {
         assert_eq!(check(&mut e, "globalThis.madeIsObject"), "true");
         assert_eq!(check(&mut e, "globalThis.txtIsObject"), "true");
         assert_eq!(check(&mut e, "globalThis.missing"), "true");
+    }
+
+    #[test]
+    fn element_attributes_content_and_props() {
+        let dom = Rc::new(RefCell::new(Dom::new()));
+        let mut e = BoaEngine::new(dom);
+        install(&mut e);
+        e.eval(
+            r#"
+            var el = document.createElement('input');
+            el.setAttribute('type', 'checkbox');
+            globalThis.attr = el.getAttribute('type');
+            globalThis.hasIt = el.hasAttribute('type');
+            el.removeAttribute('type');
+            globalThis.gone = (el.getAttribute('type') === null);
+
+            el.id = 'todo-1';
+            globalThis.id = el.id;
+            el.className = 'a b';
+            globalThis.cls = el.className;
+            el.classList.add('c');
+            el.classList.toggle('a');       // removes a
+            globalThis.hasC = el.classList.contains('c');
+            globalThis.hasA = el.classList.contains('a');
+
+            var p = document.createElement('p');
+            p.textContent = 'hello';
+            globalThis.text = p.textContent;
+
+            el.value = 'typed';
+            globalThis.value = el.value;
+            el.checked = true;
+            globalThis.checked = el.checked;
+
+            el.style.setProperty('display', 'none');
+            globalThis.disp = el.style.getPropertyValue('display');
+            "#,
+        )
+        .unwrap();
+        let check = |e: &mut BoaEngine, expr: &str| -> String {
+            e.context_mut().eval(boa_engine::Source::from_bytes(expr)).unwrap()
+                .to_string(e.context_mut()).unwrap().to_std_string_escaped()
+        };
+        assert_eq!(check(&mut e, "globalThis.attr"), "checkbox");
+        assert_eq!(check(&mut e, "globalThis.hasIt"), "true");
+        assert_eq!(check(&mut e, "globalThis.gone"), "true");
+        assert_eq!(check(&mut e, "globalThis.id"), "todo-1");
+        assert_eq!(check(&mut e, "globalThis.cls"), "a b");
+        assert_eq!(check(&mut e, "globalThis.hasC"), "true");
+        assert_eq!(check(&mut e, "globalThis.hasA"), "false");
+        assert_eq!(check(&mut e, "globalThis.text"), "hello");
+        assert_eq!(check(&mut e, "globalThis.value"), "typed");
+        assert_eq!(check(&mut e, "globalThis.checked"), "true");
+        assert_eq!(check(&mut e, "globalThis.disp"), "none");
     }
 
     #[test]
