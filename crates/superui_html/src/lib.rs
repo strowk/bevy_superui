@@ -237,4 +237,27 @@ mod parse_tests {
         };
         assert_eq!(labels, vec!["Taste JavaScript".to_string(), "Buy a unicorn".to_string()]);
     }
+
+    #[test]
+    fn comment_between_siblings_is_dropped_and_order_kept() {
+        // A comment between two element siblings leaves no node behind, and the
+        // surviving <li> children keep their document order.
+        let dom = parse_document("<ul><li>a</li><!--x--><li>b</li></ul>");
+        let ul = first_by_tag(&dom, "ul").expect("<ul>");
+        let kids = dom.children(ul);
+        assert_eq!(kids.len(), 2);
+        assert_eq!(dom.tag(kids[0]), Some("li"));
+        assert_eq!(dom.tag(kids[1]), Some("li"));
+        assert_eq!(dom.text_content(kids[0]), "a");
+        assert_eq!(dom.text_content(kids[1]), "b");
+    }
+
+    #[test]
+    fn foster_parented_text_coalesces_across_dropped_comment() {
+        // Text directly inside <table> is foster-parented before the table; the
+        // comment between the two text runs is dropped and they coalesce to "ab".
+        let dom = parse_document("<table>a<!--x-->b</table>");
+        let body = first_by_tag(&dom, "body").expect("<body>");
+        assert_eq!(dom.text_content(body), "ab");
+    }
 }
