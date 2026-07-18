@@ -5,6 +5,7 @@
 
 mod node;
 mod tree;
+mod attr;
 
 pub use node::{ElementData, Listener, ListenerId, NodeData, NodeId, NodeKind};
 pub use tree::{Dom, DomError};
