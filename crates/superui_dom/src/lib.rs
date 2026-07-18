@@ -3,10 +3,8 @@
 //! Knows nothing about Bevy or JavaScript. The structural source of truth that
 //! the reconciler diffs against and that the JS layer mutates.
 
-#[cfg(test)]
-mod smoke {
-    #[test]
-    fn crate_builds() {
-        assert_eq!(2 + 2, 4);
-    }
-}
+mod node;
+mod tree;
+
+pub use node::{ElementData, Listener, ListenerId, NodeData, NodeId, NodeKind};
+pub use tree::{Dom, DomError};
