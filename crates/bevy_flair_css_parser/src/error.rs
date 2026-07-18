@@ -97,12 +97,14 @@ impl CssErrorLocation {
                 source_location,
                 len_offset,
             } => {
-                let line = contents
-                    .lines()
-                    .nth(source_location.line as usize)
-                    .unwrap_or_else(|| {
-                        panic!("Line number {} not found in contents", source_location.line)
-                    });
+                // SUPERUI FORK PATCH (design §1 graceful degradation): a parse
+                // error can carry a SourceLocation one line past EOF (e.g. a
+                // trailing block-less malformed rule). Upstream panicked here;
+                // instead fall back to an empty end-of-input span so the bad
+                // rule is skipped, not fatal.
+                let Some(line) = contents.lines().nth(source_location.line as usize) else {
+                    return contents.len()..contents.len();
+                };
 
                 // The column number within a line starts at 1 for first the character of the line.
                 // Column numbers are counted in UTF-16 code units.

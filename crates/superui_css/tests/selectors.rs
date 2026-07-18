@@ -100,3 +100,51 @@ fn matches_html_selectors_end_to_end() {
     // `:hover`:
     assert_bg!(app, "btn", css::TEAL);
 }
+
+/// CSS that ends with a trailing block-less malformed rule (the exact shape
+/// that previously triggered the EOF-adjacent panic in the fork's error.rs).
+/// The valid `#kept` rule must still apply; the sheet must not panic or fail.
+const MALFORMED_TRAILING_CSS: &str = concat!(
+    "li { background-color: white; }\n",
+    "#kept { background-color: blue; }\n",
+    "this-is-not-valid @@@ ;\n",
+);
+
+#[test]
+fn malformed_trailing_rule_degrades_without_panic() {
+    put_css("malformed_trailing.css", MALFORMED_TRAILING_CSS);
+
+    let mut app = test_app();
+    let handle = {
+        let server = app.world().resource::<AssetServer>().clone();
+        server.load_style_sheet("malformed_trailing.css")
+    };
+
+    let root = app
+        .world_mut()
+        .spawn((
+            Node::default(),
+            html_type_name("ul"),
+            NodeStyleSheet::new(handle.clone()),
+        ))
+        .id();
+
+    let kept = app
+        .world_mut()
+        .spawn((
+            Node::default(),
+            html_type_name("li"),
+            Name::new("kept"),
+        ))
+        .id();
+
+    app.world_mut().entity_mut(root).add_children(&[kept]);
+
+    // This must NOT panic — that is the primary assertion of this test.
+    load_until_ready(&mut app, &handle);
+
+    // The `#kept` id rule (specificity 1,0,0) wins over the plain `li` rule
+    // (0,0,1) → blue. This confirms: (a) the sheet loaded without panicking,
+    // (b) valid rules still applied despite the trailing malformed rule.
+    assert_bg!(app, "kept", css::BLUE);
+}
