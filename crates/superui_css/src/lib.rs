@@ -10,6 +10,9 @@ pub use bevy_flair_core as core;
 pub use bevy_flair_css_parser as parser;
 pub use bevy_flair_style as style;
 
+mod tag;
+pub use tag::{html_type_name, intern_tag};
+
 bevy_app::plugin_group! {
     /// The one plugin Plan 5's `SuperUiPlugin` adds to get the full CSS engine:
     /// property registry, the style/selector systems, default animations, and
@@ -27,6 +30,7 @@ bevy_app::plugin_group! {
 /// The HTML-shaped surface Plan 5's reconciler and authored code reach for.
 pub mod prelude {
     pub use crate::SuperUiCssPlugin;
+    pub use crate::{html_type_name, intern_tag};
     pub use bevy_flair_css_parser::InlineStyle;
     pub use bevy_flair_style::components::{
         AttributeList, ClassList, NodeStyleData, NodeStyleSheet, TypeName,
