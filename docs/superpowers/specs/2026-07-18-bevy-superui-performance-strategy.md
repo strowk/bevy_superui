@@ -1,7 +1,7 @@
 # bevy_superui — Performance Benchmarking & Optimization Strategy
 
 Date: 2026-07-18
-Status: Approved for planning (strategy only — no implementation yet)
+Status: Approved
 Related: [`2026-07-18-bevy-superui-design.md`](./2026-07-18-bevy-superui-design.md)
 
 ## 1. Purpose & scope
