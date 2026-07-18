@@ -70,4 +70,78 @@ mod parse_tests {
         assert!(first_by_tag(&dom, "div").is_some());
         assert!(first_by_tag(&dom, "DIV").is_none());
     }
+
+    /// Count elements (document order) with the given tag name.
+    fn count_by_tag(dom: &Dom, tag: &str) -> usize {
+        fn walk(dom: &Dom, node: NodeId, tag: &str, acc: &mut usize) {
+            if dom.tag(node) == Some(tag) {
+                *acc += 1;
+            }
+            for &c in dom.children(node) {
+                walk(dom, c, tag, acc);
+            }
+        }
+        let mut n = 0;
+        walk(dom, dom.document(), tag, &mut n);
+        n
+    }
+
+    #[test]
+    fn comments_are_dropped() {
+        let dom = parse_document("<div><!-- a comment --></div>");
+        let div = first_by_tag(&dom, "div").expect("<div>");
+        assert_eq!(dom.children(div).len(), 0);
+        assert_eq!(dom.text_content(div), "");
+    }
+
+    #[test]
+    fn doctype_is_dropped() {
+        let dom = parse_document("<!DOCTYPE html><html><head></head><body></body></html>");
+        // The document's only child is <html>; no doctype node was added.
+        assert_eq!(dom.children(dom.document()).len(), 1);
+        let html = first_by_tag(&dom, "html").expect("<html>");
+        assert_eq!(dom.children(dom.document()), &[html]);
+    }
+
+    #[test]
+    fn plain_text_is_a_single_text_node() {
+        let dom = parse_document("<p>Hello, world</p>");
+        let p = first_by_tag(&dom, "p").expect("<p>");
+        assert_eq!(dom.children(p).len(), 1);
+        assert_eq!(dom.text_content(p), "Hello, world");
+    }
+
+    #[test]
+    fn text_split_by_a_dropped_comment_is_coalesced() {
+        // html5ever emits text "a", a comment, then text "b". The comment is
+        // dropped, and "b" must merge into the "a" text node left behind.
+        let dom = parse_document("<p>a<!--x-->b</p>");
+        let p = first_by_tag(&dom, "p").expect("<p>");
+        assert_eq!(dom.children(p).len(), 1);
+        assert_eq!(dom.text_content(p), "ab");
+    }
+
+    #[test]
+    fn void_element_has_no_children_and_next_is_a_sibling() {
+        let dom = parse_document("<input><span></span>");
+        let input = first_by_tag(&dom, "input").expect("<input>");
+        let span = first_by_tag(&dom, "span").expect("<span>");
+        assert_eq!(dom.children(input).len(), 0);
+        // input and span are siblings (span is NOT a child of the void input).
+        assert_eq!(dom.parent(input), dom.parent(span));
+    }
+
+    #[test]
+    fn unknown_tag_becomes_a_plain_element() {
+        let dom = parse_document("<my-widget></my-widget>");
+        assert_eq!(count_by_tag(&dom, "my-widget"), 1);
+    }
+
+    #[test]
+    fn boolean_attribute_is_present_with_empty_value() {
+        let dom = parse_document(r#"<input type="checkbox" checked>"#);
+        let input = first_by_tag(&dom, "input").expect("<input>");
+        assert!(dom.has_attribute(input, "checked"));
+        assert_eq!(dom.get_attribute(input, "checked"), Some(""));
+    }
 }
