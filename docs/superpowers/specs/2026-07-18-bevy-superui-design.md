@@ -178,9 +178,12 @@ implementation.
 - **Notes:** taffy/bevy_ui constraint, degradation behavior, or link to tracking issue.
 
 **🟡 Roadmap** = achievable in theory *regardless of what bevy_ui can do today* (so SVG,
-canvas, transforms are 🟡 Roadmap, not ⛔). **⛔ Won't** is reserved for things fundamentally
-out of scope — currently: `fetch`/network, cookies, navigation/history,
-multi-document/iframes-to-servers.
+canvas, transforms are 🟡 Roadmap, not ⛔). The **History API** (`history.pushState`/
+`replaceState`/`popstate`, in-memory `location`) is also 🟡 Roadmap (low tier): it's an
+in-memory state stack that client-side routers rely on, with no network dependency — there's no
+physical "back" button in a Bevy game, but JS-driven routing state is fair game. **⛔ Won't** is
+reserved for things fundamentally out of scope — currently: `fetch`/network, cookies, and
+actual server navigation / multi-document / iframes-to-servers.
 
 Ordering within each file is by tier (T0 first), so the top of each file is the highest-value
 surface. The ledger is authored during Phase 1 covering the full landscape (even unimplemented
