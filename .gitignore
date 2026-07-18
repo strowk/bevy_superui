@@ -10,3 +10,7 @@
 
 # Local editor / tool state
 /.claude/settings.local.json
+
+# Stray test output captures
+/test_output.txt
+**/test_output.txt
