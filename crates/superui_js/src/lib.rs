@@ -9,15 +9,24 @@ mod state;
 pub use engine::BoaEngine;
 pub use state::{
     dom_of, jsstr, node_id_of, with_host_state, with_host_state_mut, wrap_node, wrap_opt_node,
-    HostState, NodeHandle, Protos, Timer,
+    EventData, HostState, NodeHandle, Protos, Timer,
 };
 
 /// The coarse boundary the Bevy layers consume so they never name Boa. Fine-
-/// grained DOM bindings live in `superui_api`, not here. Extended with
-/// `dispatch_event` (Task 8) and `run_timers` (Task 9).
+/// grained DOM bindings live in `superui_api`, not here.
 pub trait JsEngine {
     /// Evaluate a script against the current context. `Err` carries a message.
     fn eval(&mut self, script: &str) -> Result<(), String>;
+
+    /// Dispatch a DOM event of `event_type` at `target` (W3C capture→target→
+    /// bubble). Returns whether `preventDefault()` was called.
+    fn dispatch_event(
+        &mut self,
+        target: superui_dom::NodeId,
+        event_type: &str,
+        bubbles: bool,
+        cancelable: bool,
+    ) -> bool;
 }
 
 #[cfg(test)]

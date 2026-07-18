@@ -29,6 +29,14 @@ pub struct Protos {
     pub style: Option<JsObject>,
 }
 
+/// Native data for a JS `Event` object: the shared dispatch state that
+/// `preventDefault`/`stopPropagation` mutate and the dispatch loop reads.
+#[derive(Trace, Finalize, JsData)]
+pub struct EventData {
+    #[unsafe_ignore_trace]
+    pub inner: Rc<RefCell<superui_dom::Event>>,
+}
+
 /// A scheduled timer callback (Task 9).
 #[derive(Trace, Finalize)]
 pub struct Timer {

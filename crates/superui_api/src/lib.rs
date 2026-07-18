@@ -6,6 +6,7 @@
 mod console;
 mod document;
 mod element;
+mod events;
 mod fetch;
 mod node;
 
@@ -44,6 +45,7 @@ pub fn install(engine: &mut BoaEngine) {
     document::install_document(context);
     node::install_node(context);
     element::install_element(context);
+    events::install_events(context);
 }
 
 #[cfg(test)]
@@ -230,5 +232,73 @@ mod tests {
         assert_eq!(check(&mut e, "globalThis.count3"), "2");
         assert_eq!(check(&mut e, "globalThis.tag"), "DIV");
         assert_eq!(check(&mut e, "globalThis.ntype"), "1");
+    }
+
+    #[test]
+    fn events_dispatch_capture_target_bubble_and_prevent_default() {
+        use superui_js::JsEngine;
+        let dom = Rc::new(RefCell::new(Dom::new()));
+        let (root, mid, leaf) = {
+            let mut d = dom.borrow_mut();
+            let doc = d.document();
+            let root = d.create_element("div");
+            let mid = d.create_element("div");
+            let leaf = d.create_element("button");
+            d.append_child(doc, root).unwrap();
+            d.append_child(root, mid).unwrap();
+            d.append_child(mid, leaf).unwrap();
+            (root, mid, leaf)
+        };
+        let mut e = BoaEngine::new(dom);
+        install(&mut e);
+        // Expose the three nodes to JS by id for listener wiring.
+        {
+            let d = e.dom();
+            let mut d = d.borrow_mut();
+            d.set_attribute(root, "id", "root").unwrap();
+            d.set_attribute(mid, "id", "mid").unwrap();
+            d.set_attribute(leaf, "id", "leaf").unwrap();
+        }
+        e.eval(
+            r#"
+            globalThis.order = [];
+            document.getElementById('root').addEventListener('click', e => { order.push('root-capture'); }, true);
+            document.getElementById('mid').addEventListener('click', function(e){ order.push('mid-bubble'); });
+            document.getElementById('leaf').addEventListener('click', function(e){ order.push('leaf'); e.preventDefault(); });
+            "#,
+        )
+        .unwrap();
+
+        let default_prevented = e.dispatch_event(leaf, "click", true, true);
+        assert!(default_prevented);
+
+        let order = e
+            .context_mut()
+            .eval(boa_engine::Source::from_bytes("globalThis.order.join(',')"))
+            .unwrap()
+            .to_string(e.context_mut())
+            .unwrap()
+            .to_std_string_escaped();
+        assert_eq!(order, "root-capture,leaf,mid-bubble");
+    }
+
+    #[test]
+    fn remove_event_listener_stops_delivery() {
+        use superui_js::JsEngine;
+        let dom = Rc::new(RefCell::new(Dom::new()));
+        let btn = { let mut d = dom.borrow_mut(); let doc = d.document(); let b = d.create_element("button"); d.append_child(doc, b).unwrap(); d.set_attribute(b, "id", "b").unwrap(); b };
+        let mut e = BoaEngine::new(dom);
+        install(&mut e);
+        e.eval(
+            r#"
+            globalThis.hits = 0;
+            globalThis.h = function(){ globalThis.hits++; };
+            document.getElementById('b').addEventListener('click', globalThis.h);
+            document.getElementById('b').removeEventListener('click', globalThis.h);
+            "#,
+        ).unwrap();
+        e.dispatch_event(btn, "click", true, true);
+        let hits = e.context_mut().eval(boa_engine::Source::from_bytes("globalThis.hits")).unwrap().as_i32().unwrap_or(-1);
+        assert_eq!(hits, 0);
     }
 }
