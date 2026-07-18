@@ -33,3 +33,8 @@ while building), not all up front.
 > Read `docs/superpowers/specs/2026-07-18-bevy-superui-design.md` and this file. Plan 1
 > (`superui_dom`) is done and merged to `main`. Write and execute the next unstarted plan
 > in the table above.
+
+## Performance strategy
+
+There is a separate design about performance testing strategy, this is planned and implemented separately from the above Phase 1 plan series. 
+Do not attempt to mix this with this described plan.
