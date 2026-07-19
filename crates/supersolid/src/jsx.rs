@@ -145,6 +145,14 @@ impl<'a> Lower<'a> {
         )
     }
 
+    /// `$ss.on(<target>, "type", <handler>)` as an expression statement.
+    fn on_stmt(&self, target: &str, event_type: &str, handler: Expression<'a>) -> Statement<'a> {
+        let callee = self.runtime_member("on");
+        let target_ident = self.ast.expression_identifier(SPAN, self.atom(target));
+        let call = self.call(callee, vec![target_ident, self.string(event_type), handler]);
+        self.ast.statement_expression(SPAN, call)
+    }
+
     /// `$ss.bind(<target>, "name", <thunk>)` as an expression statement.
     fn bind_stmt(&self, target: &str, name: &str, thunk: Expression<'a>) -> Statement<'a> {
         let callee = self.runtime_member("bind");
@@ -201,11 +209,13 @@ impl<'a> Lower<'a> {
 
         // Collect attribute data before any mutable borrows.
         // Each attribute is one of:
-        //   - StaticAttr(name, value) — plain string value or literal expression
-        //   - DynamicAttr(name, expr) — expression container with non-literal expr (cloned)
+        //   - Static(name, value) — plain string value or literal expression
+        //   - Dynamic(name, expr) — expression container with non-literal expr (cloned)
+        //   - Event(type, handler) — onX={h} → $ss.on(el, "x", h); handler not thunked
         enum AttrKind<'ast> {
             Static(String, String),
             Dynamic(String, Expression<'ast>),
+            Event(String, Expression<'ast>),
         }
         let attr_data: Vec<AttrKind<'a>> = element
             .opening_element
@@ -219,6 +229,19 @@ impl<'a> Lower<'a> {
                         format!("{}:{}", ns.namespace.name.as_str(), ns.name.name.as_str())
                     }
                 };
+                // Event handler: `onX={h}` where X is at least one character.
+                // Must be checked BEFORE static/dynamic branches so onClick never
+                // falls through to $ss.attr / $ss.bind.
+                if name.starts_with("on") && name.len() > 2 {
+                    let event_type = name[2..].to_ascii_lowercase();
+                    if let Some(JSXAttributeValue::ExpressionContainer(container)) = &attr.value {
+                        match Expression::try_from(container.expression.clone_in(self.ast.allocator)) {
+                            Ok(handler) => return Some(AttrKind::Event(event_type, handler)),
+                            Err(_) => return None, // Empty expression container — skip.
+                        }
+                    }
+                    // onX with a string value or no value: fall through to static.
+                }
                 match &attr.value {
                     Some(JSXAttributeValue::StringLiteral(s)) => {
                         // Plain string attr: `class="box"` → static.
@@ -297,6 +320,9 @@ impl<'a> Lower<'a> {
                 AttrKind::Dynamic(name, expr) => {
                     let thunk = self.thunk(expr);
                     self.bind_stmt(&local, &name, thunk)
+                }
+                AttrKind::Event(event_type, handler) => {
+                    self.on_stmt(&local, &event_type, handler)
                 }
             };
             stmts.push(stmt);

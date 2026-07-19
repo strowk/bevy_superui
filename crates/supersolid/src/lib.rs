@@ -160,4 +160,23 @@ mod tests {
         assert!(!out.contains("$ss.bind("), "no dynamic binding for literals:\n{out}");
         assert!(reparses_as_plain_js(&out), "{out}");
     }
+
+    #[test]
+    fn on_click_lowers_to_event_listener() {
+        let out = code("const a = <button onClick={handler}>x</button>;");
+        assert!(out.contains("$ss.on("), "{out}");
+        assert!(out.contains(r#""click""#), "event name normalized:\n{out}");
+        assert!(out.contains("handler"), "{out}");
+        assert!(!out.contains(r#"$ss.bind("_el"#) || !out.contains("onclick"),
+            "onClick must not become an attribute:\n{out}");
+        assert!(reparses_as_plain_js(&out), "{out}");
+    }
+
+    #[test]
+    fn on_input_normalizes_event_name() {
+        let out = code("const a = <input onInput={e => f(e)}/>;");
+        assert!(out.contains("$ss.on("), "{out}");
+        assert!(out.contains(r#""input""#), "{out}");
+        assert!(reparses_as_plain_js(&out), "{out}");
+    }
 }
