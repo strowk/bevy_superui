@@ -22,8 +22,9 @@
 use oxc::allocator::Allocator;
 use oxc::allocator::CloneIn;
 use oxc::ast::ast::{
-    Argument, Expression, FormalParameterKind, JSXAttributeItem, JSXAttributeName,
-    JSXAttributeValue, JSXChild, JSXElement, JSXElementName, JSXExpression, Program, Statement,
+    ArrayExpressionElement, Argument, Expression, FormalParameterKind, FunctionType,
+    JSXAttributeItem, JSXAttributeName, JSXAttributeValue, JSXChild, JSXElement, JSXElementName,
+    JSXExpression, JSXFragment, ObjectPropertyKind, Program, PropertyKind, Statement,
     VariableDeclarationKind,
 };
 use oxc::ast::{AstBuilder, NONE};
@@ -192,6 +193,82 @@ impl<'a> Lower<'a> {
         self.call(arrow, vec![])
     }
 
+    /// A plain object property `name: <value>` (`kind = Init`).
+    fn init_prop(&self, name: &str, value: Expression<'a>) -> ObjectPropertyKind<'a> {
+        let key = self.ast.property_key_static_identifier(SPAN, self.atom(name));
+        self.ast.object_property_kind_object_property(
+            SPAN,
+            PropertyKind::Init,
+            key,
+            value,
+            /* method */ false,
+            /* shorthand */ false,
+            /* computed */ false,
+        )
+    }
+
+    /// A getter object property `get name() { return <expr>; }` (`kind = Get`).
+    ///
+    /// The value is a zero-parameter `FunctionExpression` whose body is a single
+    /// `return <expr>;`. oxc's codegen prints this as `get name() { return ...; }`
+    /// when the property kind is `Get`.
+    fn getter_prop(&self, name: &str, expr: Expression<'a>) -> ObjectPropertyKind<'a> {
+        let params = self.ast.formal_parameters(
+            SPAN,
+            FormalParameterKind::FormalParameter,
+            self.ast.vec(),
+            NONE,
+        );
+        let ret = self.ast.statement_return(SPAN, Some(expr));
+        let body = self.ast.function_body(SPAN, self.ast.vec(), self.ast.vec1(ret));
+        let func = self.ast.expression_function(
+            SPAN,
+            FunctionType::FunctionExpression,
+            /* id */ None,
+            /* generator */ false,
+            /* async */ false,
+            /* declare */ false,
+            NONE,
+            NONE,
+            params,
+            NONE,
+            Some(body),
+        );
+        let key = self.ast.property_key_static_identifier(SPAN, self.atom(name));
+        self.ast.object_property_kind_object_property(
+            SPAN,
+            PropertyKind::Get,
+            key,
+            func,
+            /* method */ false,
+            /* shorthand */ false,
+            /* computed */ false,
+        )
+    }
+
+    /// An object expression `{ <props> }`.
+    fn object(&self, props: Vec<ObjectPropertyKind<'a>>) -> Expression<'a> {
+        let properties = self.ast.vec_from_iter(props);
+        self.ast.expression_object(SPAN, properties)
+    }
+
+    /// `$ss.cmp(<Comp ident>, <props object>)`.
+    fn cmp_call(&self, comp: &str, props: Expression<'a>) -> Expression<'a> {
+        let callee = self.runtime_member("cmp");
+        let comp_ident = self.ast.expression_identifier(SPAN, self.atom(comp));
+        self.call(callee, vec![comp_ident, props])
+    }
+
+    /// `$ss.frag([ <exprs> ])`.
+    fn frag_call(&self, exprs: Vec<Expression<'a>>) -> Expression<'a> {
+        let callee = self.runtime_member("frag");
+        let elements = self
+            .ast
+            .vec_from_iter(exprs.into_iter().map(ArrayExpressionElement::from));
+        let array = self.ast.expression_array(SPAN, elements);
+        self.call(callee, vec![array])
+    }
+
     /// Lower a `JSXElement` (Task 3: element + static attributes + static children).
     ///
     /// Returns `None` when the tag name is not a plain identifier (e.g.
@@ -338,7 +415,10 @@ impl<'a> Lower<'a> {
                     self.child_stmt(&local, child_expr)
                 }
                 ChildKind::Element(el) => {
-                    match self.lower_element(el) {
+                    // Recurse through the tag-case entry so a nested *component*
+                    // child (`<div><Counter/></div>`) lowers to $ss.cmp, not
+                    // $ss.el("Counter").  Resolves the Task-3 deferral.
+                    match self.lower_jsx_element(el) {
                         Some(expr) => self.child_stmt(&local, expr),
                         None => continue,
                     }
@@ -353,6 +433,150 @@ impl<'a> Lower<'a> {
         stmts.push(self.return_ident(&local));
         Some(self.iife(stmts))
     }
+
+    /// Lower a single JSX child to an expression, or `None` if it should be
+    /// skipped (whitespace-only text, empty expression container, or a nested
+    /// element/component tag we cannot lower).  Used by component `children` and
+    /// fragment array lowering, where children are expressions rather than
+    /// `$ss.child(...)` statements.
+    fn lower_child_expr(&mut self, child: &JSXChild<'a>) -> Option<Expression<'a>> {
+        match child {
+            JSXChild::Text(t) => {
+                let trimmed = t.value.as_str().trim().to_string();
+                if trimmed.is_empty() {
+                    None
+                } else {
+                    Some(self.txt_call(&trimmed))
+                }
+            }
+            JSXChild::Element(el) => self.lower_jsx_element(el.as_ref()),
+            JSXChild::Fragment(frag) => Some(self.lower_fragment(frag.as_ref())),
+            JSXChild::ExpressionContainer(container) => {
+                if let Some(lit) = is_static_literal(&container.expression) {
+                    Some(self.txt_call(&lit))
+                } else {
+                    Expression::try_from(container.expression.clone_in(self.ast.allocator)).ok()
+                }
+            }
+            _ => None,
+        }
+    }
+
+    /// Lower the children of a component/fragment into a single expression:
+    /// a single child → that child's expression; multiple → `$ss.frag([...])`.
+    /// Returns `None` when there are no non-whitespace children.
+    fn lower_children_expr(&mut self, children: &[JSXChild<'a>]) -> Option<Expression<'a>> {
+        let exprs: Vec<Expression<'a>> =
+            children.iter().filter_map(|c| self.lower_child_expr(c)).collect();
+        match exprs.len() {
+            0 => None,
+            1 => exprs.into_iter().next(),
+            _ => Some(self.frag_call(exprs)),
+        }
+    }
+
+    /// Lower a component tag `<Comp .../>` to `$ss.cmp(Comp, { ...props... })`.
+    fn lower_component(&mut self, comp: &str, element: &JSXElement<'a>) -> Expression<'a> {
+        // Component prop kinds:
+        //   - Static(name, value)   → plain prop `name: <literal JS value>`
+        //   - Dynamic(name, expr)   → getter prop `get name() { return <expr>; }`
+        //   - Handler(name, expr)   → plain prop `name: <handler>` (onX passed as-is)
+        enum PropKind<'ast> {
+            Static(String, Expression<'ast>),
+            Dynamic(String, Expression<'ast>),
+            Handler(String, Expression<'ast>),
+        }
+        let prop_data: Vec<PropKind<'a>> = element
+            .opening_element
+            .attributes
+            .iter()
+            .filter_map(|item| {
+                let JSXAttributeItem::Attribute(attr) = item else { return None };
+                let name = match &attr.name {
+                    JSXAttributeName::Identifier(id) => id.name.as_str().to_string(),
+                    JSXAttributeName::NamespacedName(ns) => {
+                        format!("{}:{}", ns.namespace.name.as_str(), ns.name.name.as_str())
+                    }
+                };
+                let is_handler = name.starts_with("on") && name.len() > 2;
+                match &attr.value {
+                    // `name="lit"` → plain string prop (kept as a string value).
+                    Some(JSXAttributeValue::StringLiteral(s)) => {
+                        let value = self.string(s.value.as_str());
+                        Some(PropKind::Static(name, value))
+                    }
+                    Some(JSXAttributeValue::ExpressionContainer(container)) => {
+                        let cloned =
+                            match Expression::try_from(container.expression.clone_in(self.ast.allocator)) {
+                                Ok(expr) => expr,
+                                Err(_) => return None, // empty `{}`
+                            };
+                        if is_handler {
+                            // `onX={h}` on a component → ordinary prop `onX: h`.
+                            Some(PropKind::Handler(name, cloned))
+                        } else if is_literal_expression(&container.expression) {
+                            // Literal prop keeps its ORIGINAL literal value (not
+                            // stringified): `start={5}` → `start: 5`.
+                            Some(PropKind::Static(name, cloned))
+                        } else {
+                            // Non-literal expression → getter prop.
+                            Some(PropKind::Dynamic(name, cloned))
+                        }
+                    }
+                    _ => None,
+                }
+            })
+            .collect();
+
+        let mut props: Vec<ObjectPropertyKind<'a>> = Vec::with_capacity(prop_data.len() + 1);
+        for prop in prop_data {
+            let p = match prop {
+                PropKind::Static(name, value) => self.init_prop(&name, value),
+                PropKind::Handler(name, handler) => self.init_prop(&name, handler),
+                PropKind::Dynamic(name, expr) => self.getter_prop(&name, expr),
+            };
+            props.push(p);
+        }
+        if let Some(children_expr) = self.lower_children_expr(&element.children) {
+            props.push(self.getter_prop("children", children_expr));
+        }
+        let props_obj = self.object(props);
+        self.cmp_call(comp, props_obj)
+    }
+
+    /// Lower a `JSXFragment` `<>...</>` to `$ss.frag([ <child exprs> ])`.
+    fn lower_fragment(&mut self, fragment: &JSXFragment<'a>) -> Expression<'a> {
+        let exprs: Vec<Expression<'a>> =
+            fragment.children.iter().filter_map(|c| self.lower_child_expr(c)).collect();
+        self.frag_call(exprs)
+    }
+
+    /// JSX-element lowering entry: branch on tag case, then dispatch to component
+    /// or element lowering.  A plain identifier whose first character is uppercase
+    /// is a component (`$ss.cmp`); a lowercase identifier is an element (Task 2-5);
+    /// non-identifier names (member/namespaced) return `None` (left untouched).
+    fn lower_jsx_element(&mut self, element: &JSXElement<'a>) -> Option<Expression<'a>> {
+        match &element.opening_element.name {
+            // oxc's parser tags a capitalized name (`<Counter/>`) as an
+            // `IdentifierReference` (it references a binding), while a lowercase
+            // intrinsic tag (`<div/>`) is a plain `Identifier`.  So an
+            // `IdentifierReference` IS the component case.
+            JSXElementName::IdentifierReference(id) => {
+                let name = id.name.as_str().to_string();
+                Some(self.lower_component(&name, element))
+            }
+            // A plain `Identifier` starting uppercase would also be a component
+            // (defensive; the parser normally uses IdentifierReference here).
+            JSXElementName::Identifier(id)
+                if id.name.as_str().chars().next().is_some_and(|c| c.is_uppercase()) =>
+            {
+                let name = id.name.as_str().to_string();
+                Some(self.lower_component(&name, element))
+            }
+            // Lowercase intrinsic element (Task 2-5) or non-identifier tag.
+            _ => self.lower_element(element),
+        }
+    }
 }
 
 impl<'a> VisitMut<'a> for Lower<'a> {
@@ -362,18 +586,28 @@ impl<'a> VisitMut<'a> for Lower<'a> {
         oxc::ast_visit::walk_mut::walk_expression(self, expr);
         match expr {
             Expression::JSXElement(element) => {
-                if let Some(lowered) = self.lower_element(element) {
+                // Tag-case entry: uppercase identifier → component ($ss.cmp),
+                // lowercase → element (Task 2-5), non-identifier → None.
+                if let Some(lowered) = self.lower_jsx_element(element) {
                     *expr = lowered;
                 }
                 // None => non-identifier tag name (member/namespaced); leave
                 // the JSX expression untouched rather than emitting $ss.el("").
             }
-            Expression::JSXFragment(_) => {
-                // Fragments arrive in a later task; leave untouched for now.
+            Expression::JSXFragment(fragment) => {
+                *expr = self.lower_fragment(fragment);
             }
             _ => {}
         }
     }
+}
+
+/// True iff a JSX expression container holds a plain string or numeric literal.
+/// Component props keep such literals as their original JS values (a string
+/// literal stays a string, a numeric literal stays a number) rather than being
+/// stringified like element attributes.
+fn is_literal_expression(expr: &JSXExpression<'_>) -> bool {
+    matches!(expr, JSXExpression::StringLiteral(_) | JSXExpression::NumericLiteral(_))
 }
 
 /// If `expr` is a string or numeric literal, return its stringified value;

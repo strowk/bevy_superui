@@ -179,4 +179,37 @@ mod tests {
         assert!(out.contains(r#""input""#), "{out}");
         assert!(reparses_as_plain_js(&out), "{out}");
     }
+
+    #[test]
+    fn capitalized_tag_lowers_to_component() {
+        let out = code("const a = <Counter/>;");
+        assert!(out.contains("$ss.cmp(Counter"), "component call:\n{out}");
+        assert!(reparses_as_plain_js(&out), "{out}");
+    }
+
+    #[test]
+    fn component_static_and_dynamic_props() {
+        let out = code("const a = <Counter start={5} label=\"hi\" n={x()}/>;");
+        assert!(out.contains("$ss.cmp(Counter"), "{out}");
+        assert!(out.contains("start: 5"), "static numeric prop kept as JS value:\n{out}");
+        assert!(out.contains(r#"label: "hi""#), "static string prop:\n{out}");
+        assert!(out.contains("get n()") && out.contains("x()"), "dynamic prop is a getter:\n{out}");
+        assert!(reparses_as_plain_js(&out), "{out}");
+    }
+
+    #[test]
+    fn component_children_become_children_getter() {
+        let out = code("const a = <Box>{kid}</Box>;");
+        assert!(out.contains("$ss.cmp(Box"), "{out}");
+        assert!(out.contains("get children()"), "children passed as getter:\n{out}");
+        assert!(reparses_as_plain_js(&out), "{out}");
+    }
+
+    #[test]
+    fn fragment_lowers_to_frag_array() {
+        let out = code("const a = <><A/><B/></>;");
+        assert!(out.contains("$ss.frag(["), "{out}");
+        assert!(out.contains("$ss.cmp(A") && out.contains("$ss.cmp(B"), "{out}");
+        assert!(reparses_as_plain_js(&out), "{out}");
+    }
 }
