@@ -1,1 +1,117 @@
-#app { display: flex; flex-direction: column; }
+#app {
+  display: flex;
+  flex-direction: column;
+  width: 420px;
+  margin: 40px;
+  padding: 16px;
+  background-color: #ffffff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+}
+
+h1 {
+  color: #b83f45;
+  font-size: 48px;
+  margin: 8px;
+}
+
+#new-todo-row {
+  display: flex;
+  flex-direction: row;
+  margin: 8px;
+}
+
+#new-todo {
+  flex-grow: 1;
+  height: 32px;
+  padding: 8px;
+  border: 1px solid #cccccc;
+  border-radius: 4px;
+  color: #333333;
+  font-size: 18px;
+}
+
+#add {
+  height: 32px;
+  padding: 8px;
+  margin: 4px;
+  background-color: #b83f45;
+  color: #ffffff;
+  border-radius: 4px;
+}
+
+#add:hover {
+  background-color: #983035;
+}
+
+#todo-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.todo {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 8px;
+  border-bottom: 1px solid #ededed;
+}
+
+.todo .label {
+  flex-grow: 1;
+  color: #333333;
+  font-size: 18px;
+}
+
+.todo.completed .label {
+  color: #aaaaaa;
+}
+
+.toggle {
+  width: 24px;
+  height: 24px;
+  margin: 4px;
+}
+
+.destroy {
+  width: 28px;
+  height: 28px;
+  background-color: #ffffff;
+  color: #b83f45;
+  border-radius: 4px;
+}
+
+.destroy:hover {
+  background-color: #f4f4f4;
+}
+
+#footer {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px;
+}
+
+#count {
+  color: #777777;
+  font-size: 14px;
+}
+
+.filters {
+  display: flex;
+  flex-direction: row;
+}
+
+.filter {
+  margin: 2px;
+  padding: 4px;
+  color: #777777;
+  border: 1px solid #ffffff;
+  border-radius: 4px;
+}
+
+.filter.selected {
+  border: 1px solid #b83f45;
+  color: #b83f45;
+}

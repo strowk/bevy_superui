@@ -140,3 +140,23 @@ fn adding_a_todo_fires_bevy_send_into_ecs() {
 
     assert_eq!(app.world().resource::<Seen>().0, vec!["Ship it".to_string()]);
 }
+
+#[test]
+fn stylesheet_loads_and_ui_reconciles_with_it() {
+    // If style.css contained a fatal parse error, flair would fail to produce a
+    // StyleSheet and mount would stall; reaching a mounted runtime + rendered
+    // list proves the CSS loaded and cascaded without aborting.
+    let mut app = app();
+    let _root = mount_todomvc(&mut app);
+    add(&mut app, "styled");
+    // The todo rendered under the styled tree.
+    assert_eq!(li_labels(&app), vec!["styled".to_string()]);
+    // And the app entity carries a TypeName (reconciled body subtree exists).
+    let has_h1 = {
+        let mut q = app
+            .world_mut()
+            .query::<&superui_css::prelude::TypeName>();
+        q.iter(app.world()).any(|t| t.0 == "h1")
+    };
+    assert!(has_h1);
+}
