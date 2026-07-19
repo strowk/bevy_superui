@@ -1,0 +1,29 @@
+[package]
+name = "superui"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+superui_dom = { path = "../superui_dom" }
+superui_html = { path = "../superui_html" }
+superui_js = { path = "../superui_js" }
+superui_api = { path = "../superui_api" }
+superui_css = { path = "../superui_css" }
+superui_bridge = { path = "../superui_bridge" }
+
+bevy = { version = "0.17", default-features = false, features = [
+    "std",
+    "bevy_ui",
+    "bevy_text",
+    "bevy_picking",
+    "bevy_ui_picking_backend",
+    "bevy_input_focus",
+    "default_font",
+] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { version = "0.3", features = ["wasm_js"] }
+
+[dev-dependencies]
+serde = { version = "1", features = ["derive"] }
