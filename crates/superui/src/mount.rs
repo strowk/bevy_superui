@@ -14,6 +14,7 @@ use superui_css::style::StyleSheet;
 use superui_css::SuperUiCssPlugin;
 
 use crate::assets::{HtmlLoader, HtmlSource, JsLoader, JsSource};
+use crate::hot_reload::{HotReloadFlags, apply_hot_reload, detect_hot_reload};
 
 /// Marks an entity as an authored-UI mount point (holds its asset handles). The
 /// entity is also the ECS parent the DOM `<body>` reconciles into.
@@ -35,11 +36,14 @@ impl Plugin for SuperUiPlugin {
             .register_asset_loader(HtmlLoader)
             .register_asset_loader(JsLoader)
             .init_resource::<PendingDomEvents>()
+            .init_resource::<HotReloadFlags>()
             .add_observer(on_pointer_click)
             .add_systems(Update, mount_when_ready)
+            .add_systems(Update, detect_hot_reload.after(mount_when_ready))
             .add_systems(
                 Update,
                 (
+                    apply_hot_reload,
                     drain_bevy_outbox_system,
                     drain_dom_events_system,
                     keyboard_events_system,
@@ -48,6 +52,7 @@ impl Plugin for SuperUiPlugin {
                     reconcile_system,
                 )
                     .chain()
+                    .after(detect_hot_reload)
                     .after(mount_when_ready)
                     .run_if(runtime_exists),
             );
