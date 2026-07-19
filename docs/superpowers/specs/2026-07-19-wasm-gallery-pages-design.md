@@ -15,6 +15,7 @@
 | PR CI | Out of scope for now — deploy pipeline only |
 | Assembly/templating logic | A Rust `xtask` workspace crate (single toolchain, testable) |
 | In-page code viewer | Live app + tabbed source panel, responsive split; vendored (no-CDN) syntax highlighter |
+| Demo routing | Per-app stable URL at `/<slug>/`; no tab/file hash state. README table hand-written |
 
 Hot reload of HTML/CSS/JS is a **native-only** superui feature and cannot work on a static wasm build (no filesystem to watch). This is surfaced to visitors as an explicit callout, not hidden.
 
@@ -128,7 +129,23 @@ Both the gallery card and each host page carry a short banner:
 
 This frames the limitation as a deliberate native capability rather than a silent gap — and the code viewer right beside it shows exactly which files you'd be editing.
 
-## 8. First deliverable & scope
+## 8. URL routing & README links
+
+Every demo is deep-linkable at a stable, human-readable path — this is inherent to the §1 layout, no extra machinery:
+
+```
+https://<user>.github.io/<repo>/<slug>/     e.g. .../todomvc/
+```
+
+- **The slug is a permanent URL contract.** Once an example is published, renaming its slug breaks any external links (README, blog posts, issues). Treat slug renames as breaking changes.
+- **No per-view routing.** The Demo/Code tab and selected source file are *not* encoded in the URL; each load starts at the default (Demo view). Deep-linking into a specific tab/file (`#code:style.css`) is deliberately out of scope (see Out of scope).
+- **README table is hand-written.** A curated table of prominent examples lives in the README, authored by hand using the `/<slug>/` pattern above. No generator, no CI commit-back. Example row shape:
+
+  | Example | Demo | Description |
+  | --- | --- | --- |
+  | TodoMVC | [live](https://<user>.github.io/<repo>/todomvc/) | Classic TodoMVC in plain HTML/CSS/JS on superui |
+
+## 9. First deliverable & scope
 
 - Only `todomvc` is wired end-to-end.
 - Manifest, workflow, xtask, templates, and vendored highlighter are all N-ready from day one.
@@ -140,6 +157,8 @@ This frames the limitation as a deliberate native capability rather than a silen
 - PR CI (fmt/clippy/test) — may be added later as a separate workflow.
 - WebGPU backend.
 - Any attempt to make hot reload work on wasm.
+- Per-view deep-linking (URL hash for Demo/Code tab or specific source file) — per-app `/<slug>/` routing only.
+- Auto-generated / CI-committed README table — the table is hand-curated.
 - Rust (`main.rs`) source in the code viewer — the viewer shows the authored HTML/CSS/JS app, which is the point; the Rust host can be added later if wanted.
 - Thumbnails/screenshots on gallery cards (can be added to the manifest later).
 
