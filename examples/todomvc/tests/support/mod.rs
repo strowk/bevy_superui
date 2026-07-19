@@ -130,3 +130,18 @@ pub fn set_value(app: &mut App, node: NodeId, v: &str) {
     rt.dom.borrow_mut().set_value(node, v);
     rt.dirty = true;
 }
+
+/// Simulate a real pointer click on a checkbox: mirror the native toggle the
+/// picking observer performs (flip DOM `checked`), then dispatch `change`.
+pub fn click_checkbox(app: &mut App, node: NodeId) {
+    {
+        let rt = app.world_mut().non_send_resource_mut::<UiRuntime>();
+        let now = !rt.dom.borrow().checked(node);
+        rt.dom.borrow_mut().set_checked(node, now);
+    }
+    app.world_mut()
+        .resource_mut::<PendingDomEvents>()
+        .0
+        .push(PendingDomEvent::new(node, "change"));
+    tick(app, 2);
+}

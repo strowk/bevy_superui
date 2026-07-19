@@ -42,3 +42,50 @@ fn add_button_appends_a_todo() {
     // Input cleared after add; placeholder shows again in the rendered text.
     assert_eq!(value_of(&app, input), "");
 }
+
+fn add(app: &mut bevy::prelude::App, label: &str) {
+    let input = node_by_selector(app, "#new-todo");
+    let add = node_by_selector(app, "#add");
+    set_value(app, input, label);
+    click(app, add);
+}
+
+#[test]
+fn toggle_marks_completed_and_updates_count() {
+    let mut app = app();
+    let _root = mount_todomvc(&mut app);
+    add(&mut app, "a");
+    add(&mut app, "b");
+
+    let count = node_by_selector(&app, "#count");
+    assert_eq!(text_content(&app, count), "2 items left");
+
+    // Click the first todo's checkbox -> completed; count drops to 1.
+    let first_toggle = nodes_by_selector(&app, "li .toggle")[0];
+    click_checkbox(&mut app, first_toggle); // flip checked + fire change
+
+    assert_eq!(text_content(&app, count), "1 item left");
+    // The first li carries the `completed` class.
+    let first_li = nodes_by_selector(&app, "li")[0];
+    let classes = {
+        let rt = app.world().non_send_resource::<UiRuntime>();
+        let c = rt.dom.borrow().classes(first_li);
+        c
+    };
+    assert!(classes.iter().any(|c| c == "completed"));
+}
+
+#[test]
+fn destroy_removes_a_todo() {
+    let mut app = app();
+    let _root = mount_todomvc(&mut app);
+    add(&mut app, "a");
+    add(&mut app, "b");
+    assert_eq!(li_labels(&app).len(), 2);
+
+    // Click the destroy button of the first todo.
+    let first_destroy = nodes_by_selector(&app, "li .destroy")[0];
+    click(&mut app, first_destroy);
+
+    assert_eq!(li_labels(&app), vec!["b".to_string()]);
+}
