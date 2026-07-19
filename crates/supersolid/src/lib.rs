@@ -130,4 +130,34 @@ mod tests {
         assert!(out.contains("$ss.child("), "parent must append child:\n{out}");
         assert!(reparses_as_plain_js(&out), "{out}");
     }
+
+    #[test]
+    fn dynamic_child_expression_is_thunked_via_insert() {
+        let out = code("const a = <div>{count()}</div>;");
+        assert!(out.contains("$ss.insert("), "{out}");
+        // Must be a thunk (lazy), NOT eager `count()` passed directly.
+        assert!(out.contains("() =>") && out.contains("count()"), "child must be thunked:\n{out}");
+        assert!(!out.contains("$ss.child(_el0, count())") && !out.contains("$ss.txt(count"),
+            "dynamic child must not be eagerly evaluated:\n{out}");
+        assert!(reparses_as_plain_js(&out), "{out}");
+    }
+
+    #[test]
+    fn dynamic_attribute_is_thunked_via_bind() {
+        let out = code("const a = <div class={cls()}/>;");
+        assert!(out.contains("$ss.bind("), "{out}");
+        assert!(out.contains(r#""class""#), "{out}");
+        assert!(out.contains("() =>") && out.contains("cls()"), "attr must be thunked:\n{out}");
+        assert!(reparses_as_plain_js(&out), "{out}");
+    }
+
+    #[test]
+    fn literal_expression_attribute_stays_static() {
+        let out = code("const a = <input tabindex={0} value={\"hi\"}/>;");
+        assert!(out.contains("$ss.attr("), "literal attrs are static:\n{out}");
+        assert!(out.contains(r#""tabindex", "0""#), "numeric literal stringified:\n{out}");
+        assert!(out.contains(r#""value", "hi""#), "string literal kept:\n{out}");
+        assert!(!out.contains("$ss.bind("), "no dynamic binding for literals:\n{out}");
+        assert!(reparses_as_plain_js(&out), "{out}");
+    }
 }

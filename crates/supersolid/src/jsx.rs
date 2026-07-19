@@ -20,9 +20,10 @@
 #![allow(deprecated)]
 
 use oxc::allocator::Allocator;
+use oxc::allocator::CloneIn;
 use oxc::ast::ast::{
     Argument, Expression, FormalParameterKind, JSXAttributeItem, JSXAttributeName,
-    JSXAttributeValue, JSXChild, JSXElement, JSXElementName, Program, Statement,
+    JSXAttributeValue, JSXChild, JSXElement, JSXElementName, JSXExpression, Program, Statement,
     VariableDeclarationKind,
 };
 use oxc::ast::{AstBuilder, NONE};
@@ -120,6 +121,46 @@ impl<'a> Lower<'a> {
         self.ast.statement_return(SPAN, Some(ident))
     }
 
+    /// Build a zero-parameter expression-bodied arrow: `() => <expr>`.
+    fn thunk(&self, expr: Expression<'a>) -> Expression<'a> {
+        // The codegen emits `() => <expr>` when `expression: true` and the body
+        // contains a single ExpressionStatement (see oxc_codegen gen.rs ~line 1856).
+        let params = self.ast.formal_parameters(
+            SPAN,
+            FormalParameterKind::ArrowFormalParameters,
+            self.ast.vec(),
+            NONE,
+        );
+        let expr_stmt = self.ast.statement_expression(SPAN, expr);
+        let body_stmts = self.ast.vec1(expr_stmt);
+        let body = self.ast.function_body(SPAN, self.ast.vec(), body_stmts);
+        self.ast.expression_arrow_function(
+            SPAN,
+            /* expression */ true,
+            /* async */ false,
+            NONE,
+            params,
+            NONE,
+            body,
+        )
+    }
+
+    /// `$ss.bind(<target>, "name", <thunk>)` as an expression statement.
+    fn bind_stmt(&self, target: &str, name: &str, thunk: Expression<'a>) -> Statement<'a> {
+        let callee = self.runtime_member("bind");
+        let target_ident = self.ast.expression_identifier(SPAN, self.atom(target));
+        let call = self.call(callee, vec![target_ident, self.string(name), thunk]);
+        self.ast.statement_expression(SPAN, call)
+    }
+
+    /// `$ss.insert(<parent_ident>, <thunk>)` as an expression statement.
+    fn insert_stmt(&self, parent: &str, thunk: Expression<'a>) -> Statement<'a> {
+        let callee = self.runtime_member("insert");
+        let parent_ident = self.ast.expression_identifier(SPAN, self.atom(parent));
+        let call = self.call(callee, vec![parent_ident, thunk]);
+        self.ast.statement_expression(SPAN, call)
+    }
+
     /// Wrap a body block of statements in an immediately-invoked arrow:
     /// `(() => { <stmts> })()`.
     fn iife(&self, stmts: Vec<Statement<'a>>) -> Expression<'a> {
@@ -158,32 +199,60 @@ impl<'a> Lower<'a> {
             _ => return None,
         };
 
-        // Collect static (string-literal) attributes as (name, value) pairs.
-        let mut attrs: Vec<(String, String)> = Vec::new();
-        for item in &element.opening_element.attributes {
-            if let JSXAttributeItem::Attribute(attr) = item {
+        // Collect attribute data before any mutable borrows.
+        // Each attribute is one of:
+        //   - StaticAttr(name, value) — plain string value or literal expression
+        //   - DynamicAttr(name, expr) — expression container with non-literal expr (cloned)
+        enum AttrKind<'ast> {
+            Static(String, String),
+            Dynamic(String, Expression<'ast>),
+        }
+        let attr_data: Vec<AttrKind<'a>> = element
+            .opening_element
+            .attributes
+            .iter()
+            .filter_map(|item| {
+                let JSXAttributeItem::Attribute(attr) = item else { return None };
                 let name = match &attr.name {
                     JSXAttributeName::Identifier(id) => id.name.as_str().to_string(),
                     JSXAttributeName::NamespacedName(ns) => {
                         format!("{}:{}", ns.namespace.name.as_str(), ns.name.name.as_str())
                     }
                 };
-                if let Some(JSXAttributeValue::StringLiteral(s)) = &attr.value {
-                    attrs.push((name, s.value.as_str().to_string()));
+                match &attr.value {
+                    Some(JSXAttributeValue::StringLiteral(s)) => {
+                        // Plain string attr: `class="box"` → static.
+                        Some(AttrKind::Static(name, s.value.as_str().to_string()))
+                    }
+                    Some(JSXAttributeValue::ExpressionContainer(container)) => {
+                        if let Some(lit) = is_static_literal(&container.expression) {
+                            // Literal expression: `tabindex={0}` → static.
+                            Some(AttrKind::Static(name, lit))
+                        } else {
+                            // Dynamic expression: clone into the arena for use in thunk.
+                            match Expression::try_from(container.expression.clone_in(self.ast.allocator)) {
+                                Ok(expr) => Some(AttrKind::Dynamic(name, expr)),
+                                Err(_) => None, // Empty expression container ({}) — skip.
+                            }
+                        }
+                    }
+                    // Element/Fragment attr values and absent values: skip for now.
+                    _ => None,
                 }
-                // Non-string values (expression containers, etc.) are dynamic
-                // holes handled in a later task.
-            }
-        }
+            })
+            .collect();
 
         // Collect child data before mutably borrowing self for lowering.
         // Each child is one of:
-        //   - (text, trimmed string) — for static text nodes
-        //   - (element, the JSXElement ref) — for nested elements (lowered recursively)
-        // We skip text-only whitespace (JSX/Solid convention: trim and drop if empty).
+        //   - Text(string) — static text node
+        //   - Element(ref) — nested element (lowered recursively)
+        //   - StaticExpr(string) — literal expression container → static txt
+        //   - DynamicExpr(expr) — non-literal expression container → insert thunk
         enum ChildKind<'b, 'ast> {
             Text(String),
             Element(&'b JSXElement<'ast>),
+            StaticExpr(String),
+            DynamicExpr(Expression<'ast>),
         }
         let child_data: Vec<ChildKind<'_, 'a>> = element
             .children
@@ -194,38 +263,65 @@ impl<'a> Lower<'a> {
                     if trimmed.is_empty() { None } else { Some(ChildKind::Text(trimmed)) }
                 }
                 JSXChild::Element(el) => Some(ChildKind::Element(el.as_ref())),
-                // Fragments, expression containers, spreads: later tasks.
+                JSXChild::ExpressionContainer(container) => {
+                    if let Some(lit) = is_static_literal(&container.expression) {
+                        Some(ChildKind::StaticExpr(lit))
+                    } else {
+                        // Clone dynamic expression into the arena for thunking.
+                        match Expression::try_from(container.expression.clone_in(self.ast.allocator)) {
+                            Ok(expr) => Some(ChildKind::DynamicExpr(expr)),
+                            Err(_) => None, // Empty expression container ({}) — skip.
+                        }
+                    }
+                }
+                // Fragments, spreads: later tasks.
                 _ => None,
             })
             .collect();
 
         // No attributes AND no children: bare create call.
-        if attrs.is_empty() && child_data.is_empty() {
+        if attr_data.is_empty() && child_data.is_empty() {
             return Some(self.el_call(&tag));
         }
 
         // Otherwise emit an IIFE binding the element to a fresh temp local,
         // applying each attribute, appending each child, and returning the local.
         let local = self.fresh_local();
-        let mut stmts: Vec<Statement<'a>> = Vec::with_capacity(attrs.len() + child_data.len() + 2);
+        let mut stmts: Vec<Statement<'a>> =
+            Vec::with_capacity(attr_data.len() + child_data.len() + 2);
         let init = self.el_call(&tag);
         stmts.push(self.const_decl(&local, init));
-        for (name, value) in &attrs {
-            stmts.push(self.attr_stmt(&local, name, value));
+        for attr in attr_data {
+            let stmt = match attr {
+                AttrKind::Static(name, value) => self.attr_stmt(&local, &name, &value),
+                AttrKind::Dynamic(name, expr) => {
+                    let thunk = self.thunk(expr);
+                    self.bind_stmt(&local, &name, thunk)
+                }
+            };
+            stmts.push(stmt);
         }
         for child in child_data {
-            let child_expr = match child {
-                ChildKind::Text(text) => self.txt_call(&text),
+            let stmt = match child {
+                ChildKind::Text(text) => {
+                    let child_expr = self.txt_call(&text);
+                    self.child_stmt(&local, child_expr)
+                }
+                ChildKind::StaticExpr(text) => {
+                    let child_expr = self.txt_call(&text);
+                    self.child_stmt(&local, child_expr)
+                }
                 ChildKind::Element(el) => {
-                    // Recursively lower the child element. If it has a non-identifier
-                    // tag (component/fragment) leave it as-is for now (None → skip).
                     match self.lower_element(el) {
-                        Some(expr) => expr,
+                        Some(expr) => self.child_stmt(&local, expr),
                         None => continue,
                     }
                 }
+                ChildKind::DynamicExpr(expr) => {
+                    let thunk = self.thunk(expr);
+                    self.insert_stmt(&local, thunk)
+                }
             };
-            let stmt = self.child_stmt(&local, child_expr);
             stmts.push(stmt);
         }
         stmts.push(self.return_ident(&local));
@@ -251,6 +347,24 @@ impl<'a> VisitMut<'a> for Lower<'a> {
             }
             _ => {}
         }
+    }
+}
+
+/// If `expr` is a string or numeric literal, return its stringified value;
+/// otherwise return `None` (the expression must be treated as dynamic).
+fn is_static_literal(expr: &JSXExpression<'_>) -> Option<String> {
+    match expr {
+        JSXExpression::StringLiteral(s) => Some(s.value.as_str().to_string()),
+        JSXExpression::NumericLiteral(n) => {
+            // Format integer-valued numbers without decimal point (e.g. 0 → "0").
+            let v = n.value;
+            if v.fract() == 0.0 && v.abs() < 1e15 {
+                Some(format!("{}", v as i64))
+            } else {
+                Some(format!("{v}"))
+            }
+        }
+        _ => None,
     }
 }
 
