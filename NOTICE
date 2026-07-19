@@ -1,0 +1,24 @@
+Bevy SuperUI
+Copyright (c) 2026 Timur Sultanaev
+
+This product is licensed under the terms of either the MIT license or the
+Apache License, Version 2.0, at your option. See LICENSE-MIT and LICENSE-APACHE.
+
+--------------------------------------------------------------------------------
+Third-party vendored code
+--------------------------------------------------------------------------------
+
+The following crates under `crates/` are forked and vendored from the
+`bevy_flair` project (https://github.com/eckz/bevy_flair):
+
+    crates/bevy_flair_core
+    crates/bevy_flair_css_parser
+    crates/bevy_flair_style
+
+bevy_flair is:
+
+    Copyright (c) 2024 Erick Z
+
+and is dual-licensed under the MIT license (LICENSE-MIT in each crate directory)
+or the Apache License, Version 2.0. Modifications made within this repository are
+distributed under the same MIT OR Apache-2.0 terms as the rest of Bevy SuperUI.
