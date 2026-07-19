@@ -17,6 +17,12 @@ use superui_js::{BoaEngine, JsEngine};
 #[derive(Component, Clone, Copy, Debug)]
 pub struct DomNode(pub NodeId);
 
+/// Marks the reconciler-managed synthetic `Text` child that renders a text
+/// `<input>`'s current `value` (or its `placeholder` when the value is empty).
+/// It has no DOM `NodeId` — it is derived state, keyed off the input node.
+#[derive(Component, Clone, Copy, Debug)]
+pub struct InputValueText;
+
 /// NonSend because [`BoaEngine`] holds `Rc<RefCell<Dom>>` and Boa `JsFunction`s.
 pub struct UiRuntime {
     /// The retained arena DOM — the source of truth. Shared with `engine`.
@@ -31,6 +37,8 @@ pub struct UiRuntime {
     pub dirty: bool,
     node_to_entity: HashMap<NodeId, Entity>,
     entity_to_node: HashMap<Entity, NodeId>,
+    /// Text-`<input>` node -> its managed `InputValueText` child entity.
+    pub(crate) input_texts: HashMap<NodeId, Entity>,
     /// The DOM node that currently has keyboard focus (Task 5).
     pub(crate) focused: Option<NodeId>,
 }
@@ -53,6 +61,7 @@ impl UiRuntime {
             dirty: true,
             node_to_entity: HashMap::new(),
             entity_to_node: HashMap::new(),
+            input_texts: HashMap::new(),
             focused: None,
         }
     }

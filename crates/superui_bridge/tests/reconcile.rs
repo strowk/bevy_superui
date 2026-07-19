@@ -6,7 +6,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use bevy::prelude::*;
-use superui_bridge::DomNode;
+use superui_bridge::{DomNode, UiRuntime};
 use superui_css::prelude::{AttributeList, ClassList, TypeName};
 use superui_dom::NodeKind;
 
@@ -115,4 +115,47 @@ fn syncs_identity_and_updates_in_place() {
     assert_eq!(input_ent, input_ent2, "entity is stable across reconciles");
     assert!(app.world().get::<bevy::ui::Checked>(input_ent).is_some());
     assert!(app.world().get::<ClassList>(input_ent).unwrap().contains("done"));
+}
+
+#[test]
+fn input_renders_placeholder_then_value_as_text() {
+    let dom = Rc::new(RefCell::new(superui_html::parse_document(
+        "<input id='new' type='text' placeholder='What needs doing?'>",
+    )));
+    let mut app = test_app();
+    let _root = mount(&mut app, dom.clone());
+    app.update();
+
+    let input_node = dom
+        .borrow()
+        .query_selector(dom.borrow().document(), "input")
+        .unwrap();
+    let input_ent = {
+        let mut q = app.world_mut().query::<(Entity, &DomNode)>();
+        q.iter(app.world())
+            .find(|(_, d)| d.0 == input_node)
+            .map(|(e, _)| e)
+            .unwrap()
+    };
+
+    // Empty value -> the managed text child shows the placeholder.
+    let text_of_input = |app: &mut App, input_ent: Entity| -> String {
+        let kids = app.world().get::<Children>(input_ent).unwrap().to_vec();
+        for k in kids {
+            if app.world().get::<superui_bridge::InputValueText>(k).is_some() {
+                return app.world().get::<Text>(k).unwrap().0.clone();
+            }
+        }
+        panic!("input has no managed InputValueText child");
+    };
+    assert_eq!(text_of_input(&mut app, input_ent), "What needs doing?");
+
+    // Type into the DOM value (as the keyboard seam would) and re-reconcile:
+    // the SAME managed text child now shows the value.
+    dom.borrow_mut().set_value(input_node, "Buy milk");
+    app.world_mut()
+        .non_send_resource_mut::<UiRuntime>()
+        .dirty = true;
+    app.update();
+    assert_eq!(text_of_input(&mut app, input_ent), "Buy milk");
 }
