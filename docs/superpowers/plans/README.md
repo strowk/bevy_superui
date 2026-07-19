@@ -51,7 +51,7 @@ the existing `examples/todomvc` is kept as-is.
 | # | Deliverable | Scope | Status |
 |---|---|---|---|
 | 1 | Lower-level DOM/JS prerequisites | The small additions Supersolid's runtime needs, added to existing crates: per-**text-node** value mutation (`superui_dom` + `superui_api`), reconciler **node move / reorder** for keyed lists (`superui_bridge`), `document.createDocumentFragment` (`superui_api`). Headless-testable; ledger updated. | 📝 In progress ([plan](./2026-07-19-supersolid-phase2-01-prereqs.md)) |
-| 2 | `supersolid` transpiler | `.tsx`/`.ts` → JS via `oxc` (type-strip + Solid-style JSX lowering) inside a Bevy `AssetLoader`; build-time pre-transpile path for wasm. | ⏳ Just-in-time |
+| 2 | `supersolid` transpiler | `.tsx`/`.ts` → JS via `oxc` (type-strip + Solid-style JSX lowering) inside a Bevy `AssetLoader`; build-time pre-transpile path for wasm. | 📝 Planned ([plan](./2026-07-19-supersolid-phase2-02-transpiler.md)) |
 | 3 | `supersolid` reactive core | JS runtime module in Boa: `createSignal`/`createEffect`/`createMemo`/`onMount`/`onCleanup`/`createContext`/`useContext` + scheduler. Headless. | ⏳ Just-in-time |
 | 4 | `supersolid` render + control-flow | JSX runtime (build-once nodes + surgical reactive bindings via the DOM API) and control-flow `<Show>`/`<For>`/`<Index>`/`<Switch>`. | ⏳ Just-in-time |
 | 5 | State-preserving hot reload | `.tsx` HMR: signal-cell rehydration keyed by module × instance × creation-order; remount-on-shape-change fallback (spec §11.2). | ⏳ Just-in-time |
