@@ -7,7 +7,7 @@ use std::rc::Rc;
 
 use bevy::prelude::*;
 use superui_bridge::DomNode;
-use superui_css::prelude::TypeName;
+use superui_css::prelude::{AttributeList, ClassList, TypeName};
 use superui_dom::NodeKind;
 
 #[test]
@@ -43,4 +43,50 @@ fn reconciles_dom_tree_into_entities() {
         let text = app.world().get::<Text>(text_entity).expect("text node");
         assert_eq!(text.0, expected);
     }
+}
+
+#[test]
+fn syncs_identity_and_updates_in_place() {
+    let dom = Rc::new(RefCell::new(superui_html::parse_document(
+        "<div id='root'><input type='checkbox' class='a b'></div>",
+    )));
+    let mut app = test_app();
+    let root = mount(&mut app, dom.clone());
+    app.update();
+
+    // Find the <input> entity via its DomNode.
+    let input_node = dom.borrow().query_selector(dom.borrow().document(), "input").unwrap();
+    let input_ent = {
+        let mut q = app.world_mut().query::<(Entity, &DomNode)>();
+        q.iter(app.world())
+            .find(|(_, d)| d.0 == input_node)
+            .map(|(e, _)| e)
+            .unwrap()
+    };
+
+    // Identity synced: ClassList has a+b; AttributeList has type=checkbox.
+    assert!(app.world().get::<ClassList>(input_ent).unwrap().contains("a"));
+    assert_eq!(
+        app.world().get::<AttributeList>(input_ent).unwrap().get_attribute("type"),
+        Some("checkbox")
+    );
+    // Not checked yet -> no Checked marker.
+    assert!(app.world().get::<bevy::ui::Checked>(input_ent).is_none());
+
+    // Mutate the DOM (as JS would) and re-reconcile: SAME entity, updated state.
+    dom.borrow_mut().set_checked(input_node, true);
+    dom.borrow_mut().class_add(input_node, "done");
+    app.world_mut().non_send_resource_mut::<superui_bridge::UiRuntime>().dirty = true;
+    app.update();
+
+    let input_ent2 = {
+        let mut q = app.world_mut().query::<(Entity, &DomNode)>();
+        q.iter(app.world())
+            .find(|(_, d)| d.0 == input_node)
+            .map(|(e, _)| e)
+            .unwrap()
+    };
+    assert_eq!(input_ent, input_ent2, "entity is stable across reconciles");
+    assert!(app.world().get::<bevy::ui::Checked>(input_ent).is_some());
+    assert!(app.world().get::<ClassList>(input_ent).unwrap().contains("done"));
 }

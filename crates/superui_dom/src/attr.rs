@@ -44,6 +44,15 @@ impl Dom {
             .unwrap_or_default()
     }
 
+    /// The element's attributes as `(name, value)` pairs in insertion order.
+    /// Returns empty for non-elements. Names are already lowercased.
+    pub fn attributes(&self, id: NodeId) -> Vec<(String, String)> {
+        match self.get(id).map(|n| &n.kind) {
+            Some(crate::node::NodeKind::Element(el)) => el.attrs.clone(),
+            _ => Vec::new(),
+        }
+    }
+
     /// Whether `class` is present.
     pub fn class_contains(&self, id: NodeId, class: &str) -> bool {
         self.classes(id).iter().any(|c| c == class)
@@ -139,6 +148,17 @@ impl Dom {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn attributes_lists_all_pairs() {
+        let mut dom = crate::Dom::new();
+        let e = dom.create_element("input");
+        dom.set_attribute(e, "type", "checkbox").unwrap();
+        dom.set_attribute(e, "class", "x").unwrap();
+        let attrs = dom.attributes(e);
+        assert!(attrs.contains(&("type".to_string(), "checkbox".to_string())));
+        assert!(attrs.contains(&("class".to_string(), "x".to_string())));
+    }
 
     #[test]
     fn set_get_remove_attribute() {

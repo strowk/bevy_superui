@@ -6,8 +6,9 @@
 use std::collections::HashSet;
 
 use bevy::prelude::*;
+use bevy::ui::Checked;
 use superui_css::html_type_name;
-use superui_css::prelude::NodeStyleSheet;
+use superui_css::prelude::{AttributeList, ClassList, InlineStyle, NodeStyleSheet};
 use superui_dom::{NodeId, NodeKind};
 
 use crate::runtime::{DomNode, UiRuntime};
@@ -92,13 +93,16 @@ impl UiRuntime {
                     e
                 }
             };
-            // Sync this node's payload (text now; identity/attrs in Task 3).
+            // Sync this node's payload.
             if let NodeKind::Text(t) = kind {
                 if let Some(mut text) = world.get_mut::<Text>(entity) {
                     if text.0 != *t {
                         text.0 = t.clone();
                     }
                 }
+            }
+            if matches!(kind, NodeKind::Element(_)) {
+                self.sync_identity(world, dom, child, entity);
             }
             child_entities.push(entity);
             // Recurse into element children.
@@ -117,6 +121,61 @@ impl UiRuntime {
         for &child in dom.children(node) {
             live.insert(child);
             self.collect_live(dom, child, live);
+        }
+    }
+
+    /// Push an element node's identity/attributes/state onto its entity. Called
+    /// every reconcile so mutations land on the same stable entity in place.
+    fn sync_identity(
+        &self,
+        world: &mut World,
+        dom: &superui_dom::Dom,
+        node: NodeId,
+        entity: Entity,
+    ) {
+        // id -> Name (flair's id selector matches on Name).
+        let mut ec = world.entity_mut(entity);
+        match dom.get_attribute(node, "id") {
+            Some(id) if !id.is_empty() => {
+                ec.insert(Name::new(id.to_string()));
+            }
+            _ => {
+                ec.remove::<Name>();
+            }
+        }
+
+        // class -> ClassList (whitespace-separated).
+        let classes = dom.classes(node);
+        if classes.is_empty() {
+            ec.insert(ClassList::empty());
+        } else {
+            ec.insert(ClassList::new(&classes.join(" ")));
+        }
+
+        // Remaining attributes (excluding id/class/style) -> AttributeList.
+        let mut attrs = AttributeList::new();
+        for (k, v) in dom.attributes(node) {
+            if k != "id" && k != "class" && k != "style" {
+                attrs.set_attribute(k.as_str(), v.as_str());
+            }
+        }
+        ec.insert(attrs);
+
+        // inline style -> InlineStyle.
+        match dom.get_attribute(node, "style") {
+            Some(s) if !s.is_empty() => {
+                ec.insert(InlineStyle::new(s));
+            }
+            _ => {
+                ec.remove::<InlineStyle>();
+            }
+        }
+
+        // checked (input) -> bevy_ui Checked marker, so `:checked` matches.
+        if dom.checked(node) {
+            ec.insert(Checked);
+        } else {
+            ec.remove::<Checked>();
         }
     }
 }
