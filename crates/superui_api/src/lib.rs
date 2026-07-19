@@ -271,7 +271,7 @@ mod tests {
         )
         .unwrap();
 
-        let default_prevented = e.dispatch_event(leaf, "click", true, true);
+        let default_prevented = e.dispatch_event(leaf, "click", None, true, true);
         assert!(default_prevented);
 
         let order = e
@@ -365,7 +365,7 @@ mod tests {
         // Toggle the first todo's checkbox: set checked, dispatch click.
         let first_toggle = { let d = dom.borrow(); d.query_selector(d.document(), ".todo-list .toggle").unwrap() };
         dom.borrow_mut().set_checked(first_toggle, true);
-        e.dispatch_event(first_toggle, "click", true, true);
+        e.dispatch_event(first_toggle, "click", None, true, true);
         assert_eq!(count_text(&mut e), "1 items left");
 
         // The first <li> is now completed.
@@ -402,11 +402,11 @@ mod tests {
             document.getElementById('b2').addEventListener('click', function(){ globalThis.hits2++; });
             "#,
         ).unwrap();
-        e.dispatch_event(btn, "click", true, true);
+        e.dispatch_event(btn, "click", None, true, true);
         let hits = e.context_mut().eval(boa_engine::Source::from_bytes("globalThis.hits")).unwrap().as_i32().unwrap_or(-1);
         assert_eq!(hits, 0);
         // Positive control: listener on b2 was not removed, so it must fire exactly once.
-        e.dispatch_event(btn2, "click", true, true);
+        e.dispatch_event(btn2, "click", None, true, true);
         let hits2 = e.context_mut().eval(boa_engine::Source::from_bytes("globalThis.hits2")).unwrap().as_i32().unwrap_or(-1);
         assert_eq!(hits2, 1);
     }

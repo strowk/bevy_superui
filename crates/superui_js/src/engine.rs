@@ -69,6 +69,7 @@ impl JsEngine for BoaEngine {
         &mut self,
         target: NodeId,
         event_type: &str,
+        key: Option<&str>,
         bubbles: bool,
         cancelable: bool,
     ) -> bool {
@@ -79,6 +80,7 @@ impl JsEngine for BoaEngine {
         let inner = Rc::new(RefCell::new(Event::new(
             event_type, target, bubbles, cancelable,
         )));
+        inner.borrow_mut().key = key.map(|k| k.to_string());
         let event_obj = self.make_event_object(&inner, target);
 
         // 3. Walk the plan ourselves so no DOM borrow is held across a JS call.

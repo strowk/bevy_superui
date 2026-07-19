@@ -2,7 +2,7 @@
 //! dispatch into JS (W3C capture/bubble, synchronous) and then reconcile.
 
 use bevy::ecs::message::MessageReader;
-use bevy::input::keyboard::{Key, KeyboardInput};
+use bevy::input::keyboard::{Key, KeyCode, KeyboardInput};
 use bevy::input::ButtonState;
 use bevy::picking::events::{Click, Pointer};
 use bevy::prelude::*;
@@ -91,9 +91,15 @@ pub fn keyboard_events_system(
     mut rt: NonSendMut<UiRuntime>,
 ) {
     // Collect key messages first (the reader borrow must not overlap with rt).
-    let presses: Vec<(Key, bool)> = reader
+    let presses: Vec<(Key, KeyCode, bool)> = reader
         .read()
-        .map(|k| (k.logical_key.clone(), matches!(k.state, ButtonState::Pressed)))
+        .map(|k| {
+            (
+                k.logical_key.clone(),
+                k.key_code,
+                matches!(k.state, ButtonState::Pressed),
+            )
+        })
         .collect();
 
     if presses.is_empty() {
@@ -105,29 +111,87 @@ pub fn keyboard_events_system(
 
     use superui_js::JsEngine;
     let mut any = false;
-    for (key, pressed) in presses {
+    for (key, code, pressed) in presses {
         let type_ = if pressed { "keydown" } else { "keyup" };
-        rt.engine.dispatch_event(focused, type_, true, true);
+        let kn = key_name(&key, code);
+        rt.engine.dispatch_event(focused, type_, Some(&kn), true, true);
         any = true;
-        if pressed {
-            if let Key::Character(s) = &key {
-                // Append typed characters to a text input's DOM value + fire input.
-                let is_text_input = {
-                    let d = rt.dom.borrow();
-                    matches!(tag_of(&d, focused).as_deref(), Some("input"))
-                        && d.get_attribute(focused, "type").unwrap_or("text") != "checkbox"
-                };
-                if is_text_input {
-                    let cur = rt.dom.borrow().value(focused);
-                    rt.dom.borrow_mut().set_value(focused, &format!("{cur}{s}"));
-                    rt.engine.dispatch_event(focused, "input", true, false);
-                }
+        if !pressed {
+            continue;
+        }
+
+        let is_text_input = {
+            let d = rt.dom.borrow();
+            matches!(tag_of(&d, focused).as_deref(), Some("input"))
+                && d.get_attribute(focused, "type").unwrap_or("text") != "checkbox"
+        };
+        if !is_text_input {
+            continue;
+        }
+
+        // Editing keys for a text input: Backspace deletes, printable chars
+        // append. `format!` is fine (Phase-1 caret is always end-of-field).
+        let mut changed = false;
+        if code == KeyCode::Backspace {
+            let mut cur = rt.dom.borrow().value(focused);
+            if cur.pop().is_some() {
+                rt.dom.borrow_mut().set_value(focused, &cur);
+                changed = true;
             }
+        } else if let Some(text) = key_to_text(&key, code) {
+            let cur = rt.dom.borrow().value(focused);
+            rt.dom.borrow_mut().set_value(focused, &format!("{cur}{text}"));
+            changed = true;
+        }
+        if changed {
+            rt.engine.dispatch_event(focused, "input", None, true, false);
         }
     }
     if any {
         rt.dirty = true;
     }
+}
+
+/// The `KeyboardEvent.key` value for a press: the printable character, or a
+/// named key for non-printables (only the ones the UI needs). Lets JS do
+/// `if (e.key === "Enter") …` (browser-standard).
+fn key_name(logical: &Key, code: KeyCode) -> String {
+    match code {
+        KeyCode::Enter | KeyCode::NumpadEnter => return "Enter".to_string(),
+        KeyCode::Backspace => return "Backspace".to_string(),
+        KeyCode::Escape => return "Escape".to_string(),
+        KeyCode::Tab => return "Tab".to_string(),
+        _ => {}
+    }
+    key_to_text(logical, code).unwrap_or_else(|| "Unidentified".to_string())
+}
+
+/// Resolve a printable character for a key press. Real keyboards populate the
+/// `logical_key` with a `Character`; synthetic injectors (e.g. `bevy_brp_extras`
+/// `send_keys`) leave it `Unidentified`, so fall back to the physical `KeyCode`.
+/// Phase-1 scope: unshifted letters, digits, space (enough for authoring todos).
+fn key_to_text(logical: &Key, code: KeyCode) -> Option<String> {
+    if let Key::Character(s) = logical {
+        return Some(s.to_string());
+    }
+    let ch = match code {
+        KeyCode::KeyA => "a", KeyCode::KeyB => "b", KeyCode::KeyC => "c",
+        KeyCode::KeyD => "d", KeyCode::KeyE => "e", KeyCode::KeyF => "f",
+        KeyCode::KeyG => "g", KeyCode::KeyH => "h", KeyCode::KeyI => "i",
+        KeyCode::KeyJ => "j", KeyCode::KeyK => "k", KeyCode::KeyL => "l",
+        KeyCode::KeyM => "m", KeyCode::KeyN => "n", KeyCode::KeyO => "o",
+        KeyCode::KeyP => "p", KeyCode::KeyQ => "q", KeyCode::KeyR => "r",
+        KeyCode::KeyS => "s", KeyCode::KeyT => "t", KeyCode::KeyU => "u",
+        KeyCode::KeyV => "v", KeyCode::KeyW => "w", KeyCode::KeyX => "x",
+        KeyCode::KeyY => "y", KeyCode::KeyZ => "z",
+        KeyCode::Digit0 => "0", KeyCode::Digit1 => "1", KeyCode::Digit2 => "2",
+        KeyCode::Digit3 => "3", KeyCode::Digit4 => "4", KeyCode::Digit5 => "5",
+        KeyCode::Digit6 => "6", KeyCode::Digit7 => "7", KeyCode::Digit8 => "8",
+        KeyCode::Digit9 => "9",
+        KeyCode::Space => " ",
+        _ => return None,
+    };
+    Some(ch.to_string())
 }
 
 /// Exclusive system: dispatch queued DOM events into the engine, then mark dirty.
@@ -142,7 +206,7 @@ pub fn drain_dom_events_system(world: &mut World) {
     for e in queued {
         use superui_js::JsEngine;
         rt.engine
-            .dispatch_event(e.target, &e.type_, e.bubbles, e.cancelable);
+            .dispatch_event(e.target, &e.type_, None, e.bubbles, e.cancelable);
     }
     rt.dirty = true;
     world.insert_non_send_resource(rt);

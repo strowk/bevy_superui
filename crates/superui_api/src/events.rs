@@ -41,6 +41,14 @@ fn ev_default_prevented(this: &JsValue, _a: &[JsValue], _c: &mut Context) -> JsR
     let v = with_event(this, |e| e.default_prevented()).unwrap_or(false);
     Ok(JsValue::from(v))
 }
+fn ev_key(this: &JsValue, _a: &[JsValue], _c: &mut Context) -> JsResult<JsValue> {
+    let obj = this.as_object();
+    let k = obj
+        .as_ref()
+        .and_then(|o| o.downcast_ref::<EventData>())
+        .and_then(|d| d.inner.borrow().key.clone());
+    Ok(k.map(|s| jsstr(&s)).unwrap_or(JsValue::undefined()))
+}
 fn ev_target(this: &JsValue, _a: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let obj = this.as_object();
     let n = obj
@@ -147,6 +155,7 @@ pub fn install_events(context: &mut Context) {
     set_method(&event, "stopPropagation", 0, stop_propagation, context);
     set_method(&event, "stopImmediatePropagation", 0, stop_immediate, context);
     set_getter(&event, "type", ev_type, context);
+    set_getter(&event, "key", ev_key, context);
     set_getter(&event, "target", ev_target, context);
     set_getter(&event, "currentTarget", ev_current_target, context);
     set_getter(&event, "defaultPrevented", ev_default_prevented, context);

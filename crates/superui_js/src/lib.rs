@@ -24,6 +24,7 @@ pub trait JsEngine {
         &mut self,
         target: superui_dom::NodeId,
         event_type: &str,
+        key: Option<&str>,
         bubbles: bool,
         cancelable: bool,
     ) -> bool;

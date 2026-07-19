@@ -96,6 +96,15 @@ impl UiRuntime {
             let Some(kind) = dom.get(child).map(|n| &n.kind) else {
                 continue;
             };
+            // Collapse insignificant whitespace: HTML indentation/newlines
+            // between elements parse into text nodes. Browsers don't lay these
+            // out as boxes, but taffy would treat each as a flex item and wreck
+            // the layout. Skip whitespace-only text nodes.
+            if let NodeKind::Text(t) = kind {
+                if t.trim().is_empty() {
+                    continue;
+                }
+            }
             let entity = match self.entity_for(child) {
                 Some(e) => e,
                 None => {
@@ -123,6 +132,11 @@ impl UiRuntime {
             }
             if matches!(kind, NodeKind::Element(_)) {
                 self.sync_identity(world, dom, child, entity);
+                // `autofocus`: give keyboard focus to the first element that
+                // declares it (browser-standard), so text entry works on load.
+                if self.focused.is_none() && dom.get_attribute(child, "autofocus").is_some() {
+                    self.focused = Some(child);
+                }
             }
             child_entities.push(entity);
             // Recurse into element children.

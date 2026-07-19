@@ -29,6 +29,9 @@ pub struct Event {
     pub phase: EventPhase,
     pub bubbles: bool,
     pub cancelable: bool,
+    /// `KeyboardEvent.key` value for keyboard events (e.g. "Enter", "a"); `None`
+    /// for non-keyboard events.
+    pub key: Option<String>,
     default_prevented: bool,
     propagation_stopped: bool,
     immediate_stopped: bool,
@@ -44,6 +47,7 @@ impl Event {
             phase: EventPhase::None,
             bubbles,
             cancelable,
+            key: None,
             default_prevented: false,
             propagation_stopped: false,
             immediate_stopped: false,
