@@ -3,6 +3,7 @@
 //! lowering to the `$ss` runtime ABI. Bevy-free; the asset loader lives in
 //! `superui` (native-only) so `oxc` never enters a wasm build (direction spec §11.3).
 
+mod imports;
 mod jsx;
 mod pipeline;
 
@@ -232,5 +233,36 @@ mod tests {
         assert!(out.contains("$ss.cmp(Counter"), "nested component child must lower, not drop:\n{out}");
         assert!(out.contains("$ss.child("), "and be appended as a child:\n{out}");
         assert!(reparses_as_plain_js(&out), "{out}");
+    }
+
+    #[test]
+    fn runtime_imports_are_stripped_silently() {
+        let r = transpile(
+            "import { createSignal } from \"solid-js\"; const [a, b] = createSignal(0);",
+            &TranspileOptions::default(),
+        );
+        assert!(!r.code.contains("import"), "runtime import must be stripped:\n{}", r.code);
+        assert!(r.code.contains("createSignal(0)"), "usage kept:\n{}", r.code);
+        assert!(r.diagnostics.is_empty(), "runtime import must not warn: {:?}", r.diagnostics);
+        assert!(reparses_as_plain_js(&r.code), "{}", r.code);
+    }
+
+    #[test]
+    fn css_imports_are_recorded_not_warned() {
+        let r = transpile("import \"./todo.css\"; const x = 1;", &TranspileOptions::default());
+        assert!(!r.code.contains("import"), "css import stripped from JS:\n{}", r.code);
+        assert_eq!(r.style_imports, vec!["./todo.css".to_string()]);
+        assert!(r.diagnostics.is_empty(), "css import must not warn: {:?}", r.diagnostics);
+        assert!(reparses_as_plain_js(&r.code));
+    }
+
+    #[test]
+    fn unknown_module_imports_warn() {
+        let r = transpile("import { X } from \"./other\"; const x = X;", &TranspileOptions::default());
+        assert!(!r.code.contains("import"), "unknown import still stripped:\n{}", r.code);
+        assert_eq!(r.diagnostics.len(), 1, "one warning expected: {:?}", r.diagnostics);
+        assert_eq!(r.diagnostics[0].severity, Severity::Warning);
+        assert!(r.diagnostics[0].message.contains("./other"), "names specifier: {:?}", r.diagnostics);
+        assert!(reparses_as_plain_js(&r.code));
     }
 }

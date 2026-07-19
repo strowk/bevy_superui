@@ -20,7 +20,6 @@ pub(crate) fn run(
     let source_type = if options.tsx { SourceType::tsx() } else { SourceType::ts() };
 
     let mut diagnostics: Vec<Diagnostic> = Vec::new();
-    let style_imports: Vec<String> = Vec::new();
 
     let parsed = Parser::new(&allocator, source, source_type).parse();
     // Parser errors are non-fatal (graceful degradation): record and continue with
@@ -49,9 +48,22 @@ pub(crate) fn run(
 
     if lower_jsx {
         crate::jsx::lower(&allocator, &mut program);
+        let (mut import_diags, style_imports) =
+            crate::imports::rewrite(&allocator, &mut program, options);
+        diagnostics.append(&mut import_diags);
+        return finish(&program, diagnostics, style_imports);
     }
 
-    let code = Codegen::new().build(&program).code;
+    finish(&program, diagnostics, vec![])
+}
+
+/// Codegen + pack into the pipeline's return tuple.
+fn finish(
+    program: &oxc::ast::ast::Program,
+    diagnostics: Vec<Diagnostic>,
+    style_imports: Vec<String>,
+) -> (String, Vec<Diagnostic>, Vec<String>) {
+    let code = Codegen::new().build(program).code;
     (code, diagnostics, style_imports)
 }
 
@@ -67,8 +79,6 @@ pub(crate) fn run(
 /// - TypeScript stripping runs automatically for `.tsx`/`.ts` SourceTypes when
 ///   the transformer is invoked (no explicit TypeScript option needed to enable it).
 fn ts_strip_jsx_preserve_options() -> TransformOptions {
-    let mut opts = TransformOptions::default();
     // Disable the JSX transform so JSX is preserved through codegen unchanged.
-    opts.jsx = JsxOptions::disable();
-    opts
+    TransformOptions { jsx: JsxOptions::disable(), ..TransformOptions::default() }
 }
