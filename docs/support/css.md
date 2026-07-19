@@ -42,7 +42,7 @@ Unknown properties/rules are skipped, never fatal.
 |---|---|---|---|
 | `color` | ✅ | T0 | named + hex + rgb/oklch |
 | `background-color` | ✅ | T0 | |
-| `border` / `border-*-width` / `border-color` | ✅ | T1 | per-side *shorthands* (`border-bottom: 1px solid …`) not parsed — use the longhands (`border-bottom-width`/`-color`) |
+| `border` / `border-*-width` / `border-color` | ✅ | T1 | `border` shorthand is `<width> [<color>]` only — no `border-style` keyword (`solid`/`dashed`): write `border: 1px #ccc`, not `border: 1px solid #ccc`. Per-side shorthands (`border-bottom`) aren't parsed — use `border-bottom-width`/`-color` |
 | `border-radius` | ✅ | T1 | |
 | `box-shadow` | ✅ | T2 | |
 | `font-size` / `font-family` | ✅ | T1 | |

@@ -5,7 +5,7 @@
   margin: 40px;
   padding: 16px;
   background-color: #ffffff;
-  border: 1px solid #e0e0e0;
+  border: 1px #e0e0e0;
   border-radius: 8px;
 }
 
@@ -25,7 +25,7 @@ h1 {
   flex-grow: 1;
   height: 32px;
   padding: 8px;
-  border: 1px solid #cccccc;
+  border: 1px #cccccc;
   border-radius: 4px;
   color: #333333;
   font-size: 18px;
@@ -108,11 +108,11 @@ h1 {
   margin: 2px;
   padding: 4px;
   color: #777777;
-  border: 1px solid #ffffff;
+  border: 1px #ffffff;
   border-radius: 4px;
 }
 
 .filter.selected {
-  border: 1px solid #b83f45;
+  border: 1px #b83f45;
   color: #b83f45;
 }
