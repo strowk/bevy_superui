@@ -5,6 +5,11 @@ version.workspace = true
 license.workspace = true
 publish = false
 
+[features]
+# Opt-in diagnostics: logs every rendered text + color and each click/key press.
+# Run with `cargo run -p todomvc --features debug-ui`.
+debug-ui = []
+
 [dependencies]
 superui = { path = "../../crates/superui" }
 superui_css = { path = "../../crates/superui_css" }
