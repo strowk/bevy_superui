@@ -1,2 +1,8 @@
+# Cap concurrent codegen+link units. MSVC's link.exe uses ~2GB per binary, and
+# `cargo test --workspace` links many test binaries at once; without this cap it
+# can spawn ~10 linkers and exhaust RAM (LNK1318 "FILE_SYSTEM (3)" + PC freeze).
+[build]
+jobs = 4
+
 [target.wasm32-unknown-unknown]
 rustflags = ['--cfg', 'getrandom_backend="wasm_js"']
