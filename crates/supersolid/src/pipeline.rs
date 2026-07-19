@@ -38,8 +38,14 @@ pub(crate) fn run(
     let scoping = SemanticBuilder::new().build(&program).semantic.into_scoping();
     let transform_options = ts_strip_jsx_preserve_options();
     let path = std::path::Path::new(if options.tsx { "input.tsx" } else { "input.ts" });
-    let _ = Transformer::new(&allocator, path, &transform_options)
+    let transform_result = Transformer::new(&allocator, path, &transform_options)
         .build_with_scoping(scoping, &mut program);
+    for e in &transform_result.diagnostics {
+        diagnostics.push(Diagnostic {
+            severity: crate::Severity::Warning,
+            message: e.to_string(),
+        });
+    }
 
     if lower_jsx {
         // Filled in from Task 2 onward: crate::jsx::lower(&allocator, &mut program, ...)
