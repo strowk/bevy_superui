@@ -48,9 +48,7 @@ pub(crate) fn run(
     }
 
     if lower_jsx {
-        // Filled in from Task 2 onward: crate::jsx::lower(&allocator, &mut program, ...)
-        // and crate::imports::rewrite(...) which mutate `program`, appending to
-        // `diagnostics` / `style_imports`.
+        crate::jsx::lower(&allocator, &mut program);
     }
 
     let code = Codegen::new().build(&program).code;

@@ -3,6 +3,7 @@
 //! lowering to the `$ss` runtime ABI. Bevy-free; the asset loader lives in
 //! `superui` (native-only) so `oxc` never enters a wasm build (direction spec §11.3).
 
+mod jsx;
 mod pipeline;
 
 /// Options controlling a transpile.
@@ -50,7 +51,7 @@ pub struct TranspileResult {
 
 /// Transpile Solid-style `.tsx`/`.ts` source to plain JavaScript.
 pub fn transpile(source: &str, options: &TranspileOptions) -> TranspileResult {
-    let (code, diagnostics, style_imports) = pipeline::run(source, options, /* lower_jsx */ false);
+    let (code, diagnostics, style_imports) = pipeline::run(source, options, /* lower_jsx */ true);
     TranspileResult { code, diagnostics, style_imports }
 }
 
@@ -96,10 +97,19 @@ mod tests {
     }
 
     #[test]
-    fn jsx_is_preserved_for_the_next_pass() {
-        // Task 1 does NOT lower JSX; it must survive so Task 2 can transform it.
-        // (This test is REPLACED in Task 2 once lowering lands.)
+    fn empty_element_lowers_to_bare_create() {
         let out = code("const a = <div/>;");
-        assert!(out.contains("<div"), "JSX should be preserved in Task 1:\n{out}");
+        assert!(out.contains(r#"$ss.el("div")"#), "expected $ss.el:\n{out}");
+        assert!(reparses_as_plain_js(&out), "not valid plain JS / JSX left:\n{out}");
+    }
+
+    #[test]
+    fn element_with_static_attrs_lowers_to_attr_calls() {
+        let out = code(r#"const a = <div class="box" id="x"/>;"#);
+        assert!(out.contains(r#"$ss.el("div")"#), "{out}");
+        assert!(out.contains(r#"$ss.attr("#), "{out}");
+        assert!(out.contains(r#""class", "box""#), "{out}");
+        assert!(out.contains(r#""id", "x""#), "{out}");
+        assert!(reparses_as_plain_js(&out), "{out}");
     }
 }
