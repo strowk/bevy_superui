@@ -129,12 +129,18 @@ impl<'a> Lower<'a> {
     }
 
     /// Lower a `JSXElement` (Task 2: element + static attributes only).
-    fn lower_element(&mut self, element: &JSXElement<'a>) -> Expression<'a> {
+    ///
+    /// Returns `None` when the tag name is not a plain identifier (e.g.
+    /// `<Foo.Bar/>` or `<ns:tag/>`); the caller must leave the expression
+    /// untouched in that case.  Member-expression and namespaced component tags
+    /// are handled properly in Task 6.
+    fn lower_element(&mut self, element: &JSXElement<'a>) -> Option<Expression<'a>> {
         let tag = match &element.opening_element.name {
             JSXElementName::Identifier(id) => id.name.as_str().to_string(),
-            // Component / member / namespaced / this names are handled by later
-            // tasks; only plain lowercase tags occur in Task 2.
-            _ => String::new(),
+            // Member-expression (<Foo.Bar/>) and namespaced (<ns:tag/>) names
+            // are not plain HTML tags.  Return None so the caller preserves the
+            // original JSX expression rather than emitting a broken $ss.el("").
+            _ => return None,
         };
 
         // Collect static (string-literal) attributes as (name, value) pairs.
@@ -157,7 +163,7 @@ impl<'a> Lower<'a> {
 
         // No attributes (and, in Task 2, no children): bare create call.
         if attrs.is_empty() {
-            return self.el_call(&tag);
+            return Some(self.el_call(&tag));
         }
 
         // Otherwise emit an IIFE binding the element to a fresh temp local,
@@ -170,7 +176,7 @@ impl<'a> Lower<'a> {
             stmts.push(self.attr_stmt(&local, name, value));
         }
         stmts.push(self.return_ident(&local));
-        self.iife(stmts)
+        Some(self.iife(stmts))
     }
 }
 
@@ -181,8 +187,11 @@ impl<'a> VisitMut<'a> for Lower<'a> {
         oxc::ast_visit::walk_mut::walk_expression(self, expr);
         match expr {
             Expression::JSXElement(element) => {
-                let lowered = self.lower_element(element);
-                *expr = lowered;
+                if let Some(lowered) = self.lower_element(element) {
+                    *expr = lowered;
+                }
+                // None => non-identifier tag name (member/namespaced); leave
+                // the JSX expression untouched rather than emitting $ss.el("").
             }
             Expression::JSXFragment(_) => {
                 // Fragments arrive in a later task; leave untouched for now.
