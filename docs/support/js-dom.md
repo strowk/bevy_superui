@@ -63,7 +63,8 @@ Engine: Boa on every target (design §5). ✅ = installed by `superui_api` +
 
 | API | Status | Tier | Notes |
 |---|---|---|---|
-| `console.log/warn/error/info/debug` | ✅ | T0 | |
+| `console.log/warn/error/info` | ✅ | T0 | |
+| `console.debug/trace/table/group` | 🟡 | T2 | not installed — currently throws; roadmap to stub for graceful degradation |
 | `setTimeout` / `setInterval` / `clearTimeout` / `clearInterval` | ✅ | T1 | driven by Bevy's clock |
 | `window` (alias of `globalThis`) | ✅ | T1 | |
 | `window.bevy.send(name, data)` | ✅ | T1 | JS → ECS (design §8) |
