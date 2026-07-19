@@ -108,6 +108,24 @@ fn typing_into_focused_input_updates_value_and_fires_input() {
 
     assert_eq!(dom.borrow().value(node), "hi");
 
+    // Settle one reconcile so the input entity's Text reflects the final value
+    // (keyboard_events_system and reconcile_system are unordered in this harness).
+    app.update();
+
+    // The typed value renders as `Text` ON the input element entity (this is what
+    // makes it visible in the live app — flair styles the element's own text).
+    let input_ent = {
+        let mut q = app.world_mut().query::<(Entity, &superui_bridge::DomNode)>();
+        q.iter(app.world())
+            .find(|(_, d)| d.0 == node)
+            .map(|(e, _)| e)
+            .unwrap()
+    };
+    assert_eq!(
+        app.world().get::<Text>(input_ent).expect("input entity has Text").0,
+        "hi"
+    );
+
     // Mirror globalThis.inputs into the DOM so Rust can read it back
     // (same pattern as checkbox_click_toggles_checked_and_fires_change).
     app.world_mut().non_send_resource_mut::<UiRuntime>().run_script(

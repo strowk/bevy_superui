@@ -11,7 +11,7 @@ use superui_css::html_type_name;
 use superui_css::prelude::{AttributeList, ClassList, InlineStyle, NodeStyleSheet, TypeName};
 use superui_dom::{NodeId, NodeKind};
 
-use crate::runtime::{DomNode, InputValueText, UiRuntime};
+use crate::runtime::{DomNode, UiRuntime};
 
 /// Exclusive system: reconcile when dirty. Pulls the NonSend runtime out, syncs,
 /// re-inserts (the NonSend resource has no `resource_scope`, so move it out/in).
@@ -82,7 +82,6 @@ impl UiRuntime {
                 ec.despawn();
             }
             self.unbind(node, entity);
-            self.input_texts.remove(&node);
         }
     }
 
@@ -132,16 +131,19 @@ impl UiRuntime {
             }
         }
 
-        // If this parent is a text <input>, append its managed value/placeholder
-        // text child so it renders and survives replace_children.
-        if Self::is_text_input(dom, parent_node) {
-            let managed = self.ensure_input_text(world, dom, parent_node, parent_entity);
-            child_entities.push(managed);
-        }
-
         world
             .entity_mut(parent_entity)
             .replace_children(&child_entities);
+
+        // A text <input> has no DOM children; render its value/placeholder as
+        // `Text` ON the input element entity itself (done after replace_children
+        // so it isn't clobbered). Putting it on the element — which carries
+        // `DomNode` + flair styling — means clicks pick the input (→ keyboard
+        // focus) and flair's inherited `color`/`font-size` make it visible,
+        // unlike a separate child that intercepted picking and rendered white.
+        if Self::is_text_input(dom, parent_node) {
+            Self::sync_input_text(world, dom, parent_node, parent_entity);
+        }
     }
 
     /// Record every node reachable under `node` (inclusive) into `live`.
@@ -159,15 +161,18 @@ impl UiRuntime {
             && dom.get_attribute(node, "type") != Some("checkbox")
     }
 
-    /// Ensure a text `<input>` has its managed `InputValueText` child, update its
-    /// content (value, or placeholder when empty), and return the child entity.
-    fn ensure_input_text(
-        &mut self,
+    /// Render a text `<input>`'s value (or its placeholder when empty) as `Text`
+    /// on the input element entity itself. Because the Text lives on the element
+    /// (which carries `DomNode` + flair styling), clicks pick the input — giving
+    /// it keyboard focus — and flair's inherited `color`/`font-size` make the
+    /// text visible. (A separate un-styled child intercepted picking and rendered
+    /// default white text on the white field.)
+    fn sync_input_text(
         world: &mut World,
         dom: &superui_dom::Dom,
         input_node: NodeId,
         input_entity: Entity,
-    ) -> Entity {
+    ) {
         let value = dom.value(input_node);
         let content = if value.is_empty() {
             dom.get_attribute(input_node, "placeholder")
@@ -176,32 +181,16 @@ impl UiRuntime {
         } else {
             value
         };
-
-        // Reuse the existing managed child if it is still alive; else spawn one.
-        let existing = self
-            .input_texts
-            .get(&input_node)
-            .copied()
-            .filter(|e| world.get_entity(*e).is_ok());
-
-        let entity = match existing {
-            Some(e) => {
-                if let Some(mut t) = world.get_mut::<Text>(e) {
-                    if t.0 != content {
-                        t.0 = content;
-                    }
+        match world.get_mut::<Text>(input_entity) {
+            Some(mut t) => {
+                if t.0 != content {
+                    t.0 = content;
                 }
-                e
             }
             None => {
-                let e = world.spawn((Text::new(content), InputValueText)).id();
-                self.input_texts.insert(input_node, e);
-                // Parent it under the input so recursive despawn cleans it up.
-                world.entity_mut(input_entity).add_child(e);
-                e
+                world.entity_mut(input_entity).insert(Text::new(content));
             }
-        };
-        entity
+        }
     }
 
     /// Push an element node's identity/attributes/state onto its entity. Called

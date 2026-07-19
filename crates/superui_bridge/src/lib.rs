@@ -16,4 +16,4 @@ pub use events::{
     PendingDomEvent, PendingDomEvents,
 };
 pub use reconcile::reconcile_system;
-pub use runtime::{DomNode, InputValueText, UiRuntime};
+pub use runtime::{DomNode, UiRuntime};

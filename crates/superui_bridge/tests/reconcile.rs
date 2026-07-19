@@ -138,24 +138,41 @@ fn input_renders_placeholder_then_value_as_text() {
             .unwrap()
     };
 
-    // Empty value -> the managed text child shows the placeholder.
+    // Empty value -> the input ENTITY itself carries a Text with the placeholder
+    // (rendered on the element, not a child, so flair styles it + clicks focus it).
     let text_of_input = |app: &mut App, input_ent: Entity| -> String {
-        let kids = app.world().get::<Children>(input_ent).unwrap().to_vec();
-        for k in kids {
-            if app.world().get::<superui_bridge::InputValueText>(k).is_some() {
-                return app.world().get::<Text>(k).unwrap().0.clone();
-            }
-        }
-        panic!("input has no managed InputValueText child");
+        app.world()
+            .get::<Text>(input_ent)
+            .expect("input entity has a Text component")
+            .0
+            .clone()
     };
     assert_eq!(text_of_input(&mut app, input_ent), "What needs doing?");
 
     // Type into the DOM value (as the keyboard seam would) and re-reconcile:
-    // the SAME managed text child now shows the value.
+    // the input entity's Text now shows the value.
     dom.borrow_mut().set_value(input_node, "Buy milk");
     app.world_mut()
         .non_send_resource_mut::<UiRuntime>()
         .dirty = true;
     app.update();
     assert_eq!(text_of_input(&mut app, input_ent), "Buy milk");
+
+    // Fix invariant (why the live app can focus + type into the input): the Text
+    // is ON the input element entity, which carries `DomNode`, and there is NO
+    // separate child entity. So a real pointer click picks the input itself and
+    // `on_pointer_click` can resolve it to the input node → keyboard focus.
+    assert!(
+        app.world().get::<DomNode>(input_ent).is_some(),
+        "the entity carrying the input Text must also carry DomNode (so clicks focus it)"
+    );
+    let child_count = app
+        .world()
+        .get::<Children>(input_ent)
+        .map(|c| c.len())
+        .unwrap_or(0);
+    assert_eq!(
+        child_count, 0,
+        "the input must have no synthetic child entity to intercept picking"
+    );
 }
