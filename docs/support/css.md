@@ -16,7 +16,7 @@ Unknown properties/rules are skipped, never fatal.
 | compound (`.todo.completed`) | ✅ | T1 | |
 | `:hover` | ✅ | T1 | via `bevy_picking` hover |
 | `:checked` | ✅ | T1 | checkbox state |
-| `:focus` | 🟡 | T1 | keyboard focus is tracked for event routing, but the bridge doesn't yet write `bevy_input_focus::InputFocus`, so flair's `:focus` styling never applies — roadmap |
+| `:focus` | 🟡 | T1 | **roadmap: `:focus` styling.** Focus is tracked for keyboard/event routing (click + Tab set it), but the bridge doesn't yet mirror it into `bevy_input_focus::InputFocus`, so flair's `:focus` selector never matches — no focus ring / focus styles today. Plan: on focus change, write the focused node's entity into `InputFocus` so flair styles it (pairs with the full-editing work in the HTML ledger) |
 | child (`>`) / sibling (`+`, `~`) | 🟡 | T2 | |
 | `:nth-child`, `::before/::after` | 🟡 | T2 | |
 

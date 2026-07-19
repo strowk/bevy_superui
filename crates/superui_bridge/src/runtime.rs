@@ -142,6 +142,12 @@ impl UiRuntime {
     pub fn set_focus(&mut self, node: Option<NodeId>) {
         self.focused = node;
     }
+
+    /// The currently keyboard-focused DOM node, if any. Public so integration
+    /// tests (and automation) can assert where a click/Tab landed focus.
+    pub fn focused(&self) -> Option<NodeId> {
+        self.focused
+    }
 }
 
 #[cfg(test)]

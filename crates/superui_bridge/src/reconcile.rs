@@ -282,17 +282,7 @@ impl UiRuntime {
                 // physical size -> logical, minus ~padding(24)+border(4).
                 .map(|cn| (cn.size.x * cn.inverse_scale_factor - 28.0).max(0.0))
                 .unwrap_or(0.0);
-            let max_chars = if avail <= 0.0 {
-                usize::MAX
-            } else {
-                (avail / (font_size * 0.62)).floor().max(1.0) as usize
-            };
-            let n = content.chars().count();
-            if n > max_chars {
-                content.chars().skip(n - max_chars).collect()
-            } else {
-                content
-            }
+            fit_tail(content, avail, font_size)
         };
 
         // The input element must NOT be a Text node (bevy_ui won't draw a border
@@ -403,5 +393,63 @@ impl UiRuntime {
         } else {
             ec.remove::<Checked>();
         }
+    }
+}
+
+/// A text `<input>` is single-line: instead of wrapping (which grows the field
+/// taller, textarea-style), show only the tail of `content` that fits on one
+/// line — the same "scroll horizontally to keep the caret end in view" behavior
+/// a real `<input>` has. `avail_px` is the inner width in logical px; `<= 0`
+/// means "layout hasn't run yet, show everything". `font_size * 0.62` estimates
+/// the average glyph advance for the default (roughly monospace) font.
+pub(crate) fn fit_tail(content: String, avail_px: f32, font_size: f32) -> String {
+    let max_chars = if avail_px <= 0.0 {
+        usize::MAX
+    } else {
+        (avail_px / (font_size * 0.62)).floor().max(1.0) as usize
+    };
+    let n = content.chars().count();
+    if n > max_chars {
+        // Keep the last `max_chars` characters (the caret/typing end).
+        content.chars().skip(n - max_chars).collect()
+    } else {
+        content
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::fit_tail;
+
+    #[test]
+    fn fit_tail_shows_everything_before_layout() {
+        // avail <= 0 => no ComputedNode yet => never truncate.
+        assert_eq!(fit_tail("hello world".into(), 0.0, 16.0), "hello world");
+        assert_eq!(fit_tail("hello world".into(), -1.0, 16.0), "hello world");
+    }
+
+    #[test]
+    fn fit_tail_keeps_the_tail_when_content_overflows() {
+        // font_size 10 -> glyph advance 6.2px; avail 31px -> floor(31/6.2)=5 chars.
+        // "0123456789" (10 chars) must scroll to its last 5: "56789".
+        assert_eq!(fit_tail("0123456789".into(), 31.0, 10.0), "56789");
+    }
+
+    #[test]
+    fn fit_tail_returns_content_unchanged_when_it_fits() {
+        // 5 chars fit in a 5-char budget exactly -> unchanged.
+        assert_eq!(fit_tail("12345".into(), 31.0, 10.0), "12345");
+    }
+
+    #[test]
+    fn fit_tail_shows_at_least_one_char_in_a_tiny_field() {
+        // Sub-glyph width still keeps the last character (max(1)).
+        assert_eq!(fit_tail("abc".into(), 1.0, 10.0), "c");
+    }
+
+    #[test]
+    fn fit_tail_counts_chars_not_bytes() {
+        // Multi-byte chars: 4 accented chars, budget 2 -> last 2 by char, not byte.
+        assert_eq!(fit_tail("áéíó".into(), 12.4, 10.0), "íó");
     }
 }

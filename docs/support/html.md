@@ -12,8 +12,9 @@ unknown attributes are ignored (design §1).
 | `h1`–`h6` | ✅ | T0 | text sizing via CSS |
 | `ul` / `ol` / `li` | ✅ | T0 | plain flex boxes (no list markers yet) |
 | `button` | ✅ | T0 | clickable |
-| `input type=text` | ✅ | T1 | value renders as text; typed via keyboard seam |
-| `input type=checkbox` | ✅ | T1 | toggles `checked`, drives `:checked` |
+| `input type=text` | ✅ | T1 | value renders as text (single-line, dim placeholder, blinking caret); typed via keyboard seam. Editing is **append + backspace at the end only** — see "full text input editing" below |
+| `input type=checkbox` | ✅ | T1 | toggles `checked`, drives `:checked`; shows a mark when checked |
+| full text input editing | 🟡 | T2 | **roadmap: fully functional `<input>` editing** — caret positioning (click-to-place, arrow keys, Home/End), text selection, and mid-string insert/delete. Today the caret is pinned to the end (append + backspace); the field already scrolls horizontally to keep that end in view |
 | `label` | ✅ | T1 | plain box (no implicit `for` focus yet) |
 | text nodes | ✅ | T0 | rendered via `bevy_ui` `Text` |
 | `a` (anchor) | 🟡 | T1 | renders; no navigation (no network) |
