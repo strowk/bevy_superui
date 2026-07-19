@@ -7,7 +7,7 @@ use std::rc::Rc;
 use bevy::asset::LoadState;
 use bevy::prelude::*;
 use superui_bridge::{
-    drain_bevy_outbox_system, drain_dom_events_system, emit_bevy_inbox_system,
+    blink_caret_system, drain_bevy_outbox_system, drain_dom_events_system, emit_bevy_inbox_system,
     keyboard_events_system, on_pointer_click, reconcile_system, PendingDomEvents, UiRuntime,
 };
 use superui_css::style::StyleSheet;
@@ -52,6 +52,7 @@ impl Plugin for SuperUiPlugin {
                     apply_hot_reload,
                     drain_dom_events_system,
                     keyboard_events_system,
+                    blink_caret_system,
                     emit_bevy_inbox_system,
                     drain_bevy_outbox_system,
                     tick_timers_system,

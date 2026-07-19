@@ -16,6 +16,9 @@ mcp_debug = ["dep:bevy_brp_extras", "bevy/bevy_remote"]
 [dependencies]
 superui = { path = "../../crates/superui" }
 superui_css = { path = "../../crates/superui_css" }
+# Already pulled transitively via `superui`; named directly so `main.rs` can use
+# its types for the mcp_debug click injector.
+superui_bridge = { path = "../../crates/superui_bridge" }
 # Full Bevy (windowing + rendering) — this is the runnable app, not a headless lib.
 # `file_watcher` is required for the AssetPlugin hot-reload seam to do anything
 # (design §6); `watch_for_changes_override` is inert without it.
@@ -28,7 +31,6 @@ version = "0.17.3"
 
 [dev-dependencies]
 # Headless integration tests reuse the browser stack without a window.
-superui_bridge = { path = "../../crates/superui_bridge" }
 superui_dom = { path = "../../crates/superui_dom" }
 superui_html = { path = "../../crates/superui_html" }
 

@@ -66,12 +66,37 @@ pub fn on_pointer_click(
     mut dom: NonSendMut<UiRuntime>,
     mut pending: ResMut<PendingDomEvents>,
 ) {
-    let Ok(dom_node) = nodes.get(ev.event().entity) else {
+    apply_pointer_click(ev.event().entity, &nodes, &mut dom, &mut pending);
+}
+
+/// The core of a pointer click on a UI `entity`: resolve it to a DOM node, focus
+/// it, and enqueue the `click` (+ checkbox `change`) DOM event. Shared by the
+/// picking observer and by test/automation drivers that can't synthesize a real
+/// `Pointer<Click>` (e.g. the `mcp_debug` click injector).
+pub fn apply_pointer_click(
+    entity: Entity,
+    nodes: &Query<&DomNode>,
+    rt: &mut UiRuntime,
+    pending: &mut PendingDomEvents,
+) {
+    let Ok(dom_node) = nodes.get(entity) else {
         return;
     };
     let node = dom_node.0;
-    dom.focused = Some(node);
-    click_effect(&dom, node, &mut pending);
+    rt.focused = Some(node);
+    rt.caret_visible = true;
+    rt.caret_accum = 0.0;
+    click_effect(rt, node, pending);
+}
+
+/// Blink the text caret (~2 Hz) while a text field is focused; re-renders on flip.
+pub fn blink_caret_system(time: Res<Time>, rt: Option<NonSendMut<UiRuntime>>) {
+    if let Some(mut rt) = rt {
+        let dt = time.delta_secs();
+        if rt.advance_caret(dt) {
+            rt.dirty = true;
+        }
+    }
 }
 
 fn tag_of(dom: &superui_dom::Dom, node: NodeId) -> Option<String> {

@@ -138,19 +138,22 @@ fn input_renders_placeholder_then_value_as_text() {
             .unwrap()
     };
 
-    // Empty value -> the input ENTITY itself carries a Text with the placeholder
-    // (rendered on the element, not a child, so flair styles it + clicks focus it).
+    // The input element is a CONTAINER (so it can render a border): its text lives
+    // in a managed `InputValueText` child, kept non-pickable so clicks focus the
+    // input. Read the child's text.
     let text_of_input = |app: &mut App, input_ent: Entity| -> String {
-        app.world()
-            .get::<Text>(input_ent)
-            .expect("input entity has a Text component")
-            .0
-            .clone()
+        let kids = app.world().get::<Children>(input_ent).unwrap().to_vec();
+        for k in kids {
+            if app.world().get::<superui_bridge::InputValueText>(k).is_some() {
+                return app.world().get::<Text>(k).unwrap().0.clone();
+            }
+        }
+        panic!("input has no managed InputValueText child");
     };
+    // Not focused (no autofocus) -> shows the placeholder.
     assert_eq!(text_of_input(&mut app, input_ent), "What needs doing?");
 
-    // Type into the DOM value (as the keyboard seam would) and re-reconcile:
-    // the input entity's Text now shows the value.
+    // Type into the DOM value (as the keyboard seam would) and re-reconcile.
     dom.borrow_mut().set_value(input_node, "Buy milk");
     app.world_mut()
         .non_send_resource_mut::<UiRuntime>()
@@ -158,21 +161,18 @@ fn input_renders_placeholder_then_value_as_text() {
     app.update();
     assert_eq!(text_of_input(&mut app, input_ent), "Buy milk");
 
-    // Fix invariant (why the live app can focus + type into the input): the Text
-    // is ON the input element entity, which carries `DomNode`, and there is NO
-    // separate child entity. So a real pointer click picks the input itself and
-    // `on_pointer_click` can resolve it to the input node → keyboard focus.
+    // Fix invariants (why the live app can focus + type into a bordered input):
+    // the input element carries `DomNode` and is NOT itself a text node (so
+    // bevy_ui draws its border); the managed child is non-pickable so a click
+    // falls through to the input for focus.
+    assert!(app.world().get::<DomNode>(input_ent).is_some());
     assert!(
-        app.world().get::<DomNode>(input_ent).is_some(),
-        "the entity carrying the input Text must also carry DomNode (so clicks focus it)"
+        app.world().get::<Text>(input_ent).is_none(),
+        "input element must be a container (no Text on it) so its border renders"
     );
-    let child_count = app
-        .world()
-        .get::<Children>(input_ent)
-        .map(|c| c.len())
-        .unwrap_or(0);
-    assert_eq!(
-        child_count, 0,
-        "the input must have no synthetic child entity to intercept picking"
+    let child = app.world().get::<Children>(input_ent).unwrap()[0];
+    assert!(
+        app.world().get::<bevy::picking::Pickable>(child).is_some(),
+        "managed text child must be Pickable::IGNORE so clicks focus the input"
     );
 }

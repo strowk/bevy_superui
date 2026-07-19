@@ -112,8 +112,9 @@ fn typing_into_focused_input_updates_value_and_fires_input() {
     // (keyboard_events_system and reconcile_system are unordered in this harness).
     app.update();
 
-    // The typed value renders as `Text` ON the input element entity (this is what
-    // makes it visible in the live app — flair styles the element's own text).
+    // The typed value renders in the input's managed `InputValueText` child (the
+    // input element itself is a container so it can draw a border). The child is
+    // focused here, so it shows the value plus a caret glyph ("hi" + "|" or " ").
     let input_ent = {
         let mut q = app.world_mut().query::<(Entity, &superui_bridge::DomNode)>();
         q.iter(app.world())
@@ -121,9 +122,16 @@ fn typing_into_focused_input_updates_value_and_fires_input() {
             .map(|(e, _)| e)
             .unwrap()
     };
-    assert_eq!(
-        app.world().get::<Text>(input_ent).expect("input entity has Text").0,
-        "hi"
+    let child_text = {
+        let kids = app.world().get::<Children>(input_ent).unwrap().to_vec();
+        kids.into_iter()
+            .find(|&k| app.world().get::<superui_bridge::InputValueText>(k).is_some())
+            .map(|k| app.world().get::<Text>(k).unwrap().0.clone())
+            .expect("managed input text child")
+    };
+    assert!(
+        child_text.starts_with("hi"),
+        "expected the child text to start with the typed value, got {child_text:?}"
     );
 
     // Mirror globalThis.inputs into the DOM so Rust can read it back

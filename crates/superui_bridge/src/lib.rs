@@ -12,8 +12,8 @@ pub use bevy_bridge::{
     drain_bevy_outbox_system, emit_bevy_inbox_system, BevyBridgeRegistry, SuperUiApp,
 };
 pub use events::{
-    click_effect, drain_dom_events_system, keyboard_events_system, on_pointer_click,
-    PendingDomEvent, PendingDomEvents,
+    apply_pointer_click, blink_caret_system, click_effect, drain_dom_events_system,
+    keyboard_events_system, on_pointer_click, PendingDomEvent, PendingDomEvents,
 };
 pub use reconcile::reconcile_system;
-pub use runtime::{DomNode, UiRuntime};
+pub use runtime::{DomNode, InputValueText, UiRuntime};

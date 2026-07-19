@@ -17,6 +17,12 @@ use superui_js::{BoaEngine, JsEngine};
 #[derive(Component, Clone, Copy, Debug)]
 pub struct DomNode(pub NodeId);
 
+/// Marks the reconciler-managed child that renders a text `<input>`'s value or
+/// placeholder. It's kept non-pickable so clicks fall through to the input
+/// (container) itself, which is what receives keyboard focus.
+#[derive(Component, Clone, Copy, Debug)]
+pub struct InputValueText;
+
 /// NonSend because [`BoaEngine`] holds `Rc<RefCell<Dom>>` and Boa `JsFunction`s.
 pub struct UiRuntime {
     /// The retained arena DOM — the source of truth. Shared with `engine`.
@@ -33,6 +39,12 @@ pub struct UiRuntime {
     entity_to_node: HashMap<Entity, NodeId>,
     /// The DOM node that currently has keyboard focus (Task 5).
     pub(crate) focused: Option<NodeId>,
+    /// Whether the text caret is currently drawn (blinks; see `blink_caret_system`).
+    pub(crate) caret_visible: bool,
+    /// Time accumulator driving the caret blink.
+    pub(crate) caret_accum: f32,
+    /// Text-`<input>` node -> its managed [`InputValueText`] child entity.
+    pub(crate) input_texts: HashMap<NodeId, Entity>,
 }
 
 impl UiRuntime {
@@ -54,7 +66,29 @@ impl UiRuntime {
             node_to_entity: HashMap::new(),
             entity_to_node: HashMap::new(),
             focused: None,
+            caret_visible: true,
+            caret_accum: 0.0,
+            input_texts: HashMap::new(),
         }
+    }
+
+    /// Advance the caret-blink clock by `dt` seconds. Returns `true` if the caret
+    /// visibility flipped (so the caller can mark the runtime dirty to re-render).
+    pub fn advance_caret(&mut self, dt: f32) -> bool {
+        if self.focused.is_none() {
+            // No focus: keep the caret "on" so it shows immediately next focus.
+            self.caret_accum = 0.0;
+            let was_off = !self.caret_visible;
+            self.caret_visible = true;
+            return was_off;
+        }
+        self.caret_accum += dt;
+        if self.caret_accum >= 0.53 {
+            self.caret_accum = 0.0;
+            self.caret_visible = !self.caret_visible;
+            return true;
+        }
+        false
     }
 
     /// Evaluate an author script against the current DOM. Errors are logged and

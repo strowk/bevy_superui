@@ -32,7 +32,12 @@ fn main() {
     // Bevy Remote Protocol + extras, so the bevy_brp_mcp server can inspect the
     // live ECS world, screenshot, and inject input.
     #[cfg(feature = "mcp_debug")]
-    app.add_plugins(bevy_brp_extras::BrpExtrasPlugin);
+    {
+        app.add_plugins(bevy_brp_extras::BrpExtrasPlugin)
+            .register_type::<mcp_debug::DebugClick>()
+            .init_resource::<mcp_debug::DebugClick>()
+            .add_systems(Update, mcp_debug::debug_click_system);
+    }
 
     // Register the one demo command so `bevy.send("TodoAdded", ...)` reaches ECS.
     use superui::prelude::SuperUiApp;
@@ -84,6 +89,35 @@ mod debug_ui {
             );
         }
         info!("[debug] ===== end dump =====");
+    }
+}
+
+/// Opt-in click injector (feature `mcp_debug`): lets the BRP client drive a real
+/// click through the actual handler path (bevy_brp can inject keys but not mouse).
+/// Set the `DebugClick(Some(entity))` resource via `world.insert_resources`; the
+/// system resolves it exactly like the picking observer would.
+#[cfg(feature = "mcp_debug")]
+mod mcp_debug {
+    use bevy::prelude::*;
+    use superui_bridge::{apply_pointer_click, DomNode, PendingDomEvents, UiRuntime};
+
+    /// Target entity for a synthetic click. BRP sets this; the system consumes it.
+    #[derive(Resource, Default, Reflect)]
+    #[reflect(Resource)]
+    pub struct DebugClick(pub Option<Entity>);
+
+    pub fn debug_click_system(
+        mut click: ResMut<DebugClick>,
+        nodes: Query<&DomNode>,
+        rt: Option<NonSendMut<UiRuntime>>,
+        pending: Option<ResMut<PendingDomEvents>>,
+    ) {
+        let Some(entity) = click.0.take() else {
+            return;
+        };
+        if let (Some(mut rt), Some(mut pending)) = (rt, pending) {
+            apply_pointer_click(entity, &nodes, &mut rt, &mut pending);
+        }
     }
 }
 

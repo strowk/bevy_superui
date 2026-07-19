@@ -5,13 +5,14 @@
 
 use std::collections::HashSet;
 
+use bevy::picking::Pickable;
 use bevy::prelude::*;
 use bevy::ui::Checked;
 use superui_css::html_type_name;
 use superui_css::prelude::{AttributeList, ClassList, InlineStyle, NodeStyleSheet, TypeName};
 use superui_dom::{NodeId, NodeKind};
 
-use crate::runtime::{DomNode, UiRuntime};
+use crate::runtime::{DomNode, InputValueText, UiRuntime};
 
 /// Exclusive system: reconcile when dirty. Pulls the NonSend runtime out, syncs,
 /// re-inserts (the NonSend resource has no `resource_scope`, so move it out/in).
@@ -82,6 +83,7 @@ impl UiRuntime {
                 ec.despawn();
             }
             self.unbind(node, entity);
+            self.input_texts.remove(&node);
         }
     }
 
@@ -156,7 +158,7 @@ impl UiRuntime {
         // focus) and flair's inherited `color`/`font-size` make it visible,
         // unlike a separate child that intercepted picking and rendered white.
         if Self::is_text_input(dom, parent_node) {
-            Self::sync_input_text(world, dom, parent_node, parent_entity);
+            self.sync_input_text(world, dom, parent_node, parent_entity);
         }
     }
 
@@ -175,36 +177,82 @@ impl UiRuntime {
             && dom.get_attribute(node, "type") != Some("checkbox")
     }
 
-    /// Render a text `<input>`'s value (or its placeholder when empty) as `Text`
-    /// on the input element entity itself. Because the Text lives on the element
-    /// (which carries `DomNode` + flair styling), clicks pick the input — giving
-    /// it keyboard focus — and flair's inherited `color`/`font-size` make the
-    /// text visible. (A separate un-styled child intercepted picking and rendered
-    /// default white text on the white field.)
+    /// Render a text `<input>`'s value/placeholder (with a blinking caret when
+    /// focused). The input element stays a **container** (so flair can give it a
+    /// border/background); the text lives in a managed child which is kept
+    /// non-pickable, so a click lands on the input itself and focuses it. The
+    /// child copies the input's resolved `TextColor`/`TextFont` so it's styled
+    /// like the field (a plain child wouldn't be in flair's cascade reliably).
     fn sync_input_text(
+        &mut self,
         world: &mut World,
         dom: &superui_dom::Dom,
         input_node: NodeId,
         input_entity: Entity,
     ) {
         let value = dom.value(input_node);
-        let content = if value.is_empty() {
+        let focused = self.focused == Some(input_node);
+        let placeholder = || {
             dom.get_attribute(input_node, "placeholder")
                 .unwrap_or("")
                 .to_string()
+        };
+        let content = if focused {
+            // Toggle the caret glyph between "|" and a same-width space so the
+            // field doesn't jitter as it blinks (the default font is monospace-ish).
+            let caret = if self.caret_visible { '|' } else { ' ' };
+            if value.is_empty() {
+                format!("{caret}{}", placeholder()) // caret at start, placeholder trailing
+            } else {
+                format!("{value}{caret}")
+            }
+        } else if value.is_empty() {
+            placeholder()
         } else {
             value
         };
-        match world.get_mut::<Text>(input_entity) {
-            Some(mut t) => {
-                if t.0 != content {
-                    t.0 = content;
+
+        // The input element must NOT be a Text node (bevy_ui won't draw a border
+        // on a text node). Strip any stray Text from an earlier build.
+        if world.get::<Text>(input_entity).is_some() {
+            world.entity_mut(input_entity).remove::<Text>();
+        }
+
+        // Resolve the input's styled text color/font to copy onto the child.
+        let color = world.get::<TextColor>(input_entity).copied();
+        let font = world.get::<TextFont>(input_entity).cloned();
+
+        // Get-or-spawn the managed child.
+        let child = self
+            .input_texts
+            .get(&input_node)
+            .copied()
+            .filter(|e| world.get_entity(*e).is_ok());
+        let child = match child {
+            Some(c) => {
+                if let Some(mut t) = world.get_mut::<Text>(c) {
+                    if t.0 != content {
+                        t.0 = content;
+                    }
                 }
+                c
             }
             None => {
-                world.entity_mut(input_entity).insert(Text::new(content));
+                let c = world
+                    .spawn((Text::new(content), InputValueText, Pickable::IGNORE))
+                    .id();
+                self.input_texts.insert(input_node, c);
+                c
             }
+        };
+        if let Some(color) = color {
+            world.entity_mut(child).insert(color);
         }
+        if let Some(font) = font {
+            world.entity_mut(child).insert(font);
+        }
+        // Re-parent under the input (replace_children cleared it this pass).
+        world.entity_mut(input_entity).add_child(child);
     }
 
     /// Push an element node's identity/attributes/state onto its entity. Called
