@@ -478,13 +478,14 @@ impl<'a> Lower<'a> {
     /// Lower a component tag `<Comp .../>` to `$ss.cmp(Comp, { ...props... })`.
     fn lower_component(&mut self, comp: &str, element: &JSXElement<'a>) -> Expression<'a> {
         // Component prop kinds:
-        //   - Static(name, value)   → plain prop `name: <literal JS value>`
+        //   - Static(name, value)   → plain init prop `name: <value>`
+        //                             covers: string literals, numeric literals, and
+        //                             `onX={h}` handlers (passed as-is; NOT wired as
+        //                             DOM listeners — that is the element path's job).
         //   - Dynamic(name, expr)   → getter prop `get name() { return <expr>; }`
-        //   - Handler(name, expr)   → plain prop `name: <handler>` (onX passed as-is)
         enum PropKind<'ast> {
             Static(String, Expression<'ast>),
             Dynamic(String, Expression<'ast>),
-            Handler(String, Expression<'ast>),
         }
         let prop_data: Vec<PropKind<'a>> = element
             .opening_element
@@ -498,7 +499,6 @@ impl<'a> Lower<'a> {
                         format!("{}:{}", ns.namespace.name.as_str(), ns.name.name.as_str())
                     }
                 };
-                let is_handler = name.starts_with("on") && name.len() > 2;
                 match &attr.value {
                     // `name="lit"` → plain string prop (kept as a string value).
                     Some(JSXAttributeValue::StringLiteral(s)) => {
@@ -511,12 +511,13 @@ impl<'a> Lower<'a> {
                                 Ok(expr) => expr,
                                 Err(_) => return None, // empty `{}`
                             };
-                        if is_handler {
-                            // `onX={h}` on a component → ordinary prop `onX: h`.
-                            Some(PropKind::Handler(name, cloned))
-                        } else if is_literal_expression(&container.expression) {
-                            // Literal prop keeps its ORIGINAL literal value (not
-                            // stringified): `start={5}` → `start: 5`.
+                        // `onX={h}` on a component → ordinary plain prop `onX: h`.
+                        // Literal props keep their original JS value: `start={5}` → `start: 5`.
+                        // Both are Static (plain init props); only non-literal, non-handler
+                        // expressions need a getter for reactive tracking.
+                        if name.starts_with("on") && name.len() > 2
+                            || is_literal_expression(&container.expression)
+                        {
                             Some(PropKind::Static(name, cloned))
                         } else {
                             // Non-literal expression → getter prop.
@@ -532,7 +533,6 @@ impl<'a> Lower<'a> {
         for prop in prop_data {
             let p = match prop {
                 PropKind::Static(name, value) => self.init_prop(&name, value),
-                PropKind::Handler(name, handler) => self.init_prop(&name, handler),
                 PropKind::Dynamic(name, expr) => self.getter_prop(&name, expr),
             };
             props.push(p);

@@ -212,4 +212,25 @@ mod tests {
         assert!(out.contains("$ss.cmp(A") && out.contains("$ss.cmp(B"), "{out}");
         assert!(reparses_as_plain_js(&out), "{out}");
     }
+
+    #[test]
+    fn component_handler_is_plain_prop_not_event() {
+        let out = code("const a = <Btn onClick={h}/>;");
+        assert!(out.contains("$ss.cmp(Btn"), "{out}");
+        assert!(
+            out.contains("onClick: h") || out.contains("onClick:h"),
+            "handler is a plain prop:\n{out}"
+        );
+        assert!(!out.contains("$ss.on"), "component handler must NOT become a DOM listener:\n{out}");
+        assert!(reparses_as_plain_js(&out), "{out}");
+    }
+
+    #[test]
+    fn component_child_inside_element_lowers_not_dropped() {
+        let out = code("const a = <div><Counter/></div>;");
+        assert!(out.contains(r#"$ss.el("div")"#), "{out}");
+        assert!(out.contains("$ss.cmp(Counter"), "nested component child must lower, not drop:\n{out}");
+        assert!(out.contains("$ss.child("), "and be appended as a child:\n{out}");
+        assert!(reparses_as_plain_js(&out), "{out}");
+    }
 }
