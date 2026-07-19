@@ -1,0 +1,23 @@
+[package]
+name = "todomvc"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+superui = { path = "../../crates/superui" }
+superui_css = { path = "../../crates/superui_css" }
+# Full Bevy (windowing + rendering) — this is the runnable app, not a headless lib.
+bevy = "0.17"
+serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+# Headless integration tests reuse the browser stack without a window.
+superui_bridge = { path = "../../crates/superui_bridge" }
+superui_dom = { path = "../../crates/superui_dom" }
+superui_html = { path = "../../crates/superui_html" }
+
+# Boa (pulled transitively via superui) needs the JS getrandom backend on wasm.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { version = "0.3", features = ["wasm_js"] }
