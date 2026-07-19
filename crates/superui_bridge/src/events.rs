@@ -61,28 +61,51 @@ pub fn click_effect(rt: &UiRuntime, node: NodeId, pending: &mut PendingDomEvents
 /// enqueue a `change` event (dispatched after the click). Also sets keyboard focus
 /// to the clicked node (Task 5).
 pub fn on_pointer_click(
-    ev: On<Pointer<Click>>,
+    mut ev: On<Pointer<Click>>,
     nodes: Query<&DomNode>,
+    parents: Query<&ChildOf>,
     mut dom: NonSendMut<UiRuntime>,
     mut pending: ResMut<PendingDomEvents>,
 ) {
-    apply_pointer_click(ev.event().entity, &nodes, &mut dom, &mut pending);
+    // `Pointer<Click>` bubbles up the entity hierarchy, firing this observer once
+    // per ancestor. We only want to act on the actual (deepest) target — otherwise
+    // focus would be overwritten by each ancestor up to `<body>`. Stop propagation
+    // so we handle the click exactly once. (DOM-level bubbling is done separately
+    // by our own W3C dispatch in `click_effect`/`dispatch_event`.)
+    let target = ev.event().entity;
+    ev.propagate(false);
+    apply_pointer_click(target, &nodes, &parents, &mut dom, &mut pending);
 }
 
 /// The core of a pointer click on a UI `entity`: resolve it to a DOM node, focus
 /// it, and enqueue the `click` (+ checkbox `change`) DOM event. Shared by the
 /// picking observer and by test/automation drivers that can't synthesize a real
 /// `Pointer<Click>` (e.g. the `mcp_debug` click injector).
+///
+/// The hit entity may be a reconciler-internal child (e.g. an input's managed
+/// text child, or an element's `Text` child) with no `DomNode`. So resolve to
+/// the nearest ancestor that *is* a DOM node — clicking anywhere inside the
+/// input focuses the input, like a browser.
 pub fn apply_pointer_click(
     entity: Entity,
     nodes: &Query<&DomNode>,
+    parents: &Query<&ChildOf>,
     rt: &mut UiRuntime,
     pending: &mut PendingDomEvents,
 ) {
-    let Ok(dom_node) = nodes.get(entity) else {
+    let mut cur = entity;
+    let node = loop {
+        if let Ok(dom_node) = nodes.get(cur) {
+            break Some(dom_node.0);
+        }
+        match parents.get(cur) {
+            Ok(parent) => cur = parent.parent(),
+            Err(_) => break None,
+        }
+    };
+    let Some(node) = node else {
         return;
     };
-    let node = dom_node.0;
     rt.focused = Some(node);
     rt.caret_visible = true;
     rt.caret_accum = 0.0;
