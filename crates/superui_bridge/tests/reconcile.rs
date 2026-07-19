@@ -11,6 +11,32 @@ use superui_css::prelude::{AttributeList, ClassList, TypeName};
 use superui_dom::NodeKind;
 
 #[test]
+fn body_gets_type_name_and_identity_synced() {
+    // html5ever normalises the document: id/class on <body> are preserved.
+    let dom = Rc::new(RefCell::new(superui_html::parse_document(
+        "<body id='page' class='app'><div></div></body>",
+    )));
+    let mut app = test_app();
+    let root = mount(&mut app, dom.clone());
+    app.update();
+
+    // Root entity (= body) must have TypeName("body").
+    let tn = app.world().get::<TypeName>(root).expect("root has TypeName");
+    assert_eq!(tn.0, "body", "root entity must have TypeName 'body'");
+
+    // ClassList on root must contain "app".
+    let cl = app
+        .world()
+        .get::<ClassList>(root)
+        .expect("root has ClassList");
+    assert!(cl.contains("app"), "root ClassList must contain 'app'");
+
+    // Name on root must equal "page" (id selector uses Name in flair).
+    let name = app.world().get::<Name>(root).expect("root has Name");
+    assert_eq!(name.as_str(), "page", "root Name must equal 'page'");
+}
+
+#[test]
 fn reconciles_dom_tree_into_entities() {
     let dom = Rc::new(RefCell::new(superui_html::parse_document(
         "<ul class='list'><li>one</li><li>two</li></ul>",

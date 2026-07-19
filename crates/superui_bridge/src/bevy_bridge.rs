@@ -48,7 +48,7 @@ fn native_bevy_send(
 /// Install the `window.bevy` global into `engine`. Registers the native send
 /// hook and the JS surface (`send`/`on`/`_emit`), and aliases `window` to
 /// `globalThis` so both `bevy.*` and `window.bevy.*` resolve.
-pub fn install_bevy_bridge(engine: &mut BoaEngine) {
+pub(crate) fn install_bevy_bridge(engine: &mut BoaEngine) {
     let ctx = engine.context_mut();
     ctx.register_global_callable(
         js_string!("__superui_bevy_send"),

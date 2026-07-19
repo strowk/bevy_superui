@@ -76,6 +76,67 @@ fn hot_reload_js_re_executes_and_reconciles() {
     assert!(count_spans(&mut app) >= 2, "hot reload should re-run the JS");
 }
 
+#[test]
+fn html_hot_reload_despawns_old_entities_no_leak() {
+    // Mount with 3 lis, then hot-reload HTML+JS to produce 1 li;
+    // assert old 3 are gone (no leak), exactly 1 remains.
+    put("leak.html", b"<ul id='h'></ul>");
+    put("leak.css", b"li { }");
+    put(
+        "leak.js",
+        b"var h=document.getElementById('h'); \
+          for(var i=0;i<3;i++){var li=document.createElement('li');h.appendChild(li);}",
+    );
+
+    let mut app = app();
+    let _root = spawn_root(&mut app, "leak.html", "leak.css", "leak.js");
+    tick(&mut app, 32);
+
+    let count_li = |app: &mut App| {
+        let mut q = app.world_mut().query::<&superui_css::prelude::TypeName>();
+        q.iter(app.world()).filter(|t| t.0 == "li").count()
+    };
+    assert_eq!(count_li(&mut app), 3, "initial JS should create 3 lis");
+
+    // Mutate HTML asset in place (same handle, new JS produces 1 li).
+    let html_handle = {
+        let server = app.world().resource::<bevy::asset::AssetServer>().clone();
+        server.load::<superui::HtmlSource>("leak.html")
+    };
+    {
+        let mut assets = app
+            .world_mut()
+            .resource_mut::<Assets<superui::HtmlSource>>();
+        if let Some(h) = assets.get_mut(&html_handle) {
+            h.0 = "<ul id='h'></ul>".to_string();
+        }
+    }
+    // Also mutate JS so re-run produces only 1 li.
+    let js_handle = {
+        let server = app.world().resource::<bevy::asset::AssetServer>().clone();
+        server.load::<superui::JsSource>("leak.js")
+    };
+    {
+        let mut assets = app.world_mut().resource_mut::<Assets<superui::JsSource>>();
+        if let Some(j) = assets.get_mut(&js_handle) {
+            j.0 = "var h=document.getElementById('h'); \
+                   var li=document.createElement('li');h.appendChild(li);"
+                .to_string();
+        }
+    }
+    // Explicitly fire Modified for the HTML handle to trigger hot reload.
+    app.world_mut().write_message(bevy::asset::AssetEvent::Modified {
+        id: html_handle.id(),
+    });
+    tick(&mut app, 8);
+
+    assert_eq!(
+        count_li(&mut app),
+        1,
+        "after HTML hot-reload exactly 1 li must exist (old 3 must be despawned)"
+    );
+}
+
 use serde::{Deserialize, Serialize};
 use superui_bridge::{PendingDomEvent, PendingDomEvents, SuperUiApp};
 

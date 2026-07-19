@@ -42,12 +42,18 @@ impl Plugin for SuperUiPlugin {
             .add_systems(Update, detect_hot_reload.after(mount_when_ready))
             .add_systems(
                 Update,
+                // Ordering rule: JS-dispatching systems (drain_dom_events,
+                // keyboard_events, emit_bevy_inbox) must run BEFORE
+                // drain_bevy_outbox so that a bevy.send issued from a DOM-event
+                // or timer callback is triggered the same frame. (A game-event
+                // → bevy.on callback that itself calls bevy.send still lags one
+                // frame — acceptable Phase 1 trade-off.)
                 (
                     apply_hot_reload,
-                    drain_bevy_outbox_system,
                     drain_dom_events_system,
                     keyboard_events_system,
                     emit_bevy_inbox_system,
+                    drain_bevy_outbox_system,
                     tick_timers_system,
                     reconcile_system,
                 )

@@ -110,6 +110,16 @@ pub fn apply_hot_reload(world: &mut World) {
             .get(&root.html)
             .map(|h| h.0.clone())
         {
+            // FIX 3: Despawn the old child subtree before rebuilding so
+            // stale entities don't leak (the new runtime's stale-sweep never
+            // sees them because its node_to_entity map is empty).
+            let bound_non_root: Vec<Entity> = rt.bound_non_root_entities();
+            for entity in bound_non_root {
+                if let Ok(ec) = world.get_entity_mut(entity) {
+                    ec.despawn();
+                }
+            }
+
             // Rebuild the whole runtime around the fresh DOM.
             let dom = Rc::new(RefCell::new(superui_html::parse_document(&src)));
             let entity = rt.root;

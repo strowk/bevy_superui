@@ -8,7 +8,7 @@ use std::collections::HashSet;
 use bevy::prelude::*;
 use bevy::ui::Checked;
 use superui_css::html_type_name;
-use superui_css::prelude::{AttributeList, ClassList, InlineStyle, NodeStyleSheet};
+use superui_css::prelude::{AttributeList, ClassList, InlineStyle, NodeStyleSheet, TypeName};
 use superui_dom::{NodeId, NodeKind};
 
 use crate::runtime::{DomNode, UiRuntime};
@@ -43,6 +43,26 @@ impl UiRuntime {
         world
             .entity_mut(self.root)
             .insert((DomNode(body), NodeStyleSheet::new(self.stylesheet.clone())));
+
+        // FIX 1: Give the body/root entity a TypeName and sync its identity
+        // (id/class/attrs/inline-style), but only when body is actually an
+        // Element (when query_selector returned None we fell back to document,
+        // which is not an element and must not get a TypeName or sync_identity).
+        if let Some(tag) = dom.get(body).and_then(|n| {
+            if let NodeKind::Element(el) = &n.kind {
+                Some(el.tag.clone())
+            } else {
+                None
+            }
+        }) {
+            // TypeName is immutable (panics on re-insert); only insert once.
+            if world.get::<TypeName>(self.root).is_none() {
+                world
+                    .entity_mut(self.root)
+                    .insert(html_type_name(&tag));
+            }
+            self.sync_identity(world, &dom, body, self.root);
+        }
 
         // Recursively sync, collecting every node we touched this pass.
         let mut live: HashSet<NodeId> = HashSet::new();

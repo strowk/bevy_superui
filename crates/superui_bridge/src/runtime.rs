@@ -94,6 +94,15 @@ impl UiRuntime {
         &self.node_to_entity
     }
 
+    /// Returns all bound entities except `root` — useful for hot-reload cleanup.
+    pub fn bound_non_root_entities(&self) -> Vec<Entity> {
+        self.node_to_entity
+            .values()
+            .copied()
+            .filter(|&e| e != self.root)
+            .collect()
+    }
+
     /// Set the keyboard-focused DOM node (Task 5). Public so integration tests and
     /// the bevy_bridge can assign focus without going through the observer.
     pub fn set_focus(&mut self, node: Option<NodeId>) {
