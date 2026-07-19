@@ -37,9 +37,15 @@ fn main() {
 
 fn setup(mut commands: Commands, assets: Res<AssetServer>) {
     commands.spawn(Camera2d);
-    commands.spawn(SuperUiRoot {
-        html: assets.load("ui/todomvc/index.html"),
-        css: assets.load::<StyleSheet>("ui/todomvc/style.css"),
-        js: assets.load("ui/todomvc/app.js"),
-    });
+    // The root must carry a `Node` — the reconciler adds identity/style to it but
+    // not a base UI node, and flair's sibling-sync panics on a styled non-`Node`
+    // entity. (The `<body>` subtree reconciles in as this entity's children.)
+    commands.spawn((
+        Node::default(),
+        SuperUiRoot {
+            html: assets.load("ui/todomvc/index.html"),
+            css: assets.load::<StyleSheet>("ui/todomvc/style.css"),
+            js: assets.load("ui/todomvc/app.js"),
+        },
+    ));
 }
