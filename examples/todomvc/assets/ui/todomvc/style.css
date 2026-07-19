@@ -32,6 +32,8 @@ h1 {
   border-radius: 4px;
   color: #333333;
   font-size: 16px;
+  /* Single-line input: clip overflow instead of growing/wrapping. */
+  overflow: hidden;
 }
 
 #add {
@@ -80,6 +82,8 @@ h1 {
   background-color: #ffffff;
   border: 2px #cccccc;
   border-radius: 4px;
+  align-items: center;
+  justify-content: center;
 }
 
 .toggle:checked {

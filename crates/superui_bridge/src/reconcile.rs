@@ -7,7 +7,7 @@ use std::collections::HashSet;
 
 use bevy::picking::Pickable;
 use bevy::prelude::*;
-use bevy::ui::Checked;
+use bevy::ui::{Checked, ComputedNode};
 use superui_css::html_type_name;
 use superui_css::prelude::{AttributeList, ClassList, InlineStyle, NodeStyleSheet, TypeName};
 use superui_dom::{NodeId, NodeKind};
@@ -159,6 +159,62 @@ impl UiRuntime {
         // unlike a separate child that intercepted picking and rendered white.
         if Self::is_text_input(dom, parent_node) {
             self.sync_input_text(world, dom, parent_node, parent_entity);
+        } else if Self::is_checkbox(dom, parent_node) {
+            self.sync_checkbox_mark(world, dom, parent_node, parent_entity);
+        }
+    }
+
+    /// Is `node` a checkbox `<input>`?
+    fn is_checkbox(dom: &superui_dom::Dom, node: NodeId) -> bool {
+        matches!(dom.tag(node), Some("input"))
+            && dom.get_attribute(node, "type") == Some("checkbox")
+    }
+
+    /// A checked checkbox shows a "v" glyph (like a browser); unchecked is an
+    /// empty box. Rendered as a managed non-pickable child, tracked like the
+    /// input text child.
+    fn sync_checkbox_mark(
+        &mut self,
+        world: &mut World,
+        dom: &superui_dom::Dom,
+        node: NodeId,
+        entity: Entity,
+    ) {
+        let existing = self
+            .input_texts
+            .get(&node)
+            .copied()
+            .filter(|e| world.get_entity(*e).is_ok());
+        if dom.checked(node) {
+            let child = match existing {
+                Some(c) => {
+                    if let Some(mut t) = world.get_mut::<Text>(c) {
+                        if t.0 != "v" {
+                            t.0 = "v".to_string();
+                        }
+                    }
+                    c
+                }
+                None => {
+                    let c = world
+                        .spawn((
+                            Text::new("v"),
+                            TextColor(Color::WHITE),
+                            TextFont::from_font_size(15.0),
+                            InputValueText,
+                            Pickable::IGNORE,
+                        ))
+                        .id();
+                    self.input_texts.insert(node, c);
+                    c
+                }
+            };
+            world.entity_mut(entity).add_child(child);
+        } else if let Some(c) = existing {
+            if let Ok(ec) = world.get_entity_mut(c) {
+                ec.despawn();
+            }
+            self.input_texts.remove(&node);
         }
     }
 
@@ -191,6 +247,7 @@ impl UiRuntime {
         input_entity: Entity,
     ) {
         let value = dom.value(input_node);
+        let is_empty = value.is_empty();
         let focused = self.focused == Some(input_node);
         let placeholder = || {
             dom.get_attribute(input_node, "placeholder")
@@ -212,14 +269,49 @@ impl UiRuntime {
             value
         };
 
+        // Single-line field: show only the tail that fits (like a real <input>
+        // scrolling horizontally to keep the caret in view) instead of wrapping
+        // and growing taller. Width comes from last frame's ComputedNode.
+        let content = {
+            let font_size = world
+                .get::<TextFont>(input_entity)
+                .map(|f| f.font_size)
+                .unwrap_or(16.0);
+            let avail = world
+                .get::<ComputedNode>(input_entity)
+                // physical size -> logical, minus ~padding(24)+border(4).
+                .map(|cn| (cn.size.x * cn.inverse_scale_factor - 28.0).max(0.0))
+                .unwrap_or(0.0);
+            let max_chars = if avail <= 0.0 {
+                usize::MAX
+            } else {
+                (avail / (font_size * 0.62)).floor().max(1.0) as usize
+            };
+            let n = content.chars().count();
+            if n > max_chars {
+                content.chars().skip(n - max_chars).collect()
+            } else {
+                content
+            }
+        };
+
         // The input element must NOT be a Text node (bevy_ui won't draw a border
         // on a text node). Strip any stray Text from an earlier build.
         if world.get::<Text>(input_entity).is_some() {
             world.entity_mut(input_entity).remove::<Text>();
         }
 
-        // Resolve the input's styled text color/font to copy onto the child.
-        let color = world.get::<TextColor>(input_entity).copied();
+        // Placeholder renders dimmer than a typed value (like `::placeholder`).
+        // flair puts `TextColor` on DOM text nodes, not on this container, so the
+        // typed color falls back to a dark default when the input has none.
+        let color = if is_empty {
+            TextColor(Color::srgb(0.6, 0.6, 0.6))
+        } else {
+            world
+                .get::<TextColor>(input_entity)
+                .copied()
+                .unwrap_or(TextColor(Color::srgb(0.2, 0.2, 0.2)))
+        };
         let font = world.get::<TextFont>(input_entity).cloned();
 
         // Get-or-spawn the managed child.
@@ -245,12 +337,15 @@ impl UiRuntime {
                 c
             }
         };
-        if let Some(color) = color {
-            world.entity_mut(child).insert(color);
-        }
+        world.entity_mut(child).insert(color);
         if let Some(font) = font {
             world.entity_mut(child).insert(font);
         }
+        // Never wrap — a text field is a single line (belt-and-suspenders with the
+        // tail truncation above and `overflow: hidden` on the input).
+        world
+            .entity_mut(child)
+            .insert(TextLayout::new_with_no_wrap());
         // Re-parent under the input (replace_children cleared it this pass).
         world.entity_mut(input_entity).add_child(child);
     }
