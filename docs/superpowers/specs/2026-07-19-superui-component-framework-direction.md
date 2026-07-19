@@ -3,19 +3,20 @@
 Date: 2026-07-19
 Status: Direction agreed (forward-looking). **Not** an implementation plan.
 
-## 0. What this document is (and is not)
+## 0. What this document is
 
-This records the **agreed direction** for a component/reactivity framework layered on top of
-the `bevy_superui` browser from `2026-07-18-bevy-superui-design.md`. It **refines that design's
-Phase 3** ("framework support").
+This is the **agreed direction** for **Supersolid** — the component/reactivity framework layered
+on top of the `bevy_superui` browser from `2026-07-18-bevy-superui-design.md`.
 
-It is explicitly **not**:
-- An implementation plan (no tasks, no sequencing beyond the coarse notes below).
-- Work to start now. `bevy_superui` **Phase 1 (TodoMVC) must land first.** This document exists
-  so Phases 1–2 don't paint the later framework into a corner — nothing more.
+**Roadmap position (re-ordered from the base design):** Phase 1 (the browser core + a plain
+HTML/CSS/JS TodoMVC) is **done and merged**. **Phase 2 is now Supersolid** — this framework, the
+small lower-level DOM/JS additions it needs, and a Supersolid TodoMVC example — *not* broad
+browser completeness. Fuller browser compatibility (scoped to what doesn't require large
+underlying-crate changes) moves to **after** Supersolid. This supersedes the base design's §10
+ordering (browser completeness as Phase 2, frameworks as Phase 3).
 
-When the team is ready (post Phase 1/2), this becomes the input to its own dedicated
-brainstorm → spec → plan cycle.
+This is a direction/spec document; the implementation plan lives in `../plans/` (the Phase 2 /
+Supersolid plan series).
 
 ## 1. Goal
 
@@ -29,9 +30,9 @@ neither components nor reactivity. This document decides *how* we add them.
 
 ## 2. Core decision — a purpose-built, Solid-like fine-grained framework
 
-We build **one** purpose-built component + reactivity framework, modeled on **SolidJS's
-fine-grained signals** and authored in **Solid-style JSX/TSX**. It is not literally Solid and it
-is not React.
+We build **one** purpose-built component + reactivity framework — named **Supersolid** (workspace
+crate `supersolid`) — modeled on **SolidJS's fine-grained signals** and authored in **Solid-style
+JSX/TSX**. It is not literally Solid and it is not React.
 
 **Why not React** (the model most authors/AI reach for first):
 - Real React assumes a **Node/bundler build step** (JSX transpile), contradicting the Bevy dev's
@@ -123,8 +124,8 @@ native and wasm** by construction.
   conditional and keyed list rendering, mapping to minimal reconciler spawn/despawn/reorder.
 - **Props are not destructured** (destructuring breaks reactivity) — the linter flags it (§11.1).
 
-Note on `bevy_superui` engine phases: this framework is **Phase 3** of the base design regardless;
-"no phases" here means the *reactivity model* is single, not split into coarse-then-fine.
+Note on `bevy_superui` engine phases: Supersolid is **Phase 2** (re-ordered — see §0); "no phases"
+here means the *reactivity model* is single, not split into coarse-then-fine.
 
 ## 6. Engine posture (orthogonal to the reactivity model)
 
@@ -250,7 +251,9 @@ requirement, sync warns and any missing API degrades at runtime.
 
 ## 12. Relationship to the existing roadmap
 
-This refines **Phase 3** of `2026-07-18-bevy-superui-design.md`. Phases 1 (TodoMVC) and 2
-(browser-ish completeness) are unchanged and remain prerequisites. The one durable ask on the
-earlier phases: keep the DOM/reconciler boundary (Phase 1 §3) clean enough that a component layer
-sits entirely above it (see §7) — which the current design already does.
+This **re-orders** `2026-07-18-bevy-superui-design.md` §10: Phase 1 (done) → **Phase 2 =
+Supersolid** (this doc) → **Phase 3 = browser compatibility** (the old "browser completeness",
+scoped to what doesn't need large underlying-crate changes). The one durable dependency: Supersolid
+sits entirely above the arena DOM (see §7), which the Phase 1 DOM/reconciler boundary already
+allows. Supersolid's concrete lower-level prerequisites (small DOM/JS additions) are enumerated in
+the Phase 2 plan series, not here.
