@@ -1,0 +1,8 @@
+[package]
+name = "supersolid"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+oxc.workspace = true

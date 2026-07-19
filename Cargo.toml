@@ -12,3 +12,4 @@ slotmap = "1.0"
 html5ever = "0.39"
 boa_engine = "0.21"
 boa_gc = "0.21"
+oxc = { version = "0.140", features = ["semantic", "transformer", "codegen", "ast_visit"] }
