@@ -75,3 +75,65 @@ fn hot_reload_js_re_executes_and_reconciles() {
     // Re-execution ran against the current DOM: host now has more spans.
     assert!(count_spans(&mut app) >= 2, "hot reload should re-run the JS");
 }
+
+use serde::{Deserialize, Serialize};
+use superui_bridge::{PendingDomEvent, PendingDomEvents, SuperUiApp};
+
+#[derive(Event, Serialize, Deserialize, Clone, Debug, PartialEq)]
+struct Added {
+    label: String,
+}
+
+#[test]
+fn capstone_click_drives_js_and_bevy_send() {
+    put("cap.html", b"<button id='add'>Add</button><ul id='list'></ul>");
+    put("cap.css", b".done { }");
+    put(
+        "cap.js",
+        b"document.getElementById('add').addEventListener('click', function(){ \
+             var li=document.createElement('li'); li.textContent='item'; \
+             document.getElementById('list').appendChild(li); \
+             bevy.send('Added', { label: 'item' }); \
+          });",
+    );
+
+    let mut app = app();
+    app.add_superui_command::<Added>("Added");
+    #[derive(Resource, Default)]
+    struct Log(Vec<Added>);
+    app.init_resource::<Log>();
+    app.add_observer(|ev: On<Added>, mut l: ResMut<Log>| l.0.push(ev.event().clone()));
+
+    let _root = spawn_root(&mut app, "cap.html", "cap.css", "cap.js");
+    tick(&mut app, 32);
+
+    // No <li> yet.
+    let count_li = |app: &mut App| {
+        let mut q = app.world_mut().query::<&superui_css::prelude::TypeName>();
+        q.iter(app.world()).filter(|t| t.0 == "li").count()
+    };
+    assert_eq!(count_li(&mut app), 0);
+
+    // Find the button's DOM node id via its entity's DomNode, enqueue a click.
+    let btn_node = {
+        let mut q = app
+            .world_mut()
+            .query::<(&superui_bridge::DomNode, &superui_css::prelude::TypeName)>();
+        q.iter(app.world())
+            .find(|(_, t)| t.0 == "button")
+            .map(|(d, _)| d.0)
+            .expect("button entity exists")
+    };
+    app.world_mut()
+        .resource_mut::<PendingDomEvents>()
+        .0
+        .push(PendingDomEvent::new(btn_node, "click"));
+    tick(&mut app, 4);
+
+    // The click ran the JS listener: a <li> was created AND a bevy.send fired.
+    assert_eq!(count_li(&mut app), 1, "click should create one <li>");
+    assert_eq!(
+        app.world().resource::<Log>().0,
+        vec![Added { label: "item".into() }]
+    );
+}
