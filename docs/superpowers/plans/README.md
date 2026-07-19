@@ -15,7 +15,7 @@ while building), not all up front.
 | 3 | `superui_js` + `superui_api` | Boa engine behind a `JsEngine` trait; broad DOM/Web API bindings (document, Node/Element, events, classList, style, console, timers, `fetch` warn-stub). **`window.bevy` moved to Plan 5.** | ✅ Done — merged to `main` ([plan](./2026-07-18-superui-phase1-03-js-api.md)) |
 | 4 | `superui_css` | Fork of `bevy_flair` 0.6 (targets Bevy 0.17), extended for real HTML element/attribute selectors and `:hover`/`:focus`/`:checked`. | ✅ Done — merged to `main` ([plan](./2026-07-19-superui-phase1-04-css.md)) |
 | 5 | `superui_bridge` + `superui` | Reconciler (DOM diff → Bevy ECS commands; picking/input → DOM events), `SuperUiPlugin`, asset loaders, hot reload via `AssetEvent::Modified`, **the full `window.bevy` bridge (JS-facing `bevy.send`/`bevy.on` global + observer wiring, deferred from Plan 3)**. | ✅ Done — merged to `main` ([plan](./2026-07-19-superui-phase1-05-bridge.md)) |
-| 6 | `examples/todomvc` + `docs/support/` | The runnable TodoMVC example (native + wasm) and the capability ledger (`html.md` / `css.md` / `js-dom.md`, status ✅/🟡 Roadmap/⛔). | ⬜ Not started |
+| 6 | `examples/todomvc` + `docs/support/` | The runnable TodoMVC example (native + wasm) and the capability ledger (`html.md` / `css.md` / `js-dom.md`, status ✅/🟡 Roadmap/⛔). | ✅ Done — merged to `main` ([plan](./2026-07-19-superui-phase1-06-todomvc.md)) |
 
 ## Conventions
 
@@ -28,23 +28,16 @@ while building), not all up front.
 - Naming principle: public surface mirrors web standards (`append_child`→appendChild, etc.);
   no bespoke markup or widget API. The only non-web surface is the `window.bevy` bridge.
 
-## Resuming in a fresh session
+## Phase 1 complete
 
-Copy the block below as the opening prompt for the next session (it targets **Plan 6**,
-the first unstarted row):
+All 6 plans are done and merged to `main`. Phase 1's deliverable — a runnable,
+hot-reloadable TodoMVC authored in plain HTML/CSS/JS (native + wasm) plus the
+`docs/support/` capability ledger — has shipped. Run it with `cargo run -p todomvc`.
 
-> Read `docs/superpowers/specs/2026-07-18-bevy-superui-design.md` and
-> `docs/superpowers/plans/README.md`. Plans 1–5 are done and merged to `main` (see their
-> plan docs for the delivered public surface). `superui` now provides `SuperUiPlugin`,
-> `SuperUiRoot { html, css, js }` (spawn one to mount an authored UI), and the
-> `SuperUiApp` command/event bridge (`add_superui_command::<T>(name)` /
-> `add_superui_event::<T>(name)`) so JS can trigger Bevy events via `bevy.send` and
-> receive game events via `bevy.on`. Write and execute Plan 6 of the 6-plan series:
-> `examples/todomvc` + `docs/support/` — the runnable TodoMVC example (native + wasm)
-> authored as `index.html` / `style.css` / `app.js` on top of `SuperUiPlugin`, plus the
-> capability ledger (`docs/support/{README,html,css,js-dom}.md`, status ✅/🟡 Roadmap/⛔).
-
-To resume at any later point, substitute the next `⬜ Not started` row from the table above.
+**Next:** Phase 2 (browser-ish completeness) and Phase 3 (the component/reactivity
+framework) — the latter has an agreed direction in
+[`../specs/2026-07-19-superui-component-framework-direction.md`](../specs/2026-07-19-superui-component-framework-direction.md),
+which begins its own brainstorm → spec → plan cycle when the team is ready.
 
 ## Performance strategy
 
