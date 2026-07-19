@@ -60,12 +60,12 @@ fn class_name_set(this: &JsValue, a: &[JsValue], c: &mut Context) -> JsResult<Js
 
 // ---- textContent / innerText ----
 
-fn text_content_get(this: &JsValue, _a: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+pub(crate) fn text_content_get(this: &JsValue, _a: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let Some(n) = node_id_of(this) else { return Ok(jsstr("")) };
     let t = dom_of(context).borrow().text_content(n);
     Ok(jsstr(&t))
 }
-fn text_content_set(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+pub(crate) fn text_content_set(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let text = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
     if let Some(n) = node_id_of(this) {
         dom_of(context).borrow_mut().set_text_content(n, &text);
