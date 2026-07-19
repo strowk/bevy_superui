@@ -22,7 +22,8 @@
 use oxc::allocator::Allocator;
 use oxc::ast::ast::{
     Argument, Expression, FormalParameterKind, JSXAttributeItem, JSXAttributeName,
-    JSXAttributeValue, JSXElement, JSXElementName, Program, Statement, VariableDeclarationKind,
+    JSXAttributeValue, JSXChild, JSXElement, JSXElementName, Program, Statement,
+    VariableDeclarationKind,
 };
 use oxc::ast::{AstBuilder, NONE};
 use oxc::ast_visit::VisitMut;
@@ -72,6 +73,20 @@ impl<'a> Lower<'a> {
     fn el_call(&self, tag: &str) -> Expression<'a> {
         let callee = self.runtime_member("el");
         self.call(callee, vec![self.string(tag)])
+    }
+
+    /// `$ss.txt("data")`.
+    fn txt_call(&self, data: &str) -> Expression<'a> {
+        let callee = self.runtime_member("txt");
+        self.call(callee, vec![self.string(data)])
+    }
+
+    /// `$ss.child(<parent_ident>, <child_expr>)` as an expression statement.
+    fn child_stmt(&self, parent: &str, child_expr: Expression<'a>) -> Statement<'a> {
+        let callee = self.runtime_member("child");
+        let parent_ident = self.ast.expression_identifier(SPAN, self.atom(parent));
+        let call = self.call(callee, vec![parent_ident, child_expr]);
+        self.ast.statement_expression(SPAN, call)
     }
 
     /// `$ss.attr(<target>, "name", "value")` as an expression statement.
@@ -128,7 +143,7 @@ impl<'a> Lower<'a> {
         self.call(arrow, vec![])
     }
 
-    /// Lower a `JSXElement` (Task 2: element + static attributes only).
+    /// Lower a `JSXElement` (Task 3: element + static attributes + static children).
     ///
     /// Returns `None` when the tag name is not a plain identifier (e.g.
     /// `<Foo.Bar/>` or `<ns:tag/>`); the caller must leave the expression
@@ -161,19 +176,57 @@ impl<'a> Lower<'a> {
             }
         }
 
-        // No attributes (and, in Task 2, no children): bare create call.
-        if attrs.is_empty() {
+        // Collect child data before mutably borrowing self for lowering.
+        // Each child is one of:
+        //   - (text, trimmed string) — for static text nodes
+        //   - (element, the JSXElement ref) — for nested elements (lowered recursively)
+        // We skip text-only whitespace (JSX/Solid convention: trim and drop if empty).
+        enum ChildKind<'b, 'ast> {
+            Text(String),
+            Element(&'b JSXElement<'ast>),
+        }
+        let child_data: Vec<ChildKind<'_, 'a>> = element
+            .children
+            .iter()
+            .filter_map(|child| match child {
+                JSXChild::Text(t) => {
+                    let trimmed = t.value.as_str().trim().to_string();
+                    if trimmed.is_empty() { None } else { Some(ChildKind::Text(trimmed)) }
+                }
+                JSXChild::Element(el) => Some(ChildKind::Element(el.as_ref())),
+                // Fragments, expression containers, spreads: later tasks.
+                _ => None,
+            })
+            .collect();
+
+        // No attributes AND no children: bare create call.
+        if attrs.is_empty() && child_data.is_empty() {
             return Some(self.el_call(&tag));
         }
 
         // Otherwise emit an IIFE binding the element to a fresh temp local,
-        // applying each attribute, and returning the local.
+        // applying each attribute, appending each child, and returning the local.
         let local = self.fresh_local();
-        let mut stmts: Vec<Statement<'a>> = Vec::with_capacity(attrs.len() + 2);
+        let mut stmts: Vec<Statement<'a>> = Vec::with_capacity(attrs.len() + child_data.len() + 2);
         let init = self.el_call(&tag);
         stmts.push(self.const_decl(&local, init));
         for (name, value) in &attrs {
             stmts.push(self.attr_stmt(&local, name, value));
+        }
+        for child in child_data {
+            let child_expr = match child {
+                ChildKind::Text(text) => self.txt_call(&text),
+                ChildKind::Element(el) => {
+                    // Recursively lower the child element. If it has a non-identifier
+                    // tag (component/fragment) leave it as-is for now (None → skip).
+                    match self.lower_element(el) {
+                        Some(expr) => expr,
+                        None => continue,
+                    }
+                }
+            };
+            let stmt = self.child_stmt(&local, child_expr);
+            stmts.push(stmt);
         }
         stmts.push(self.return_ident(&local));
         Some(self.iife(stmts))

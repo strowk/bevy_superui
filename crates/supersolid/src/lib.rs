@@ -112,4 +112,22 @@ mod tests {
         assert!(out.contains(r#""id", "x""#), "{out}");
         assert!(reparses_as_plain_js(&out), "{out}");
     }
+
+    #[test]
+    fn static_text_child_lowers_to_txt_and_child() {
+        let out = code("const a = <div>hello</div>;");
+        assert!(out.contains(r#"$ss.el("div")"#), "{out}");
+        assert!(out.contains(r#"$ss.txt("hello")"#), "{out}");
+        assert!(out.contains("$ss.child("), "{out}");
+        assert!(reparses_as_plain_js(&out), "{out}");
+    }
+
+    #[test]
+    fn nested_element_child_lowers_recursively() {
+        let out = code("const a = <div><span/></div>;");
+        assert!(out.contains(r#"$ss.el("div")"#), "{out}");
+        assert!(out.contains(r#"$ss.el("span")"#), "{out}");
+        assert!(out.contains("$ss.child("), "parent must append child:\n{out}");
+        assert!(reparses_as_plain_js(&out), "{out}");
+    }
 }
