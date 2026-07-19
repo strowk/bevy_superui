@@ -89,3 +89,54 @@ fn destroy_removes_a_todo() {
 
     assert_eq!(li_labels(&app), vec!["b".to_string()]);
 }
+
+#[test]
+fn filters_show_active_and_completed_subsets() {
+    let mut app = app();
+    let _root = mount_todomvc(&mut app);
+    add(&mut app, "a");
+    add(&mut app, "b");
+    // Complete "a".
+    let first_toggle = nodes_by_selector(&app, "li .toggle")[0];
+    click_checkbox(&mut app, first_toggle);
+
+    // Active filter -> only "b".
+    let btn_active = node_by_selector(&app, "#filter-active");
+    click(&mut app, btn_active);
+    assert_eq!(li_labels(&app), vec!["b".to_string()]);
+
+    // Completed filter -> only "a".
+    let btn_completed = node_by_selector(&app, "#filter-completed");
+    click(&mut app, btn_completed);
+    assert_eq!(li_labels(&app), vec!["a".to_string()]);
+
+    // Back to All -> both.
+    let btn_all = node_by_selector(&app, "#filter-all");
+    click(&mut app, btn_all);
+    assert_eq!(li_labels(&app).len(), 2);
+}
+
+#[test]
+fn adding_a_todo_fires_bevy_send_into_ecs() {
+    use bevy::prelude::*;
+    use serde::Deserialize;
+    use superui_bridge::SuperUiApp;
+
+    #[derive(Event, Deserialize, Clone, Debug, PartialEq)]
+    struct TodoAdded {
+        label: String,
+    }
+    #[derive(Resource, Default)]
+    struct Seen(Vec<String>);
+
+    let mut app = app();
+    app.add_superui_command::<TodoAdded>("TodoAdded");
+    app.init_resource::<Seen>();
+    app.add_observer(|ev: On<TodoAdded>, mut s: ResMut<Seen>| s.0.push(ev.event().label.clone()));
+
+    let _root = mount_todomvc(&mut app);
+    add(&mut app, "Ship it");
+    tick(&mut app, 2);
+
+    assert_eq!(app.world().resource::<Seen>().0, vec!["Ship it".to_string()]);
+}
