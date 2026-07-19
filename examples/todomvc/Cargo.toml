@@ -9,13 +9,22 @@ publish = false
 # Opt-in diagnostics: logs every rendered text + color and each click/key press.
 # Run with `cargo run -p todomvc --features debug-ui`.
 debug-ui = []
+# Bevy Remote Protocol + BRP extras (screenshots, send_keys) so the bevy_brp_mcp
+# server can drive/inspect the running app. Run with `--features mcp_debug`.
+mcp_debug = ["dep:bevy_brp_extras", "bevy/bevy_remote"]
 
 [dependencies]
 superui = { path = "../../crates/superui" }
 superui_css = { path = "../../crates/superui_css" }
 # Full Bevy (windowing + rendering) — this is the runnable app, not a headless lib.
-bevy = "0.17"
+# `file_watcher` is required for the AssetPlugin hot-reload seam to do anything
+# (design §6); `watch_for_changes_override` is inert without it.
+bevy = { version = "0.17", features = ["file_watcher"] }
 serde = { version = "1", features = ["derive"] }
+
+[dependencies.bevy_brp_extras]
+optional = true
+version = "0.17.3"
 
 [dev-dependencies]
 # Headless integration tests reuse the browser stack without a window.

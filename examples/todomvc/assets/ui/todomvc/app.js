@@ -78,6 +78,10 @@
   }
 
   document.getElementById("add").addEventListener("click", addTodo);
+  // Enter in the field adds the todo (classic TodoMVC), in addition to the button.
+  input.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") addTodo();
+  });
 
   // Filters.
   function setFilter(name) {

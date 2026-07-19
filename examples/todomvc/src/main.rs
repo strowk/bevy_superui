@@ -29,6 +29,11 @@ fn main() {
     #[cfg(feature = "debug-ui")]
     app.add_plugins(debug_ui::plugin);
 
+    // Bevy Remote Protocol + extras, so the bevy_brp_mcp server can inspect the
+    // live ECS world, screenshot, and inject input.
+    #[cfg(feature = "mcp_debug")]
+    app.add_plugins(bevy_brp_extras::BrpExtrasPlugin);
+
     // Register the one demo command so `bevy.send("TodoAdded", ...)` reaches ECS.
     use superui::prelude::SuperUiApp;
     app.add_superui_command::<TodoAdded>("TodoAdded");

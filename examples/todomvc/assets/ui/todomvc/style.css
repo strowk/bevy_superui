@@ -18,26 +18,32 @@ h1 {
 #new-todo-row {
   display: flex;
   flex-direction: row;
+  align-items: center;
+  column-gap: 8px;
   margin: 8px;
 }
 
 #new-todo {
   flex-grow: 1;
-  height: 32px;
+  height: 40px;
   padding: 8px;
-  border: 1px #cccccc;
+  background-color: #f4f4f4;
+  border: 2px #cccccc;
   border-radius: 4px;
   color: #333333;
-  font-size: 18px;
+  font-size: 16px;
 }
 
 #add {
-  height: 32px;
+  height: 40px;
   padding: 8px;
   margin: 4px;
   background-color: #b83f45;
   color: #ffffff;
   border-radius: 4px;
+  font-size: 16px;
+  align-items: center;
+  justify-content: center;
 }
 
 #add:hover {
@@ -69,9 +75,17 @@ h1 {
 }
 
 .toggle {
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   margin: 4px;
+  background-color: #ffffff;
+  border: 2px #cccccc;
+  border-radius: 4px;
+}
+
+.toggle:checked {
+  background-color: #b83f45;
+  border: 2px #b83f45;
 }
 
 .destroy {
@@ -95,6 +109,7 @@ h1 {
 }
 
 #count {
+  flex-shrink: 0;
   color: #777777;
   font-size: 14px;
 }
@@ -110,6 +125,9 @@ h1 {
   color: #777777;
   border: 1px #ffffff;
   border-radius: 4px;
+  font-size: 14px;
+  align-items: center;
+  justify-content: center;
 }
 
 .filter.selected {
