@@ -35,6 +35,7 @@ Engine: Boa on every target (design §5). ✅ = installed by `superui_api` +
 | `getAttribute` / `setAttribute` / `removeAttribute` / `hasAttribute` | ✅ | T0 | |
 | `id` / `className` | ✅ | T0 | |
 | `textContent` / `innerText` | ✅ | T0 | |
+| text node `.data` / `.nodeValue` / `.textContent` (get/set) | ✅ | T0 | mutate a Text node's value from JS — Supersolid text bindings |
 | `value` (get/set) | ✅ | T1 | text inputs render value; see reconciler |
 | `checked` (get/set) | ✅ | T1 | drives `:checked` |
 | `classList.add/remove/toggle/contains` | ✅ | T0 | |

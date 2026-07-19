@@ -9,6 +9,7 @@ mod element;
 mod events;
 mod fetch;
 mod node;
+mod text;
 mod timers;
 
 pub use console::console_take;
@@ -46,6 +47,7 @@ pub fn install(engine: &mut BoaEngine) {
     document::install_document(context);
     node::install_node(context);
     element::install_element(context);
+    text::install_text(context);
     events::install_events(context);
     timers::install_timers(context);
 }
@@ -409,5 +411,49 @@ mod tests {
         e.dispatch_event(btn2, "click", None, true, true);
         let hits2 = e.context_mut().eval(boa_engine::Source::from_bytes("globalThis.hits2")).unwrap().as_i32().unwrap_or(-1);
         assert_eq!(hits2, 1);
+    }
+
+    #[test]
+    fn text_node_value_accessors_write_through_to_dom() {
+        // Seed: document > div#host > (text "a"). We keep the text NodeId so we can
+        // assert the accessor writes reach the real DOM, not a stray JS own-property.
+        let dom = Rc::new(RefCell::new(Dom::new()));
+        let text_id = {
+            let mut d = dom.borrow_mut();
+            let doc = d.document();
+            let host = d.create_element("div");
+            d.set_attribute(host, "id", "host").unwrap();
+            let t = d.create_text("a");
+            d.append_child(doc, host).unwrap();
+            d.append_child(host, t).unwrap();
+            t
+        };
+        let mut e = BoaEngine::new(dom.clone());
+        install(&mut e);
+
+        e.eval(
+            r#"
+            var host = document.getElementById('host');
+            var t = host.childNodes[0];      // the text node
+            globalThis.g0 = t.data;          // getter reads the DOM -> "a"
+            t.data = 'b';                    // setter writes the DOM
+            globalThis.g1 = t.nodeValue;     // -> "b"
+            t.textContent = 'c';             // last write wins
+            "#,
+        )
+        .unwrap();
+
+        let check = |e: &mut BoaEngine, expr: &str| -> String {
+            e.context_mut()
+                .eval(boa_engine::Source::from_bytes(expr))
+                .unwrap()
+                .to_string(e.context_mut())
+                .unwrap()
+                .to_std_string_escaped()
+        };
+        assert_eq!(check(&mut e, "globalThis.g0"), "a");
+        assert_eq!(check(&mut e, "globalThis.g1"), "b");
+        // The accessor wrote through to the arena DOM (read back via the known id).
+        assert_eq!(dom.borrow().text_content(text_id), "c");
     }
 }
