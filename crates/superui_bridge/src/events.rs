@@ -105,13 +105,12 @@ pub fn keyboard_events_system(
     if presses.is_empty() {
         return;
     }
-    let Some(focused) = rt.focused else {
-        return;
-    };
-
     use superui_js::JsEngine;
     let mut any = false;
     for (key, code, pressed) in presses {
+        let Some(focused) = rt.focused else {
+            continue;
+        };
         let type_ = if pressed { "keydown" } else { "keyup" };
         let kn = key_name(&key, code);
         rt.engine.dispatch_event(focused, type_, Some(&kn), true, true);
@@ -120,17 +119,43 @@ pub fn keyboard_events_system(
             continue;
         }
 
-        let is_text_input = {
-            let d = rt.dom.borrow();
-            matches!(tag_of(&d, focused).as_deref(), Some("input"))
-                && d.get_attribute(focused, "type").unwrap_or("text") != "checkbox"
-        };
-        if !is_text_input {
+        // Tab moves keyboard focus to the next focusable element (browser std).
+        if code == KeyCode::Tab {
+            let focusables = collect_focusable(&rt.dom.borrow());
+            if !focusables.is_empty() {
+                let next = match focusables.iter().position(|&n| Some(n) == rt.focused) {
+                    Some(i) => focusables[(i + 1) % focusables.len()],
+                    None => focusables[0],
+                };
+                rt.focused = Some(next);
+            }
             continue;
         }
 
-        // Editing keys for a text input: Backspace deletes, printable chars
-        // append. `format!` is fine (Phase-1 caret is always end-of-field).
+        let tag = rt.dom.borrow().tag(focused).map(|s| s.to_string());
+        let is_checkbox = tag.as_deref() == Some("input")
+            && rt.dom.borrow().get_attribute(focused, "type") == Some("checkbox");
+        let is_button = tag.as_deref() == Some("button");
+
+        // Enter/Space activates a focused button; Space toggles a focused
+        // checkbox — the browser's default keyboard activation.
+        if is_button && matches!(code, KeyCode::Enter | KeyCode::Space) {
+            rt.engine.dispatch_event(focused, "click", None, true, true);
+            continue;
+        }
+        if is_checkbox && code == KeyCode::Space {
+            let now = !rt.dom.borrow().checked(focused);
+            rt.dom.borrow_mut().set_checked(focused, now);
+            rt.engine.dispatch_event(focused, "change", None, true, false);
+            continue;
+        }
+
+        // Text input editing: Backspace deletes, printable chars append.
+        // `format!` is fine (Phase-1 caret is always end-of-field).
+        let is_text_input = tag.as_deref() == Some("input") && !is_checkbox;
+        if !is_text_input {
+            continue;
+        }
         let mut changed = false;
         if code == KeyCode::Backspace {
             let mut cur = rt.dom.borrow().value(focused);
@@ -150,6 +175,21 @@ pub fn keyboard_events_system(
     if any {
         rt.dirty = true;
     }
+}
+
+/// Focusable elements (buttons + inputs) in document order — the Tab ring.
+fn collect_focusable(dom: &superui_dom::Dom) -> Vec<NodeId> {
+    fn walk(dom: &superui_dom::Dom, node: NodeId, out: &mut Vec<NodeId>) {
+        for &child in dom.children(node) {
+            if matches!(dom.tag(child), Some("button") | Some("input")) {
+                out.push(child);
+            }
+            walk(dom, child, out);
+        }
+    }
+    let mut out = Vec::new();
+    walk(dom, dom.document(), &mut out);
+    out
 }
 
 /// The `KeyboardEvent.key` value for a press: the printable character, or a
