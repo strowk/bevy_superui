@@ -8,6 +8,9 @@ It is built on top of bevy_ui (inheriting some of its limitations) and incorpora
 
 This is in very early stages of development, but technically some working examples are already available.
 
+The code is mostly AI generated and is not yet reviewed as such, so it is not guaranteed to be correct or safe. Use at your own risk.
+Most of API surface can be expected to be relied upon though, because I am more or less trying to support API's that are already known in web development, however a certain flux is expected at this stage.
+
 ## License
 
 Bevy SuperUI is dual-licensed under either
