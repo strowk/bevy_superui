@@ -176,3 +176,75 @@ fn input_renders_placeholder_then_value_as_text() {
         "managed text child must be Pickable::IGNORE so clicks focus the input"
     );
 }
+
+#[test]
+fn insert_before_reorders_children_on_reconcile() {
+    let dom = Rc::new(RefCell::new(superui_html::parse_document(
+        "<ul><li>one</li><li>two</li></ul>",
+    )));
+    let mut app = test_app();
+    let _root = mount(&mut app, dom.clone());
+    app.update(); // initial reconcile
+
+    let (ul, li_one, li_two) = {
+        let d = dom.borrow();
+        let ul = d.query_selector(d.document(), "ul").unwrap();
+        let kids = d.children(ul).to_vec();
+        (ul, kids[0], kids[1])
+    };
+
+    // Move the second <li> before the first — a keyed-<For> style reorder.
+    dom.borrow_mut()
+        .insert_before(ul, li_two, Some(li_one))
+        .unwrap();
+    app.world_mut().non_send_resource_mut::<UiRuntime>().dirty = true;
+    app.update();
+
+    // The <ul> entity's children now read ["two", "one"].
+    let ul_entity = app
+        .world()
+        .non_send_resource::<UiRuntime>()
+        .entity_for(ul)
+        .unwrap();
+    let li_entities = app.world().get::<Children>(ul_entity).unwrap().to_vec();
+    let labels: Vec<String> = li_entities
+        .iter()
+        .map(|&li| {
+            let text_entity = app.world().get::<Children>(li).unwrap()[0];
+            app.world().get::<Text>(text_entity).unwrap().0.clone()
+        })
+        .collect();
+    assert_eq!(labels, vec!["two".to_string(), "one".to_string()]);
+}
+
+#[test]
+fn append_child_reparents_entity_on_reconcile() {
+    let dom = Rc::new(RefCell::new(superui_html::parse_document(
+        "<div id='a'><span>x</span></div><div id='b'></div>",
+    )));
+    let mut app = test_app();
+    let _root = mount(&mut app, dom.clone());
+    app.update(); // initial reconcile
+
+    let (a, b, span) = {
+        let d = dom.borrow();
+        let doc = d.document();
+        (
+            d.query_selector(doc, "#a").unwrap(),
+            d.query_selector(doc, "#b").unwrap(),
+            d.query_selector(doc, "span").unwrap(),
+        )
+    };
+
+    // Move <span> from #a to #b (append reparents an attached node).
+    dom.borrow_mut().append_child(b, span).unwrap();
+    app.world_mut().non_send_resource_mut::<UiRuntime>().dirty = true;
+    app.update();
+
+    let (a_entity, b_entity) = {
+        let rt = app.world().non_send_resource::<UiRuntime>();
+        (rt.entity_for(a).unwrap(), rt.entity_for(b).unwrap())
+    };
+    assert_eq!(child_count(&mut app, a_entity), 0);
+    assert_eq!(child_count(&mut app, b_entity), 1);
+}
