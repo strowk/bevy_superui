@@ -63,6 +63,51 @@ fn click_runs_js_listener_and_reconciles() {
     assert_eq!(dom.borrow().text_content(out_node), "clicked");
 }
 
+/// Test 3: keyboard events update a text input's DOM value and fire `input`.
+///
+/// Sets focus directly on the runtime (no pointer click needed in the test harness),
+/// then writes `KeyboardInput` messages and ticks the app. Asserts `value == "hi"`
+/// and that the JS `input` listener fired twice.
+#[test]
+fn typing_into_focused_input_updates_value_and_fires_input() {
+    use bevy::input::keyboard::{Key, KeyboardInput};
+    use bevy::input::ButtonState;
+
+    let dom = Rc::new(RefCell::new(superui_html::parse_document(
+        "<input id='t' type='text'>",
+    )));
+    let mut app = test_app();
+    let root = mount(&mut app, dom.clone());
+    app.init_resource::<PendingDomEvents>();
+    app.add_systems(Update, superui_bridge::keyboard_events_system);
+
+    // JS: count input events.
+    app.world_mut().non_send_resource_mut::<UiRuntime>().run_script(
+        "globalThis.inputs = 0; \
+         document.getElementById('t').addEventListener('input', function(){ globalThis.inputs++; });",
+    );
+    app.update();
+
+    // Focus the input, then type "hi".
+    let node = dom.borrow().get_element_by_id("t").unwrap();
+    app.world_mut().non_send_resource_mut::<UiRuntime>().set_focus(Some(node));
+
+    for ch in ["h", "i"] {
+        app.world_mut().write_message(KeyboardInput {
+            key_code: bevy::input::keyboard::KeyCode::KeyH, // placeholder; logical_key drives text
+            logical_key: Key::Character(ch.into()),
+            state: ButtonState::Pressed,
+            repeat: false,
+            window: Entity::PLACEHOLDER,
+            text: None,
+        });
+        app.update();
+    }
+
+    assert_eq!(dom.borrow().value(node), "hi");
+    let _ = root;
+}
+
 /// Test 2: checkbox toggle + change event via `click_effect`.
 ///
 /// `Pointer<Click>` cannot be constructed in a headless test: `HitData` requires

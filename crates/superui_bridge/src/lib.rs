@@ -10,7 +10,8 @@ mod runtime;
 
 pub use bevy_bridge::{BevyBridgeRegistry, SuperUiApp};
 pub use events::{
-    click_effect, drain_dom_events_system, on_pointer_click, PendingDomEvent, PendingDomEvents,
+    click_effect, drain_dom_events_system, keyboard_events_system, on_pointer_click,
+    PendingDomEvent, PendingDomEvents,
 };
 pub use reconcile::reconcile_system;
 pub use runtime::{DomNode, UiRuntime};

@@ -1,6 +1,9 @@
 //! Input -> DOM event seam. `bevy_picking`/keyboard produce DOM events, which we
 //! dispatch into JS (W3C capture/bubble, synchronous) and then reconcile.
 
+use bevy::ecs::message::MessageReader;
+use bevy::input::keyboard::{Key, KeyboardInput};
+use bevy::input::ButtonState;
 use bevy::picking::events::{Click, Pointer};
 use bevy::prelude::*;
 use superui_dom::NodeId;
@@ -55,24 +58,75 @@ pub fn click_effect(rt: &UiRuntime, node: NodeId, pending: &mut PendingDomEvents
 
 /// Observer: a pointer click on a UI entity becomes a DOM `click` on its node.
 /// For a checkbox input, also mirror the native toggle: flip DOM `checked` and
-/// enqueue a `change` event (dispatched after the click).
+/// enqueue a `change` event (dispatched after the click). Also sets keyboard focus
+/// to the clicked node (Task 5).
 pub fn on_pointer_click(
     ev: On<Pointer<Click>>,
     nodes: Query<&DomNode>,
-    rt: NonSend<UiRuntime>,
+    mut dom: NonSendMut<UiRuntime>,
     mut pending: ResMut<PendingDomEvents>,
 ) {
     let Ok(dom_node) = nodes.get(ev.event().entity) else {
         return;
     };
     let node = dom_node.0;
-    click_effect(&rt, node, &mut pending);
+    dom.focused = Some(node);
+    click_effect(&dom, node, &mut pending);
 }
 
 fn tag_of(dom: &superui_dom::Dom, node: NodeId) -> Option<String> {
     match dom.get(node).map(|n| &n.kind) {
         Some(superui_dom::NodeKind::Element(e)) => Some(e.tag.clone()),
         _ => None,
+    }
+}
+
+/// Normal system: route keyboard input to the focused DOM node as `keydown`/`keyup`,
+/// and for printable characters typed into a text input, mutate the DOM `value` and
+/// fire `input` (Phase-1 text entry — TodoMVC needs Enter-to-add and character typing).
+///
+/// `NonSendMut<UiRuntime>` forces main-thread execution.
+pub fn keyboard_events_system(
+    mut reader: MessageReader<KeyboardInput>,
+    mut rt: NonSendMut<UiRuntime>,
+) {
+    // Collect key messages first (the reader borrow must not overlap with rt).
+    let presses: Vec<(Key, bool)> = reader
+        .read()
+        .map(|k| (k.logical_key.clone(), matches!(k.state, ButtonState::Pressed)))
+        .collect();
+
+    if presses.is_empty() {
+        return;
+    }
+    let Some(focused) = rt.focused else {
+        return;
+    };
+
+    use superui_js::JsEngine;
+    let mut any = false;
+    for (key, pressed) in presses {
+        let type_ = if pressed { "keydown" } else { "keyup" };
+        rt.engine.dispatch_event(focused, type_, true, true);
+        any = true;
+        if pressed {
+            if let Key::Character(s) = &key {
+                // Append typed characters to a text input's DOM value + fire input.
+                let is_text_input = {
+                    let d = rt.dom.borrow();
+                    matches!(tag_of(&d, focused).as_deref(), Some("input"))
+                        && d.get_attribute(focused, "type").unwrap_or("text") != "checkbox"
+                };
+                if is_text_input {
+                    let cur = rt.dom.borrow().value(focused);
+                    rt.dom.borrow_mut().set_value(focused, &format!("{cur}{s}"));
+                    rt.engine.dispatch_event(focused, "input", true, false);
+                }
+            }
+        }
+    }
+    if any {
+        rt.dirty = true;
     }
 }
 

@@ -94,6 +94,12 @@ impl UiRuntime {
     pub(crate) fn bindings(&self) -> &HashMap<NodeId, Entity> {
         &self.node_to_entity
     }
+
+    /// Set the keyboard-focused DOM node (Task 5). Public so integration tests and
+    /// the bevy_bridge can assign focus without going through the observer.
+    pub fn set_focus(&mut self, node: Option<NodeId>) {
+        self.focused = node;
+    }
 }
 
 #[cfg(test)]
