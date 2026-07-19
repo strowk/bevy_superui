@@ -66,8 +66,10 @@ fn click_runs_js_listener_and_reconciles() {
 /// Test 3: keyboard events update a text input's DOM value and fire `input`.
 ///
 /// Sets focus directly on the runtime (no pointer click needed in the test harness),
-/// then writes `KeyboardInput` messages and ticks the app. Asserts `value == "hi"`
-/// and that the JS `input` listener fired twice.
+/// then writes `KeyboardInput` messages and ticks the app. Asserts:
+///   - `value == "hi"` (two characters accumulated in the input),
+///   - the JS `input` listener fired exactly twice (once per character), verified
+///     by mirroring `globalThis.inputs` into a DOM attribute and reading it back.
 #[test]
 fn typing_into_focused_input_updates_value_and_fires_input() {
     use bevy::input::keyboard::{Key, KeyboardInput};
@@ -105,6 +107,15 @@ fn typing_into_focused_input_updates_value_and_fires_input() {
     }
 
     assert_eq!(dom.borrow().value(node), "hi");
+
+    // Mirror globalThis.inputs into the DOM so Rust can read it back
+    // (same pattern as checkbox_click_toggles_checked_and_fires_change).
+    app.world_mut().non_send_resource_mut::<UiRuntime>().run_script(
+        "document.getElementById('t').setAttribute('data-inputs', String(globalThis.inputs));",
+    );
+    let data_inputs = dom.borrow().get_attribute(node, "data-inputs").unwrap_or("").to_string();
+    assert_eq!(data_inputs, "2", "input listener must have fired once per character (twice total)");
+
     let _ = root;
 }
 

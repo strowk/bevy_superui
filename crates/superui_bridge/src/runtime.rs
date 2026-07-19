@@ -32,7 +32,6 @@ pub struct UiRuntime {
     node_to_entity: HashMap<NodeId, Entity>,
     entity_to_node: HashMap<Entity, NodeId>,
     /// The DOM node that currently has keyboard focus (Task 5).
-    #[allow(dead_code)]
     pub(crate) focused: Option<NodeId>,
 }
 
