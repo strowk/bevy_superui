@@ -147,8 +147,9 @@ fn tag_name(this: &JsValue, _a: &[JsValue], context: &mut Context) -> JsResult<J
 pub fn install_node(context: &mut Context) {
     let element = with_host_state(context, |s| s.protos.element.clone()).expect("element proto");
     let document = with_host_state(context, |s| s.protos.document.clone()).expect("document proto");
+    let text = with_host_state(context, |s| s.protos.text.clone()).expect("text proto");
 
-    for proto in [element.clone(), document.clone()] {
+    for proto in [element.clone(), document.clone(), text.clone()] {
         set_method(&proto, "appendChild", 1, append_child, context);
         set_method(&proto, "removeChild", 1, remove_child, context);
         set_method(&proto, "insertBefore", 2, insert_before, context);

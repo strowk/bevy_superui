@@ -49,6 +49,78 @@
     createEffect(function () { setProp(element, name, thunk()); });
   }
 
+  // Resolve control-flow accessors/memos: call until non-function. Runs INSIDE
+  // the insert effect, so the effect subscribes to whatever the accessor reads.
+  function resolve(value) {
+    while (typeof value === "function") value = value();
+    return value;
+  }
+
+  function removeNode(parent, node) {
+    if (node && node.parentNode === parent) parent.removeChild(node);
+  }
+
+  function clearNodes(parent, current) {
+    if (current == null) return;
+    if (Array.isArray(current)) {
+      for (var i = 0; i < current.length; i++) removeNode(parent, current[i]);
+    } else {
+      removeNode(parent, current);
+    }
+  }
+
+  // Reconcile the DOM before `anchor` from `current` to represent `value`.
+  // Returns the new `current` (null | Node | Node[]). Array branch: Task 5.
+  function reconcile(parent, anchor, current, value) {
+    if (value == null || value === true || value === false) {
+      clearNodes(parent, current);
+      return null;
+    }
+    var t = typeof value;
+    if (t === "string" || t === "number") {
+      // Surgical: reuse an existing single text node.
+      if (current && !Array.isArray(current) && current.nodeType === 3) {
+        current.data = "" + value;
+        return current;
+      }
+      clearNodes(parent, current);
+      var node = txt("" + value);
+      parent.insertBefore(node, anchor);
+      return node;
+    }
+    if (Array.isArray(value)) {
+      return reconcileArray(parent, anchor, current, value); // Task 5
+    }
+    // Single DOM node.
+    if (current === value) return current;
+    clearNodes(parent, current);
+    parent.insertBefore(value, anchor);
+    return value;
+  }
+
+  // Placeholder until Task 5 — a single-element list still works via replace.
+  function reconcileArray(parent, anchor, current, value) {
+    clearNodes(parent, current);
+    var out = [];
+    for (var i = 0; i < value.length; i++) {
+      var v = value[i];
+      if (v == null || v === true || v === false) continue;
+      if (typeof v === "string" || typeof v === "number") v = txt("" + v);
+      parent.insertBefore(v, anchor);
+      out.push(v);
+    }
+    return out.length ? out : null;
+  }
+
+  function insert(parent, accessor) {
+    var anchor = txt("");
+    parent.appendChild(anchor);
+    var current = null;
+    createEffect(function () {
+      current = reconcile(parent, anchor, current, resolve(accessor()));
+    });
+  }
+
   // ---- Publish the ABI (extended by later tasks) ----
   globalThis.$ss = {
     el: el,
@@ -57,5 +129,6 @@
     child: child,
     on: on,
     bind: bind,
+    insert: insert,
   };
 })();

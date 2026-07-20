@@ -561,6 +561,53 @@ mod render_tests {
     }
 
     #[test]
+    fn insert_text_updates_in_place() {
+        let mut e = render_engine();
+        e.eval(
+            r#"
+            var pair = createSignal(1);
+            globalThis.get = pair[0]; globalThis.set = pair[1];
+            globalThis.p = $ss.el("div");
+            $ss.child(p, $ss.txt("n="));
+            $ss.insert(p, function () { return globalThis.get(); });
+            globalThis.t0 = p.textContent;               // "n=1"
+            globalThis.firstText = p.childNodes[1];      // the inserted text node
+            globalThis.set(2);
+            globalThis.t1 = p.textContent;               // "n=2"
+            globalThis.sameNode = (p.childNodes[1] === globalThis.firstText); // true — surgical
+            "#,
+        )
+        .unwrap();
+        assert_eq!(text(&mut e, "globalThis.t0"), "n=1");
+        assert_eq!(text(&mut e, "globalThis.t1"), "n=2");
+        assert_eq!(text(&mut e, "globalThis.sameNode"), "true");
+    }
+
+    #[test]
+    fn insert_null_renders_nothing_and_toggles_a_node() {
+        let mut e = render_engine();
+        e.eval(
+            r#"
+            var pair = createSignal(false);
+            globalThis.get = pair[0]; globalThis.set = pair[1];
+            globalThis.span = $ss.el("span");
+            $ss.child(span, $ss.txt("shown"));
+            globalThis.p = $ss.el("div");
+            $ss.insert(p, function () { return globalThis.get() ? globalThis.span : null; });
+            globalThis.t0 = p.textContent;   // "" — false renders nothing
+            globalThis.set(true);
+            globalThis.t1 = p.textContent;   // "shown"
+            globalThis.set(false);
+            globalThis.t2 = p.textContent;   // "" again
+            "#,
+        )
+        .unwrap();
+        assert_eq!(text(&mut e, "globalThis.t0"), "");
+        assert_eq!(text(&mut e, "globalThis.t1"), "shown");
+        assert_eq!(text(&mut e, "globalThis.t2"), "");
+    }
+
+    #[test]
     fn on_fires_a_registered_click_handler() {
         // Events dispatch from the Rust side (BoaEngine::dispatch_event), not from JS.
         // Attach the button to the document so we can resolve its NodeId and dispatch.
