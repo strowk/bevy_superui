@@ -231,6 +231,11 @@
       if (typeof next === "function") next = next(node.value);
       return writeSource(node, next);
     }
+    // Plan 5 HMR: let the render layer collect this cell (identity read/write).
+    // Property access (not a bare identifier) so it is safe under "use strict".
+    if (typeof globalThis.$ssOnSignal === "function") {
+      globalThis.$ssOnSignal(read, write);
+    }
     return [read, write];
   }
 

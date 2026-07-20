@@ -60,6 +60,36 @@ mod tests {
     }
 
     #[test]
+    fn on_signal_hook_receives_created_signals() {
+        let mut e = engine();
+        e.eval(
+            r#"
+            globalThis.collected = [];
+            globalThis.$ssOnSignal = function (read, write) {
+                globalThis.collected.push([read, write]);
+            };
+            var a = createSignal(1);
+            var b = createSignal(2);
+            globalThis.n = globalThis.collected.length;      // 2
+            globalThis.v0 = globalThis.collected[0][0]();    // read a -> 1
+            globalThis.collected[1][1](9);                   // write b -> 9
+            globalThis.v1 = b[0]();                          // 9
+            "#,
+        )
+        .unwrap();
+        assert_eq!(num(&mut e, "globalThis.n"), 2.0);
+        assert_eq!(num(&mut e, "globalThis.v0"), 1.0);
+        assert_eq!(num(&mut e, "globalThis.v1"), 9.0);
+    }
+
+    #[test]
+    fn on_signal_hook_absent_is_a_noop() {
+        let mut e = engine();
+        e.eval(r#"var s = createSignal(5); globalThis.v = s[0]();"#).unwrap();
+        assert_eq!(num(&mut e, "globalThis.v"), 5.0);
+    }
+
+    #[test]
     fn on_mount_runs_exactly_once() {
         let mut e = engine();
         e.eval(
