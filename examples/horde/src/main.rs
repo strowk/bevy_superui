@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 
 mod ui;
+mod sim;
 
 fn main() {
     App::new()
