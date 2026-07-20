@@ -18,6 +18,12 @@ pub use intent::{Intent, IntentQueue};
 pub use spawn::SpawnState;
 pub use snapshot::UiSnapshot;
 
+/// Set to `true` before transitioning to `Playing` when we want a full reset
+/// (StartGame or Restart). Left `false` for Resume — `setup_playing` checks it
+/// and returns early, leaving all sim state intact.
+#[derive(Resource, Default)]
+pub struct PendingReset(pub bool);
+
 /// The game simulation. No dependency on `crate::ui`, `bevy_ui`, or Boa.
 pub struct SimPlugin;
 
@@ -34,6 +40,7 @@ impl Plugin for SimPlugin {
             .init_resource::<damage::CombatLog>()
             .init_resource::<spawn::SpawnState>()
             .init_resource::<pickup::PickupTimer>()
+            .init_resource::<PendingReset>()
             .add_message::<damage::DamageEvent>();
 
         app.add_systems(OnEnter(crate::game_state::GameState::Playing), setup_playing);
@@ -85,7 +92,14 @@ fn setup_playing(
         )>,
     >,
     mut prog: ResMut<damage::Progression>,
+    mut pending: ResMut<PendingReset>,
 ) {
+    // Only reset on StartGame / Restart; Resume leaves sim state intact.
+    if !pending.0 {
+        return;
+    }
+    pending.0 = false;
+
     // Fresh start (also handles Restart): clear old sim entities and progression.
     for e in existing.iter() {
         commands.entity(e).despawn();
@@ -181,4 +195,83 @@ pub struct Ammo {
     pub current: u32,
     pub size: u32,
     pub reload: f32, // seconds remaining; 0.0 = ready
+}
+
+#[cfg(test)]
+mod pending_reset_tests {
+    use super::*;
+    use bevy::state::app::StatesPlugin;
+    use crate::game_state::GameState;
+
+    /// Verifies the PendingReset guard: when false, setup_playing is a no-op (Resume path);
+    /// when true, it resets progression and re-spawns the player (StartGame/Restart path).
+    #[test]
+    fn setup_playing_only_resets_when_pending() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins(StatesPlugin);
+        app.init_state::<GameState>();
+        app.insert_resource(SimConfig::play());
+        app.init_resource::<damage::DamageHistory>();
+        app.init_resource::<damage::CombatLog>();
+        app.init_resource::<spawn::SpawnState>();
+        app.init_resource::<pickup::PickupTimer>();
+
+        // Pre-existing player with non-default HP (simulates a live mid-run player).
+        let player_id = app.world_mut().spawn((
+            Player,
+            Health { current: 33.0, max: 100.0 },
+            Transform::default(),
+            Velocity::default(),
+            Facing(Vec2::Y),
+            Inventory { slots: vec![WeaponKind::Pistol], active: 0 },
+            FireCooldown(0.0),
+            Ammo { current: 12, size: 12, reload: 0.0 },
+        )).id();
+        // Pre-existing progression with kills > 0.
+        app.insert_resource(damage::Progression { kills: 7, ..default() });
+        // PendingReset = false → Resume path.
+        app.insert_resource(PendingReset(false));
+
+        app.add_systems(Update, setup_playing);
+        app.update();
+
+        // Resume: player and progression must be untouched.
+        let hp = app.world().get::<Health>(player_id)
+            .expect("player must still exist after Resume");
+        assert_eq!(hp.current, 33.0, "Resume must not reset player HP");
+        assert_eq!(
+            app.world().resource::<damage::Progression>().kills,
+            7,
+            "Resume must not reset kills"
+        );
+
+        // Now signal a Restart.
+        app.world_mut().resource_mut::<PendingReset>().0 = true;
+        app.update();
+
+        // The old player entity should be gone.
+        assert!(
+            app.world().get_entity(player_id).is_err(),
+            "old player must be despawned on Restart"
+        );
+        // Progression must be wiped.
+        assert_eq!(
+            app.world().resource::<damage::Progression>().kills,
+            0,
+            "Restart must reset kills to 0"
+        );
+        // A fresh player with full HP must exist.
+        let mut players = app.world_mut().query_filtered::<&Health, With<Player>>();
+        let fresh_hp = players
+            .iter(app.world())
+            .next()
+            .expect("a fresh player must be spawned on Restart");
+        assert_eq!(fresh_hp.current, 100.0, "Restart must spawn player at full HP");
+        // PendingReset must be cleared so a second OnEnter doesn't re-reset.
+        assert!(
+            !app.world().resource::<PendingReset>().0,
+            "PendingReset must be cleared after reset"
+        );
+    }
 }

@@ -21,7 +21,10 @@ fn toggle(mut open: ResMut<InventoryOpen>, intents: Res<IntentQueue>) {
     }
 }
 
-fn close(mut open: ResMut<InventoryOpen>) { open.0 = false; }
+fn close(mut commands: Commands, mut open: ResMut<InventoryOpen>, ui: Query<Entity, With<InventoryUi>>) {
+    for e in ui.iter() { commands.entity(e).despawn(); }
+    open.0 = false;
+}
 
 fn sync(
     mut commands: Commands,

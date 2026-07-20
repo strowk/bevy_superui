@@ -65,9 +65,9 @@ sim/           Pure game simulation (no bevy_ui / Boa dependency).
 ui/
   mod.rs       Feature-flag dispatch: ui-native → NativeUiPlugin; absent → panic seam.
   native/      Seven HUD panels + five screens, all in bevy_ui.
-    hud/       player_status · minimap · weapon_bar · enemy_nameplates · floating_numbers
-               · wave_timer · combat_log
-    screens/   main_menu · pause · game_over · inventory · scoreboard
+    hud/       player_status · minimap · weapon_bar · enemy_nameplates · damage_numbers
+               · meters · combat_log
+    screens/   main_menu · pause · game_over · inventory · settings
 world_render.rs  Sprite-based world-space render (arena tiles, enemy/pickup sprites).
 ```
 

@@ -17,7 +17,7 @@ use game_state::GameState;
 fn main() {
     let mut app = App::new();
     app.add_plugins(DefaultPlugins.set(AssetPlugin {
-        watch_for_changes_override: Some(true),
+        watch_for_changes_override: Some(cfg!(not(target_arch = "wasm32"))),
         ..default()
     }))
     .init_state::<GameState>()
