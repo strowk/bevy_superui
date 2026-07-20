@@ -4,11 +4,14 @@ pub mod config;
 pub mod rng;
 pub mod intent;
 pub mod player;
+pub mod enemy;
+pub mod spawn;
 
 pub use config::SimConfig;
 pub use rng::Rng;
 #[allow(unused_imports)]
 pub use intent::{Intent, IntentQueue};
+pub use spawn::SpawnState;
 
 /// The game simulation. No dependency on `crate::ui`, `bevy_ui`, or Boa.
 pub struct SimPlugin;
@@ -19,7 +22,8 @@ impl Plugin for SimPlugin {
         let rng = Rng::new(cfg.seed);
         app.insert_resource(cfg)
             .insert_resource(rng)
-            .init_resource::<IntentQueue>();
+            .init_resource::<IntentQueue>()
+            .init_resource::<SpawnState>();
         // Systems added in later tasks run in FixedUpdate, gated on GameState::Playing.
     }
 }
