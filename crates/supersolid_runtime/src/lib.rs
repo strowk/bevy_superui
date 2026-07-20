@@ -945,6 +945,104 @@ mod render_tests {
     }
 
     #[test]
+    fn index_grows_when_list_lengthens() {
+        let mut e = render_engine();
+        e.eval(
+            r#"
+            var pair = createSignal(["x"]);
+            globalThis.set = pair[1];
+            globalThis.p = $ss.el("ul");
+            $ss.insert(p, function () {
+                return $ss.cmp(Index, {
+                    get each() { return pair[0](); },
+                    get children() {
+                        return function (item) {
+                            var li = $ss.el("li");
+                            $ss.insert(li, function () { return item(); });
+                            return li;
+                        };
+                    },
+                });
+            });
+            function order() {
+                var s = "";
+                for (var i = 0; i < p.childNodes.length; i++) {
+                    var n = p.childNodes[i];
+                    if (n.nodeType === 1) s += n.textContent;
+                }
+                return s;
+            }
+            function elemCount() {
+                var c = 0;
+                for (var i = 0; i < p.childNodes.length; i++) {
+                    if (p.childNodes[i].nodeType === 1) c++;
+                }
+                return c;
+            }
+            globalThis.o0 = order();          // "x"
+            globalThis.c0 = elemCount();      // 1
+            globalThis.set(["x", "y", "z"]); // grow from 1 to 3
+            globalThis.o1 = order();          // "xyz"
+            globalThis.c1 = elemCount();      // 3
+            "#,
+        )
+        .unwrap();
+        assert_eq!(text(&mut e, "globalThis.o0"), "x");
+        assert_eq!(num(&mut e, "globalThis.c0"), 1.0);
+        assert_eq!(text(&mut e, "globalThis.o1"), "xyz");
+        assert_eq!(num(&mut e, "globalThis.c1"), 3.0);
+    }
+
+    #[test]
+    fn index_shrinks_when_list_shortens() {
+        let mut e = render_engine();
+        e.eval(
+            r#"
+            var pair = createSignal(["a", "b", "c"]);
+            globalThis.set = pair[1];
+            globalThis.p = $ss.el("ul");
+            $ss.insert(p, function () {
+                return $ss.cmp(Index, {
+                    get each() { return pair[0](); },
+                    get children() {
+                        return function (item) {
+                            var li = $ss.el("li");
+                            $ss.insert(li, function () { return item(); });
+                            return li;
+                        };
+                    },
+                });
+            });
+            function order() {
+                var s = "";
+                for (var i = 0; i < p.childNodes.length; i++) {
+                    var n = p.childNodes[i];
+                    if (n.nodeType === 1) s += n.textContent;
+                }
+                return s;
+            }
+            function elemCount() {
+                var c = 0;
+                for (var i = 0; i < p.childNodes.length; i++) {
+                    if (p.childNodes[i].nodeType === 1) c++;
+                }
+                return c;
+            }
+            globalThis.o0 = order();     // "abc"
+            globalThis.c0 = elemCount(); // 3
+            globalThis.set(["a"]);       // shrink from 3 to 1: dispose and remove trailing rows
+            globalThis.o1 = order();     // "a"
+            globalThis.c1 = elemCount(); // 1
+            "#,
+        )
+        .unwrap();
+        assert_eq!(text(&mut e, "globalThis.o0"), "abc");
+        assert_eq!(num(&mut e, "globalThis.c0"), 3.0);
+        assert_eq!(text(&mut e, "globalThis.o1"), "a");
+        assert_eq!(num(&mut e, "globalThis.c1"), 1.0);
+    }
+
+    #[test]
     fn switch_picks_first_matching_branch() {
         let mut e = render_engine();
         e.eval(

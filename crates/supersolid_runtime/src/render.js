@@ -293,13 +293,18 @@
     return function () {
       var list = listFn() || [];
       return untrack(function () {
+        // Capture length BEFORE grow so the update loop only touches pre-existing positions.
+        var prevLen = mapped.length;
         // Grow: build new positions.
         for (var j = mapped.length; j < list.length; j++) {
           makeIndexRow(list[j], j, mapped, setters, disposers, owner, mapFn);
         }
-        // Update existing positions in place.
-        for (var k = 0; k < mapped.length && k < list.length; k++) {
-          setters[k](function () { return list[k]; }); // set to the new value
+        // Update existing positions in place (only up to prevLen — freshly grown
+        // positions already have their initial value set by makeIndexRow).
+        for (var k = 0; k < prevLen && k < list.length; k++) {
+          // updater form: write() calls this synchronously (var k is correct at call time),
+          // and wrapping avoids treating a function-valued list item as an updater.
+          setters[k](function () { return list[k]; });
         }
         // Shrink: dispose trailing positions.
         for (var d = list.length; d < mapped.length; d++) disposers[d]();
