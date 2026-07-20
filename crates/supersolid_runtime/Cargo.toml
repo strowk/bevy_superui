@@ -1,0 +1,17 @@
+[package]
+name = "supersolid_runtime"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+superui_js = { path = "../superui_js" }
+
+[dev-dependencies]
+superui_dom = { path = "../superui_dom" }
+boa_engine.workspace = true
+
+# Boa pulls getrandom 0.3, which needs the JS backend on wasm (same gotcha as the
+# other JS crates). Pair with the repo-root `.cargo/config.toml` rustflag.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { version = "0.3", features = ["wasm_js"] }
