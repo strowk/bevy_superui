@@ -12,11 +12,15 @@ debug-ui = ["bevy/bevy_dev_tools"]
 mcp_debug = ["dep:bevy_brp_extras", "bevy/bevy_remote"]
 
 [dependencies]
-bevy = { version = "0.17", features = ["file_watcher"] }
+bevy = { version = "0.17" }
 
 [dependencies.bevy_brp_extras]
 optional = true
 version = "0.17.3"
+
+# file_watcher (hot-reload) is native-only; wasm build drops it.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+bevy = { version = "0.17", features = ["file_watcher"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.3", features = ["wasm_js"] }

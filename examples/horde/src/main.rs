@@ -1,5 +1,7 @@
-// Under incremental construction: sim/UI items are wired up across later tasks.
-// TODO(task-32): remove this once all modules are consumed.
+// This example/benchmark vehicle retains some intentionally-unused scaffolding:
+// sim API surface (Rng::unit_vec, Intent::Quit, IntentQueue::drain, Nameplate::kind)
+// exists for future Supersolid backend parity and the benchmark harness — it mirrors
+// the full public contract even where the current native-UI path doesn't consume every field.
 #![allow(dead_code)]
 
 use bevy::prelude::*;

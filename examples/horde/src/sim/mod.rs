@@ -13,9 +13,8 @@ pub mod snapshot;
 
 pub use config::SimConfig;
 pub use rng::Rng;
-#[allow(unused_imports)]
 pub use intent::{Intent, IntentQueue};
-#[allow(unused_imports)]
+#[allow(unused_imports)] // re-exported for Supersolid backend parity; not consumed by native-UI path
 pub use spawn::SpawnState;
 pub use snapshot::UiSnapshot;
 
