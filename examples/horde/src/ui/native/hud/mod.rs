@@ -3,6 +3,7 @@ use crate::game_state::GameState;
 
 pub mod player_status;
 pub mod enemy_nameplates;
+pub mod damage_numbers;
 
 #[derive(Component)]
 pub struct HudRoot;
@@ -22,7 +23,8 @@ impl Plugin for HudPlugin {
             )
             .add_systems(OnExit(GameState::Playing), despawn_hud)
             .add_plugins(player_status::PlayerStatusPlugin)
-            .add_plugins(enemy_nameplates::EnemyNameplatesPlugin);
+            .add_plugins(enemy_nameplates::EnemyNameplatesPlugin)
+            .add_plugins(damage_numbers::DamageNumbersPlugin);
     }
 }
 
