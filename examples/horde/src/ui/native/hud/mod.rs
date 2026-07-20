@@ -5,6 +5,7 @@ pub mod player_status;
 pub mod enemy_nameplates;
 pub mod damage_numbers;
 pub mod minimap;
+pub mod weapon_bar;
 
 #[derive(Component)]
 pub struct HudRoot;
@@ -26,7 +27,8 @@ impl Plugin for HudPlugin {
             .add_plugins(player_status::PlayerStatusPlugin)
             .add_plugins(enemy_nameplates::EnemyNameplatesPlugin)
             .add_plugins(damage_numbers::DamageNumbersPlugin)
-            .add_plugins(minimap::MinimapPlugin);
+            .add_plugins(minimap::MinimapPlugin)
+            .add_plugins(weapon_bar::WeaponBarPlugin);
     }
 }
 
