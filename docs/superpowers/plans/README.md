@@ -54,7 +54,7 @@ the existing `examples/todomvc` is kept as-is.
 | 2 | `supersolid` transpiler | `.tsx`/`.ts` → JS via `oxc` (type-strip + Solid-style JSX lowering) inside a Bevy `AssetLoader`; build-time pre-transpile path for wasm. | ✅ Done ([plan](./2026-07-19-supersolid-phase2-02-transpiler.md)) |
 | 3 | `supersolid_runtime` reactive core | JS runtime module in Boa: `createSignal`/`createEffect`/`createMemo`/`onMount`/`onCleanup`/`createContext`/`useContext` + scheduler. Headless. | ✅ Done ([plan](./2026-07-19-supersolid-phase2-03-reactive-core.md)) |
 | 4 | `supersolid` render + control-flow | JSX runtime (build-once nodes + surgical reactive bindings via the DOM API) and control-flow `<Show>`/`<For>`/`<Index>`/`<Switch>`. | ✅ Done ([plan](./2026-07-20-supersolid-phase2-04-render-controlflow.md)) |
-| 5 | State-preserving hot reload | `.tsx` HMR: signal-cell rehydration keyed by module × instance × creation-order; remount-on-shape-change fallback (spec §11.2). | 📝 Detailed ([design](../specs/2026-07-20-supersolid-hmr-state-preservation-design.md) · [plan](./2026-07-20-supersolid-phase2-05-hmr.md)) |
+| 5 | State-preserving hot reload | `.tsx` HMR: signal-cell rehydration keyed by module × instance × creation-order; remount-on-shape-change fallback (spec §11.2). | ✅ Done ([design](../specs/2026-07-20-supersolid-hmr-state-preservation-design.md) · [plan](./2026-07-20-supersolid-phase2-05-hmr.md)) |
 | 6 | `examples/todomvc_supersolid` | The Phase 2 deliverable: runnable Supersolid TodoMVC (native + wasm, hot reload), authored in `.tsx`. Existing `examples/todomvc` retained. | ⏳ Just-in-time |
 
 The series is provisional — crate splits and plan boundaries may shift as Plans 2–4 are designed
