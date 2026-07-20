@@ -748,6 +748,65 @@ mod render_tests {
         assert_eq!(text(&mut e, "globalThis.o2"), "ABC");
     }
 
+    #[test]
+    fn show_toggles_children_and_fallback() {
+        let mut e = render_engine();
+        e.eval(
+            r#"
+            var pair = createSignal(false);
+            globalThis.set = pair[1];
+            globalThis.p = $ss.el("div");
+            $ss.insert(p, function () {
+                return $ss.cmp(Show, {
+                    get when() { return pair[0](); },
+                    get children() { var s = $ss.el("span"); $ss.child(s, $ss.txt("yes")); return s; },
+                    get fallback() { var f = $ss.el("em"); $ss.child(f, $ss.txt("no")); return f; },
+                });
+            });
+            globalThis.t0 = p.textContent;   // "no"
+            globalThis.set(true);
+            globalThis.t1 = p.textContent;   // "yes"
+            globalThis.set(false);
+            globalThis.t2 = p.textContent;   // "no"
+            "#,
+        )
+        .unwrap();
+        assert_eq!(text(&mut e, "globalThis.t0"), "no");
+        assert_eq!(text(&mut e, "globalThis.t1"), "yes");
+        assert_eq!(text(&mut e, "globalThis.t2"), "no");
+    }
+
+    #[test]
+    fn show_disposes_hidden_branch_effects() {
+        let mut e = render_engine();
+        e.eval(
+            r#"
+            globalThis.binds = 0;
+            var when = createSignal(true);
+            var label = createSignal("a");
+            globalThis.setWhen = when[1]; globalThis.setLabel = label[1];
+            globalThis.p = $ss.el("div");
+            $ss.insert(p, function () {
+                return $ss.cmp(Show, {
+                    get when() { return when[0](); },
+                    get children() {
+                        var s = $ss.el("span");
+                        $ss.bind(s, "class", function () { globalThis.binds++; return label[0](); });
+                        return s;
+                    },
+                });
+            });
+            globalThis.b0 = globalThis.binds;     // 1 — bind ran once while shown
+            globalThis.setWhen(false);            // hide: branch (and its effect) disposed
+            globalThis.setLabel("b");             // must NOT re-run the disposed bind
+            globalThis.b1 = globalThis.binds;     // still 1
+            "#,
+        )
+        .unwrap();
+        assert_eq!(num(&mut e, "globalThis.b0"), 1.0);
+        assert_eq!(num(&mut e, "globalThis.b1"), 1.0);
+    }
+
     // THE RED DRIVER for this task. Node wrappers are identity-stable, so the Task-4
     // replace-based stub yields the SAME final DOM as minimal-move (the two order
     // tests above pass under both). What distinguishes them is HOW MANY DOM ops a

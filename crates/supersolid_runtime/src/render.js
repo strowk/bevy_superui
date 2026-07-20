@@ -204,7 +204,16 @@
     });
   }
 
+  // Conditional: a memoized accessor. When `when` flips, the memo recomputes and
+  // its own cleanNode disposes the previously-built branch's owned effects.
+  function Show(props) {
+    return createMemo(function () {
+      return props.when ? props.children : props.fallback;
+    });
+  }
+
   // ---- Publish the ABI (extended by later tasks) ----
+  globalThis.Show = Show;
   globalThis.$ss = {
     el: el,
     txt: txt,
