@@ -681,4 +681,104 @@ mod render_tests {
         e.dispatch_event(btn, "click", None, true, true);
         assert_eq!(num(&mut e, "globalThis.clicks"), 1.0);
     }
+
+    #[test]
+    fn insert_array_reorders_reusing_nodes() {
+        let mut e = render_engine();
+        e.eval(
+            r#"
+            // Build three stable element nodes keyed by identity.
+            globalThis.A = $ss.el("i"); A.setAttribute("k", "A");
+            globalThis.B = $ss.el("i"); B.setAttribute("k", "B");
+            globalThis.C = $ss.el("i"); C.setAttribute("k", "C");
+            var pair = createSignal([A, B, C]);
+            globalThis.set = pair[1];
+            globalThis.p = $ss.el("div");
+            $ss.insert(p, function () { return pair[0](); });
+            function order() {
+                var s = "";
+                for (var i = 0; i < p.childNodes.length; i++) {
+                    var n = p.childNodes[i];
+                    if (n.getAttribute) { var k = n.getAttribute("k"); if (k) s += k; }
+                }
+                return s;
+            }
+            globalThis.o0 = order();          // "ABC"
+            globalThis.set([C, A, B]);        // rotate
+            globalThis.o1 = order();          // "CAB"
+            globalThis.reusedA = (p.childNodes[1] === A); // A reused (identity)
+            globalThis.set([B]);              // shrink, drop A and C
+            globalThis.o2 = order();          // "B"
+            "#,
+        )
+        .unwrap();
+        assert_eq!(text(&mut e, "globalThis.o0"), "ABC");
+        assert_eq!(text(&mut e, "globalThis.o1"), "CAB");
+        assert_eq!(text(&mut e, "globalThis.reusedA"), "true");
+        assert_eq!(text(&mut e, "globalThis.o2"), "B");
+    }
+
+    #[test]
+    fn insert_array_appends_and_prepends() {
+        let mut e = render_engine();
+        e.eval(
+            r#"
+            globalThis.A = $ss.el("i"); A.setAttribute("k","A");
+            globalThis.B = $ss.el("i"); B.setAttribute("k","B");
+            globalThis.C = $ss.el("i"); C.setAttribute("k","C");
+            var pair = createSignal([B]);
+            globalThis.set = pair[1];
+            globalThis.p = $ss.el("div");
+            $ss.insert(p, function () { return pair[0](); });
+            function order() {
+                var s = "";
+                for (var i=0;i<p.childNodes.length;i++){var n=p.childNodes[i];if(n.getAttribute){var k=n.getAttribute("k");if(k)s+=k;}}
+                return s;
+            }
+            globalThis.o0 = order();      // "B"
+            globalThis.set([A, B]);       // prepend A
+            globalThis.o1 = order();      // "AB"
+            globalThis.set([A, B, C]);    // append C
+            globalThis.o2 = order();      // "ABC"
+            "#,
+        )
+        .unwrap();
+        assert_eq!(text(&mut e, "globalThis.o0"), "B");
+        assert_eq!(text(&mut e, "globalThis.o1"), "AB");
+        assert_eq!(text(&mut e, "globalThis.o2"), "ABC");
+    }
+
+    // THE RED DRIVER for this task. Node wrappers are identity-stable, so the Task-4
+    // replace-based stub yields the SAME final DOM as minimal-move (the two order
+    // tests above pass under both). What distinguishes them is HOW MANY DOM ops a
+    // reorder costs. Spy on the parent's insertBefore/removeChild and assert a single
+    // item moving in a list of four costs only a couple of ops — a full rebuild would
+    // be 4 removes + 4 inserts = 8.
+    #[test]
+    fn insert_array_reorder_is_minimal_moves() {
+        let mut e = render_engine();
+        e.eval(
+            r#"
+            globalThis.A=$ss.el("i"); globalThis.B=$ss.el("i");
+            globalThis.C=$ss.el("i"); globalThis.D=$ss.el("i");
+            var pair = createSignal([A, B, C, D]);
+            globalThis.set = pair[1];
+            globalThis.p = $ss.el("div");
+            $ss.insert(p, function () { return pair[0](); });
+
+            // Install op-count spies AFTER the initial render (shadow the proto methods).
+            globalThis.ops = 0;
+            var proto = Object.getPrototypeOf(p);
+            p.insertBefore = function (n, r) { globalThis.ops++; return proto.insertBefore.call(p, n, r); };
+            p.removeChild  = function (n)    { globalThis.ops++; return proto.removeChild.call(p, n); };
+
+            globalThis.set([A, C, D, B]);   // move B from index 1 to the end
+            globalThis.opsAfter = globalThis.ops;
+            "#,
+        )
+        .unwrap();
+        // Minimal-move handles this in <= 2 ops; the replace-based stub would use 8.
+        let ops = num(&mut e, "globalThis.opsAfter");
+        assert!(ops <= 2.0, "expected minimal moves (<=2 ops), got {ops}");
+    }
 }

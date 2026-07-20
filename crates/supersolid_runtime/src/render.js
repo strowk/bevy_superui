@@ -126,16 +126,73 @@
     out.push(value);
   }
 
-  // Still replace-based (Task 5 makes it keyed); now normalizes via normalizeArray.
   function reconcileArray(parent, anchor, current, value) {
     var next = normalizeArray(value);
-    if (next.length === 0) {
-      clearNodes(parent, current);
-      return null;
+    var a = current == null ? [] : (Array.isArray(current) ? current : [current]);
+    if (next.length === 0) { clearNodes(parent, a); return null; }
+    if (a.length === 0) {
+      for (var i = 0; i < next.length; i++) parent.insertBefore(next[i], anchor);
+      return next;
     }
-    clearNodes(parent, current);
-    for (var i = 0; i < next.length; i++) parent.insertBefore(next[i], anchor);
+    reconcileArrays(parent, anchor, a, next);
     return next;
+  }
+
+  // Identity-keyed minimal-move diff (adapted from Solid's reconcileArrays).
+  // `after` is the trailing marker (our anchor). Nodes are identity-stable, so
+  // === and Map keys work. `.remove()` is expressed as parent.removeChild.
+  function reconcileArrays(parentNode, after, a, b) {
+    var bLength = b.length,
+      aEnd = a.length,
+      bEnd = bLength,
+      aStart = 0,
+      bStart = 0,
+      map = null;
+
+    while (aStart < aEnd || bStart < bEnd) {
+      if (a[aStart] === b[bStart]) { aStart++; bStart++; continue; }
+      while (aEnd > aStart && bEnd > bStart && a[aEnd - 1] === b[bEnd - 1]) { aEnd--; bEnd--; }
+      if (aEnd === aStart) {
+        // pure insert: reference is the node after the insertion window
+        var node = bEnd < bLength ? b[bEnd] : after;
+        while (bStart < bEnd) parentNode.insertBefore(b[bStart++], node);
+      } else if (bEnd === bStart) {
+        // pure remove
+        while (aStart < aEnd) {
+          if (!map || !map.has(a[aStart])) parentNode.removeChild(a[aStart]);
+          aStart++;
+        }
+      } else if (a[aStart] === b[bEnd - 1] && b[bStart] === a[aEnd - 1]) {
+        // reversal at the ends: swap
+        var mnode = a[--aEnd].nextSibling;
+        parentNode.insertBefore(b[bStart++], a[aStart++].nextSibling);
+        parentNode.insertBefore(b[--bEnd], mnode);
+        a[aEnd] = b[bEnd];
+      } else {
+        if (!map) {
+          map = new Map();
+          var i = bStart;
+          while (i < bEnd) map.set(b[i], i++);
+        }
+        var index = map.get(a[aStart]);
+        if (index != null) {
+          if (bStart < index && index < bEnd) {
+            var i2 = aStart, sequence = 1, t;
+            while (++i2 < aEnd && i2 < bEnd) {
+              t = map.get(a[i2]);
+              if (t == null || t !== index + sequence) break;
+              sequence++;
+            }
+            if (sequence > index - bStart) {
+              var refNode = a[aStart];
+              while (bStart < index) parentNode.insertBefore(b[bStart++], refNode);
+            } else {
+              parentNode.replaceChild(b[bStart++], a[aStart++]);
+            }
+          } else aStart++;
+        } else parentNode.removeChild(a[aStart++]);
+      }
+    }
   }
 
   function insert(parent, accessor) {
