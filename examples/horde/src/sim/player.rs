@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 use crate::sim::*;
 use crate::sim::projectile::Projectile;
+use crate::game_state::GameState;
 
 /// Integrates velocity from a Move intent and clamps to the arena.
 pub fn player_movement(
@@ -110,6 +111,37 @@ pub fn spawn_player(commands: &mut Commands, cfg: &SimConfig) {
         Ammo { current: stats.mag_size, size: stats.mag_size, reload: 0.0 },
     ));
     let _ = slots; // full inventory is granted via pickups (Task 12)
+}
+
+pub fn player_death(
+    q: Query<&Health, With<Player>>,
+    mut next: ResMut<NextState<GameState>>,
+) {
+    if let Ok(hp) = q.single() {
+        if hp.current <= 0.0 {
+            next.set(GameState::GameOver);
+        }
+    }
+}
+
+#[cfg(test)]
+mod death_tests {
+    use super::*;
+    use crate::game_state::GameState;
+
+    #[test]
+    fn zero_hp_triggers_game_over() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins(bevy::state::app::StatesPlugin);
+        app.init_state::<GameState>();
+        app.world_mut().spawn((Player, Health { current: 0.0, max: 100.0 }));
+        app.add_systems(Update, player_death);
+        app.update();
+        // Applying state transition requires an extra update.
+        app.update();
+        assert_eq!(*app.world().resource::<State<GameState>>().get(), GameState::GameOver);
+    }
 }
 
 #[cfg(test)]
