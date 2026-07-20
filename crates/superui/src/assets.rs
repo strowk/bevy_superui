@@ -85,7 +85,8 @@ impl AssetLoader for TsxLoader {
     ) -> Result<JsSource, std::io::Error> {
         let src = read_to_string(reader).await?;
         let tsx = lc.path().extension().and_then(|e| e.to_str()) != Some("ts");
-        let opts = supersolid::TranspileOptions { tsx, ..Default::default() };
+        let module_id = Some(lc.path().to_string_lossy().into_owned());
+        let opts = supersolid::TranspileOptions { tsx, module_id, ..Default::default() };
         let result = supersolid::transpile(&src, &opts);
         for d in &result.diagnostics {
             bevy::log::warn!("supersolid: {}", d.message);
@@ -149,6 +150,45 @@ mod tests {
         let jss = app.world().resource::<Assets<JsSource>>();
         assert_eq!(htmls.get(&html).unwrap().0, "<div id='x'></div>");
         assert_eq!(jss.get(&js).unwrap().0, "var a = 1;");
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn tsx_loader_bakes_module_path_into_hot_id() {
+        let dir = Dir::new("assets".into());
+        dir.insert_asset(
+            "counter.tsx".as_ref(),
+            b"function Counter(){ return <div/>; } render(() => <Counter/>, root);",
+        );
+
+        let mut app = App::new();
+        app.register_asset_source(
+            AssetSourceId::Default,
+            AssetSource::build().with_reader(move || Box::new(MemoryAssetReader { root: dir.clone() })),
+        );
+        app.add_plugins((bevy::app::TaskPoolPlugin::default(), AssetPlugin::default()));
+        app.init_asset::<JsSource>().register_asset_loader(TsxLoader);
+        app.finish();
+
+        let handle = {
+            let server = app.world().resource::<AssetServer>().clone();
+            server.load::<JsSource>("counter.tsx")
+        };
+        for _ in 0..64 {
+            app.update();
+            if matches!(
+                app.world().resource::<AssetServer>().load_state(handle.id()),
+                LoadState::Loaded
+            ) {
+                break;
+            }
+        }
+        let jss = app.world().resource::<Assets<JsSource>>();
+        let out = &jss.get(&handle).unwrap().0;
+        assert!(
+            out.contains(r#"$ss.hot("counter.tsx#Counter", Counter)"#),
+            "loader must bake the asset path into the HMR id:\n{out}"
+        );
     }
 
     #[cfg(not(target_arch = "wasm32"))]
