@@ -910,6 +910,74 @@ mod render_tests {
         assert_eq!(num(&mut e, "globalThis.aState"), 5.0);
     }
 
+    #[test]
+    fn index_keys_by_position_and_updates_item_in_place() {
+        let mut e = render_engine();
+        e.eval(
+            r#"
+            var pair = createSignal(["x", "y"]);
+            globalThis.set = pair[1];
+            globalThis.p = $ss.el("ul");
+            $ss.insert(p, function () {
+                return $ss.cmp(Index, {
+                    get each() { return pair[0](); },
+                    get children() {
+                        return function (item) {   // item is a SIGNAL getter
+                            var li = $ss.el("li");
+                            $ss.insert(li, function () { return item(); });
+                            return li;
+                        };
+                    },
+                });
+            });
+            function order(){var s="";for(var i=0;i<p.childNodes.length;i++){var n=p.childNodes[i];if(n.nodeType===1)s+=n.textContent;}return s;}
+            globalThis.row0 = p.childNodes[0];
+            globalThis.o0 = order();            // "xy"
+            globalThis.set(["z", "y"]);         // position 0 value changes x->z
+            globalThis.o1 = order();            // "zy"
+            globalThis.sameRow0 = (p.childNodes[0] === globalThis.row0); // true — position reused
+            "#,
+        )
+        .unwrap();
+        assert_eq!(text(&mut e, "globalThis.o0"), "xy");
+        assert_eq!(text(&mut e, "globalThis.o1"), "zy");
+        assert_eq!(text(&mut e, "globalThis.sameRow0"), "true");
+    }
+
+    #[test]
+    fn switch_picks_first_matching_branch() {
+        let mut e = render_engine();
+        e.eval(
+            r#"
+            var pair = createSignal(1);
+            globalThis.set = pair[1];
+            globalThis.p = $ss.el("div");
+            $ss.insert(p, function () {
+                return $ss.cmp(Switch, {
+                    get fallback() { var f=$ss.el("em"); $ss.child(f,$ss.txt("none")); return f; },
+                    get children() {
+                        return [
+                            $ss.cmp(Match, { get when(){ return pair[0]() === 1; },
+                                get children(){ var s=$ss.el("span"); $ss.child(s,$ss.txt("one")); return s; } }),
+                            $ss.cmp(Match, { get when(){ return pair[0]() === 2; },
+                                get children(){ var s=$ss.el("span"); $ss.child(s,$ss.txt("two")); return s; } }),
+                        ];
+                    },
+                });
+            });
+            globalThis.t0 = p.textContent;   // "one"
+            globalThis.set(2);
+            globalThis.t1 = p.textContent;   // "two"
+            globalThis.set(9);
+            globalThis.t2 = p.textContent;   // "none" (fallback)
+            "#,
+        )
+        .unwrap();
+        assert_eq!(text(&mut e, "globalThis.t0"), "one");
+        assert_eq!(text(&mut e, "globalThis.t1"), "two");
+        assert_eq!(text(&mut e, "globalThis.t2"), "none");
+    }
+
     // THE RED DRIVER for this task. Node wrappers are identity-stable, so the Task-4
     // replace-based stub yields the SAME final DOM as minimal-move (the two order
     // tests above pass under both). What distinguishes them is HOW MANY DOM ops a

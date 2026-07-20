@@ -280,9 +280,73 @@
     return createMemo(mapArray(function () { return props.each; }, props.children));
   }
 
+  // Position-keyed map: one row per index, reused across changes; the item is a
+  // signal updated in place when the value at that position changes.
+  function indexArray(listFn, mapFn) {
+    var owner = globalThis.$ssGetOwner();
+    var mapped = [];      // node per position
+    var setters = [];     // item signal setter per position
+    var disposers = [];   // dispose fn per position
+    onCleanup(function () {
+      for (var i = 0; i < disposers.length; i++) disposers[i]();
+    });
+    return function () {
+      var list = listFn() || [];
+      return untrack(function () {
+        // Grow: build new positions.
+        for (var j = mapped.length; j < list.length; j++) {
+          makeIndexRow(list[j], j, mapped, setters, disposers, owner, mapFn);
+        }
+        // Update existing positions in place.
+        for (var k = 0; k < mapped.length && k < list.length; k++) {
+          setters[k](function () { return list[k]; }); // set to the new value
+        }
+        // Shrink: dispose trailing positions.
+        for (var d = list.length; d < mapped.length; d++) disposers[d]();
+        if (list.length < mapped.length) {
+          mapped.length = list.length;
+          setters.length = list.length;
+          disposers.length = list.length;
+        }
+        return mapped.slice();
+      });
+    };
+  }
+
+  function makeIndexRow(value, index, outMapped, outSetters, outDisposers, owner, mapFn) {
+    createRoot(function (dispose) {
+      var sig = createSignal(value);
+      outSetters[index] = sig[1];
+      outDisposers[index] = dispose;
+      outMapped[index] = mapFn(sig[0], index); // item is the signal GETTER
+    }, owner);
+  }
+
+  function Index(props) {
+    return createMemo(indexArray(function () { return props.each; }, props.children));
+  }
+
+  // Match is a plain descriptor carrying live `when`/`children` getters.
+  function Match(props) { return props; }
+
+  function Switch(props) {
+    return createMemo(function () {
+      var kids = props.children;
+      var arr = Array.isArray(kids) ? kids : (kids == null ? [] : [kids]);
+      for (var i = 0; i < arr.length; i++) {
+        var m = arr[i];
+        if (m && m.when) return m.children;
+      }
+      return props.fallback;
+    });
+  }
+
   // ---- Publish the ABI (extended by later tasks) ----
   globalThis.Show = Show;
   globalThis.For = For;
+  globalThis.Index = Index;
+  globalThis.Switch = Switch;
+  globalThis.Match = Match;
   globalThis.$ss = {
     el: el,
     txt: txt,
