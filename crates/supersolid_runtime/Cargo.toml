@@ -9,6 +9,7 @@ superui_js = { path = "../superui_js" }
 
 [dev-dependencies]
 superui_dom = { path = "../superui_dom" }
+superui_api = { path = "../superui_api" }
 boa_engine.workspace = true
 
 # Boa pulls getrandom 0.3, which needs the JS backend on wasm (same gotcha as the

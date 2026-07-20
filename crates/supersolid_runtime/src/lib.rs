@@ -8,15 +8,21 @@ use superui_js::{BoaEngine, JsEngine};
 
 /// The reactive core, embedded at build time.
 const RUNTIME_JS: &str = include_str!("runtime.js");
+/// The render + control-flow layer, embedded at build time.
+const RENDER_JS: &str = include_str!("render.js");
 
 /// Install the Supersolid reactive core onto `engine`. Call once, after
 /// `superui_api::install` and before evaluating author scripts. Publishes
 /// `createSignal`/`createEffect`/`createMemo`/`onMount`/`onCleanup`/
-/// `createContext`/`useContext` (+ `createRoot`/`untrack`/`batch`) as globals.
+/// `createContext`/`useContext` (+ `createRoot`/`untrack`/`batch`) as globals,
+/// plus `$ss` (`el`/`txt`/`attr`/`child`) from the render layer.
 pub fn install(engine: &mut BoaEngine) {
     engine
         .eval(RUNTIME_JS)
         .expect("supersolid_runtime: runtime.js must evaluate (internal invariant)");
+    engine
+        .eval(RENDER_JS)
+        .expect("supersolid_runtime: render.js must evaluate (internal invariant)");
 }
 
 #[cfg(test)]
@@ -437,5 +443,91 @@ mod tests {
         assert_eq!(num(&mut e, "globalThis.v0"), 6.0);
         assert_eq!(num(&mut e, "globalThis.r1"), 2.0);
         assert_eq!(num(&mut e, "globalThis.v1"), 12.0);
+    }
+}
+
+#[cfg(test)]
+mod render_tests {
+    use super::*;
+    use std::cell::RefCell;
+    use std::rc::Rc;
+    use superui_dom::Dom;
+
+    /// A BoaEngine with the DOM/Web API (superui_api) AND the reactive+render
+    /// runtime installed — the full surface author `.tsx` runs against.
+    fn render_engine() -> BoaEngine {
+        let dom = Rc::new(RefCell::new(Dom::new()));
+        let mut e = BoaEngine::new(dom);
+        superui_api::install(&mut e);
+        install(&mut e);
+        e
+    }
+
+    fn num(e: &mut BoaEngine, expr: &str) -> f64 {
+        e.context_mut()
+            .eval(boa_engine::Source::from_bytes(expr))
+            .unwrap()
+            .as_number()
+            .unwrap_or(f64::NAN)
+    }
+
+    fn text(e: &mut BoaEngine, expr: &str) -> String {
+        let v = e
+            .context_mut()
+            .eval(boa_engine::Source::from_bytes(expr))
+            .unwrap();
+        v.to_string(e.context_mut()).unwrap().to_std_string_escaped()
+    }
+
+    #[test]
+    fn el_and_txt_and_child_build_dom() {
+        let mut e = render_engine();
+        e.eval(
+            r#"
+            globalThis.p = $ss.el("div");
+            $ss.child(p, $ss.el("span"));
+            $ss.child(p, $ss.txt("hi"));
+            globalThis.count = p.childNodes.length;   // 2
+            globalThis.tag0 = p.childNodes[0].tagName; // "SPAN"
+            globalThis.txt1 = p.childNodes[1].data;    // "hi"
+            "#,
+        )
+        .unwrap();
+        assert_eq!(num(&mut e, "globalThis.count"), 2.0);
+        assert_eq!(text(&mut e, "globalThis.tag0"), "SPAN");
+        assert_eq!(text(&mut e, "globalThis.txt1"), "hi");
+    }
+
+    #[test]
+    fn attr_sets_attribute_and_value_property() {
+        let mut e = render_engine();
+        e.eval(
+            r#"
+            globalThis.a = $ss.el("div");
+            $ss.attr(a, "class", "box");
+            globalThis.b = $ss.el("input");
+            $ss.attr(b, "value", "typed");
+            globalThis.cls = a.getAttribute ? a.getAttribute("class") : a.className;
+            globalThis.val = b.value;   // property path
+            "#,
+        )
+        .unwrap();
+        // `class` reaches the class attribute (read back via className accessor).
+        assert_eq!(text(&mut e, "globalThis.a.className"), "box");
+        assert_eq!(text(&mut e, "globalThis.val"), "typed");
+    }
+
+    #[test]
+    fn child_flattens_arrays() {
+        let mut e = render_engine();
+        e.eval(
+            r#"
+            globalThis.p = $ss.el("div");
+            $ss.child(p, [ $ss.el("span"), $ss.txt("x") ]);
+            globalThis.count = p.childNodes.length;   // 2
+            "#,
+        )
+        .unwrap();
+        assert_eq!(num(&mut e, "globalThis.count"), 2.0);
     }
 }
