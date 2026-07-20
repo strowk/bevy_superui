@@ -212,15 +212,59 @@
     return function () { return readSource(node); };
   }
 
+  function onMount(fn) {
+    // Run once after the current setup flush, untracked (no dependencies).
+    createEffect(function () { untrack(fn); });
+  }
+
+  function createContext(defaultValue) {
+    return { id: nextContextId++, defaultValue: defaultValue };
+  }
+
+  function useContext(context) {
+    var ctx = Owner && Owner.context;
+    if (ctx && Object.prototype.hasOwnProperty.call(ctx, context.id)) {
+      return ctx[context.id];
+    }
+    return context.defaultValue;
+  }
+
+  function provideContext(context, value, fn) {
+    // Run `fn` under a child owner whose context has `context` set to `value`.
+    // The map is copied down so nested reads and captured computations see it.
+    var prevOwner = Owner;
+    var merged = {};
+    if (prevOwner && prevOwner.context) {
+      for (var k in prevOwner.context) {
+        if (Object.prototype.hasOwnProperty.call(prevOwner.context, k)) {
+          merged[k] = prevOwner.context[k];
+        }
+      }
+    }
+    merged[context.id] = value;
+    var owner = {
+      fn: null, owned: null, cleanups: null, sources: null,
+      context: merged, owner: prevOwner, disposed: false, state: CLEAN,
+    };
+    if (prevOwner) (prevOwner.owned || (prevOwner.owned = [])).push(owner);
+    Owner = owner;
+    try { return fn(); } finally { Owner = prevOwner; }
+  }
+
   // ---- Publish author API (the transpiler strips the matching imports) ----
   var api = {
     createSignal: createSignal,
     createEffect: createEffect,
     createMemo: createMemo,
     createRoot: createRoot,
+    onMount: onMount,
     onCleanup: onCleanup,
+    createContext: createContext,
+    useContext: useContext,
     untrack: untrack,
     batch: batch,
   };
   for (var name in api) globalThis[name] = api[name];
+  // Runtime-internal context-provision primitive; Plan 4's <Provider> wraps it.
+  globalThis.$ssProvideContext = provideContext;
 })();

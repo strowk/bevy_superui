@@ -42,6 +42,61 @@ mod tests {
             .unwrap_or(f64::NAN)
     }
 
+    /// Evaluate `expr` and read it back as a Rust String.
+    fn text(e: &mut BoaEngine, expr: &str) -> String {
+        let v = e
+            .context_mut()
+            .eval(boa_engine::Source::from_bytes(expr))
+            .unwrap();
+        v.to_string(e.context_mut()).unwrap().to_std_string_escaped()
+    }
+
+    #[test]
+    fn on_mount_runs_exactly_once() {
+        let mut e = engine();
+        e.eval(
+            r#"
+            globalThis.mounts = 0;
+            var m = createSignal(0);
+            createRoot(function () {
+                onMount(function () { globalThis.mounts++; m[0](); }); // reads m, but untracked
+            });
+            globalThis.m0 = globalThis.mounts;   // 1
+            m[1](1);                             // one-shot + untracked -> no re-run
+            globalThis.m1 = globalThis.mounts;   // 1
+            "#,
+        )
+        .unwrap();
+        assert_eq!(num(&mut e, "globalThis.m0"), 1.0);
+        assert_eq!(num(&mut e, "globalThis.m1"), 1.0);
+    }
+
+    #[test]
+    fn context_default_provided_and_nested() {
+        let mut e = engine();
+        e.eval(
+            r#"
+            var Ctx = createContext("default");
+            globalThis.d0 = useContext(Ctx);     // "default" (no provider)
+            globalThis.prov = null; globalThis.nested = null; globalThis.effCtx = null;
+            $ssProvideContext(Ctx, "outer", function () {
+                globalThis.prov = useContext(Ctx);          // "outer"
+                $ssProvideContext(Ctx, "inner", function () {
+                    globalThis.nested = useContext(Ctx);    // "inner"
+                });
+                createRoot(function () {
+                    createEffect(function () { globalThis.effCtx = useContext(Ctx); }); // "outer"
+                });
+            });
+            "#,
+        )
+        .unwrap();
+        assert_eq!(text(&mut e, "globalThis.d0"), "default");
+        assert_eq!(text(&mut e, "globalThis.prov"), "outer");
+        assert_eq!(text(&mut e, "globalThis.nested"), "inner");
+        assert_eq!(text(&mut e, "globalThis.effCtx"), "outer");
+    }
+
     #[test]
     fn effect_runs_on_creation_and_reruns_on_dependency_change() {
         let mut e = engine();
