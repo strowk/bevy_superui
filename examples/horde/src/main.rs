@@ -1,3 +1,7 @@
+// Under incremental construction: sim/UI items are wired up across later tasks.
+// TODO(task-32): remove this once all modules are consumed.
+#![allow(dead_code)]
+
 use bevy::prelude::*;
 
 mod ui;

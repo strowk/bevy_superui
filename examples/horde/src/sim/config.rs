@@ -1,6 +1,5 @@
 use bevy::prelude::*;
 
-#[allow(dead_code)]
 #[derive(Resource, Clone, Debug)]
 pub struct SimConfig {
     pub enemy_cap: usize,
@@ -13,7 +12,6 @@ pub struct SimConfig {
 }
 
 impl SimConfig {
-    #[allow(dead_code)]
     pub fn play() -> Self {
         SimConfig {
             enemy_cap: 60,
@@ -26,7 +24,6 @@ impl SimConfig {
         }
     }
 
-    #[allow(dead_code)]
     pub fn stress() -> Self {
         SimConfig {
             enemy_cap: 400,
@@ -38,7 +35,6 @@ impl SimConfig {
 
     /// Preset from `HORDE_PRESET` (`play`|`stress`, default `play`), then per-field
     /// overrides from `HORDE_SEED`, `HORDE_ENEMY_CAP`, `HORDE_ARENA_HALF`.
-    #[allow(dead_code)]
     pub fn from_env() -> Self {
         let mut cfg = match std::env::var("HORDE_PRESET").as_deref() {
             Ok("stress") => Self::stress(),
