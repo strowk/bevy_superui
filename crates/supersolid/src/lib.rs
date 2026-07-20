@@ -56,6 +56,16 @@ pub fn transpile(source: &str, options: &TranspileOptions) -> TranspileResult {
     TranspileResult { code, diagnostics, style_imports }
 }
 
+/// Transpile one `.tsx`/`.ts` file to `output` (plain JS). Used by the CLI for
+/// the wasm build-time pre-transpile path (direction spec §11.3).
+pub fn transpile_file(input: &std::path::Path, output: &std::path::Path) -> std::io::Result<TranspileResult> {
+    let src = std::fs::read_to_string(input)?;
+    let tsx = input.extension().and_then(|e| e.to_str()) != Some("ts");
+    let result = transpile(&src, &TranspileOptions { tsx, ..Default::default() });
+    std::fs::write(output, &result.code)?;
+    Ok(result)
+}
+
 /// TEST HELPER: true iff `code` parses as plain (non-JSX) JavaScript with no
 /// parser diagnostics. Proves both "valid JS" and "no JSX remains".
 #[cfg(test)]
