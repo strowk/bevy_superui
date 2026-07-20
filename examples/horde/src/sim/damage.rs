@@ -1,5 +1,6 @@
 use bevy::ecs::message::MessageReader;
 use bevy::prelude::*;
+use std::collections::VecDeque;
 
 use crate::sim::SimConfig;
 
@@ -54,6 +55,80 @@ pub fn tick_damage_numbers(
         if dn.age >= dn.ttl {
             commands.entity(e).despawn();
         }
+    }
+}
+
+#[derive(Resource, Default)]
+pub struct DamageHistory(pub VecDeque<(f32, f32)>); // (timestamp, amount)
+
+#[derive(Clone)]
+pub struct LogEvent {
+    pub text: String,
+    pub age: f32,
+}
+
+#[derive(Resource, Default)]
+pub struct CombatLog(pub VecDeque<LogEvent>);
+
+/// Sum of damage within `window` seconds of `now`, divided by window = DPS.
+pub fn dps_over_window(history: &VecDeque<(f32, f32)>, now: f32, window: f32) -> f32 {
+    let cutoff = now - window;
+    let sum: f32 = history.iter().filter(|(t, _)| *t >= cutoff).map(|(_, a)| *a).sum();
+    sum / window
+}
+
+pub fn push_log(log: &mut CombatLog, text: impl Into<String>) {
+    log.0.push_front(LogEvent { text: text.into(), age: 0.0 });
+    while log.0.len() > 8 {
+        log.0.pop_back();
+    }
+}
+
+pub fn record_damage_history(
+    mut events: MessageReader<DamageEvent>,
+    mut history: ResMut<DamageHistory>,
+    prog: Res<Progression>,
+) {
+    for ev in events.read() {
+        history.0.push_back((prog.elapsed, ev.amount));
+    }
+    let cutoff = prog.elapsed - 3.0;
+    while let Some((t, _)) = history.0.front() {
+        if *t < cutoff {
+            history.0.pop_front();
+        } else {
+            break;
+        }
+    }
+}
+
+pub fn tick_progression(
+    time: Res<Time>,
+    mut prog: ResMut<Progression>,
+    mut log: ResMut<CombatLog>,
+) {
+    let prev_wave = prog.wave;
+    prog.elapsed += time.delta_secs();
+    for e in log.0.iter_mut() {
+        e.age += time.delta_secs();
+    }
+    if prog.wave != prev_wave {
+        push_log(&mut log, format!("Wave {}", prog.wave));
+    }
+}
+
+#[cfg(test)]
+mod dps_tests {
+    use super::*;
+
+    #[test]
+    fn dps_sums_recent_window_only() {
+        let mut h = VecDeque::new();
+        h.push_back((0.0, 100.0)); // old, excluded
+        h.push_back((9.5, 20.0));
+        h.push_back((10.0, 30.0));
+        let dps = dps_over_window(&h, 10.0, 1.0); // window [9.0, 10.0]
+        assert_eq!(dps, 50.0);
     }
 }
 
