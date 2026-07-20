@@ -6,6 +6,7 @@ pub mod intent;
 pub mod player;
 pub mod enemy;
 pub mod spawn;
+pub mod projectile;
 
 pub use config::SimConfig;
 pub use rng::Rng;
