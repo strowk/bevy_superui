@@ -5,6 +5,7 @@
 use bevy::prelude::*;
 
 mod game_state;
+mod input;
 mod sim;
 mod ui;
 
@@ -18,7 +19,8 @@ fn main() {
     }))
     .init_state::<GameState>()
     .add_plugins(sim::SimPlugin)
-    .add_systems(Startup, setup_camera);
+    .add_systems(Startup, setup_camera)
+    .add_systems(PreUpdate, input::gather_input);
 
     // FPS debug overlay in the reserved top-left corner (opt-in via `debug-ui`).
     #[cfg(feature = "debug-ui")]
