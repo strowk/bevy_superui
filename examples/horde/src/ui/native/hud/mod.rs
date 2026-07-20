@@ -7,6 +7,7 @@ pub mod damage_numbers;
 pub mod minimap;
 pub mod weapon_bar;
 pub mod meters;
+pub mod combat_log;
 
 #[derive(Component)]
 pub struct HudRoot;
@@ -30,7 +31,8 @@ impl Plugin for HudPlugin {
             .add_plugins(damage_numbers::DamageNumbersPlugin)
             .add_plugins(minimap::MinimapPlugin)
             .add_plugins(weapon_bar::WeaponBarPlugin)
-            .add_plugins(meters::MetersPlugin);
+            .add_plugins(meters::MetersPlugin)
+            .add_plugins(combat_log::CombatLogPlugin);
     }
 }
 

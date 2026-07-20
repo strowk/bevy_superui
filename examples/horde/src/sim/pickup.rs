@@ -12,6 +12,7 @@ pub fn grab_pickups(
     mut player: Query<(&Transform, &mut Inventory), With<Player>>,
     pickups: Query<(Entity, &Transform, &Pickup)>,
     mut progression: ResMut<Progression>,
+    mut log: ResMut<crate::sim::damage::CombatLog>,
 ) {
     let Ok((pt, mut inv)) = player.single_mut() else { return };
     let ppos = pt.translation.truncate();
@@ -21,6 +22,7 @@ pub fn grab_pickups(
                 inv.slots.push(pk.kind);
             }
             progression.pickups += 1;
+            crate::sim::damage::push_log(&mut log, format!("Picked up {}", pk.kind.name()));
             commands.entity(e).despawn();
         }
     }
@@ -89,6 +91,7 @@ mod tests {
         let mut app = App::new();
         app.add_plugins(MinimalPlugins);
         app.init_resource::<Progression>();
+        app.init_resource::<crate::sim::damage::CombatLog>();
         app.world_mut().spawn((
             Player,
             Transform::from_xyz(0.0, 0.0, 0.0),
