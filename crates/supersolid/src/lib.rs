@@ -15,6 +15,9 @@ pub struct TranspileOptions {
     pub runtime_specifiers: Vec<String>,
     /// Parse as `.tsx` (allow JSX) when true, `.ts` when false.
     pub tsx: bool,
+    /// Module id baked into component HMR registrations (`"<module_id>#<Name>"`);
+    /// the native loader / CLI supply the asset path. `None` => `"#<Name>"`.
+    pub module_id: Option<String>,
 }
 
 impl Default for TranspileOptions {
@@ -22,6 +25,7 @@ impl Default for TranspileOptions {
         TranspileOptions {
             runtime_specifiers: vec!["supersolid".into(), "solid-js".into()],
             tsx: true,
+            module_id: None,
         }
     }
 }
@@ -61,7 +65,8 @@ pub fn transpile(source: &str, options: &TranspileOptions) -> TranspileResult {
 pub fn transpile_file(input: &std::path::Path, output: &std::path::Path) -> std::io::Result<TranspileResult> {
     let src = std::fs::read_to_string(input)?;
     let tsx = input.extension().and_then(|e| e.to_str()) != Some("ts");
-    let result = transpile(&src, &TranspileOptions { tsx, ..Default::default() });
+    let module_id = Some(input.to_string_lossy().into_owned());
+    let result = transpile(&src, &TranspileOptions { tsx, module_id, ..Default::default() });
     std::fs::write(output, &result.code)?;
     Ok(result)
 }
@@ -300,6 +305,37 @@ mod tests {
         let out = code("const a = <div>{42}</div>;");
         assert!(out.contains(r#"$ss.txt("42")"#), "literal child stringified to static text:\n{out}");
         assert!(!out.contains("$ss.insert"), "a literal child must NOT be a dynamic insert:\n{out}");
+        assert!(reparses_as_plain_js(&out), "{out}");
+    }
+
+    #[test]
+    fn top_level_function_component_is_registered() {
+        let out = code("function Counter(){ return <div/>; } render(() => <Counter/>, root);");
+        assert!(out.contains(r##"$ss.hot("#Counter", Counter)"##), "component registered:\n{out}");
+        assert!(reparses_as_plain_js(&out), "{out}");
+    }
+
+    #[test]
+    fn const_arrow_component_is_registered() {
+        let out = code("const Item = () => <li/>;");
+        assert!(out.contains(r##"$ss.hot("#Item", Item)"##), "const-arrow registered:\n{out}");
+        assert!(reparses_as_plain_js(&out), "{out}");
+    }
+
+    #[test]
+    fn module_id_qualifies_the_hot_id() {
+        let r = transpile(
+            "function App(){ return <div/>; }",
+            &TranspileOptions { module_id: Some("app.tsx".into()), ..Default::default() },
+        );
+        assert!(r.code.contains(r#"$ss.hot("app.tsx#App", App)"#), "path-qualified id:\n{}", r.code);
+        assert!(reparses_as_plain_js(&r.code), "{}", r.code);
+    }
+
+    #[test]
+    fn lowercase_and_non_function_bindings_are_not_registered() {
+        let out = code("function helper(){ return 1; } const value = 2; const Config = 3;");
+        assert!(!out.contains("$ss.hot"), "no registration for non-components:\n{out}");
         assert!(reparses_as_plain_js(&out), "{out}");
     }
 }

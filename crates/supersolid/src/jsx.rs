@@ -170,6 +170,18 @@ impl<'a> Lower<'a> {
         self.ast.statement_expression(SPAN, call)
     }
 
+    /// `$ss.hot("<module_id>#<name>", <name>);` as a statement.
+    fn hot_registration(&self, module_id: Option<&str>, name: &str) -> Statement<'a> {
+        let id = match module_id {
+            Some(m) => format!("{m}#{name}"),
+            None => format!("#{name}"),
+        };
+        let callee = self.runtime_member("hot");
+        let name_ref = self.ast.expression_identifier(SPAN, self.atom(name));
+        let call = self.call(callee, vec![self.string(&id), name_ref]);
+        self.ast.statement_expression(SPAN, call)
+    }
+
     /// Wrap a body block of statements in an immediately-invoked arrow:
     /// `(() => { <stmts> })()`.
     fn iife(&self, stmts: Vec<Statement<'a>>) -> Expression<'a> {
@@ -608,6 +620,38 @@ impl<'a> VisitMut<'a> for Lower<'a> {
     }
 }
 
+/// True iff `s` begins with an uppercase character (JSX component convention).
+fn starts_uppercase(s: &str) -> bool {
+    s.chars().next().is_some_and(|c| c.is_uppercase())
+}
+
+/// If `stmt` is a top-level component definition, return its binding name:
+/// an uppercase-named function declaration, or `const/let/var NAME = (arrow|function)`
+/// with an uppercase identifier binding.
+fn top_level_component_name(stmt: &Statement<'_>) -> Option<String> {
+    use oxc::ast::ast::BindingPattern;
+    match stmt {
+        Statement::FunctionDeclaration(f) => {
+            let name = f.id.as_ref()?.name.as_str();
+            starts_uppercase(name).then(|| name.to_string())
+        }
+        Statement::VariableDeclaration(decl) => {
+            let d = decl.declarations.first()?;
+            match d.init.as_ref()? {
+                Expression::ArrowFunctionExpression(_) | Expression::FunctionExpression(_) => {
+                    if let BindingPattern::BindingIdentifier(id) = &d.id {
+                        let name = id.name.as_str();
+                        return starts_uppercase(name).then(|| name.to_string());
+                    }
+                    None
+                }
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
 /// True iff a JSX expression container holds a plain string or numeric literal.
 /// Component props keep such literals as their original JS values (a string
 /// literal stays a string, a numeric literal stays a number) rather than being
@@ -635,7 +679,22 @@ fn is_static_literal(expr: &JSXExpression<'_>) -> Option<String> {
 }
 
 /// Entry point called from the pipeline.
-pub(crate) fn lower<'a>(allocator: &'a Allocator, program: &mut Program<'a>) {
+pub(crate) fn lower<'a>(
+    allocator: &'a Allocator,
+    program: &mut Program<'a>,
+    module_id: Option<&str>,
+) {
     let mut pass = Lower { ast: AstBuilder::new(allocator), next_local: 0 };
     pass.visit_program(program);
+
+    // Insert each top-level component's `$ss.hot(...)` immediately AFTER its
+    // declaration, so the id is tagged before any later `render()` uses it.
+    let old = std::mem::replace(&mut program.body, pass.ast.vec());
+    for stmt in old {
+        let comp = top_level_component_name(&stmt);
+        program.body.push(stmt);
+        if let Some(name) = comp {
+            program.body.push(pass.hot_registration(module_id, &name));
+        }
+    }
 }

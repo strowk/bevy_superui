@@ -47,7 +47,7 @@ pub(crate) fn run(
     }
 
     if lower_jsx {
-        crate::jsx::lower(&allocator, &mut program);
+        crate::jsx::lower(&allocator, &mut program, options.module_id.as_deref());
         let (mut import_diags, style_imports) =
             crate::imports::rewrite(&allocator, &mut program, options);
         diagnostics.append(&mut import_diags);
