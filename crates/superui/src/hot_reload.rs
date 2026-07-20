@@ -120,11 +120,15 @@ pub fn apply_hot_reload(world: &mut World) {
                 }
             }
 
-            // Rebuild the whole runtime around the fresh DOM.
+            // Rebuild the whole runtime around the fresh DOM. Recompute the HMR
+            // gate (an HTML-rebuild only happens while watching, so the feature
+            // decides it here; no re-warn — mount_when_ready owns the warning).
+            let watching = world.resource::<AssetServer>().watching_for_changes();
+            let hmr = crate::mount::hmr_active(watching);
             let dom = Rc::new(RefCell::new(superui_html::parse_document(&src)));
             let entity = rt.root;
             let stylesheet = rt.stylesheet.clone();
-            rt = UiRuntime::new(dom, entity, stylesheet, false);
+            rt = UiRuntime::new(dom, entity, stylesheet, hmr);
         }
         // After an HTML rebuild we must also re-run JS (fresh DOM).
         if let Some(js) = world

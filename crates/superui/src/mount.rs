@@ -16,6 +16,13 @@ use superui_css::SuperUiCssPlugin;
 use crate::assets::{HtmlLoader, HtmlSource, JsLoader, JsSource};
 use crate::hot_reload::{HotReloadFlags, apply_hot_reload, detect_hot_reload};
 
+/// The Plan 5 HMR gate: active only when the `hmr` feature is compiled in AND the
+/// asset server is watching for changes (there is no point collecting HMR state
+/// when no edit can ever be observed). `cfg!` folds to `false` with the feature off.
+pub(crate) fn hmr_active(watching: bool) -> bool {
+    cfg!(feature = "hmr") && watching
+}
+
 /// Marks an entity as an authored-UI mount point (holds its asset handles). The
 /// entity is also the ECS parent the DOM `<body>` reconciles into.
 #[derive(Component, Default)]
@@ -132,12 +139,43 @@ pub fn mount_when_ready(world: &mut World) {
         }
     };
 
+    // Plan 5 gate: feature + asset watcher. Warn once (here, the single mount
+    // point) if the feature is enabled but nothing is watching, then stay off.
+    let watching = world.resource::<AssetServer>().watching_for_changes();
+    let hmr = hmr_active(watching);
+    #[cfg(feature = "hmr")]
+    if !watching {
+        bevy::log::warn!(
+            "superui: `hmr` feature is enabled but the AssetServer is not watching for \
+             changes; state-preserving hot reload is OFF. Enable `bevy/file_watcher` (or set \
+             AssetPlugin.watch_for_changes_override = Some(true)) to activate it."
+        );
+    }
+
     // Build the runtime: parse HTML -> Dom, wire engine, run author JS.
     let dom = Rc::new(RefCell::new(superui_html::parse_document(&html_src)));
-    let mut rt = UiRuntime::new(dom, entity, css_handle, false);
+    let mut rt = UiRuntime::new(dom, entity, css_handle, hmr);
     rt.run_script(&js_src);
 
     // Insert as a NonSend resource — valid because we're in an exclusive system
     // running on the main thread.
     world.insert_non_send_resource(rt);
+}
+
+#[cfg(test)]
+mod hmr_gate_tests {
+    use super::hmr_active;
+
+    #[test]
+    fn hmr_active_requires_watching_and_feature() {
+        // Without the `hmr` feature, the gate is always false.
+        // With it, the gate follows `watching`.
+        if cfg!(feature = "hmr") {
+            assert!(hmr_active(true), "feature on + watching => active");
+            assert!(!hmr_active(false), "feature on + not watching => inactive");
+        } else {
+            assert!(!hmr_active(true), "feature off => inactive even when watching");
+            assert!(!hmr_active(false));
+        }
+    }
 }

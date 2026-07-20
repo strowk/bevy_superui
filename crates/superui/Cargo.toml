@@ -28,5 +28,10 @@ supersolid = { path = "../supersolid" }
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.3", features = ["wasm_js"] }
 
+[features]
+# State-preserving hot reload (Plan 5). Enable ALONGSIDE `bevy/file_watcher`.
+# When on, HMR still only activates while the AssetServer is watching for changes.
+hmr = []
+
 [dev-dependencies]
 serde = { version = "1", features = ["derive"] }
