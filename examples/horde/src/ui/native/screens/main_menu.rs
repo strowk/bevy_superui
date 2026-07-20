@@ -6,7 +6,7 @@ use super::super::{theme, widgets};
 use super::overlay;
 
 #[derive(Component)] struct MainMenuUi;
-#[derive(Component)] enum MenuAction { Start, Quit }
+#[derive(Component)] enum MenuAction { Start, Settings, Quit }
 
 pub struct MainMenuPlugin;
 impl Plugin for MainMenuPlugin {
@@ -24,6 +24,9 @@ fn build(mut commands: Commands) {
         p.spawn((MenuAction::Start, widgets::menu_button())).with_children(|b| {
             b.spawn(widgets::label("Start  (Enter)", theme::FONT, theme::TEXT));
         });
+        p.spawn((MenuAction::Settings, widgets::menu_button())).with_children(|b| {
+            b.spawn(widgets::label("Settings", theme::FONT, theme::TEXT));
+        });
         p.spawn((MenuAction::Quit, widgets::menu_button())).with_children(|b| {
             b.spawn(widgets::label("Quit", theme::FONT, theme::TEXT));
         });
@@ -38,11 +41,13 @@ fn buttons(
     q: Query<(&MenuAction, &Interaction), Changed<Interaction>>,
     mut intents: ResMut<IntentQueue>,
     mut exit: MessageWriter<AppExit>,
+    mut settings: ResMut<super::settings::SettingsOpen>,
 ) {
     for (action, interaction) in q.iter() {
         if *interaction == Interaction::Pressed {
             match action {
                 MenuAction::Start => intents.push(Intent::StartGame),
+                MenuAction::Settings => settings.0 = true,
                 MenuAction::Quit => { exit.write(AppExit::Success); }
             }
         }
