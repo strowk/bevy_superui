@@ -31,6 +31,10 @@ fn main() {
         bevy::dev_tools::fps_overlay::FpsOverlayPlugin::default(),
     ));
 
+    // BRP + extras for MCP-driven screenshots/key-injection (opt-in via `mcp_debug`).
+    #[cfg(feature = "mcp_debug")]
+    app.add_plugins(bevy_brp_extras::BrpExtrasPlugin);
+
     ui::add_ui(&mut app);
 
     app.run();
