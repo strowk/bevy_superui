@@ -39,6 +39,8 @@ function Footer(props) {
                 class={props.filter === "completed" ? "filter selected" : "filter"}
                 onClick={() => props.onFilter("completed")}>Completed</button>
       </div>
+      <button id="clear-completed" class="clear-completed"
+              onClick={() => props.onClearCompleted()}>Clear completed</button>
     </div>
   );
 }
@@ -64,18 +66,31 @@ function App() {
   const toggle = (id) =>
     setTodos(todos().map((t) => (t.id === id ? { ...t, done: !t.done } : t)));
   const remove = (id) => setTodos(todos().filter((t) => t.id !== id));
+  const clearCompleted = () => setTodos(todos().filter((t) => !t.done));
+  const toggleAll = () => {
+    const allDone = todos().length > 0 && todos().every((t) => t.done);
+    setTodos(todos().map((t) => ({ ...t, done: !allDone })));
+  };
 
+  // NOTE: control-flow components (<For>, <Show>) are wrapped in `{...}` so the
+  // transpiler routes them through $ss.insert (which resolves their returned
+  // accessor). A bare <For>/<Show> child lowers to $ss.child, which silently
+  // drops the accessor function and renders nothing.
   return (
     <div id="app">
       <h1>todos</h1>
       <Header draft={draft()} onInput={setDraft} onAdd={addTodo} />
-      <ul id="todo-list">
-        {<For each={filtered()}>
-          {(todo) => <TodoItem todo={todo} onToggle={toggle} onRemove={remove} />}
-        </For>}
-      </ul>
+      <div id="main">
+        <input id="toggle-all" type="checkbox" onChange={() => toggleAll()} />
+        <ul id="todo-list">
+          {<For each={filtered()}>
+            {(todo) => <TodoItem todo={todo} onToggle={toggle} onRemove={remove} />}
+          </For>}
+        </ul>
+      </div>
       {<Show when={todos().length > 0}>
-        <Footer remaining={remaining()} filter={filter()} onFilter={setFilter} />
+        <Footer remaining={remaining()} filter={filter()}
+                onFilter={setFilter} onClearCompleted={clearCompleted} />
       </Show>}
     </div>
   );

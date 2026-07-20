@@ -129,3 +129,38 @@ fn footer_hidden_until_first_todo() {
     let count = node_by_selector(&app, "#count");
     assert_eq!(text_content(&app, count), "1 item left");
 }
+
+#[test]
+fn clear_completed_removes_done_todos() {
+    let mut app = app();
+    let _root = mount(&mut app);
+    add(&mut app, "a");
+    add(&mut app, "b");
+    // Complete "a".
+    let first_toggle = nodes_by_selector(&app, "li .toggle")[0];
+    click_checkbox(&mut app, first_toggle);
+
+    let clear = node_by_selector(&app, "#clear-completed");
+    click(&mut app, clear);
+
+    assert_eq!(li_labels(&app), vec!["b".to_string()]);
+}
+
+#[test]
+fn toggle_all_completes_then_clears_all() {
+    let mut app = app();
+    let _root = mount(&mut app);
+    add(&mut app, "a");
+    add(&mut app, "b");
+
+    let toggle_all = node_by_selector(&app, "#toggle-all");
+    // First change -> all complete -> 0 items left.
+    click_checkbox(&mut app, toggle_all);
+    let count = node_by_selector(&app, "#count");
+    assert_eq!(text_content(&app, count), "0 items left");
+
+    // Second change -> all active again -> 2 items left.
+    click_checkbox(&mut app, toggle_all);
+    let count = node_by_selector(&app, "#count");
+    assert_eq!(text_content(&app, count), "2 items left");
+}
