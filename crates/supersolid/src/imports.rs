@@ -20,7 +20,7 @@ pub(crate) fn rewrite(
             let specifier = decl.source.value.as_str().to_string();
             if options.runtime_specifiers.iter().any(|s| s == &specifier) {
                 // silent — runtime specifiers are available as globals
-            } else if specifier.ends_with(".css") {
+            } else if specifier.to_ascii_lowercase().ends_with(".css") {
                 style_imports.push(specifier);
             } else {
                 diagnostics.push(Diagnostic {

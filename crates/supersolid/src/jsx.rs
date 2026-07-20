@@ -406,11 +406,7 @@ impl<'a> Lower<'a> {
         }
         for child in child_data {
             let stmt = match child {
-                ChildKind::Text(text) => {
-                    let child_expr = self.txt_call(&text);
-                    self.child_stmt(&local, child_expr)
-                }
-                ChildKind::StaticExpr(text) => {
+                ChildKind::Text(text) | ChildKind::StaticExpr(text) => {
                     let child_expr = self.txt_call(&text);
                     self.child_stmt(&local, child_expr)
                 }

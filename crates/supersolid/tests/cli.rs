@@ -2,7 +2,7 @@ use std::fs;
 
 #[test]
 fn transpile_file_writes_plain_js_sibling() {
-    let dir = std::env::temp_dir().join("supersolid_cli_test");
+    let dir = std::env::temp_dir().join(format!("supersolid_cli_test_{}", std::process::id()));
     let _ = fs::create_dir_all(&dir);
     let input = dir.join("app.tsx");
     let output = dir.join("app.js");

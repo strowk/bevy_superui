@@ -178,7 +178,7 @@ mod tests {
         assert!(out.contains("$ss.on("), "{out}");
         assert!(out.contains(r#""click""#), "event name normalized:\n{out}");
         assert!(out.contains("handler"), "{out}");
-        assert!(!out.contains(r#"$ss.bind("_el"#) || !out.contains("onclick"),
+        assert!(!out.contains("$ss.bind") && !out.contains("onclick"),
             "onClick must not become an attribute:\n{out}");
         assert!(reparses_as_plain_js(&out), "{out}");
     }
@@ -274,5 +274,21 @@ mod tests {
         assert_eq!(r.diagnostics[0].severity, Severity::Warning);
         assert!(r.diagnostics[0].message.contains("./other"), "names specifier: {:?}", r.diagnostics);
         assert!(reparses_as_plain_js(&r.code));
+    }
+
+    #[test]
+    fn whitespace_only_text_between_elements_is_skipped() {
+        let out = code("const a = <div>\n  <span/>\n</div>;");
+        assert!(!out.contains("$ss.txt"), "whitespace-only text must not become a text node:\n{out}");
+        assert!(out.contains(r#"$ss.el("span")"#), "{out}");
+        assert!(reparses_as_plain_js(&out), "{out}");
+    }
+
+    #[test]
+    fn literal_expression_child_becomes_static_text() {
+        let out = code("const a = <div>{42}</div>;");
+        assert!(out.contains(r#"$ss.txt("42")"#), "literal child stringified to static text:\n{out}");
+        assert!(!out.contains("$ss.insert"), "a literal child must NOT be a dynamic insert:\n{out}");
+        assert!(reparses_as_plain_js(&out), "{out}");
     }
 }
