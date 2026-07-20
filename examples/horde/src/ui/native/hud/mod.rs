@@ -2,6 +2,7 @@ use bevy::prelude::*;
 use crate::game_state::GameState;
 
 pub mod player_status;
+pub mod enemy_nameplates;
 
 #[derive(Component)]
 pub struct HudRoot;
@@ -20,7 +21,8 @@ impl Plugin for HudPlugin {
                 spawn_hud_root.in_set(HudRootSet),
             )
             .add_systems(OnExit(GameState::Playing), despawn_hud)
-            .add_plugins(player_status::PlayerStatusPlugin);
+            .add_plugins(player_status::PlayerStatusPlugin)
+            .add_plugins(enemy_nameplates::EnemyNameplatesPlugin);
     }
 }
 
