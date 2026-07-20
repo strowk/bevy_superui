@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use crate::sim::*;
 use crate::sim::enemy::{enemy_stats, Enemy};
-use crate::sim::projectile::Projectile;
+use crate::sim::projectile::{Explosion, Projectile};
 use crate::sim::pickup::Pickup;
 
 /// Ensures every sim entity that should be visible carries a `Sprite`, tinted by
@@ -53,6 +53,32 @@ pub fn weapon_color(kind: WeaponKind) -> Color {
         WeaponKind::Shotgun => Color::srgb(0.9, 0.6, 0.2),
         WeaponKind::Smg => Color::srgb(0.4, 0.7, 0.9),
         WeaponKind::Rocket => Color::srgb(0.9, 0.3, 0.5),
+    }
+}
+
+/// Draws rocket blasts as an expanding, fading orange disc. The `Explosion` lifecycle
+/// lives in the sim (deterministic); this only reads `age`/`ttl` to size and tint the sprite.
+pub fn render_explosions(
+    mut commands: Commands,
+    mut q: Query<(Entity, &Explosion, Option<&mut Sprite>)>,
+) {
+    for (e, ex, sprite) in q.iter_mut() {
+        let frac = (ex.age / ex.ttl).clamp(0.0, 1.0);
+        let size = ex.radius * 2.0 * (0.35 + 0.65 * frac); // grow toward full blast radius
+        let color = Color::srgba(1.0, 0.55, 0.15, 1.0 - frac); // orange, fading out
+        match sprite {
+            Some(mut s) => {
+                s.color = color;
+                s.custom_size = Some(Vec2::splat(size));
+            }
+            None => {
+                commands.entity(e).insert(Sprite {
+                    color,
+                    custom_size: Some(Vec2::splat(size)),
+                    ..default()
+                });
+            }
+        }
     }
 }
 

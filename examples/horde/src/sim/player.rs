@@ -87,7 +87,7 @@ pub fn player_shoot(
             let (s, c) = angle.sin_cos();
             let dir = Vec2::new(base.x * c - base.y * s, base.x * s + base.y * c);
             commands.spawn((
-                Projectile { damage: stats.damage, ttl: 1.2 },
+                Projectile { damage: stats.damage, ttl: 1.2, explode_radius: stats.explosion_radius },
                 Transform::from_xyz(t.translation.x, t.translation.y, 0.5),
                 Velocity(dir * stats.speed),
             ));

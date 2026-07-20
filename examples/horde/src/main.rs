@@ -23,7 +23,10 @@ fn main() {
     .init_state::<GameState>()
     .add_plugins(sim::SimPlugin)
     .add_systems(Startup, (setup_camera, world_render::spawn_arena))
-    .add_systems(Update, (game_state::apply_menu_intents, world_render::sync_sprites))
+    .add_systems(Update, (world_render::sync_sprites, world_render::render_explosions))
+    // apply_menu_intents runs in PostUpdate so it sees intents pushed by UI button
+    // handlers (Update) as well as keyboard input (PreUpdate), before clear_intents (Last).
+    .add_systems(PostUpdate, game_state::apply_menu_intents)
     .add_systems(PreUpdate, input::gather_input);
 
     // FPS debug overlay in the reserved top-left corner (opt-in via `debug-ui`).

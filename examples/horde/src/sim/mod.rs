@@ -53,6 +53,7 @@ impl Plugin for SimPlugin {
                 player::player_shoot,
                 projectile::projectile_motion,
                 projectile::projectile_collision,
+                projectile::tick_explosions,
                 enemy::enemy_movement,
                 enemy::enemy_melee,
                 spawn::spawn_waves,
@@ -164,14 +165,15 @@ pub struct WeaponStats {
     pub speed: f32,         // projectile units/sec
     pub mag_size: u32,
     pub reload_time: f32,
+    pub explosion_radius: f32, // 0.0 = direct hit only; > 0.0 = area-of-effect on impact
 }
 
 pub fn weapon_stats(kind: WeaponKind) -> WeaponStats {
     match kind {
-        WeaponKind::Pistol => WeaponStats { fire_interval: 0.35, damage: 12.0, spread: 0.02, projectiles: 1, speed: 620.0, mag_size: 12, reload_time: 0.9 },
-        WeaponKind::Shotgun => WeaponStats { fire_interval: 0.75, damage: 7.0, spread: 0.5, projectiles: 7, speed: 560.0, mag_size: 6, reload_time: 1.4 },
-        WeaponKind::Smg => WeaponStats { fire_interval: 0.09, damage: 5.0, spread: 0.12, projectiles: 1, speed: 700.0, mag_size: 30, reload_time: 1.2 },
-        WeaponKind::Rocket => WeaponStats { fire_interval: 1.1, damage: 60.0, spread: 0.0, projectiles: 1, speed: 420.0, mag_size: 3, reload_time: 1.8 },
+        WeaponKind::Pistol => WeaponStats { fire_interval: 0.35, damage: 12.0, spread: 0.02, projectiles: 1, speed: 620.0, mag_size: 12, reload_time: 0.9, explosion_radius: 0.0 },
+        WeaponKind::Shotgun => WeaponStats { fire_interval: 0.75, damage: 7.0, spread: 0.5, projectiles: 7, speed: 560.0, mag_size: 6, reload_time: 1.4, explosion_radius: 0.0 },
+        WeaponKind::Smg => WeaponStats { fire_interval: 0.09, damage: 5.0, spread: 0.12, projectiles: 1, speed: 700.0, mag_size: 30, reload_time: 1.2, explosion_radius: 0.0 },
+        WeaponKind::Rocket => WeaponStats { fire_interval: 1.1, damage: 60.0, spread: 0.0, projectiles: 1, speed: 420.0, mag_size: 3, reload_time: 1.8, explosion_radius: 95.0 },
     }
 }
 
