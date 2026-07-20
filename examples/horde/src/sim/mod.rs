@@ -7,6 +7,7 @@ pub mod player;
 pub mod enemy;
 pub mod spawn;
 pub mod projectile;
+pub mod damage;
 
 pub use config::SimConfig;
 pub use rng::Rng;
@@ -24,7 +25,9 @@ impl Plugin for SimPlugin {
         app.insert_resource(cfg)
             .insert_resource(rng)
             .init_resource::<IntentQueue>()
-            .init_resource::<SpawnState>();
+            .init_resource::<SpawnState>()
+            .init_resource::<damage::Progression>()
+            .add_message::<damage::DamageEvent>();
         // Systems added in later tasks run in FixedUpdate, gated on GameState::Playing.
     }
 }
