@@ -108,3 +108,11 @@ control-flow globals. All build/mutate the arena DOM; downstream reconcile is un
 | `<For>` | ✅ | T0 | keyed by item identity; per-row disposable roots; state preserved on reorder |
 | `<Index>` | ✅ | T0 | keyed by position; item is an in-place-updated signal |
 | `<Switch>` / `<Match>` | ✅ | T0 | first truthy branch, else fallback |
+| `$ss.hot(id, fn)` | ✅ | T0 | tags a component with a stable HMR id (`"<assetpath>#<Name>"`); no-op off-HMR |
+
+**State-preserving hot reload (Plan 5).** When the `superui/hmr` feature is enabled **and** the
+asset server is watching (`bevy/file_watcher`), a `.tsx`/`.js` edit re-execs on the same engine and
+`render()` rehydrates each component's signal cells (keyed by `module × instance × creation-order`),
+rebuilding the DOM fresh while preserving values. A per-instance signal-shape change (add/remove)
+resets that instance. `<For>` rows preserve state by item identity, `<Index>` rows by position.
+Off by default (feature off, or no watcher) — then `render()`/`$ss.cmp` take the Plan-4 fast paths.

@@ -65,6 +65,53 @@ fn supersolid_click_updates_reconciled_text() {
     assert_eq!(label_text_1, "1", "click -> signal -> effect -> DOM -> ECS text");
 }
 
+#[test]
+fn supersolid_hmr_preserves_counter_across_reexec() {
+    let dom = Rc::new(RefCell::new(superui_html::parse_document(
+        "<div id='root'></div>",
+    )));
+    let mut app = test_app();
+    let _root = support::mount_hmr(&mut app, dom.clone());
+
+    // The same transpiled-style module the loader would emit: a component tagged
+    // via $ss.hot, mounted with render().
+    let script = r#"
+        function Counter() {
+            var c = createSignal(0);
+            globalThis.__c = c;
+            var wrap = $ss.el("div");
+            var label = $ss.el("span");
+            $ss.insert(label, function () { return c[0](); });
+            $ss.child(wrap, label);
+            return wrap;
+        }
+        $ss.hot("root.tsx#Counter", Counter);
+        render(function () { return $ss.cmp(Counter, {}); },
+               document.getElementById("root"));
+    "#;
+
+    app.world_mut().non_send_resource_mut::<UiRuntime>().run_script(script);
+    app.update();
+    assert_eq!(current_label_text(&mut app, &dom), "0", "initial reconcile");
+
+    // Bump the signal, reconcile.
+    app.world_mut()
+        .non_send_resource_mut::<UiRuntime>()
+        .run_script("globalThis.__c[1](5);");
+    app.update();
+    assert_eq!(current_label_text(&mut app, &dom), "5", "runtime update reconciles");
+
+    // Simulate a hot reload: re-exec the SAME module on the SAME runtime, exactly
+    // as apply_hot_reload does for a JsSource Modified event.
+    app.world_mut().non_send_resource_mut::<UiRuntime>().run_script(script);
+    app.update();
+    assert_eq!(
+        current_label_text(&mut app, &dom),
+        "5",
+        "reload rehydrates the signal cell: value preserved through DOM rebuild -> reconcile"
+    );
+}
+
 /// Read the reconciled `Text` of the first `<span>`'s text child entity.
 fn current_label_text(app: &mut App, dom: &Rc<RefCell<superui_dom::Dom>>) -> String {
     let span = {
