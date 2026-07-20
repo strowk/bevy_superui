@@ -20,7 +20,6 @@ superui_css = { path = "../../crates/superui_css" }
 # Pulled transitively via `superui`; named directly for the mcp_debug click injector.
 superui_bridge = { path = "../../crates/superui_bridge" }
 bevy = { version = "0.17" }
-serde = { version = "1", features = ["derive"] }
 
 [dependencies.bevy_brp_extras]
 optional = true
