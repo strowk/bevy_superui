@@ -107,6 +107,14 @@
 
   function frag(children) { return children; }
 
+  // Plan 5 HMR: tag a component function with a stable, transpiler-supplied id
+  // ("<assetpath>#<Name>"). Guarded so a non-function argument is a harmless
+  // no-op (an uppercase non-component binding never breaks). Returns the arg.
+  function hot(id, fn) {
+    if (typeof fn === "function") fn.__ssId = id;
+    return fn;
+  }
+
   // Flatten nested arrays/fragments; drop null/booleans; primitives -> text.
   function normalizeArray(value) {
     var out = [];
@@ -375,5 +383,6 @@
     insert: insert,
     cmp: cmp,
     frag: frag,
+    hot: hot,
   };
 })();

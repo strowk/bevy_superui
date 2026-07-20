@@ -1200,4 +1200,20 @@ mod render_tests {
         let ops = num(&mut e, "globalThis.opsAfter");
         assert!(ops <= 2.0, "expected minimal moves (<=2 ops), got {ops}");
     }
+
+    #[test]
+    fn hot_tags_component_with_id() {
+        let mut e = render_engine();
+        e.eval(
+            r#"
+            function App() { return $ss.el("div"); }
+            $ss.hot("app.tsx#App", App);
+            globalThis.id = App.__ssId;                       // "app.tsx#App"
+            globalThis.same = ($ss.hot("x#Y", App) === App);  // returns the fn
+            "#,
+        )
+        .unwrap();
+        assert_eq!(text(&mut e, "globalThis.id"), "app.tsx#App");
+        assert_eq!(text(&mut e, "globalThis.same"), "true");
+    }
 }
