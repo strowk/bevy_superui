@@ -8,6 +8,7 @@ mod game_state;
 mod input;
 mod sim;
 mod ui;
+mod world_render;
 
 use game_state::GameState;
 
@@ -19,7 +20,8 @@ fn main() {
     }))
     .init_state::<GameState>()
     .add_plugins(sim::SimPlugin)
-    .add_systems(Startup, setup_camera)
+    .add_systems(Startup, (setup_camera, world_render::spawn_arena))
+    .add_systems(Update, (game_state::apply_menu_intents, world_render::sync_sprites))
     .add_systems(PreUpdate, input::gather_input);
 
     // FPS debug overlay in the reserved top-left corner (opt-in via `debug-ui`).
