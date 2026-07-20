@@ -8,6 +8,7 @@ pub mod enemy;
 pub mod spawn;
 pub mod projectile;
 pub mod damage;
+pub mod pickup;
 
 pub use config::SimConfig;
 pub use rng::Rng;
