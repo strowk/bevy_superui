@@ -178,10 +178,18 @@
     runUpdates(function () { Effects.push(node); });
   }
 
+  function createMemo(fn, value, options) {
+    // A pure computation: lazy (runs on first read via readSource), memoized by
+    // `equals`, and itself a source for downstream reads.
+    var node = createComputation(fn, value, false, options);
+    return function () { return readSource(node); };
+  }
+
   // ---- Publish author API (the transpiler strips the matching imports) ----
   var api = {
     createSignal: createSignal,
     createEffect: createEffect,
+    createMemo: createMemo,
     untrack: untrack,
     batch: batch,
   };

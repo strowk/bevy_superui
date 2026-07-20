@@ -158,4 +158,69 @@ mod tests {
         assert_eq!(num(&mut e, "globalThis.runsAfterBatch"), 2.0);
         assert_eq!(num(&mut e, "globalThis.runsAfterSingle"), 3.0);
     }
+
+    #[test]
+    fn memo_is_lazy_then_memoized() {
+        let mut e = engine();
+        e.eval(
+            r#"
+            globalThis.memoRuns = 0;
+            var x = createSignal(10);
+            var m = createMemo(function () { globalThis.memoRuns++; return x[0]() * 2; });
+            globalThis.beforeRead = globalThis.memoRuns;   // 0 — lazy, not computed yet
+            globalThis.v1 = m();                           // 20 — computes now
+            globalThis.afterRead = globalThis.memoRuns;    // 1
+            globalThis.v2 = m();                           // 20 — cached
+            globalThis.afterRead2 = globalThis.memoRuns;   // 1 — memoized, no recompute
+            "#,
+        )
+        .unwrap();
+        assert_eq!(num(&mut e, "globalThis.beforeRead"), 0.0);
+        assert_eq!(num(&mut e, "globalThis.v1"), 20.0);
+        assert_eq!(num(&mut e, "globalThis.afterRead"), 1.0);
+        assert_eq!(num(&mut e, "globalThis.v2"), 20.0);
+        assert_eq!(num(&mut e, "globalThis.afterRead2"), 1.0);
+    }
+
+    #[test]
+    fn memo_value_equality_gates_downstream_effects() {
+        let mut e = engine();
+        e.eval(
+            r#"
+            globalThis.effRuns = 0;
+            var n = createSignal(4);
+            var even = createMemo(function () { return n[0]() % 2 === 0; });
+            createEffect(function () { globalThis.effRuns++; even(); });
+            globalThis.e0 = globalThis.effRuns;   // 1
+            n[1](6);                              // even stays true -> no downstream re-run
+            globalThis.e1 = globalThis.effRuns;   // 1
+            n[1](7);                              // even flips to false -> re-run
+            globalThis.e2 = globalThis.effRuns;   // 2
+            "#,
+        )
+        .unwrap();
+        assert_eq!(num(&mut e, "globalThis.e0"), 1.0);
+        assert_eq!(num(&mut e, "globalThis.e1"), 1.0);
+        assert_eq!(num(&mut e, "globalThis.e2"), 2.0);
+    }
+
+    #[test]
+    fn diamond_dependency_reruns_effect_exactly_once() {
+        let mut e = engine();
+        e.eval(
+            r#"
+            globalThis.dRuns = 0;
+            var a = createSignal(1);
+            var b = createMemo(function () { return a[0]() * 2; });
+            var c = createMemo(function () { return a[0]() + 1; });
+            createEffect(function () { globalThis.dRuns++; return b() + c(); });
+            globalThis.after1 = globalThis.dRuns;   // 1
+            a[1](2);                                // one change to A ...
+            globalThis.after2 = globalThis.dRuns;   // ... D runs once, not twice
+            "#,
+        )
+        .unwrap();
+        assert_eq!(num(&mut e, "globalThis.after1"), 1.0);
+        assert_eq!(num(&mut e, "globalThis.after2"), 2.0);
+    }
 }
