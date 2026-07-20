@@ -53,7 +53,7 @@ fn sync(
     snap: Res<UiSnapshot>,
     layer: Query<Entity, With<NameplateLayer>>,
     mut existing: Query<(Entity, &Nameplate, &mut Node)>,
-    mut fills: Query<&mut Node, (With<NameplateFill>, Without<Nameplate>)>,
+    mut fills: Query<(&mut Node, &mut BackgroundColor), (With<NameplateFill>, Without<Nameplate>)>,
 ) {
     let Ok(layer_e) = layer.single() else { return };
 
@@ -67,8 +67,9 @@ fn sync(
             node.left = Val::Px(n.screen_pos.x - 22.0);
             node.top  = Val::Px(n.screen_pos.y - 30.0);
             let frac = (n.hp / n.max_hp).clamp(0.0, 1.0);
-            if let Ok(mut fnode) = fills.get_mut(np.fill) {
+            if let Ok((mut fnode, mut bg)) = fills.get_mut(np.fill) {
                 fnode.width = Val::Percent(frac * 100.0);
+                bg.0 = theme::hp_color(frac);
             }
         } else {
             commands.entity(e).despawn();
