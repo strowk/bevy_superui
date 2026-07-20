@@ -353,6 +353,10 @@ impl<'a> Lower<'a> {
             Element(&'b JSXElement<'ast>),
             StaticExpr(String),
             DynamicExpr(Expression<'ast>),
+            // A fragment placed directly inside an element: lower to $ss.frag([...])
+            // and route through $ss.insert (reuses insert's array handling; keeps
+            // any dynamic fragment children reactive).
+            Fragment(&'b JSXFragment<'ast>),
         }
         let child_data: Vec<ChildKind<'_, 'a>> = element
             .children
@@ -374,7 +378,8 @@ impl<'a> Lower<'a> {
                         }
                     }
                 }
-                // Fragments, spreads: later tasks.
+                JSXChild::Fragment(frag) => Some(ChildKind::Fragment(frag.as_ref())),
+                // Spreads: later tasks.
                 _ => None,
             })
             .collect();
@@ -421,6 +426,11 @@ impl<'a> Lower<'a> {
                 }
                 ChildKind::DynamicExpr(expr) => {
                     let thunk = self.thunk(expr);
+                    self.insert_stmt(&local, thunk)
+                }
+                ChildKind::Fragment(frag) => {
+                    let frag_expr = self.lower_fragment(frag);
+                    let thunk = self.thunk(frag_expr);
                     self.insert_stmt(&local, thunk)
                 }
             };

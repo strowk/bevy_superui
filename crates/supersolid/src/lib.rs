@@ -246,6 +246,17 @@ mod tests {
     }
 
     #[test]
+    fn fragment_child_of_element_is_inserted() {
+        let out = code("const a = <div><><span/><em/></></div>;");
+        assert!(out.contains(r#"$ss.el("div")"#), "{out}");
+        // The fragment must survive as a $ss.frag routed through insert (not dropped).
+        assert!(out.contains("$ss.frag("), "fragment child must be lowered, not dropped:\n{out}");
+        assert!(out.contains("$ss.insert("), "fragment child inserted around anchor:\n{out}");
+        assert!(out.contains(r#"$ss.el("span")"#) && out.contains(r#"$ss.el("em")"#), "{out}");
+        assert!(reparses_as_plain_js(&out), "{out}");
+    }
+
+    #[test]
     fn runtime_imports_are_stripped_silently() {
         let r = transpile(
             "import { createSignal } from \"solid-js\"; const [a, b] = createSignal(0);",
