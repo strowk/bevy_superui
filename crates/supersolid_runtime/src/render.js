@@ -489,6 +489,12 @@
     // per engine — the bridge's model). A reload swaps in the new entry.
     currentRoot = entry;
     createRoot(function (d) { entry.dispose = d; insert(mountEl, code); });
+    // All rehydration commits happen synchronously during the rebuild above (at
+    // each instance-frame close, plus any reactive cascade they trigger). Clear
+    // the snapshot so frames built LATER (post-reload interaction — e.g. an
+    // <Index> list regrowing into a reused position key) don't rehydrate stale
+    // values; they get their fresh defaults.
+    entry.snapshot = null;
     roots.set(mountEl, entry);
     return entry.dispose;
   }

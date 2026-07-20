@@ -1418,6 +1418,54 @@ mod render_tests {
     }
 
     #[test]
+    fn hmr_stale_snapshot_not_reused_after_reload() {
+        let mut e = render_engine();
+        e.eval(
+            r#"
+        globalThis.__ssHmr = true;
+        globalThis.root = $ss.el("div");
+        function build() {
+            function App() {
+                var list = createSignal(["x"]);
+                globalThis.__list = list;
+                var ul = $ss.el("ul");
+                $ss.insert(ul, function () {
+                    return $ss.cmp(Index, {
+                        get each() { return list[0](); },
+                        get children() {
+                            return function (item) {
+                                var tag = createSignal("");
+                                globalThis.__lastTag = tag;
+                                var li = $ss.el("li");
+                                $ss.insert(li, function () { return item() + tag[0](); });
+                                return li;
+                            };
+                        },
+                    });
+                });
+                return ul;
+            }
+            App.__ssId = "app#App";
+            return function () { return $ss.cmp(App, {}); };
+        }
+        render(build(), root);
+        globalThis.__lastTag[1]("!");        // position 0 private state
+        globalThis.t1 = root.textContent;    // "x!"
+        render(build(), root);               // reload -> position 0 legitimately rehydrated to "!"
+        globalThis.t2 = root.textContent;    // "x!"
+        // Post-reload churn: drop the row, then regrow a NEW row at position 0.
+        globalThis.__list[1]([]);            // shrink -> row disposed
+        globalThis.__list[1](["x"]);         // grow -> fresh row at position 0
+        globalThis.t3 = root.textContent;    // MUST be "x" (fresh default), NOT stale "x!"
+        "#,
+        )
+        .unwrap();
+        assert_eq!(text(&mut e, "globalThis.t1"), "x!");
+        assert_eq!(text(&mut e, "globalThis.t2"), "x!");
+        assert_eq!(text(&mut e, "globalThis.t3"), "x");
+    }
+
+    #[test]
     fn hmr_off_does_not_preserve() {
         let mut e = render_engine();
         e.eval(
