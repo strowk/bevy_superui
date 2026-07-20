@@ -334,4 +334,108 @@ mod tests {
         assert_eq!(num(&mut e, "globalThis.rc"), 2.0);
         assert_eq!(num(&mut e, "globalThis.r2"), 2.0);
     }
+
+    #[test]
+    fn self_writing_effect_converges_like_solid() {
+        let mut e = engine();
+        e.eval(
+            r#"
+            globalThis.runs = 0;
+            var c = createSignal(0);
+            createEffect(function () {
+                globalThis.runs++;
+                var v = c[0]();
+                if (v < 3) c[1](v + 1);   // self-correcting: climb to 3
+            });
+            globalThis.finalVal = c[0]();          // 3
+            globalThis.runCount = globalThis.runs; // 4 (v=0,1,2,3)
+            "#,
+        )
+        .unwrap();
+        assert_eq!(num(&mut e, "globalThis.finalVal"), 3.0);
+        assert_eq!(num(&mut e, "globalThis.runCount"), 4.0);
+    }
+
+    #[test]
+    fn effect_reading_memo_cascade_runs_once_and_is_glitch_free() {
+        let mut e = engine();
+        e.eval(
+            r#"
+            var a = createSignal(1);
+            var b = createMemo(function () { return a[0]() * 10; }); // derive via MEMO
+            globalThis.runs = 0; globalThis.observed = [];
+            createEffect(function () {
+                globalThis.runs++;
+                globalThis.observed.push(a[0]() + "," + b()); // reads a AND derived b
+            });
+            globalThis.r0 = globalThis.runs;             // 1
+            globalThis.first = globalThis.observed[0];   // "1,10"
+            a[1](2);
+            globalThis.r1 = globalThis.runs;             // 2 (once, glitch-free)
+            globalThis.second = globalThis.observed[globalThis.observed.length - 1]; // "2,20"
+            "#,
+        )
+        .unwrap();
+        assert_eq!(num(&mut e, "globalThis.r0"), 1.0);
+        assert_eq!(text(&mut e, "globalThis.first"), "1,10");
+        assert_eq!(num(&mut e, "globalThis.r1"), 2.0);
+        assert_eq!(text(&mut e, "globalThis.second"), "2,20");
+    }
+
+    #[test]
+    fn nested_effect_is_disposed_and_recreated_across_owner_reruns() {
+        let mut e = engine();
+        e.eval(
+            r#"
+            globalThis.innerRuns = 0; globalThis.innerCleanups = 0;
+            var show = createSignal(true);
+            var val = createSignal(0);
+            createRoot(function () {
+                createEffect(function () {            // outer owns a conditional inner effect
+                    if (show[0]()) {
+                        createEffect(function () {
+                            globalThis.innerRuns++;
+                            val[0]();
+                            onCleanup(function () { globalThis.innerCleanups++; });
+                        });
+                    }
+                });
+            });
+            globalThis.i0 = globalThis.innerRuns;        // 1
+            val[1](1);                                    // inner re-runs
+            globalThis.i1 = globalThis.innerRuns;        // 2
+            show[1](false);                               // outer re-runs -> disposes inner
+            globalThis.c1 = globalThis.innerCleanups;    // 2
+            val[1](2);                                     // inner gone -> no run
+            globalThis.i2 = globalThis.innerRuns;        // still 2
+            "#,
+        )
+        .unwrap();
+        assert_eq!(num(&mut e, "globalThis.i0"), 1.0);
+        assert_eq!(num(&mut e, "globalThis.i1"), 2.0);
+        assert_eq!(num(&mut e, "globalThis.i2"), 2.0);
+        assert_eq!(num(&mut e, "globalThis.c1"), 2.0);
+    }
+
+    #[test]
+    fn memo_of_memo_chain_propagates() {
+        let mut e = engine();
+        e.eval(
+            r#"
+            var a = createSignal(2);
+            var b = createMemo(function () { return a[0]() + 1; });  // 3
+            var c = createMemo(function () { return b() * 2; });     // 6
+            globalThis.runs = 0;
+            createEffect(function () { globalThis.runs++; globalThis.last = c(); });
+            globalThis.r0 = globalThis.runs; globalThis.v0 = globalThis.last;  // 1, 6
+            a[1](5);                                                          // b=6, c=12
+            globalThis.r1 = globalThis.runs; globalThis.v1 = globalThis.last;  // 2, 12
+            "#,
+        )
+        .unwrap();
+        assert_eq!(num(&mut e, "globalThis.r0"), 1.0);
+        assert_eq!(num(&mut e, "globalThis.v0"), 6.0);
+        assert_eq!(num(&mut e, "globalThis.r1"), 2.0);
+        assert_eq!(num(&mut e, "globalThis.v1"), 12.0);
+    }
 }

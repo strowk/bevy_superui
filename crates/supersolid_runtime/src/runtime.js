@@ -41,11 +41,11 @@
 
   // ---- Reads / writes ----
   function readSource(node) {
+    if (node.fn) updateIfNecessary(node); // pull memo current BEFORE subscribing
     if (Listener) {
       (Listener.sources || (Listener.sources = new Set())).add(node);
       (node.observers || (node.observers = new Set())).add(Listener);
     }
-    if (node.fn) updateIfNecessary(node); // lazy memo pull-through
     return node.value;
   }
 
@@ -74,16 +74,27 @@
   // Pull a node current: if maybe-dirty (CHECK), refresh memo sources first; if
   // a source recomputed to a new value it will have marked us DIRTY.
   function updateIfNecessary(node) {
+    if (node.state === CLEAN) return;
     if (node.state === CHECK && node.sources) {
-      node.sources.forEach(function (s) { if (s.fn) updateIfNecessary(s); });
+      var changed = false;
+      node.sources.forEach(function (s) {
+        if (s.fn) {
+          var before = s.value;
+          updateIfNecessary(s);
+          if (!Object.is(s.value, before)) changed = true;
+        }
+      });
+      if (!changed) { node.state = CLEAN; return; }
+      node.state = DIRTY;
     }
     if (node.state === DIRTY) update(node);
-    node.state = CLEAN;
+    // After update: leave state as-is — CLEAN (set before fn) unless a self-write re-dirtied it.
   }
 
   function update(node) {
     if (node.disposed) return;
     cleanNode(node);
+    node.state = CLEAN; // clear before running fn so a self-write re-dirties + re-queues
     var prevListener = Listener, prevOwner = Owner;
     Listener = node;
     Owner = node;
@@ -128,24 +139,38 @@
     node.state = CLEAN;
   }
 
-  // ---- Scheduler (synchronous) ----
+  // ---- Scheduler (synchronous, two-phase: propagation settles, then effects run) ----
   function runUpdates(fn) {
-    if (Effects) return fn(); // reentrant: an outer cycle owns the flush
+    if (Effects) return fn(); // reentrant: an outer cycle collects into the current batch
     Effects = [];
     try {
       var result = fn();
-      runEffects(Effects); // flush while Effects is still live so cascades enqueue here
+      flushEffects();
       return result;
     } finally {
       Effects = null;
     }
   }
 
-  function runEffects(queue) {
-    for (var i = 0; i < queue.length; i++) {
-      if (i > 1000000) throw new Error("supersolid: effect loop exceeded 1e6 iterations");
-      var node = queue[i];
-      if (!node.disposed && node.state !== CLEAN) updateIfNecessary(node);
+  // Run queued effects in batches until the graph is quiescent. Writes performed
+  // inside an effect re-propagate and collect into the NEXT batch (rather than
+  // re-running peers re-entrantly mid-batch); lazy memos settle on read, so each
+  // pass sees current derived values. A self-correcting effect (e.g. clamping)
+  // converges. NOTE: effects should be SINKS, not sources feeding other effects —
+  // derive shared values with createMemo (memo-mediated cascades are glitch-free);
+  // two effects linked by a signal are not topologically ordered (as in Solid).
+  function flushEffects() {
+    var guard = 0;
+    while (Effects.length) {
+      var batch = Effects;
+      Effects = [];
+      for (var i = 0; i < batch.length; i++) {
+        if (++guard > 1000000) {
+          throw new Error("supersolid: effect loop exceeded 1e6 iterations");
+        }
+        var node = batch[i];
+        if (!node.disposed && node.state !== CLEAN) updateIfNecessary(node);
+      }
     }
   }
 
