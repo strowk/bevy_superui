@@ -28,7 +28,6 @@ fn supersolid_click_updates_reconciled_text() {
             r#"
             function Counter() {
                 var c = createSignal(0);
-                globalThis.__count = c;
                 var wrap = $ss.el("div");
                 var label = $ss.el("span");
                 $ss.insert(label, function () { return c[0](); });

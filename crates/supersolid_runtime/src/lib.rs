@@ -15,7 +15,9 @@ const RENDER_JS: &str = include_str!("render.js");
 /// `superui_api::install` and before evaluating author scripts. Publishes
 /// `createSignal`/`createEffect`/`createMemo`/`onMount`/`onCleanup`/
 /// `createContext`/`useContext` (+ `createRoot`/`untrack`/`batch`) as globals,
-/// plus `$ss` (`el`/`txt`/`attr`/`child`) from the render layer.
+/// plus `$ss` (`el`/`txt`/`attr`/`child`/`on`/`bind`/`insert`/`cmp`/`frag`)
+/// from the render layer, and author globals `render`/`Show`/`For`/`Index`/
+/// `Switch`/`Match`.
 pub fn install(engine: &mut BoaEngine) {
     engine
         .eval(RUNTIME_JS)
@@ -746,6 +748,44 @@ mod render_tests {
         assert_eq!(text(&mut e, "globalThis.o1"), "CAB");
         assert_eq!(text(&mut e, "globalThis.reusedA"), "true");
         assert_eq!(text(&mut e, "globalThis.o2"), "B");
+    }
+
+    #[test]
+    fn insert_array_full_reversal_reuses_all_nodes() {
+        let mut e = render_engine();
+        e.eval(
+            r#"
+            // Build four stable element nodes keyed by identity.
+            globalThis.A = $ss.el("i"); A.setAttribute("k", "A");
+            globalThis.B = $ss.el("i"); B.setAttribute("k", "B");
+            globalThis.C = $ss.el("i"); C.setAttribute("k", "C");
+            globalThis.D = $ss.el("i"); D.setAttribute("k", "D");
+            var pair = createSignal([A, B, C, D]);
+            globalThis.set = pair[1];
+            globalThis.p = $ss.el("div");
+            $ss.insert(p, function () { return pair[0](); });
+            function order() {
+                var s = "";
+                for (var i = 0; i < p.childNodes.length; i++) {
+                    var n = p.childNodes[i];
+                    if (n.getAttribute) { var k = n.getAttribute("k"); if (k) s += k; }
+                }
+                return s;
+            }
+            globalThis.o0 = order();          // "ABCD"
+            globalThis.set([D, C, B, A]);     // full reversal
+            globalThis.o1 = order();          // "DCBA"
+            // A is now at the last keyed position; D is at the first.
+            // Both original node objects must still be present (reused by identity).
+            globalThis.reusedA = (A.parentNode === p);
+            globalThis.reusedD = (D.parentNode === p);
+            "#,
+        )
+        .unwrap();
+        assert_eq!(text(&mut e, "globalThis.o0"), "ABCD");
+        assert_eq!(text(&mut e, "globalThis.o1"), "DCBA");
+        assert_eq!(text(&mut e, "globalThis.reusedA"), "true");
+        assert_eq!(text(&mut e, "globalThis.reusedD"), "true");
     }
 
     #[test]

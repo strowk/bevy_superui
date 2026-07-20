@@ -70,7 +70,8 @@
   }
 
   // Reconcile the DOM before `anchor` from `current` to represent `value`.
-  // Returns the new `current` (null | Node | Node[]). Array branch: Task 5.
+  // Returns the new `current` (null | Node | Node[]). Array branch delegates
+  // to the keyed minimal-move array reconcile.
   function reconcile(parent, anchor, current, value) {
     if (value == null || value === true || value === false) {
       clearNodes(parent, current);
@@ -89,7 +90,7 @@
       return node;
     }
     if (Array.isArray(value)) {
-      return reconcileArray(parent, anchor, current, value); // Task 5
+      return reconcileArray(parent, anchor, current, value); // keyed minimal-move array reconcile
     }
     // Single DOM node.
     if (current === value) return current;
