@@ -179,6 +179,11 @@ spacing scale, font sizes/weights, and state feedback (hover/active/selected, he
 Aim for a genuinely polished look; get close enough to a future CSS version that a screenshot
 comparison is meaningful.
 
+**Layout reservation:** the **top-left corner is kept empty** for the Bevy FPS debug overlay
+(`bevy::dev_tools::fps_overlay`, enabled under the `debug-ui` feature, which pulls in
+`bevy/bevy_dev_tools`). No HUD panel occupies the top-left corner; the player-status panel sits
+just below the reserved strip.
+
 ## 8. Benchmark-readiness seams (built, not exercised)
 
 - **`sim/config.rs`** `SimConfig` resource: enemy cap / spawn rate, damage-number rate, minimap

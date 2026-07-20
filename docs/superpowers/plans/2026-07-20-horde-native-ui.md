@@ -12,7 +12,8 @@
 
 - Bevy version: **0.17** (`bevy = { version = "0.17", features = ["file_watcher"] }`). Copy exact dep shape from `examples/todomvc/Cargo.toml`.
 - Crate name / package: `horde`, `publish = false`, inherit `edition`/`version`/`license` from workspace where todomvc does.
-- Feature flag: `default = ["ui-native"]`. `ui-native` present → native UI. Absent → `panic!` Supersolid seam. Also mirror `debug-ui = []` and `mcp_debug = ["dep:bevy_brp_extras", "bevy/bevy_remote"]` from todomvc.
+- Feature flag: `default = ["ui-native"]`. `ui-native` present → native UI. Absent → `panic!` Supersolid seam. Mirror `mcp_debug = ["dep:bevy_brp_extras", "bevy/bevy_remote"]` from todomvc; `debug-ui = ["bevy/bevy_dev_tools"]` additionally enables the Bevy FPS debug overlay.
+- **Layout: the top-left corner is reserved empty for the Bevy FPS debug overlay** (enabled under `debug-ui`, renders top-left by default). No HUD panel may occupy the top-left corner; the player-status panel sits just below the reserved strip.
 - **`src/sim/` must never import `crate::ui`, `bevy::ui` / `bevy_ui`, or any Boa/superui crate.** Enforced by review of `use` statements in every sim task.
 - **No panel or screen system may run an ECS query over sim entities.** UI systems read `Res<UiSnapshot>` and write `ResMut<IntentQueue>` only. The single exception is `project_snapshot`, which may read sim `Transform`s + `Camera`.
 - Sim is deterministic: all randomness flows through the `Rng` resource seeded from `SimConfig::seed`. No `Time`-of-wall-clock or `rand::thread_rng` in `sim/`.
@@ -88,7 +89,8 @@ publish = false
 [features]
 default = ["ui-native"]
 ui-native = []
-debug-ui = []
+# debug-ui enables the Bevy FPS debug overlay (top-left corner) + verbose diagnostics.
+debug-ui = ["bevy/bevy_dev_tools"]
 mcp_debug = ["dep:bevy_brp_extras", "bevy/bevy_remote"]
 
 [dependencies]
@@ -588,6 +590,13 @@ fn main() {
     .add_plugins(sim::SimPlugin)
     .add_systems(Startup, setup_camera);
 
+    // FPS debug overlay in the reserved top-left corner (opt-in via `debug-ui`).
+    #[cfg(feature = "debug-ui")]
+    app.add_plugins((
+        bevy::diagnostic::FrameTimeDiagnosticsPlugin::default(),
+        bevy::dev_tools::fps_overlay::FpsOverlayPlugin::default(),
+    ));
+
     ui::add_ui(&mut app);
 
     app.run();
@@ -598,16 +607,21 @@ fn setup_camera(mut commands: Commands) {
 }
 ```
 
+Note: `FpsOverlayPlugin` lives in `bevy::dev_tools::fps_overlay` and requires the `bevy/bevy_dev_tools` cargo feature (pulled in by `debug-ui`). Verify the exact plugin path + that `FrameTimeDiagnosticsPlugin` implements `Default` in Bevy 0.17; if `Default` is absent use `FrameTimeDiagnosticsPlugin::new(…)` or the unit form the version expects.
+
 - [ ] **Step 4: Build and run**
 
 Run: `cargo run -p horde`
 Expected: window opens, no panic. (Still empty — sim entities/UI come next.)
 
+Run: `cargo run -p horde --features debug-ui`
+Expected: same window, now with the Bevy FPS overlay drawn in the top-left corner.
+
 - [ ] **Step 5: Commit**
 
 ```bash
 git add examples/horde/src
-git commit -m "feat(horde): GameState states + SimPlugin skeleton, wired into app"
+git commit -m "feat(horde): GameState states + SimPlugin skeleton, FPS overlay, wired into app"
 ```
 
 ---
@@ -2571,7 +2585,9 @@ fn build(mut commands: Commands, roots: Query<Entity, With<HudRoot>>) {
             Node {
                 position_type: PositionType::Absolute,
                 left: Val::Px(12.0),
-                top: Val::Px(12.0),
+                // Top-left corner (0,0)..~(200,40) is reserved for the FPS overlay;
+                // start below it. See Global Constraints (layout).
+                top: Val::Px(48.0),
                 width: Val::Px(240.0),
                 flex_direction: FlexDirection::Column,
                 row_gap: Val::Px(theme::SPACE),
@@ -3785,6 +3801,9 @@ Expected: all sim unit tests PASS.
 
 Run: `cargo run -p horde`
 Expected: main menu → play → all seven HUD panels + all five screens work; looks coherent (consistent palette, spacing, borders, health color ramps). Tweak `theme.rs` constants for polish if any panel looks off.
+
+Run: `cargo run -p horde --features debug-ui`
+Expected: the FPS overlay renders in the top-left corner and does **not** overlap the player-status panel (which starts at `top: 48px`). Confirm the reserved corner is clear during play.
 
 - [ ] **Step 2: Verify the backend panic seam**
 
