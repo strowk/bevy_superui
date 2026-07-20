@@ -134,7 +134,7 @@ pub fn assemble_world_snapshot(
             active: i == inv.active,
         }).collect();
         s.blips.push(Blip {
-            id: 0,
+            id: u64::MAX,
             world_pos: ptrans.translation.truncate(),
             screen_pos: Vec2::ZERO,
             kind: BlipKind::Player,

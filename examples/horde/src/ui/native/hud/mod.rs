@@ -4,6 +4,7 @@ use crate::game_state::GameState;
 pub mod player_status;
 pub mod enemy_nameplates;
 pub mod damage_numbers;
+pub mod minimap;
 
 #[derive(Component)]
 pub struct HudRoot;
@@ -24,7 +25,8 @@ impl Plugin for HudPlugin {
             .add_systems(OnExit(GameState::Playing), despawn_hud)
             .add_plugins(player_status::PlayerStatusPlugin)
             .add_plugins(enemy_nameplates::EnemyNameplatesPlugin)
-            .add_plugins(damage_numbers::DamageNumbersPlugin);
+            .add_plugins(damage_numbers::DamageNumbersPlugin)
+            .add_plugins(minimap::MinimapPlugin);
     }
 }
 
