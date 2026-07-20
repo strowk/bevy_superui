@@ -81,7 +81,9 @@ function App() {
       <h1>todos</h1>
       <Header draft={draft()} onInput={setDraft} onAdd={addTodo} />
       <div id="main">
-        <input id="toggle-all" type="checkbox" onChange={() => toggleAll()} />
+        <input id="toggle-all" type="checkbox"
+               checked={todos().length > 0 && todos().every((t) => t.done)}
+               onChange={() => toggleAll()} />
         <ul id="todo-list">
           {<For each={filtered()}>
             {(todo) => <TodoItem todo={todo} onToggle={toggle} onRemove={remove} />}

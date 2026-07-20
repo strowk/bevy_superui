@@ -43,3 +43,11 @@ snippet using them does not throw). Tighten over time; it is a smoke test, not a
 
 Phase 1 (TodoMVC) is complete. The ✅ rows below are what shipped; 🟡 rows are the
 Phase 2/3 roadmap. TodoMVC itself exercises the T0/T1 ✅ core.
+
+## Phase 2 status
+
+Phase 2 (Supersolid) is complete. `examples/todomvc_supersolid/` — a Solid-style
+`.tsx` TodoMVC — now exercises the Supersolid ✅ rows in `js-dom.md`
+(`createSignal`/`createMemo`, `render`, the `$ss.*` JSX runtime, `<For>`/`<Show>`,
+and state-preserving HMR), all within the existing HTML/CSS/DOM subset (no new
+capabilities were added for it).
