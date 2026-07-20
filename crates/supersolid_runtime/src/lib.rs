@@ -223,4 +223,60 @@ mod tests {
         assert_eq!(num(&mut e, "globalThis.after1"), 1.0);
         assert_eq!(num(&mut e, "globalThis.after2"), 2.0);
     }
+
+    #[test]
+    fn on_cleanup_runs_before_each_effect_rerun() {
+        let mut e = engine();
+        e.eval(
+            r#"
+            globalThis.cleanups = 0;
+            var a = createSignal(0);
+            createEffect(function () {
+                a[0]();
+                onCleanup(function () { globalThis.cleanups++; });
+            });
+            globalThis.c0 = globalThis.cleanups;   // 0 — nothing to clean before first re-run
+            a[1](1);
+            globalThis.c1 = globalThis.cleanups;   // 1 — prior run's cleanup fired
+            a[1](2);
+            globalThis.c2 = globalThis.cleanups;   // 2
+            "#,
+        )
+        .unwrap();
+        assert_eq!(num(&mut e, "globalThis.c0"), 0.0);
+        assert_eq!(num(&mut e, "globalThis.c1"), 1.0);
+        assert_eq!(num(&mut e, "globalThis.c2"), 2.0);
+    }
+
+    #[test]
+    fn create_root_dispose_runs_cleanups_and_stops_effects() {
+        let mut e = engine();
+        e.eval(
+            r#"
+            globalThis.rootRuns = 0; globalThis.rootCleanups = 0;
+            createRoot(function (dispose) {
+                var x = createSignal(0);
+                globalThis.setInner = x[1];
+                globalThis.disposeRoot = dispose;
+                createEffect(function () {
+                    globalThis.rootRuns++;
+                    x[0]();
+                    onCleanup(function () { globalThis.rootCleanups++; });
+                });
+            });
+            globalThis.r0 = globalThis.rootRuns;         // 1
+            globalThis.setInner(1);
+            globalThis.r1 = globalThis.rootRuns;         // 2
+            globalThis.disposeRoot();                    // tear down
+            globalThis.rc = globalThis.rootCleanups;     // 2 (re-run cleanup + dispose cleanup)
+            globalThis.setInner(2);                      // disposed -> effect must not run
+            globalThis.r2 = globalThis.rootRuns;         // still 2
+            "#,
+        )
+        .unwrap();
+        assert_eq!(num(&mut e, "globalThis.r0"), 1.0);
+        assert_eq!(num(&mut e, "globalThis.r1"), 2.0);
+        assert_eq!(num(&mut e, "globalThis.rc"), 2.0);
+        assert_eq!(num(&mut e, "globalThis.r2"), 2.0);
+    }
 }

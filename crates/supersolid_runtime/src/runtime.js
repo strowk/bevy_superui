@@ -157,6 +157,33 @@
     try { return fn(); } finally { Listener = prev; }
   }
 
+  function createRoot(fn) {
+    // A disposable, non-tracking owner. Children (effects/memos) created inside
+    // attach to it and are torn down together by `dispose`.
+    var root = {
+      fn: null, owned: null, cleanups: null, sources: null,
+      context: Owner ? Owner.context : null, owner: Owner,
+      disposed: false, state: CLEAN,
+    };
+    if (Owner) (Owner.owned || (Owner.owned = [])).push(root);
+    var prevOwner = Owner, prevListener = Listener;
+    Owner = root;
+    Listener = null;
+    try {
+      return runUpdates(function () {
+        return fn(function () { disposeOwner(root); });
+      });
+    } finally {
+      Owner = prevOwner;
+      Listener = prevListener;
+    }
+  }
+
+  function onCleanup(fn) {
+    if (Owner) (Owner.cleanups || (Owner.cleanups = [])).push(fn);
+    return fn;
+  }
+
   // ---- Public primitives ----
   function createSignal(value, options) {
     var node = {
@@ -190,6 +217,8 @@
     createSignal: createSignal,
     createEffect: createEffect,
     createMemo: createMemo,
+    createRoot: createRoot,
+    onCleanup: onCleanup,
     untrack: untrack,
     batch: batch,
   };
