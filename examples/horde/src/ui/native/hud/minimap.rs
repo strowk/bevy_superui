@@ -38,6 +38,7 @@ fn build(mut commands: Commands, roots: Query<Entity, With<HudRoot>>) {
             BackgroundColor(Color::srgba(0.05, 0.05, 0.08, 0.85)),
             BorderColor::all(theme::PANEL_BORDER),
             BorderRadius::all(Val::Px(theme::RADIUS)),
+            theme::panel_shadow(),
             Pickable::IGNORE,
         ));
     });

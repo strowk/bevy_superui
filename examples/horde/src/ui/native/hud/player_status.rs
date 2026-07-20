@@ -40,8 +40,10 @@ fn build(mut commands: Commands, roots: Query<Entity, With<HudRoot>>) {
                 ..default()
             },
             BackgroundColor(theme::PANEL),
+            theme::panel_gradient(),
             BorderColor::all(theme::PANEL_BORDER),
             BorderRadius::all(Val::Px(theme::RADIUS)),
+            theme::panel_shadow(),
         ))
         .with_children(|c| {
             c.spawn(widgets::label("HP", theme::FONT_SM, theme::TEXT_DIM));

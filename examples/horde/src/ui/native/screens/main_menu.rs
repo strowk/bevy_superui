@@ -19,7 +19,12 @@ impl Plugin for MainMenuPlugin {
 
 fn build(mut commands: Commands) {
     commands.spawn((MainMenuUi, overlay(false))).with_children(|p| {
-        p.spawn((Text::new("HORDE"), TextFont::from_font_size(64.0), TextColor(theme::ACCENT)));
+        p.spawn((
+            Text::new("HORDE"),
+            TextFont::from_font_size(72.0),
+            TextColor(theme::ACCENT),
+            theme::title_glow(),
+        ));
         p.spawn((Text::new("survive the swarm"), TextFont::from_font_size(theme::FONT), TextColor(theme::TEXT_DIM)));
         p.spawn((MenuAction::Start, widgets::menu_button())).with_children(|b| {
             b.spawn(widgets::label("Start  (Enter)", theme::FONT, theme::TEXT));

@@ -23,7 +23,12 @@ fn build(mut commands: Commands, snap: Res<UiSnapshot>) {
     // GameOverUi marker is placed ONLY on the overlay root so the despawn query matches exactly
     // one entity; despawn() recurses into children automatically (Bevy 0.17).
     commands.spawn((GameOverUi, overlay(true))).with_children(|p| {
-        p.spawn((Text::new("You Died"), TextFont::from_font_size(theme::FONT_LG), TextColor(theme::DANGER)));
+        p.spawn((
+            Text::new("You Died"),
+            TextFont::from_font_size(theme::FONT_LG),
+            TextColor(theme::DANGER),
+            theme::text_shadow(),
+        ));
         // No GameOverUi on the stats panel — it is a child of the root and despawned recursively.
         p.spawn(widgets::panel(Val::Px(300.0), 16.0)).with_children(|c| {
             c.spawn(widgets::label(format!("Kills: {}", snap.kills), theme::FONT, theme::TEXT));

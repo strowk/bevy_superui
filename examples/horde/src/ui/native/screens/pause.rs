@@ -19,7 +19,12 @@ impl Plugin for PausePlugin {
 
 fn build(mut commands: Commands) {
     commands.spawn((PauseUi, overlay(true))).with_children(|p| {
-        p.spawn((Text::new("Paused"), TextFont::from_font_size(theme::FONT_LG), TextColor(theme::TEXT)));
+        p.spawn((
+            Text::new("Paused"),
+            TextFont::from_font_size(theme::FONT_LG),
+            TextColor(theme::TEXT),
+            theme::text_shadow(),
+        ));
         for (label, action) in [("Resume  (Esc)", PauseAction::Resume), ("Restart", PauseAction::Restart), ("Quit", PauseAction::Quit)] {
             p.spawn((action, widgets::menu_button())).with_children(|b| {
                 b.spawn(widgets::label(label, theme::FONT, theme::TEXT));
