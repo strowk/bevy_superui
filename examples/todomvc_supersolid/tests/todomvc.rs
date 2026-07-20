@@ -158,9 +158,13 @@ fn toggle_all_completes_then_clears_all() {
     click_checkbox(&mut app, toggle_all);
     let count = node_by_selector(&app, "#count");
     assert_eq!(text_content(&app, count), "0 items left");
+    let toggle_all = node_by_selector(&app, "#toggle-all");
+    assert!(checked_of(&app, toggle_all), "toggle-all reflects all-complete");
 
     // Second change -> all active again -> 2 items left.
     click_checkbox(&mut app, toggle_all);
     let count = node_by_selector(&app, "#count");
     assert_eq!(text_content(&app, count), "2 items left");
+    let toggle_all = node_by_selector(&app, "#toggle-all");
+    assert!(!checked_of(&app, toggle_all), "toggle-all reflects not-all-complete");
 }
