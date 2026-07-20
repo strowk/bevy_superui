@@ -48,3 +48,30 @@ fn add_button_appends_a_todo() {
     let input = node_by_selector(&app, "#new-todo");
     assert_eq!(value_of(&app, input), "");
 }
+
+#[test]
+fn toggle_marks_completed_and_updates_count() {
+    let mut app = app();
+    let _root = mount(&mut app);
+    add(&mut app, "a");
+    add(&mut app, "b");
+
+    let count = node_by_selector(&app, "#count");
+    assert_eq!(text_content(&app, count), "2 items left");
+
+    // Toggle the first todo's checkbox -> completed; count drops to 1.
+    let first_toggle = nodes_by_selector(&app, "li .toggle")[0];
+    click_checkbox(&mut app, first_toggle);
+
+    let count = node_by_selector(&app, "#count");
+    assert_eq!(text_content(&app, count), "1 item left");
+
+    // The first li carries the `completed` class.
+    let first_li = nodes_by_selector(&app, "li")[0];
+    let classes = {
+        let rt = app.world().non_send_resource::<UiRuntime>();
+        let c = rt.dom.borrow().classes(first_li);
+        c
+    };
+    assert!(classes.iter().any(|c| c == "completed"));
+}
