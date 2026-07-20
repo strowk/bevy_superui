@@ -186,15 +186,18 @@
     try { return fn(); } finally { Listener = prev; }
   }
 
-  function createRoot(fn) {
-    // A disposable, non-tracking owner. Children (effects/memos) created inside
-    // attach to it and are torn down together by `dispose`.
+  function createRoot(fn, detachedOwner) {
+    // A disposable, non-tracking owner. Children attach to it and tear down
+    // together. When `detachedOwner` is provided, attach the root THERE (and
+    // inherit its context) instead of the current Owner — used by mapArray so
+    // per-item roots survive the list memo's recomputation.
+    var base = detachedOwner !== undefined ? detachedOwner : Owner;
     var root = {
       fn: null, owned: null, cleanups: null, sources: null,
-      context: Owner ? Owner.context : null, owner: Owner,
+      context: base ? base.context : null, owner: base,
       disposed: false, state: CLEAN,
     };
-    if (Owner) (Owner.owned || (Owner.owned = [])).push(root);
+    if (base) (base.owned || (base.owned = [])).push(root);
     var prevOwner = Owner, prevListener = Listener;
     Owner = root;
     Listener = null;
@@ -207,6 +210,8 @@
       Listener = prevListener;
     }
   }
+
+  function getOwner() { return Owner; }
 
   function onCleanup(fn) {
     if (Owner) (Owner.cleanups || (Owner.cleanups = [])).push(fn);
@@ -296,4 +301,7 @@
   for (var name in api) globalThis[name] = api[name];
   // Runtime-internal context-provision primitive; Plan 4's <Provider> wraps it.
   globalThis.$ssProvideContext = provideContext;
+  // Runtime-internal owner handle accessor; the render layer's mapArray uses it
+  // to root per-item scopes on the list's stable owner.
+  globalThis.$ssGetOwner = getOwner;
 })();

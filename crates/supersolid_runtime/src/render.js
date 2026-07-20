@@ -199,8 +199,22 @@
     var anchor = txt("");
     parent.appendChild(anchor);
     var current = null;
+    // Two-level insert: if the accessor returns a function (e.g. a memo returned
+    // by a component like <For>), create ONE outer effect that calls the accessor
+    // once and ONE inner effect that tracks the inner function's reactive value.
+    // This prevents stateful components from being re-instantiated on each list
+    // change — only the inner (memo) effect re-runs when the derived value changes.
     createEffect(function () {
-      current = reconcile(parent, anchor, current, resolve(accessor()));
+      var val = accessor();
+      if (typeof val === "function") {
+        // Stabilise the component: create a child effect for the inner accessor.
+        // The outer effect runs once (accessor called once); inner tracks changes.
+        createEffect(function () {
+          current = reconcile(parent, anchor, current, resolve(val));
+        });
+      } else {
+        current = reconcile(parent, anchor, current, resolve(val));
+      }
     });
   }
 
@@ -212,8 +226,63 @@
     });
   }
 
+  // Keyed map: reuse a mapped node per item IDENTITY across list changes; build
+  // new items under their own createRoot rooted on `owner` (the For's stable
+  // owner, captured now) so the list memo's recomputation never disposes them;
+  // dispose removed items' roots. Returns an accessor giving the ordered nodes.
+  function mapArray(listFn, mapFn) {
+    var owner = globalThis.$ssGetOwner();
+    var items = [];       // previous item values (identity keys)
+    var mapped = [];      // mapped nodes, parallel to items
+    var disposers = [];   // dispose fn per item
+    onCleanup(function () {
+      for (var i = 0; i < disposers.length; i++) disposers[i]();
+    });
+    return function () {
+      var list = listFn() || [];
+      return untrack(function () {
+        var newMapped = new Array(list.length);
+        var newDisposers = new Array(list.length);
+        var prevIndex = new Map();
+        for (var i = 0; i < items.length; i++) prevIndex.set(items[i], i);
+        var used = new Array(items.length);
+        for (var j = 0; j < list.length; j++) {
+          var it = list[j];
+          if (prevIndex.has(it)) {
+            var oldi = prevIndex.get(it);
+            newMapped[j] = mapped[oldi];
+            newDisposers[j] = disposers[oldi];
+            used[oldi] = true;
+          } else {
+            makeRow(it, j, newMapped, newDisposers, owner, mapFn);
+          }
+        }
+        for (var k = 0; k < items.length; k++) {
+          if (!used[k]) disposers[k]();
+        }
+        items = list.slice();
+        mapped = newMapped;
+        disposers = newDisposers;
+        return mapped.slice();
+      });
+    };
+  }
+
+  // Build one row under its own root attached to the list's stable owner.
+  function makeRow(item, index, outMapped, outDisposers, owner, mapFn) {
+    createRoot(function (dispose) {
+      outDisposers[index] = dispose;
+      outMapped[index] = mapFn(item, index);
+    }, owner);
+  }
+
+  function For(props) {
+    return createMemo(mapArray(function () { return props.each; }, props.children));
+  }
+
   // ---- Publish the ABI (extended by later tasks) ----
   globalThis.Show = Show;
+  globalThis.For = For;
   globalThis.$ss = {
     el: el,
     txt: txt,

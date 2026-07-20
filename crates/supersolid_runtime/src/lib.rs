@@ -424,6 +424,36 @@ mod tests {
     }
 
     #[test]
+    fn create_root_with_explicit_owner_survives_a_sibling_scope_disposal() {
+        let mut e = engine();
+        e.eval(
+            r#"
+            globalThis.cleaned = 0;
+            globalThis.host = null;
+            // An outer root whose owner we capture and reuse for a detached child.
+            createRoot(function (disposeOuter) {
+                globalThis.host = $ssGetOwner();     // capture the outer owner
+                globalThis.disposeOuter = disposeOuter;
+            });
+            // A throwaway scope: create a child root attached to `host`, NOT to this scope.
+            createRoot(function (disposeThrow) {
+                createRoot(function () {
+                    onCleanup(function () { globalThis.cleaned++; });
+                }, globalThis.host);                 // detached owner = host
+                globalThis.disposeThrow = disposeThrow;
+            });
+            globalThis.disposeThrow();               // dispose the throwaway scope
+            globalThis.afterThrow = globalThis.cleaned;   // 0 — child is owned by host, not the throwaway
+            globalThis.disposeOuter();               // dispose host
+            globalThis.afterOuter = globalThis.cleaned;   // 1
+            "#,
+        )
+        .unwrap();
+        assert_eq!(num(&mut e, "globalThis.afterThrow"), 0.0);
+        assert_eq!(num(&mut e, "globalThis.afterOuter"), 1.0);
+    }
+
+    #[test]
     fn memo_of_memo_chain_propagates() {
         let mut e = engine();
         e.eval(
@@ -805,6 +835,79 @@ mod render_tests {
         .unwrap();
         assert_eq!(num(&mut e, "globalThis.b0"), 1.0);
         assert_eq!(num(&mut e, "globalThis.b1"), 1.0);
+    }
+
+    #[test]
+    fn for_renders_and_reorders_keyed_rows() {
+        let mut e = render_engine();
+        e.eval(
+            r#"
+            // Items are objects (identity keys).
+            globalThis.a = { n: "a" }; globalThis.b = { n: "b" }; globalThis.c = { n: "c" };
+            var pair = createSignal([globalThis.a, globalThis.b, globalThis.c]);
+            globalThis.set = pair[1];
+            globalThis.p = $ss.el("ul");
+            $ss.insert(p, function () {
+                return $ss.cmp(For, {
+                    get each() { return pair[0](); },
+                    get children() {
+                        return function (item) {
+                            var li = $ss.el("li");
+                            $ss.child(li, $ss.txt(item.n));
+                            return li;
+                        };
+                    },
+                });
+            });
+            function order() {
+                var s = "";
+                for (var i=0;i<p.childNodes.length;i++){var n=p.childNodes[i];if(n.nodeType===1)s+=n.textContent;}
+                return s;
+            }
+            globalThis.rowA = p.childNodes[0]; // <li>a</li>
+            globalThis.o0 = order();           // "abc"
+            globalThis.set([globalThis.c, globalThis.a, globalThis.b]);
+            globalThis.o1 = order();           // "cab"
+            globalThis.reusedA = (p.childNodes[1] === globalThis.rowA); // true — same <li> reused
+            "#,
+        )
+        .unwrap();
+        assert_eq!(text(&mut e, "globalThis.o0"), "abc");
+        assert_eq!(text(&mut e, "globalThis.o1"), "cab");
+        assert_eq!(text(&mut e, "globalThis.reusedA"), "true");
+    }
+
+    #[test]
+    fn for_preserves_per_row_state_across_list_change() {
+        let mut e = render_engine();
+        e.eval(
+            r#"
+            globalThis.a = { n: "a" }; globalThis.b = { n: "b" };
+            var pair = createSignal([globalThis.a, globalThis.b]);
+            globalThis.set = pair[1];
+            globalThis.p = $ss.el("ul");
+            // Each row owns a private counter signal; reused rows must keep it.
+            $ss.insert(p, function () {
+                return $ss.cmp(For, {
+                    get each() { return pair[0](); },
+                    get children() {
+                        return function (item) {
+                            var c = createSignal(0);
+                            item.inc = c[1]; item.read = c[0];
+                            var li = $ss.el("li");
+                            $ss.insert(li, function () { return c[0](); });
+                            return li;
+                        };
+                    },
+                });
+            });
+            globalThis.a.inc(5);                 // bump row a's private state
+            globalThis.set([globalThis.b, globalThis.a]); // reorder (row a retained)
+            globalThis.aState = globalThis.a.read();      // 5 — state preserved
+            "#,
+        )
+        .unwrap();
+        assert_eq!(num(&mut e, "globalThis.aState"), 5.0);
     }
 
     // THE RED DRIVER for this task. Node wrappers are identity-stable, so the Task-4
