@@ -358,11 +358,30 @@
     };
   }
 
+  // Like withInstance but for <For>/<Index> rows. rowKey is the item object
+  // (<For>, identity) or a position string (<Index>). Same collect + commit.
+  function withRowInstance(rowKey, run) {
+    var frame = { path: rowKey, cells: [], ordinals: {} };
+    currentRoot.instances.set(rowKey, frame);
+    frameStack.push(frame);
+    try {
+      return run();
+    } finally {
+      frameStack.pop();
+      commitRehydration(frame);
+    }
+  }
+
   // Build one row under its own root attached to the list's stable owner.
   function makeRow(item, index, outMapped, outDisposers, owner, mapFn) {
     createRoot(function (dispose) {
       outDisposers[index] = dispose;
-      outMapped[index] = mapFn(item, index);
+      if (hmrOn() && currentRoot) {
+        // <For> row keyed by item identity (same identity survives reorder).
+        outMapped[index] = withRowInstance(item, function () { return mapFn(item, index); });
+      } else {
+        outMapped[index] = mapFn(item, index);
+      }
     }, owner);
   }
 
@@ -374,6 +393,9 @@
   // signal updated in place when the value at that position changes.
   function indexArray(listFn, mapFn) {
     var owner = globalThis.$ssGetOwner();
+    // Capture the <Index> instance path NOW (while its frame is on the stack) so
+    // per-position row keys are unique across multiple lists.
+    var idxPath = frameStack.length ? frameStack[frameStack.length - 1].path : "";
     var mapped = [];      // node per position
     var setters = [];     // item signal setter per position
     var disposers = [];   // dispose fn per position
@@ -387,7 +409,7 @@
         var prevLen = mapped.length;
         // Grow: build new positions.
         for (var j = mapped.length; j < list.length; j++) {
-          makeIndexRow(list[j], j, mapped, setters, disposers, owner, mapFn);
+          makeIndexRow(list[j], j, mapped, setters, disposers, owner, mapFn, idxPath);
         }
         // Update existing positions in place (only up to prevLen — freshly grown
         // positions already have their initial value set by makeIndexRow).
@@ -408,12 +430,20 @@
     };
   }
 
-  function makeIndexRow(value, index, outMapped, outSetters, outDisposers, owner, mapFn) {
+  function makeIndexRow(value, index, outMapped, outSetters, outDisposers, owner, mapFn, idxPath) {
     createRoot(function (dispose) {
+      // The item signal is derived from list position, NOT preserved — create it
+      // before opening the row frame so it is excluded from the collected cells.
       var sig = createSignal(value);
       outSetters[index] = sig[1];
       outDisposers[index] = dispose;
-      outMapped[index] = mapFn(sig[0], index); // item is the signal GETTER
+      if (hmrOn() && currentRoot) {
+        outMapped[index] = withRowInstance(idxPath + "#i" + index, function () {
+          return mapFn(sig[0], index);
+        });
+      } else {
+        outMapped[index] = mapFn(sig[0], index); // item is the signal GETTER
+      }
     }, owner);
   }
 

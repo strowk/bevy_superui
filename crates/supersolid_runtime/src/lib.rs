@@ -1320,6 +1320,104 @@ mod render_tests {
     }
 
     #[test]
+    fn hmr_preserves_for_row_state_across_reorder() {
+        let mut e = render_engine();
+        e.eval(
+            r#"
+            globalThis.__ssHmr = true;
+            globalThis.a = { n: "a" };
+            globalThis.b = { n: "b" };
+            globalThis.root = $ss.el("div");
+            function build() {
+                function App() {
+                    var list = createSignal([globalThis.a, globalThis.b]);
+                    globalThis.__list = list;
+                    var ul = $ss.el("ul");
+                    $ss.insert(ul, function () {
+                        return $ss.cmp(For, {
+                            get each() { return list[0](); },
+                            get children() {
+                                return function (item) {
+                                    var cnt = createSignal(0);
+                                    item.__cnt = cnt;            // expose row signal via the item
+                                    var li = $ss.el("li");
+                                    $ss.insert(li, function () { return item.n + ":" + cnt[0](); });
+                                    return li;
+                                };
+                            },
+                        });
+                    });
+                    return ul;
+                }
+                App.__ssId = "app#App";
+                return function () { return $ss.cmp(App, {}); };
+            }
+            render(build(), root);
+            globalThis.t0 = root.textContent;   // "a:0b:0"
+            globalThis.a.__cnt[1](7);
+            globalThis.b.__cnt[1](3);
+            globalThis.t1 = root.textContent;   // "a:7b:3"
+            globalThis.__list[1]([globalThis.b, globalThis.a]);   // runtime reorder (Plan-4 For)
+            globalThis.tR = root.textContent;   // "b:3a:7"
+            render(build(), root);              // hot reload
+            globalThis.t2 = root.textContent;   // "b:3a:7" — list + per-row state preserved
+            "#,
+        )
+        .unwrap();
+        assert_eq!(text(&mut e, "globalThis.t0"), "a:0b:0");
+        assert_eq!(text(&mut e, "globalThis.t1"), "a:7b:3");
+        assert_eq!(text(&mut e, "globalThis.tR"), "b:3a:7");
+        assert_eq!(text(&mut e, "globalThis.t2"), "b:3a:7");
+    }
+
+    #[test]
+    fn hmr_preserves_index_row_state_by_position() {
+        let mut e = render_engine();
+        e.eval(
+            r#"
+            globalThis.__ssHmr = true;
+            globalThis.root = $ss.el("div");
+            function build() {
+                function App() {
+                    var list = createSignal(["x", "y"]);
+                    var ul = $ss.el("ul");
+                    $ss.insert(ul, function () {
+                        return $ss.cmp(Index, {
+                            get each() { return list[0](); },
+                            get children() {
+                                return function (item) {              // item: signal getter
+                                    var tag = createSignal("");        // private per-position state
+                                    globalThis.__tags = globalThis.__tags || [];
+                                    globalThis.__tags.push(tag);
+                                    var li = $ss.el("li");
+                                    $ss.insert(li, function () { return item() + tag[0](); });
+                                    return li;
+                                };
+                            },
+                        });
+                    });
+                    return ul;
+                }
+                App.__ssId = "app#App";
+                return function () { return $ss.cmp(App, {}); };
+            }
+            globalThis.__tags = [];
+            render(build(), root);
+            globalThis.t0 = root.textContent;   // "xy"
+            globalThis.__tags[0][1]("!");        // position 0 private state
+            globalThis.t1 = root.textContent;   // "x!y"
+            globalThis.__tags = [];
+            render(build(), root);              // hot reload
+            globalThis.t2 = root.textContent;   // "x!y" — position 0 state preserved
+            "#,
+        )
+        .unwrap();
+        assert_eq!(text(&mut e, "globalThis.t0"), "xy");
+        assert_eq!(text(&mut e, "globalThis.t1"), "x!y");
+        assert_eq!(text(&mut e, "globalThis.t2"), "x!y");
+    }
+
+    #[test]
     fn hmr_off_does_not_preserve() {
         let mut e = render_engine();
         e.eval(
