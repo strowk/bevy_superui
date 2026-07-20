@@ -56,6 +56,7 @@ impl UiRuntime {
     pub fn new(dom: Rc<RefCell<Dom>>, root: Entity, stylesheet: Handle<StyleSheet>) -> Self {
         let mut engine = BoaEngine::new(dom.clone());
         superui_api::install(&mut engine);
+        supersolid_runtime::install(&mut engine);
         crate::bevy_bridge::install_bevy_bridge(&mut engine);
         UiRuntime {
             dom,
@@ -175,5 +176,30 @@ mod tests {
         // A broken script is swallowed, not panicked, and still marks dirty.
         rt.run_script("this is not valid js @@@");
         assert!(rt.dirty);
+    }
+
+    #[test]
+    fn supersolid_runtime_globals_are_available_in_the_ui_runtime() {
+        let dom = Rc::new(RefCell::new(superui_html::parse_document(
+            "<div id='a'></div>",
+        )));
+        let mut rt = UiRuntime::new(dom, Entity::PLACEHOLDER, Handle::default());
+        // The reactive globals the Plan 2 transpiler emits imports for must resolve.
+        rt.run_script(
+            r#"
+            var n = createSignal(1);
+            globalThis.captured = 0;
+            createEffect(function () { globalThis.captured = n[0](); });
+            n[1](42);
+            "#,
+        );
+        let got = rt
+            .engine
+            .context_mut()
+            .eval(boa_engine::Source::from_bytes("globalThis.captured"))
+            .unwrap()
+            .as_number()
+            .unwrap();
+        assert_eq!(got, 42.0);
     }
 }

@@ -74,3 +74,19 @@ Engine: Boa on every target (design §5). ✅ = installed by `superui_api` +
 | `history.pushState` / `replaceState` / `popstate` / `location` | 🟡 | T3 | in-memory routing state (design §7) |
 | `fetch` / `XMLHttpRequest` | ⛔ | — | network; warn-and-reject stub only |
 | `localStorage` / `cookie` | ⛔ | — | out of scope (games persist via ECS) |
+
+## Supersolid runtime (framework globals)
+
+Provided by `supersolid_runtime` (installed into every `UiRuntime`), not part of the
+browser DOM/Web API surface. Available to author `.js` and to Plan 2's transpiled
+`.tsx` (whose `import { … } from "solid-js"` is stripped in favour of these globals).
+
+| Global | Status | Since | Notes |
+|---|---|---|---|
+| `createSignal(v, {equals?})` → `[get, set]` | ✅ | T0 | fine-grained signal; updater-form set; `equals` gates notifications |
+| `createEffect(fn, seed?)` | ✅ | T0 | tracks reads, re-runs on change; disposed with owner |
+| `createMemo(fn, seed?, {equals?})` | ✅ | T0 | lazy, memoized derived value; is itself a source |
+| `createRoot(fn => …)` | ✅ | T0 | disposable reactive scope |
+| `onMount(fn)` / `onCleanup(fn)` | ✅ | T0 | run-once-after-setup / owner teardown |
+| `createContext(default?)` / `useContext(ctx)` | ✅ | T0 | context via the owner tree |
+| `untrack(fn)` / `batch(fn)` | ✅ | T0 | read without subscribing / coalesce writes |
