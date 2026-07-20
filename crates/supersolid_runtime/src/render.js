@@ -7,6 +7,80 @@
   // Names that map to live element STATE — set as a property, not an attribute.
   var PROPERTY_NAMES = { value: true, checked: true };
 
+  // ---- Plan 5: state-preserving HMR (all inert unless globalThis.__ssHmr) ----
+  var roots = new Map();   // mountNode -> { dispose, instances:Map, snapshot:Map|null, ordinals:{} }
+  var frameStack = [];     // active instance frames during a (re)render
+  var currentRoot = null;  // the root entry currently mounted / being rebuilt
+
+  function hmrOn() { return !!globalThis.__ssHmr; }
+
+  // Collector for the runtime.js $ssOnSignal hook: push {read, write} onto the
+  // current instance frame. No frame active => no-op (module-top-level signals,
+  // plain scripts, and the gate-off path are all unaffected).
+  function onSignal(read, write) {
+    var f = frameStack[frameStack.length - 1];
+    if (f) f.cells.push({ read: read, write: write });
+  }
+
+  // Open an instance frame keyed by tree position (+ explicit key), run the
+  // component body, then commit any matched rehydration at frame close (which is
+  // also where a signal-count mismatch cleanly resets the instance).
+  function withInstance(id, key, run) {
+    var parent = frameStack[frameStack.length - 1];
+    var parentPath = parent ? parent.path : "";
+    var instKey;
+    if (key != null) {
+      instKey = parentPath + "/" + id + ":" + key;
+    } else {
+      var ords = parent ? parent.ordinals : currentRoot.ordinals;
+      var n = ords[id] || 0;
+      ords[id] = n + 1;
+      instKey = parentPath + "/" + id + "#" + n;
+    }
+    var frame = { path: instKey, cells: [], ordinals: {} };
+    currentRoot.instances.set(instKey, frame);
+    frameStack.push(frame);
+    try {
+      return run();
+    } finally {
+      frameStack.pop();
+      commitRehydration(frame);
+    }
+  }
+
+  // Rehydrate a just-built frame from the snapshot IFF the signal shape matches.
+  // Count mismatch (add/remove) => skip => the fresh defaults stand = reset.
+  function commitRehydration(frame) {
+    if (!currentRoot || !currentRoot.snapshot) return;
+    var saved = currentRoot.snapshot.get(frame.path);
+    if (saved && saved.length === frame.cells.length) {
+      for (var i = 0; i < saved.length; i++) {
+        // updater form sets the value even if it is itself a function.
+        (function (v, cell) { cell.write(function () { return v; }); })(saved[i], frame.cells[i]);
+      }
+    }
+  }
+
+  // Snapshot every tracked cell's current value (untracked reads).
+  function snapshotCells(entry) {
+    var snap = new Map();
+    entry.instances.forEach(function (frame, key) {
+      var vals = new Array(frame.cells.length);
+      for (var i = 0; i < frame.cells.length; i++) {
+        vals[i] = untrack(frame.cells[i].read);
+      }
+      snap.set(key, vals);
+    });
+    return snap;
+  }
+
+  // Remove all children of a node (rebuild-fresh on reload). Descending index so
+  // it is correct whether childNodes is live or a snapshot.
+  function clearChildren(node) {
+    var kids = node.childNodes;
+    for (var i = kids.length - 1; i >= 0; i--) node.removeChild(kids[i]);
+  }
+
   // Apply a name/value to an element via the property-vs-attribute rule.
   function setProp(el, name, value) {
     if (PROPERTY_NAMES[name]) {
@@ -102,7 +176,14 @@
   function cmp(Comp, props) {
     // Components run ONCE, untracked (fine-grained model). props carries getters
     // for dynamic props (transpiler); dynamic bits become inner effects.
-    return untrack(function () { return Comp(props); });
+    if (!hmrOn() || !currentRoot) {
+      return untrack(function () { return Comp(props); });
+    }
+    var id = (Comp && Comp.__ssId) || (Comp && Comp.name) || "?";
+    var key = props && props.key;
+    return untrack(function () {
+      return withInstance(id, key, function () { return Comp(props); });
+    });
   }
 
   function frag(children) { return children; }
@@ -355,18 +436,36 @@
     });
   }
 
-  // Root entry: establish a disposable reactive scope and mount `code` into
-  // `mountEl`. Returns `dispose` (Plan 5 HMR tears the tree down with it).
+  // Root entry. First call for a mount node = fresh mount. A REPEAT call for the
+  // same node (same engine, same cached wrapper) = hot reload: snapshot the live
+  // cells, dispose the old scope, rebuild the DOM fresh, rehydrate matched cells
+  // at each instance-frame close. Gate off => exact Plan-4 behavior.
   function render(code, mountEl) {
-    var dispose;
-    createRoot(function (d) {
-      dispose = d;
-      insert(mountEl, code);
-    });
-    return dispose;
+    if (!hmrOn()) {
+      var d0;
+      createRoot(function (d) { d0 = d; insert(mountEl, code); });
+      return d0;
+    }
+    var prev = roots.get(mountEl);
+    var snapshot = null;
+    if (prev) {
+      snapshot = snapshotCells(prev);
+      prev.dispose();
+      clearChildren(mountEl);
+    }
+    var entry = { dispose: null, instances: new Map(), snapshot: snapshot, ordinals: {} };
+    // currentRoot stays set after render() returns so components/rows created
+    // later (Show flips, list growth) still attach to this root (one mounted UI
+    // per engine — the bridge's model). A reload swaps in the new entry.
+    currentRoot = entry;
+    createRoot(function (d) { entry.dispose = d; insert(mountEl, code); });
+    roots.set(mountEl, entry);
+    return entry.dispose;
   }
 
   // ---- Publish the ABI (extended by later tasks) ----
+  // Plan 5: render layer's cell collector for runtime.js's createSignal hook.
+  globalThis.$ssOnSignal = onSignal;
   globalThis.render = render;
   globalThis.Show = Show;
   globalThis.For = For;

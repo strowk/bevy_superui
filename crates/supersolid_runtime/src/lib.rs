@@ -1216,4 +1216,134 @@ mod render_tests {
         assert_eq!(text(&mut e, "globalThis.id"), "app.tsx#App");
         assert_eq!(text(&mut e, "globalThis.same"), "true");
     }
+
+    #[test]
+    fn hmr_preserves_component_signal_value() {
+        let mut e = render_engine();
+        e.eval(
+            r#"
+            globalThis.__ssHmr = true;
+            globalThis.root = $ss.el("main");
+            function makeApp() {
+                function Counter() {
+                    var c = createSignal(0);
+                    globalThis.__c = c;
+                    var d = $ss.el("div");
+                    $ss.insert(d, function () { return c[0](); });
+                    return d;
+                }
+                Counter.__ssId = "app#Counter";
+                return function () { return $ss.cmp(Counter, {}); };
+            }
+            render(makeApp(), root);
+            globalThis.t0 = root.textContent;   // "0"
+            globalThis.__c[1](5);
+            globalThis.t1 = root.textContent;   // "5"
+            render(makeApp(), root);            // hot reload: same mount node
+            globalThis.t2 = root.textContent;   // "5" — preserved
+            "#,
+        )
+        .unwrap();
+        assert_eq!(text(&mut e, "globalThis.t0"), "0");
+        assert_eq!(text(&mut e, "globalThis.t1"), "5");
+        assert_eq!(text(&mut e, "globalThis.t2"), "5");
+    }
+
+    #[test]
+    fn hmr_resets_on_shape_change() {
+        let mut e = render_engine();
+        e.eval(
+            r#"
+            globalThis.__ssHmr = true;
+            globalThis.root = $ss.el("main");
+            function makeApp(twoCells) {
+                function Counter() {
+                    if (twoCells) { createSignal(0); }   // extra leading cell -> shape change
+                    var c = createSignal(0);
+                    globalThis.__c = c;
+                    var d = $ss.el("div");
+                    $ss.insert(d, function () { return c[0](); });
+                    return d;
+                }
+                Counter.__ssId = "app#Counter";
+                return function () { return $ss.cmp(Counter, {}); };
+            }
+            render(makeApp(false), root);
+            globalThis.__c[1](5);
+            globalThis.t1 = root.textContent;   // "5"
+            render(makeApp(true), root);        // reload with a DIFFERENT signal count
+            globalThis.t2 = root.textContent;   // "0" — shape changed -> reset
+            "#,
+        )
+        .unwrap();
+        assert_eq!(text(&mut e, "globalThis.t1"), "5");
+        assert_eq!(text(&mut e, "globalThis.t2"), "0");
+    }
+
+    #[test]
+    fn hmr_keys_sibling_instances_separately() {
+        let mut e = render_engine();
+        e.eval(
+            r#"
+            globalThis.__ssHmr = true;
+            globalThis.root = $ss.el("main");
+            function makeApp() {
+                globalThis.__cs = [];
+                function Counter() {
+                    var c = createSignal(0);
+                    globalThis.__cs.push(c);
+                    var d = $ss.el("i");
+                    $ss.insert(d, function () { return c[0](); });
+                    return d;
+                }
+                Counter.__ssId = "app#Counter";
+                function App() {
+                    var wrap = $ss.el("div");
+                    $ss.insert(wrap, function () { return $ss.cmp(Counter, {}); });
+                    $ss.insert(wrap, function () { return $ss.cmp(Counter, {}); });
+                    return wrap;
+                }
+                App.__ssId = "app#App";
+                return function () { return $ss.cmp(App, {}); };
+            }
+            render(makeApp(), root);
+            globalThis.__cs[0][1](7);           // first sibling -> 7
+            globalThis.__cs[1][1](3);           // second sibling -> 3
+            globalThis.t1 = root.textContent;   // "73"
+            render(makeApp(), root);            // reload
+            globalThis.t2 = root.textContent;   // "73" — each sibling kept its own value
+            "#,
+        )
+        .unwrap();
+        assert_eq!(text(&mut e, "globalThis.t1"), "73");
+        assert_eq!(text(&mut e, "globalThis.t2"), "73");
+    }
+
+    #[test]
+    fn hmr_off_does_not_preserve() {
+        let mut e = render_engine();
+        e.eval(
+            r#"
+            globalThis.__ssHmr = false;         // gate OFF
+            globalThis.root = $ss.el("main");
+            function makeApp() {
+                function Counter() {
+                    var c = createSignal(0);
+                    globalThis.__c = c;
+                    var d = $ss.el("div");
+                    $ss.insert(d, function () { return c[0](); });
+                    return d;
+                }
+                Counter.__ssId = "app#Counter";
+                return function () { return $ss.cmp(Counter, {}); };
+            }
+            render(makeApp(), root);
+            globalThis.__c[1](5);               // bump the first render's signal
+            render(makeApp(), root);            // second render (gate off)
+            globalThis.v = globalThis.__c[0](); // the SECOND render's fresh signal -> 0
+            "#,
+        )
+        .unwrap();
+        assert_eq!(num(&mut e, "globalThis.v"), 0.0);
+    }
 }
