@@ -81,6 +81,10 @@
         if (s.fn) {
           var before = s.value;
           updateIfNecessary(s);
+          // `Object.is` here is safe because `update` (memo branch) only overwrites
+          // `s.value` when the source's OWN `equals` reports a change — so a
+          // custom-`equals`-"equal" recompute never mutates `s.value`, keeping this
+          // comparison true. Invariant: don't write `s.value` before that equals gate.
           if (!Object.is(s.value, before)) changed = true;
         }
       });
