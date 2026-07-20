@@ -259,10 +259,22 @@ Add event listeners (`on`) and reactive attributes (`bind`, an effect over the p
 - Test: `crates/supersolid_runtime/src/lib.rs` (`render_tests`)
 
 **Interfaces:**
-- Consumes: `setProp` (Task 1); `element.addEventListener`; `createEffect` (runtime.js global).
-- Produces: `$ss.on(el, type, handler)`, `$ss.bind(el, name, thunk)` added to the published `$ss` object.
+- Consumes: `setProp` (Task 1); `element.addEventListener`; `createEffect` (runtime.js global); `BoaEngine::dispatch_event(node, type, key, bubbles, cancelable)` (Rust-side event dispatch, same call the input systems use).
+- Produces: `$ss.on(el, type, handler)`, `$ss.bind(el, name, thunk)` added to the published `$ss` object; a `render_engine_with_dom() -> (BoaEngine, Rc<RefCell<Dom>>)` test helper (exposes the DOM so a test can resolve a `NodeId` and dispatch to it).
 
 - [ ] **Step 1: Write the failing tests**
+
+Add the DOM-exposing harness next to `render_engine` in `render_tests`:
+
+```rust
+fn render_engine_with_dom() -> (BoaEngine, Rc<RefCell<Dom>>) {
+    let dom = Rc::new(RefCell::new(Dom::new()));
+    let mut e = BoaEngine::new(dom.clone());
+    superui_api::install(&mut e);
+    install(&mut e);
+    (e, dom)
+}
+```
 
 Add to `render_tests`:
 
@@ -287,26 +299,27 @@ fn bind_updates_attribute_reactively() {
 }
 
 #[test]
-fn on_registers_a_working_event_listener() {
-    let mut e = render_engine();
+fn on_fires_a_registered_click_handler() {
+    // Events dispatch from the Rust side (BoaEngine::dispatch_event), not from JS.
+    // Attach the button to the document so we can resolve its NodeId and dispatch.
+    let (mut e, dom) = render_engine_with_dom();
     e.eval(
         r#"
         globalThis.clicks = 0;
-        globalThis.b = $ss.el("button");
+        var b = $ss.el("button");
+        b.setAttribute("id", "btn");
+        document.appendChild(b);
         $ss.on(b, "click", function () { globalThis.clicks++; });
-        b.dispatchEvent ? b.dispatchEvent({ type: "click" }) : null;
         "#,
     )
     .unwrap();
-    // If dispatchEvent isn't exposed to JS, assert the listener was registered by
-    // reading it back through addEventListener's host side effect instead:
-    // the click count is driven by the bridge in the Task 10 integration test.
-    // Here we only assert bind/on evaluate without error and the listener exists.
-    assert!(num(&mut e, "globalThis.clicks") >= 0.0);
+    let btn = { let d = dom.borrow(); d.get_element_by_id("btn").unwrap() };
+    e.dispatch_event(btn, "click", None, true, true);
+    assert_eq!(num(&mut e, "globalThis.clicks"), 1.0);
 }
 ```
 
-> **Guidance:** `dispatchEvent` may not be part of the JS DOM surface (events are dispatched from the Rust side via `BoaEngine::dispatch_event`). If `b.dispatchEvent` is undefined, keep the `on` test as a smoke test that `$ss.on` registers without error (as written above); the **real** end-to-end click→handler proof is the Task 10 bridge integration test, which dispatches through the engine. Do not add a JS `dispatchEvent` binding for this — it's outside this plan's scope.
+> **Guidance:** confirm `BoaEngine::dispatch_event`'s exact signature against `crates/superui_api/src/lib.rs` (its tests call `e.dispatch_event(leaf, "click", None, true, true)`); adjust the `None` (key) arg to whatever the signature expects. `document.appendChild` works because the document proto carries `appendChild` (`node.rs:152`). This proves `$ss.on` registers a *working* listener; Task 10 proves the same path end-to-end through the bridge.
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
@@ -702,7 +715,6 @@ fn insert_array_reorders_reusing_nodes() {
             var s = "";
             for (var i = 0; i < p.childNodes.length; i++) {
                 var n = p.childNodes[i];
-                if (n.nodeType === 1) s += n.className ? "" : "";
                 if (n.getAttribute) { var k = n.getAttribute("k"); if (k) s += k; }
             }
             return s;
@@ -751,20 +763,46 @@ fn insert_array_appends_and_prepends() {
     assert_eq!(text(&mut e, "globalThis.o1"), "AB");
     assert_eq!(text(&mut e, "globalThis.o2"), "ABC");
 }
+
+// THE RED DRIVER for this task. Node wrappers are identity-stable, so the Task-4
+// replace-based stub yields the SAME final DOM as minimal-move (the two order
+// tests above pass under both). What distinguishes them is HOW MANY DOM ops a
+// reorder costs. Spy on the parent's insertBefore/removeChild and assert a single
+// item moving in a list of four costs only a couple of ops — a full rebuild would
+// be 4 removes + 4 inserts = 8.
+#[test]
+fn insert_array_reorder_is_minimal_moves() {
+    let mut e = render_engine();
+    e.eval(
+        r#"
+        globalThis.A=$ss.el("i"); globalThis.B=$ss.el("i");
+        globalThis.C=$ss.el("i"); globalThis.D=$ss.el("i");
+        var pair = createSignal([A, B, C, D]);
+        globalThis.set = pair[1];
+        globalThis.p = $ss.el("div");
+        $ss.insert(p, function () { return pair[0](); });
+
+        // Install op-count spies AFTER the initial render (shadow the proto methods).
+        globalThis.ops = 0;
+        var proto = Object.getPrototypeOf(p);
+        p.insertBefore = function (n, r) { globalThis.ops++; return proto.insertBefore.call(p, n, r); };
+        p.removeChild  = function (n)    { globalThis.ops++; return proto.removeChild.call(p, n); };
+
+        globalThis.set([A, C, D, B]);   // move B from index 1 to the end
+        globalThis.opsAfter = globalThis.ops;
+        "#,
+    )
+    .unwrap();
+    // Minimal-move handles this in <= 2 ops; the replace-based stub would use 8.
+    let ops = num(&mut e, "globalThis.opsAfter");
+    assert!(ops <= 2.0, "expected minimal moves (<=2 ops), got {ops}");
+}
 ```
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
-Run: `cargo test -p supersolid_runtime insert_array_reorders insert_array_appends`
-Expected: The replace-based version may pass order assertions but FAIL `reusedA` (nodes are re-inserted, not reused by minimal move — actually replace-based DOES reuse the same node objects since they are identity-stable). If `reusedA` passes under the stub, still proceed: the point of this task is minimal moves; keep the tests and confirm they hold under the real algorithm. If any order assertion fails under the stub, that is the failing state.
-
-> **Note:** the identity-stable wrapper means even the replace-based stub reuses node *objects*. The behavioral upgrade here is **minimal moves** (not detaching/reattaching everything). Add this assertion to `insert_array_reorders_reusing_nodes` to lock the improvement, and treat it as the failing check under the stub:
-> ```rust
-> // Under minimal-move, an unchanged tail is NOT touched. Sentinel: the anchor
-> // (last child) is stable and B keeps its DOM position when only C moves.
-> // (Kept as an order/identity check; exact move-count is not asserted.)
-> ```
-> Keep the assertions as written (order + `reusedA`); they encode the observable contract. The algorithm below satisfies them.
+Run: `cargo test -p supersolid_runtime insert_array_reorder_is_minimal_moves insert_array_reorders insert_array_appends`
+Expected: `insert_array_reorder_is_minimal_moves` FAILS against the Task-4 stub (it clears + re-inserts the whole list → ~8 ops, not ≤ 2). The two order/identity tests (`insert_array_reorders_reusing_nodes`, `insert_array_appends_and_prepends`) already PASS under the stub — they characterize ordering correctness, which the new algorithm must preserve. The op-count test is the red driver; keep all three.
 
 - [ ] **Step 3: Implement the keyed reconcile**
 
