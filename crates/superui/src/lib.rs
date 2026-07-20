@@ -6,6 +6,8 @@ mod hot_reload;
 mod mount;
 
 pub use assets::{HtmlLoader, HtmlSource, JsLoader, JsSource};
+#[cfg(not(target_arch = "wasm32"))]
+pub use assets::TsxLoader;
 pub use mount::{SuperUiPlugin, SuperUiRoot};
 
 /// The HTML-shaped surface authors/games reach for.

@@ -64,6 +64,42 @@ impl AssetLoader for JsLoader {
     }
 }
 
+/// Loads `.tsx`/`.ts`, transpiles via `supersolid`, and yields a `JsSource`
+/// (so mount/hot-reload treat it identically to hand-written `.js`). Native-only:
+/// `oxc` must not enter the wasm binary (direction spec §11.3).
+#[cfg(not(target_arch = "wasm32"))]
+#[derive(Default)]
+pub struct TsxLoader;
+
+#[cfg(not(target_arch = "wasm32"))]
+impl AssetLoader for TsxLoader {
+    type Asset = JsSource;
+    type Settings = ();
+    type Error = std::io::Error;
+
+    async fn load(
+        &self,
+        reader: &mut dyn Reader,
+        _settings: &(),
+        lc: &mut LoadContext<'_>,
+    ) -> Result<JsSource, std::io::Error> {
+        let src = read_to_string(reader).await?;
+        let tsx = lc.path().extension().and_then(|e| e.to_str()) != Some("ts");
+        let opts = supersolid::TranspileOptions { tsx, ..Default::default() };
+        let result = supersolid::transpile(&src, &opts);
+        for d in &result.diagnostics {
+            bevy::log::warn!("supersolid: {}", d.message);
+        }
+        // Graceful degradation (design §1): return whatever JS was produced even on
+        // diagnostics; never fail the load for a transpile warning.
+        Ok(JsSource(result.code))
+    }
+
+    fn extensions(&self) -> &[&str] {
+        &["tsx", "ts"]
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -113,5 +149,42 @@ mod tests {
         let jss = app.world().resource::<Assets<JsSource>>();
         assert_eq!(htmls.get(&html).unwrap().0, "<div id='x'></div>");
         assert_eq!(jss.get(&js).unwrap().0, "var a = 1;");
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn tsx_loader_transpiles_to_jssource() {
+        let dir = Dir::new("assets".into());
+        dir.insert_asset(
+            "app.tsx".as_ref(),
+            b"const n: number = 1; const a = <div class=\"x\">{n}</div>;",
+        );
+
+        let mut app = App::new();
+        app.register_asset_source(
+            AssetSourceId::Default,
+            AssetSource::build().with_reader(move || Box::new(MemoryAssetReader { root: dir.clone() })),
+        );
+        app.add_plugins((bevy::app::TaskPoolPlugin::default(), AssetPlugin::default()));
+        app.init_asset::<JsSource>().register_asset_loader(TsxLoader);
+        app.finish();
+
+        let handle = {
+            let server = app.world().resource::<AssetServer>().clone();
+            server.load::<JsSource>("app.tsx")
+        };
+        for _ in 0..64 {
+            app.update();
+            if matches!(
+                app.world().resource::<AssetServer>().load_state(handle.id()),
+                LoadState::Loaded
+            ) {
+                break;
+            }
+        }
+        let jss = app.world().resource::<Assets<JsSource>>();
+        let out = &jss.get(&handle).unwrap().0;
+        assert!(!out.contains(": number"), "types stripped by loader:\n{out}");
+        assert!(out.contains(r#"$ss.el("div")"#), "JSX lowered by loader:\n{out}");
     }
 }

@@ -34,7 +34,10 @@ impl Plugin for SuperUiPlugin {
             .init_asset::<HtmlSource>()
             .init_asset::<JsSource>()
             .register_asset_loader(HtmlLoader)
-            .register_asset_loader(JsLoader)
+            .register_asset_loader(JsLoader);
+        #[cfg(not(target_arch = "wasm32"))]
+        app.register_asset_loader(crate::assets::TsxLoader);
+        app
             .init_resource::<PendingDomEvents>()
             .init_resource::<HotReloadFlags>()
             .add_observer(on_pointer_click)
