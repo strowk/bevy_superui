@@ -63,8 +63,10 @@ impl Plugin for SimPlugin {
                 .run_if(in_state(crate::game_state::GameState::Playing)),
         );
 
-        // Snapshot assembly runs every frame regardless of pause so the UI can render.
-        app.add_systems(Update, snapshot::assemble_world_snapshot);
+        // Snapshot assembly only runs while Playing so the snapshot freezes on GameOver/Pause
+        // with the last Playing-frame values (kills, wave, time, etc.) intact for UI screens.
+        app.add_systems(Update, snapshot::assemble_world_snapshot
+            .run_if(in_state(crate::game_state::GameState::Playing)));
         // Intents are cleared at end of frame after all consumers have read them.
         app.add_systems(Last, clear_intents);
     }
