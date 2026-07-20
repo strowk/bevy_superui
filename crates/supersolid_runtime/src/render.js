@@ -98,18 +98,44 @@
     return value;
   }
 
-  // Placeholder until Task 5 — a single-element list still works via replace.
-  function reconcileArray(parent, anchor, current, value) {
-    clearNodes(parent, current);
+  function cmp(Comp, props) {
+    // Components run ONCE, untracked (fine-grained model). props carries getters
+    // for dynamic props (transpiler); dynamic bits become inner effects.
+    return untrack(function () { return Comp(props); });
+  }
+
+  function frag(children) { return children; }
+
+  // Flatten nested arrays/fragments; drop null/booleans; primitives -> text.
+  function normalizeArray(value) {
     var out = [];
-    for (var i = 0; i < value.length; i++) {
-      var v = value[i];
-      if (v == null || v === true || v === false) continue;
-      if (typeof v === "string" || typeof v === "number") v = txt("" + v);
-      parent.insertBefore(v, anchor);
-      out.push(v);
+    flattenInto(out, value);
+    return out;
+  }
+
+  function flattenInto(out, value) {
+    if (value == null || value === true || value === false) return;
+    if (Array.isArray(value)) {
+      for (var i = 0; i < value.length; i++) flattenInto(out, value[i]);
+      return;
     }
-    return out.length ? out : null;
+    if (typeof value === "string" || typeof value === "number") {
+      out.push(txt("" + value));
+      return;
+    }
+    out.push(value);
+  }
+
+  // Still replace-based (Task 5 makes it keyed); now normalizes via normalizeArray.
+  function reconcileArray(parent, anchor, current, value) {
+    var next = normalizeArray(value);
+    if (next.length === 0) {
+      clearNodes(parent, current);
+      return null;
+    }
+    clearNodes(parent, current);
+    for (var i = 0; i < next.length; i++) parent.insertBefore(next[i], anchor);
+    return next;
   }
 
   function insert(parent, accessor) {
@@ -130,5 +156,7 @@
     on: on,
     bind: bind,
     insert: insert,
+    cmp: cmp,
+    frag: frag,
   };
 })();

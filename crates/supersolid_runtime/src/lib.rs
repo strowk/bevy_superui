@@ -608,6 +608,61 @@ mod render_tests {
     }
 
     #[test]
+    fn cmp_runs_component_once_and_inserts_its_nodes() {
+        let mut e = render_engine();
+        e.eval(
+            r#"
+            globalThis.calls = 0;
+            function Box(props) {
+                globalThis.calls++;
+                var d = $ss.el("div");
+                $ss.child(d, $ss.txt("boxed:"));
+                $ss.insert(d, function () { return props.label; });
+                return d;
+            }
+            var pair = createSignal("x");
+            globalThis.set = pair[1];
+            globalThis.p = $ss.el("main");
+            $ss.insert(p, function () {
+                return $ss.cmp(Box, { get label() { return pair[0](); } });
+            });
+            globalThis.t0 = p.textContent;   // "boxed:x"
+            globalThis.callsAfter = globalThis.calls; // 1
+            globalThis.set("y");
+            globalThis.t1 = p.textContent;   // "boxed:y" — inner insert re-ran, body did not
+            globalThis.callsAfter2 = globalThis.calls; // still 1 (runs once)
+            "#,
+        )
+        .unwrap();
+        assert_eq!(text(&mut e, "globalThis.t0"), "boxed:x");
+        assert_eq!(num(&mut e, "globalThis.callsAfter"), 1.0);
+        assert_eq!(text(&mut e, "globalThis.t1"), "boxed:y");
+        assert_eq!(num(&mut e, "globalThis.callsAfter2"), 1.0);
+    }
+
+    #[test]
+    fn frag_and_insert_flatten_into_the_parent() {
+        let mut e = render_engine();
+        e.eval(
+            r#"
+            globalThis.p = $ss.el("div");
+            $ss.insert(p, function () {
+                return $ss.frag([ $ss.el("a"), $ss.txt("mid"), $ss.el("b") ]);
+            });
+            globalThis.count = p.childNodes.length;  // 3 content + 1 anchor = 4
+            globalThis.first = p.childNodes[0].tagName;  // "A"
+            globalThis.mid = p.childNodes[1].data;       // "mid"
+            globalThis.last = p.childNodes[2].tagName;   // "B"
+            "#,
+        )
+        .unwrap();
+        assert_eq!(num(&mut e, "globalThis.count"), 4.0);
+        assert_eq!(text(&mut e, "globalThis.first"), "A");
+        assert_eq!(text(&mut e, "globalThis.mid"), "mid");
+        assert_eq!(text(&mut e, "globalThis.last"), "B");
+    }
+
+    #[test]
     fn on_fires_a_registered_click_handler() {
         // Events dispatch from the Rust side (BoaEngine::dispatch_event), not from JS.
         // Attach the button to the document so we can resolve its NodeId and dispatch.
