@@ -4,17 +4,32 @@
 
 use bevy::prelude::*;
 
-mod ui;
+mod game_state;
 mod sim;
+mod ui;
+
+use game_state::GameState;
 
 fn main() {
-    App::new()
-        .add_plugins(DefaultPlugins.set(AssetPlugin {
-            watch_for_changes_override: Some(true),
-            ..default()
-        }))
-        .add_systems(Startup, setup_camera)
-        .run();
+    let mut app = App::new();
+    app.add_plugins(DefaultPlugins.set(AssetPlugin {
+        watch_for_changes_override: Some(true),
+        ..default()
+    }))
+    .init_state::<GameState>()
+    .add_plugins(sim::SimPlugin)
+    .add_systems(Startup, setup_camera);
+
+    // FPS debug overlay in the reserved top-left corner (opt-in via `debug-ui`).
+    #[cfg(feature = "debug-ui")]
+    app.add_plugins((
+        bevy::diagnostic::FrameTimeDiagnosticsPlugin::default(),
+        bevy::dev_tools::fps_overlay::FpsOverlayPlugin::default(),
+    ));
+
+    ui::add_ui(&mut app);
+
+    app.run();
 }
 
 fn setup_camera(mut commands: Commands) {
