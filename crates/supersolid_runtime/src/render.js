@@ -40,11 +40,22 @@
     parent.appendChild(node);
   }
 
+  function on(element, type, handler) {
+    element.addEventListener(type, handler);
+  }
+
+  function bind(element, name, thunk) {
+    // One effect per dynamic attribute: re-applies surgically on dep change.
+    createEffect(function () { setProp(element, name, thunk()); });
+  }
+
   // ---- Publish the ABI (extended by later tasks) ----
   globalThis.$ss = {
     el: el,
     txt: txt,
     attr: attr,
     child: child,
+    on: on,
+    bind: bind,
   };
 })();

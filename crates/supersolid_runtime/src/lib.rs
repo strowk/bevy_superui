@@ -463,6 +463,16 @@ mod render_tests {
         e
     }
 
+    /// Like `render_engine` but also returns the shared `Dom` so tests can
+    /// resolve `NodeId`s (e.g. to call `BoaEngine::dispatch_event`).
+    fn render_engine_with_dom() -> (BoaEngine, Rc<RefCell<Dom>>) {
+        let dom = Rc::new(RefCell::new(Dom::new()));
+        let mut e = BoaEngine::new(dom.clone());
+        superui_api::install(&mut e);
+        install(&mut e);
+        (e, dom)
+    }
+
     fn num(e: &mut BoaEngine, expr: &str) -> f64 {
         e.context_mut()
             .eval(boa_engine::Source::from_bytes(expr))
@@ -529,5 +539,44 @@ mod render_tests {
         )
         .unwrap();
         assert_eq!(num(&mut e, "globalThis.count"), 2.0);
+    }
+
+    #[test]
+    fn bind_updates_attribute_reactively() {
+        let mut e = render_engine();
+        e.eval(
+            r#"
+            var pair = createSignal("a");
+            globalThis.get = pair[0]; globalThis.set = pair[1];
+            globalThis.el = $ss.el("div");
+            $ss.bind(el, "class", function () { return globalThis.get(); });
+            globalThis.c0 = el.className;   // "a" — effect ran once on bind
+            globalThis.set("b");
+            globalThis.c1 = el.className;   // "b" — surgical re-run
+            "#,
+        )
+        .unwrap();
+        assert_eq!(text(&mut e, "globalThis.c0"), "a");
+        assert_eq!(text(&mut e, "globalThis.c1"), "b");
+    }
+
+    #[test]
+    fn on_fires_a_registered_click_handler() {
+        // Events dispatch from the Rust side (BoaEngine::dispatch_event), not from JS.
+        // Attach the button to the document so we can resolve its NodeId and dispatch.
+        let (mut e, dom) = render_engine_with_dom();
+        e.eval(
+            r#"
+            globalThis.clicks = 0;
+            var b = $ss.el("button");
+            b.setAttribute("id", "btn");
+            document.appendChild(b);
+            $ss.on(b, "click", function () { globalThis.clicks++; });
+            "#,
+        )
+        .unwrap();
+        let btn = { let d = dom.borrow(); d.get_element_by_id("btn").unwrap() };
+        e.dispatch_event(btn, "click", None, true, true);
+        assert_eq!(num(&mut e, "globalThis.clicks"), 1.0);
     }
 }
