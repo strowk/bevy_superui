@@ -1,0 +1,164 @@
+#app {
+  display: flex;
+  flex-direction: column;
+  width: 420px;
+  margin: 40px;
+  padding: 16px;
+  background-color: #ffffff;
+  border: 1px #e0e0e0;
+  border-radius: 8px;
+}
+
+h1 {
+  color: #b83f45;
+  font-size: 48px;
+  margin: 8px;
+}
+
+#new-todo-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  column-gap: 8px;
+  margin: 8px;
+}
+
+#new-todo {
+  flex-grow: 1;
+  padding: 12px 12px;
+  background-color: #f7f7f7;
+  border: 1px #888888;
+  border-radius: 4px;
+  color: #333333;
+  font-size: 16px;
+  overflow: hidden;
+}
+
+#add {
+  padding: 12px 20px;
+  margin: 4px;
+  background-color: #b83f45;
+  color: #ffffff;
+  border-radius: 4px;
+  font-size: 16px;
+  align-items: center;
+  justify-content: center;
+}
+
+#add:hover {
+  background-color: #983035;
+}
+
+#main {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+}
+
+#toggle-all {
+  width: 22px;
+  height: 22px;
+  margin: 8px;
+  background-color: #ffffff;
+  border: 2px #cccccc;
+  border-radius: 4px;
+}
+
+#todo-list {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+}
+
+.todo {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 8px;
+  border-bottom-width: 1px;
+  border-bottom-color: #ededed;
+}
+
+.todo .label {
+  flex-grow: 1;
+  color: #333333;
+  font-size: 18px;
+}
+
+.todo.completed .label {
+  color: #aaaaaa;
+}
+
+.toggle {
+  width: 22px;
+  height: 22px;
+  margin: 4px;
+  background-color: #ffffff;
+  border: 2px #cccccc;
+  border-radius: 4px;
+  align-items: center;
+  justify-content: center;
+}
+
+.toggle:checked {
+  background-color: #b83f45;
+  border: 2px #b83f45;
+}
+
+.destroy {
+  width: 28px;
+  height: 28px;
+  background-color: #ffffff;
+  color: #b83f45;
+  border-radius: 4px;
+}
+
+.destroy:hover {
+  background-color: #f4f4f4;
+}
+
+#footer {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px;
+}
+
+#count {
+  flex-shrink: 0;
+  color: #777777;
+  font-size: 14px;
+}
+
+.filters {
+  display: flex;
+  flex-direction: row;
+}
+
+.filter {
+  margin: 2px;
+  padding: 4px;
+  color: #777777;
+  border: 1px #ffffff;
+  border-radius: 4px;
+  font-size: 14px;
+  align-items: center;
+  justify-content: center;
+}
+
+.filter.selected {
+  border: 1px #b83f45;
+  color: #b83f45;
+}
+
+.clear-completed {
+  padding: 4px;
+  color: #777777;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.clear-completed:hover {
+  color: #b83f45;
+}

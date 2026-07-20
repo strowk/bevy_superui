@@ -1,0 +1,42 @@
+[package]
+name = "todomvc_supersolid"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish = false
+
+[features]
+# Native state-preserving hot reload: live `.tsx` via TsxLoader + the asset watcher.
+# `cargo run -p todomvc_supersolid --features hmr`.
+hmr = ["superui/hmr", "bevy/file_watcher"]
+# Opt-in diagnostics (text + color dump, click/key logging).
+debug-ui = []
+# Bevy Remote Protocol + BRP extras so bevy_brp_mcp can drive/inspect the app.
+mcp_debug = ["dep:bevy_brp_extras", "bevy/bevy_remote"]
+
+[dependencies]
+superui = { path = "../../crates/superui" }
+superui_css = { path = "../../crates/superui_css" }
+# Pulled transitively via `superui`; named directly for the mcp_debug click injector.
+superui_bridge = { path = "../../crates/superui_bridge" }
+bevy = { version = "0.17" }
+serde = { version = "1", features = ["derive"] }
+
+[dependencies.bevy_brp_extras]
+optional = true
+version = "0.17.3"
+
+# Host-only: pre-transpile app.tsx -> app.generated.js for wasm / no-HMR native.
+[build-dependencies]
+supersolid = { path = "../../crates/supersolid" }
+
+[dev-dependencies]
+# Headless tests reuse the browser stack without a window.
+superui_dom = { path = "../../crates/superui_dom" }
+superui_html = { path = "../../crates/superui_html" }
+# The HMR test transpiles app.tsx directly and drives a UiRuntime.
+supersolid = { path = "../../crates/supersolid" }
+
+# Boa (via superui) needs the JS getrandom backend on wasm.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { version = "0.3", features = ["wasm_js"] }
