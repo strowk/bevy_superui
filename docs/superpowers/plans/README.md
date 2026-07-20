@@ -12,7 +12,7 @@ Design specs: [base design](../specs/2026-07-18-bevy-superui-design.md) ·
 **Roadmap:**
 - **Phase 1 — browser core** — plain HTML/CSS/JS TodoMVC, native + `wasm32-unknown-unknown`. ✅ Done.
 - **Phase 2 — Supersolid** — the Solid-like fine-grained TSX component framework, its lower-level
-  DOM/JS prerequisites, and a Supersolid TodoMVC example. ◀ **current**.
+  DOM/JS prerequisites, and a Supersolid TodoMVC example. ✅ Done.
 - **Phase 3 — browser compatibility** — fuller browser fidelity, scoped to what doesn't require
   large underlying-crate changes. Later.
 
@@ -37,16 +37,15 @@ Run it: `cargo run -p todomvc`.
 
 ---
 
-## Phase 2 — Supersolid (current)
+## Phase 2 — Supersolid (✅ complete)
 
 **Supersolid** is a single-model, Solid-like fine-grained component framework authored in
 `.tsx`, transpiled in Rust and run in Boa above the existing arena DOM. Direction spec:
 [`../specs/2026-07-19-superui-component-framework-direction.md`](../specs/2026-07-19-superui-component-framework-direction.md).
 
-Decomposed into a plan series. **Plan 1 (lower-level prerequisites) is detailed now**; Plans 2–6
-are written just-in-time as the runtime/compiler APIs firm up (Phase 1's approach). The phase's
-deliverable is a runnable **Supersolid TodoMVC** in a new `examples/todomvc_supersolid/` folder —
-the existing `examples/todomvc` is kept as-is.
+Phase 2 delivered a runnable, hot-reloadable **Supersolid TodoMVC** (`examples/todomvc_supersolid/`)
+authored in Solid-style `.tsx`, running on native + `wasm32-unknown-unknown`. Decomposed into 6
+sequential plans (the lower-level prerequisites through the example and docs).
 
 | # | Deliverable | Scope | Status |
 |---|---|---|---|
@@ -55,11 +54,7 @@ the existing `examples/todomvc` is kept as-is.
 | 3 | `supersolid_runtime` reactive core | JS runtime module in Boa: `createSignal`/`createEffect`/`createMemo`/`onMount`/`onCleanup`/`createContext`/`useContext` + scheduler. Headless. | ✅ Done ([plan](./2026-07-19-supersolid-phase2-03-reactive-core.md)) |
 | 4 | `supersolid` render + control-flow | JSX runtime (build-once nodes + surgical reactive bindings via the DOM API) and control-flow `<Show>`/`<For>`/`<Index>`/`<Switch>`. | ✅ Done ([plan](./2026-07-20-supersolid-phase2-04-render-controlflow.md)) |
 | 5 | State-preserving hot reload | `.tsx` HMR: signal-cell rehydration keyed by module × instance × creation-order; remount-on-shape-change fallback (spec §11.2). | ✅ Done ([design](../specs/2026-07-20-supersolid-hmr-state-preservation-design.md) · [plan](./2026-07-20-supersolid-phase2-05-hmr.md)) |
-| 6 | `examples/todomvc_supersolid` | The Phase 2 deliverable: runnable Supersolid TodoMVC (native + wasm, hot reload), authored in `.tsx`. Existing `examples/todomvc` retained. | ⏳ Just-in-time |
-
-The series is provisional — crate splits and plan boundaries may shift as Plans 2–4 are designed
-just-in-time (each may get a short focused brainstorm first, since the direction spec is
-architectural, not implementation-level).
+| 6 | `examples/todomvc_supersolid` | The Phase 2 deliverable: runnable Supersolid TodoMVC (native + wasm, hot reload), authored in `.tsx`. Existing `examples/todomvc` retained. | ✅ Done ([plan](./2026-07-20-supersolid-phase2-06-todomvc.md)) |
 
 ---
 
