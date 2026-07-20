@@ -75,3 +75,18 @@ fn toggle_marks_completed_and_updates_count() {
     };
     assert!(classes.iter().any(|c| c == "completed"));
 }
+
+#[test]
+fn destroy_removes_a_todo() {
+    let mut app = app();
+    let _root = mount(&mut app);
+    add(&mut app, "a");
+    add(&mut app, "b");
+    assert_eq!(li_labels(&app).len(), 2);
+
+    // Click the destroy button of the first todo.
+    let first_destroy = nodes_by_selector(&app, "li .destroy")[0];
+    click(&mut app, first_destroy);
+
+    assert_eq!(li_labels(&app), vec!["b".to_string()]);
+}

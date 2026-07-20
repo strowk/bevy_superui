@@ -18,6 +18,7 @@ function TodoItem(props) {
       <input class="toggle" type="checkbox" checked={props.todo.done}
              onChange={() => props.onToggle(props.todo.id)} />
       <span class="label">{props.todo.title}</span>
+      <button class="destroy" onClick={() => props.onRemove(props.todo.id)}>x</button>
     </li>
   );
 }
@@ -47,6 +48,7 @@ function App() {
   };
   const toggle = (id) =>
     setTodos(todos().map((t) => (t.id === id ? { ...t, done: !t.done } : t)));
+  const remove = (id) => setTodos(todos().filter((t) => t.id !== id));
 
   return (
     <div id="app">
@@ -54,7 +56,7 @@ function App() {
       <Header draft={draft()} onInput={setDraft} onAdd={addTodo} />
       <ul id="todo-list">
         {<For each={todos()}>
-          {(todo) => <TodoItem todo={todo} onToggle={toggle} />}
+          {(todo) => <TodoItem todo={todo} onToggle={toggle} onRemove={remove} />}
         </For>}
       </ul>
       <Footer remaining={remaining()} />
