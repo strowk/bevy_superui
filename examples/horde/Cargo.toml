@@ -5,9 +5,10 @@ edition = "2021"
 publish = false
 
 [features]
-default = ["ui-native"]
+default = ["ui-native", "debug-ui"]
 ui-native = []
-# debug-ui enables the Bevy FPS debug overlay (top-left corner) + verbose diagnostics.
+# debug-ui enables the Bevy FPS debug overlay (top-left corner). On by default (dev/benchmark
+# vehicle); disable with `--no-default-features --features ui-native`.
 debug-ui = ["bevy/bevy_dev_tools"]
 mcp_debug = ["dep:bevy_brp_extras", "bevy/bevy_remote"]
 

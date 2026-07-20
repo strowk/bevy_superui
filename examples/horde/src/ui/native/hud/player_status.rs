@@ -28,10 +28,10 @@ fn build(mut commands: Commands, roots: Query<Entity, With<HudRoot>>) {
             PlayerStatusPanel,
             Node {
                 position_type: PositionType::Absolute,
-                left: Val::Px(12.0),
-                // Top-left corner (0,0)..~(200,40) is reserved for the FPS overlay;
-                // start below it. See Global Constraints (layout).
-                top: Val::Px(48.0),
+                // Top-LEFT is reserved for the FPS debug overlay (on by default);
+                // the player-status panel lives in the top-right corner instead.
+                right: Val::Px(12.0),
+                top: Val::Px(12.0),
                 width: Val::Px(240.0),
                 flex_direction: FlexDirection::Column,
                 row_gap: Val::Px(theme::SPACE),
