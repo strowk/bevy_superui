@@ -1,6 +1,7 @@
-import { createSignal, createMemo, For, render } from "supersolid";
+import { createSignal, createMemo, For, Show, render } from "supersolid";
 
 interface Todo { id: number; title: string; done: boolean; }
+type Filter = "all" | "active" | "completed";
 
 function Header(props) {
   return (
@@ -29,15 +30,29 @@ function Footer(props) {
       <span id="count">
         {props.remaining + (props.remaining === 1 ? " item left" : " items left")}
       </span>
+      <div class="filters">
+        <button id="filter-all" class={props.filter === "all" ? "filter selected" : "filter"}
+                onClick={() => props.onFilter("all")}>All</button>
+        <button id="filter-active" class={props.filter === "active" ? "filter selected" : "filter"}
+                onClick={() => props.onFilter("active")}>Active</button>
+        <button id="filter-completed"
+                class={props.filter === "completed" ? "filter selected" : "filter"}
+                onClick={() => props.onFilter("completed")}>Completed</button>
+      </div>
     </div>
   );
 }
 
 function App() {
   const [todos, setTodos] = createSignal<Todo[]>([]);
+  const [filter, setFilter] = createSignal<Filter>("all");
   const [draft, setDraft] = createSignal("");
 
   const remaining = createMemo(() => todos().filter((t) => !t.done).length);
+  const filtered = createMemo(() => {
+    const f = filter();
+    return todos().filter((t) => (f === "all" ? true : f === "active" ? !t.done : t.done));
+  });
 
   const addTodo = () => {
     const title = draft().trim();
@@ -55,11 +70,13 @@ function App() {
       <h1>todos</h1>
       <Header draft={draft()} onInput={setDraft} onAdd={addTodo} />
       <ul id="todo-list">
-        {<For each={todos()}>
+        {<For each={filtered()}>
           {(todo) => <TodoItem todo={todo} onToggle={toggle} onRemove={remove} />}
         </For>}
       </ul>
-      <Footer remaining={remaining()} />
+      {<Show when={todos().length > 0}>
+        <Footer remaining={remaining()} filter={filter()} onFilter={setFilter} />
+      </Show>}
     </div>
   );
 }

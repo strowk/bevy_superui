@@ -90,3 +90,42 @@ fn destroy_removes_a_todo() {
 
     assert_eq!(li_labels(&app), vec!["b".to_string()]);
 }
+
+#[test]
+fn filters_show_active_and_completed_subsets() {
+    let mut app = app();
+    let _root = mount(&mut app);
+    add(&mut app, "a");
+    add(&mut app, "b");
+    // Complete "a".
+    let first_toggle = nodes_by_selector(&app, "li .toggle")[0];
+    click_checkbox(&mut app, first_toggle);
+
+    // Active filter -> only "b".
+    let btn_active = node_by_selector(&app, "#filter-active");
+    click(&mut app, btn_active);
+    assert_eq!(li_labels(&app), vec!["b".to_string()]);
+
+    // Completed filter -> only "a".
+    let btn_completed = node_by_selector(&app, "#filter-completed");
+    click(&mut app, btn_completed);
+    assert_eq!(li_labels(&app), vec!["a".to_string()]);
+
+    // Back to All -> both.
+    let btn_all = node_by_selector(&app, "#filter-all");
+    click(&mut app, btn_all);
+    assert_eq!(li_labels(&app).len(), 2);
+}
+
+#[test]
+fn footer_hidden_until_first_todo() {
+    let mut app = app();
+    let _root = mount(&mut app);
+    // No todos yet -> <Show> renders nothing, so #count is absent.
+    assert!(nodes_by_selector(&app, "#count").is_empty(), "footer hidden when empty");
+
+    add(&mut app, "a");
+    // Now the footer (and its count) appears.
+    let count = node_by_selector(&app, "#count");
+    assert_eq!(text_content(&app, count), "1 item left");
+}
