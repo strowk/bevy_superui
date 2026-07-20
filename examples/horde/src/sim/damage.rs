@@ -106,15 +106,19 @@ pub fn tick_progression(
     time: Res<Time>,
     mut prog: ResMut<Progression>,
     mut log: ResMut<CombatLog>,
+    mut prev_wave: Local<u32>,
 ) {
-    let prev_wave = prog.wave;
     prog.elapsed += time.delta_secs();
     for e in log.0.iter_mut() {
         e.age += time.delta_secs();
     }
-    if prog.wave != prev_wave {
+    // Log only when the wave number increases; always resync so a restart
+    // (which resets prog.wave to 0 while this Local persists) can't get stuck
+    // and can't emit a spurious "Wave 0" line.
+    if prog.wave > *prev_wave {
         push_log(&mut log, format!("Wave {}", prog.wave));
     }
+    *prev_wave = prog.wave;
 }
 
 #[cfg(test)]
@@ -151,5 +155,30 @@ mod dn_tests {
         app.add_systems(Update, tick_damage_numbers);
         for _ in 0..10 { app.update(); }
         assert!(app.world().get_entity(e).is_err());
+    }
+}
+
+#[cfg(test)]
+mod progression_tests {
+    use super::*;
+    use bevy::time::TimeUpdateStrategy;
+    use std::time::Duration;
+
+    #[test]
+    fn wave_increase_pushes_log() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(10)));
+        app.init_resource::<Progression>();
+        app.init_resource::<CombatLog>();
+        app.add_systems(Update, tick_progression);
+        // wave 0 on first tick -> no log
+        app.update();
+        assert!(app.world().resource::<CombatLog>().0.is_empty(), "no log at wave 0");
+        // bump wave -> next tick logs "Wave 3"
+        app.world_mut().resource_mut::<Progression>().wave = 3;
+        app.update();
+        let log = app.world().resource::<CombatLog>();
+        assert!(log.0.iter().any(|e| e.text == "Wave 3"), "expected a 'Wave 3' log line");
     }
 }
