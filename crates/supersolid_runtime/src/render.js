@@ -346,7 +346,19 @@
     });
   }
 
+  // Root entry: establish a disposable reactive scope and mount `code` into
+  // `mountEl`. Returns `dispose` (Plan 5 HMR tears the tree down with it).
+  function render(code, mountEl) {
+    var dispose;
+    createRoot(function (d) {
+      dispose = d;
+      insert(mountEl, code);
+    });
+    return dispose;
+  }
+
   // ---- Publish the ABI (extended by later tasks) ----
+  globalThis.render = render;
   globalThis.Show = Show;
   globalThis.For = For;
   globalThis.Index = Index;

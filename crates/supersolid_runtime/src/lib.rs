@@ -1076,6 +1076,27 @@ mod render_tests {
         assert_eq!(text(&mut e, "globalThis.t2"), "none");
     }
 
+    #[test]
+    fn render_mounts_a_component_into_a_target() {
+        let mut e = render_engine();
+        e.eval(
+            r#"
+            function App() {
+                var d = $ss.el("h1");
+                $ss.child(d, $ss.txt("hello"));
+                return d;
+            }
+            globalThis.root = $ss.el("main");
+            globalThis.dispose = render(function () { return $ss.cmp(App, {}); }, globalThis.root);
+            globalThis.t = root.textContent;             // "hello"
+            globalThis.isFn = (typeof globalThis.dispose === "function"); // true
+            "#,
+        )
+        .unwrap();
+        assert_eq!(text(&mut e, "globalThis.t"), "hello");
+        assert_eq!(text(&mut e, "globalThis.isFn"), "true");
+    }
+
     // THE RED DRIVER for this task. Node wrappers are identity-stable, so the Task-4
     // replace-based stub yields the SAME final DOM as minimal-move (the two order
     // tests above pass under both). What distinguishes them is HOW MANY DOM ops a

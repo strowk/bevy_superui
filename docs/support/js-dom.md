@@ -90,3 +90,21 @@ browser DOM/Web API surface. Available to author `.js` and to Plan 2's transpile
 | `onMount(fn)` / `onCleanup(fn)` | ✅ | T0 | run-once-after-setup / owner teardown |
 | `createContext(default?)` / `useContext(ctx)` | ✅ | T0 | context via the owner tree |
 | `untrack(fn)` / `batch(fn)` | ✅ | T0 | read without subscribing / coalesce writes |
+
+### Render + control flow (`supersolid_runtime` render layer)
+
+Compiler-internal `$ss.*` helpers (emitted by the transpiler) and author-facing
+control-flow globals. All build/mutate the arena DOM; downstream reconcile is unchanged.
+
+| Global | Status | Since | Notes |
+|---|---|---|---|
+| `$ss.el` / `$ss.txt` / `$ss.attr` / `$ss.child` | ✅ | T0 | build-once nodes; `value`/`checked` set as properties, else attributes |
+| `$ss.on` | ✅ | T0 | `addEventListener` (handler as-is) |
+| `$ss.bind` | ✅ | T0 | reactive attribute (effect); surgical re-apply |
+| `$ss.insert` | ✅ | T0 | reactive child around an anchor; surgical text; keyed minimal-move list reconcile |
+| `$ss.cmp` / `$ss.frag` | ✅ | T0 | run-once component (`untrack`); fragment array |
+| `render(code, mountEl)` | ✅ | T0 | root entry; returns `dispose` |
+| `<Show>` | ✅ | T0 | conditional; branch disposal via memo recompute |
+| `<For>` | ✅ | T0 | keyed by item identity; per-row disposable roots; state preserved on reorder |
+| `<Index>` | ✅ | T0 | keyed by position; item is an in-place-updated signal |
+| `<Switch>` / `<Match>` | ✅ | T0 | first truthy branch, else fallback |
