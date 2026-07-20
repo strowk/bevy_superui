@@ -53,10 +53,22 @@ impl UiRuntime {
     /// bootstrap, but does NOT run author JS yet (callers `run_script` after, so
     /// hot reload can re-exec independently). Starts `dirty` so the first frame
     /// reconciles.
-    pub fn new(dom: Rc<RefCell<Dom>>, root: Entity, stylesheet: Handle<StyleSheet>) -> Self {
+    pub fn new(
+        dom: Rc<RefCell<Dom>>,
+        root: Entity,
+        stylesheet: Handle<StyleSheet>,
+        hmr: bool,
+    ) -> Self {
         let mut engine = BoaEngine::new(dom.clone());
         superui_api::install(&mut engine);
         supersolid_runtime::install(&mut engine);
+        // Plan 5: enable state-preserving HMR collection in render.js. Must run
+        // after install (so the runtime exists) and before any run_script (so the
+        // first render already collects). Gate decided by the caller (feature +
+        // asset watcher); off => render.js takes the Plan-4 fast paths.
+        if hmr {
+            let _ = engine.eval("globalThis.__ssHmr = true;");
+        }
         crate::bevy_bridge::install_bevy_bridge(&mut engine);
         UiRuntime {
             dom,
@@ -160,7 +172,7 @@ mod tests {
         let dom = Rc::new(RefCell::new(superui_html::parse_document(
             "<div id='a'></div>",
         )));
-        let mut rt = UiRuntime::new(dom.clone(), Entity::PLACEHOLDER, Handle::default());
+        let mut rt = UiRuntime::new(dom.clone(), Entity::PLACEHOLDER, Handle::default(), false);
         assert!(rt.dirty, "a fresh runtime must reconcile on the first frame");
 
         // A script that mutates the DOM runs without panicking and re-dirties.
@@ -183,7 +195,7 @@ mod tests {
         let dom = Rc::new(RefCell::new(superui_html::parse_document(
             "<div id='a'></div>",
         )));
-        let mut rt = UiRuntime::new(dom, Entity::PLACEHOLDER, Handle::default());
+        let mut rt = UiRuntime::new(dom, Entity::PLACEHOLDER, Handle::default(), false);
         // The reactive globals the Plan 2 transpiler emits imports for must resolve.
         rt.run_script(
             r#"
@@ -201,5 +213,33 @@ mod tests {
             .as_number()
             .unwrap();
         assert_eq!(got, 42.0);
+    }
+
+    #[test]
+    fn hmr_flag_set_when_enabled() {
+        let dom = Rc::new(RefCell::new(superui_html::parse_document("<div id='a'></div>")));
+        let mut rt = UiRuntime::new(dom, Entity::PLACEHOLDER, Handle::default(), true);
+        let on = rt
+            .engine
+            .context_mut()
+            .eval(boa_engine::Source::from_bytes("globalThis.__ssHmr === true"))
+            .unwrap()
+            .as_boolean()
+            .unwrap();
+        assert!(on, "hmr=true must set globalThis.__ssHmr");
+    }
+
+    #[test]
+    fn hmr_flag_absent_when_disabled() {
+        let dom = Rc::new(RefCell::new(superui_html::parse_document("<div id='a'></div>")));
+        let mut rt = UiRuntime::new(dom, Entity::PLACEHOLDER, Handle::default(), false);
+        let on = rt
+            .engine
+            .context_mut()
+            .eval(boa_engine::Source::from_bytes("globalThis.__ssHmr === true"))
+            .unwrap()
+            .as_boolean()
+            .unwrap();
+        assert!(!on, "hmr=false must leave globalThis.__ssHmr unset");
     }
 }

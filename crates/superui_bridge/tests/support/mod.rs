@@ -42,7 +42,17 @@ pub fn test_app() -> App {
 pub fn mount(app: &mut App, dom: Rc<RefCell<Dom>>) -> Entity {
     let root = app.world_mut().spawn(Node::default()).id();
     let stylesheet: Handle<StyleSheet> = Handle::default();
-    let rt = UiRuntime::new(dom, root, stylesheet);
+    let rt = UiRuntime::new(dom, root, stylesheet, false);
+    app.world_mut().insert_non_send_resource(rt);
+    app.add_systems(Update, reconcile_system);
+    root
+}
+
+/// Like `mount`, but with state-preserving HMR collection enabled.
+pub fn mount_hmr(app: &mut App, dom: Rc<RefCell<Dom>>) -> Entity {
+    let root = app.world_mut().spawn(Node::default()).id();
+    let stylesheet: Handle<StyleSheet> = Handle::default();
+    let rt = UiRuntime::new(dom, root, stylesheet, true);
     app.world_mut().insert_non_send_resource(rt);
     app.add_systems(Update, reconcile_system);
     root

@@ -124,7 +124,7 @@ pub fn apply_hot_reload(world: &mut World) {
             let dom = Rc::new(RefCell::new(superui_html::parse_document(&src)));
             let entity = rt.root;
             let stylesheet = rt.stylesheet.clone();
-            rt = UiRuntime::new(dom, entity, stylesheet);
+            rt = UiRuntime::new(dom, entity, stylesheet, false);
         }
         // After an HTML rebuild we must also re-run JS (fresh DOM).
         if let Some(js) = world

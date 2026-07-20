@@ -134,7 +134,7 @@ pub fn mount_when_ready(world: &mut World) {
 
     // Build the runtime: parse HTML -> Dom, wire engine, run author JS.
     let dom = Rc::new(RefCell::new(superui_html::parse_document(&html_src)));
-    let mut rt = UiRuntime::new(dom, entity, css_handle);
+    let mut rt = UiRuntime::new(dom, entity, css_handle, false);
     rt.run_script(&js_src);
 
     // Insert as a NonSend resource — valid because we're in an exclusive system
