@@ -9,12 +9,15 @@ pub mod spawn;
 pub mod projectile;
 pub mod damage;
 pub mod pickup;
+pub mod snapshot;
 
 pub use config::SimConfig;
 pub use rng::Rng;
 #[allow(unused_imports)]
 pub use intent::{Intent, IntentQueue};
+#[allow(unused_imports)]
 pub use spawn::SpawnState;
+pub use snapshot::UiSnapshot;
 
 /// The game simulation. No dependency on `crate::ui`, `bevy_ui`, or Boa.
 pub struct SimPlugin;
@@ -26,11 +29,72 @@ impl Plugin for SimPlugin {
         app.insert_resource(cfg)
             .insert_resource(rng)
             .init_resource::<IntentQueue>()
-            .init_resource::<SpawnState>()
+            .init_resource::<UiSnapshot>()
             .init_resource::<damage::Progression>()
+            .init_resource::<damage::DamageHistory>()
+            .init_resource::<damage::CombatLog>()
+            .init_resource::<spawn::SpawnState>()
+            .init_resource::<pickup::PickupTimer>()
             .add_message::<damage::DamageEvent>();
-        // Systems added in later tasks run in FixedUpdate, gated on GameState::Playing.
+
+        app.add_systems(OnEnter(crate::game_state::GameState::Playing), setup_playing);
+
+        app.add_systems(
+            FixedUpdate,
+            (
+                player::player_aim,
+                player::player_movement,
+                player::player_shoot,
+                projectile::projectile_motion,
+                projectile::projectile_collision,
+                enemy::enemy_movement,
+                enemy::enemy_melee,
+                spawn::spawn_waves,
+                pickup::spawn_pickups,
+                pickup::grab_pickups,
+                pickup::switch_weapon,
+                damage::spawn_damage_numbers,
+                damage::tick_damage_numbers,
+                damage::record_damage_history,
+                damage::tick_progression,
+                player::player_death,
+            )
+                .chain()
+                .run_if(in_state(crate::game_state::GameState::Playing)),
+        );
+
+        // Snapshot assembly runs every frame regardless of pause so the UI can render.
+        app.add_systems(Update, snapshot::assemble_world_snapshot);
+        // Intents are cleared at end of frame after all consumers have read them.
+        app.add_systems(Last, clear_intents);
     }
+}
+
+fn setup_playing(
+    mut commands: Commands,
+    cfg: Res<SimConfig>,
+    existing: Query<
+        Entity,
+        Or<(
+            With<Player>,
+            With<enemy::Enemy>,
+            With<projectile::Projectile>,
+            With<pickup::Pickup>,
+            With<damage::DamageNumber>,
+        )>,
+    >,
+    mut prog: ResMut<damage::Progression>,
+) {
+    // Fresh start (also handles Restart): clear old sim entities and progression.
+    for e in existing.iter() {
+        commands.entity(e).despawn();
+    }
+    *prog = damage::Progression::default();
+    player::spawn_player(&mut commands, &cfg);
+}
+
+fn clear_intents(mut q: ResMut<IntentQueue>) {
+    q.0.clear();
 }
 
 #[derive(Component)]

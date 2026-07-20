@@ -24,6 +24,7 @@ pub fn spawn_waves(
     cfg: Res<SimConfig>,
     mut rng: ResMut<Rng>,
     mut state: ResMut<SpawnState>,
+    mut prog: ResMut<crate::sim::damage::Progression>,
     enemies: Query<(), With<Enemy>>,
     mut commands: Commands,
 ) {
@@ -33,6 +34,7 @@ pub fn spawn_waves(
     }
     state.timer = cfg.spawn_interval;
     state.wave += 1;
+    prog.wave = state.wave;
 
     let live = enemies.iter().count();
     let room = cfg.enemy_cap.saturating_sub(live);
