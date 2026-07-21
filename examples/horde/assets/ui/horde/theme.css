@@ -49,7 +49,7 @@
 /* ── Generic panel card ─────────────────────────────────────────────────── */
 .panel {
   background-color: var(--panel);
-  border: 1px solid var(--panel-border);
+  border: 1px var(--panel-border);
   border-radius: var(--radius);
   padding: var(--space);
   display: flex;
@@ -90,7 +90,7 @@
   width: 160px;
   height: 160px;
   background-color: rgba(13, 13, 20, 0.85);
-  border: 1px solid var(--panel-border);
+  border: 1px var(--panel-border);
   border-radius: var(--radius);
   padding: 0;
   /* no gap — blips are absolutely positioned inside */
@@ -117,10 +117,9 @@
   left: 12px;
   width: 240px;
   background-color: transparent;
-  border: none;
+  border: 0px;
   padding: 0;
   gap: 2px;
-  pointer-events: none;
 }
 
 .log-line {
@@ -133,7 +132,6 @@
   position: absolute;
   width: 100%;
   height: 100%;
-  pointer-events: none;
 }
 
 /* ── Progress bars ──────────────────────────────────────────────────────── */
@@ -143,7 +141,7 @@
   background-color: var(--bar-track);
   border-radius: 4px;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px rgba(255, 255, 255, 0.06);
 }
 
 .bar-fill {
@@ -164,11 +162,10 @@
   align-items: center;
   justify-content: center;
   background-color: var(--slot-idle);
-  border: 2px solid var(--panel-border);
+  border: 2px var(--panel-border);
   border-radius: var(--radius);
   color: var(--text);
   font-size: 12px;
-  cursor: pointer;
 }
 
 .slot.active {
@@ -199,8 +196,6 @@
   position: absolute;
   color: var(--text);
   font-size: 12px;
-  pointer-events: none;
-  user-select: none;
 }
 
 .dmg.crit {
@@ -256,7 +251,6 @@
 .title {
   font-size: 72px;
   color: var(--accent);
-  font-weight: bold;
 }
 
 .subtitle {
@@ -282,12 +276,11 @@
 /* ── Menu buttons ───────────────────────────────────────────────────────── */
 .menu-btn {
   background-color: var(--btn-idle);
-  border: 1px solid var(--panel-border);
+  border: 1px var(--panel-border);
   border-radius: var(--radius);
   padding: 11px 20px;
   color: var(--text);
   font-size: 15px;
-  cursor: pointer;
   min-width: 160px;
   justify-content: center;
 }
@@ -327,13 +320,15 @@
 }
 
 .inv-card {
-  flex: 0 0 calc(50% - 4px);
+  /* Fixed width for a 2-column wrap (2*268 + 8 gap = 544 < 560 grid width).
+     flair has no calc(), so avoid `calc(50% - 4px)`. */
+  width: 268px;
   display: flex;
   flex-direction: column;
   gap: 4px;
   padding: var(--space);
   background-color: #292b3d;
-  border: 2px solid var(--panel-border);
+  border: 2px var(--panel-border);
   border-radius: var(--radius);
 }
 
@@ -344,7 +339,6 @@
 .inv-name {
   font-size: 15px;
   color: var(--text);
-  font-weight: bold;
 }
 
 .inv-stat {
