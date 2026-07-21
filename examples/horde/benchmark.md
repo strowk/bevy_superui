@@ -15,9 +15,6 @@ Design: `docs/superpowers/specs/2026-07-21-horde-benchmark-harness-design.md`.
 
 ## Current finding (what to optimize)
 
-Measured on the fixed harness (supersolid UI actually mounts — it needs
-`app.generated.js` in the asset set, else it silently renders nothing):
-
 - Supersolid's cost is **almost entirely the per-frame reconcile** — `ui_backend`
   is ~98–99.7% of the frame; `marshal` (the JSON bridge) is ~0.1% and irrelevant.
 - It scales ~**linearly with live enemy count**: ~0.32 ms of reconcile *per enemy
