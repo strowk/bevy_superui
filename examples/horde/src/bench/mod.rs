@@ -359,6 +359,84 @@ pub fn report_table(r: &Report) -> String {
     s
 }
 
+/// Live element counts sampled over a run — the counts that drive UI node/render
+/// cost. Backend-independent (the sim trajectory is identical across backends),
+/// so this contextualizes whether the bench workload matches the real game.
+#[derive(Clone, Copy, Debug)]
+pub struct Workload {
+    pub frames: usize,
+    pub enemies_avg: f64,
+    pub enemies_max: usize,
+    pub damage_avg: f64,
+    pub damage_max: usize,
+    pub blips_avg: f64,
+    pub blips_max: usize,
+}
+
+/// Sample live `UiSnapshot` element counts over `frames` measured updates (warmup
+/// excluded). Uses the Null backend — cheapest, and the counts are identical to
+/// what any UI backend would see for the same seed/config.
+pub fn sample_workload(sim: SimConfig, frames: usize, warmup: usize) -> Workload {
+    let mut app = build_bench_app(Backend::Null, sim);
+    for _ in 0..warmup {
+        app.update();
+    }
+    let (mut e_sum, mut d_sum, mut b_sum) = (0usize, 0usize, 0usize);
+    let (mut e_max, mut d_max, mut b_max) = (0usize, 0usize, 0usize);
+    for _ in 0..frames {
+        app.update();
+        let snap = app.world().resource::<UiSnapshot>();
+        let (e, d, b) = (snap.enemies.len(), snap.damage_numbers.len(), snap.blips.len());
+        e_sum += e;
+        d_sum += d;
+        b_sum += b;
+        e_max = e_max.max(e);
+        d_max = d_max.max(d);
+        b_max = b_max.max(b);
+    }
+    let n = frames.max(1) as f64;
+    Workload {
+        frames,
+        enemies_avg: e_sum as f64 / n,
+        enemies_max: e_max,
+        damage_avg: d_sum as f64 / n,
+        damage_max: d_max,
+        blips_avg: b_sum as f64 / n,
+        blips_max: b_max,
+    }
+}
+
+/// One-line workload summary (no leading label), for embedding in tables.
+pub fn workload_summary(w: &Workload) -> String {
+    format!(
+        "enemies avg {:.1} max {} | damage# avg {:.1} max {} | blips avg {:.1} max {}",
+        w.enemies_avg, w.enemies_max, w.damage_avg, w.damage_max, w.blips_avg, w.blips_max
+    )
+}
+
+/// Full workload line for the single-cap report.
+pub fn workload_line(w: &Workload) -> String {
+    format!("  workload: {}\n", workload_summary(w))
+}
+
+#[cfg(test)]
+mod workload_tests {
+    use super::*;
+
+    #[test]
+    fn stress_has_more_live_enemies_than_play() {
+        let play = sample_workload(sim_for("play", 60, 1), 200, 100);
+        let stress = sample_workload(sim_for("stress", 400, 1), 200, 100);
+        assert!(play.enemies_max > 0, "play run should have live enemies");
+        assert!(
+            stress.enemies_avg > play.enemies_avg,
+            "stress avg live enemies ({:.1}) should exceed play ({:.1})",
+            stress.enemies_avg,
+            play.enemies_avg
+        );
+    }
+}
+
 /// Compact one-row-per-cap scaling view.
 pub fn sweep_table(reports: &[Report]) -> String {
     use std::fmt::Write as _;
