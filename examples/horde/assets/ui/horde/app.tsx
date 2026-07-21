@@ -137,6 +137,27 @@ function Hud(props) {
   );
 }
 
+function Inventory(props) {
+  return (
+    <div class="modal dim" id="inventory">
+      <h2 class="screen-title">Inventory (I to close)</h2>
+      <div class="inv-grid">
+        {<For each={props.f().inventory}>
+          {(w) => (
+            <div class={w.active ? "inv-card active" : "inv-card"}>
+              <span class="inv-name">{w.name}</span>
+              <span class="inv-stat">{`DMG ${Math.round(w.dmg)}   RoF ${w.rof.toFixed(2)}s`}</span>
+              <span class="inv-stat">{`Spread ${w.spread.toFixed(2)}   x${w.projectiles}`}</span>
+              <span class="inv-stat">{`Mag ${w.mag}   Reload ${w.reload.toFixed(1)}s`}</span>
+            </div>
+          )}
+        </For>}
+      </div>
+      <button class="menu-btn" id="inv-close" onClick={() => props.onClose()}>Close</button>
+    </div>
+  );
+}
+
 function MainMenu() {
   const [settingsOpen, setSettingsOpen] = createSignal(false);
   return (
@@ -153,11 +174,18 @@ function MainMenu() {
   );
 }
 
-// Placeholder; real body added in Task B6.
 function Settings(props) {
+  const [cap, setCap] = createSignal(0);
   return (
-    <div class="modal" id="settings">
-      <button id="settings-close" onClick={() => props.onClose()}>Close</button>
+    <div class="modal dim" id="settings">
+      <h2 class="screen-title">Settings</h2>
+      <div class="settings-row">
+        <button id="cap-dec" onClick={() => bevy.send("AdjustEnemyCap", { delta: -20 })}>−</button>
+        <span id="cap-label">Enemy cap ±20</span>
+        <button id="cap-inc" onClick={() => bevy.send("AdjustEnemyCap", { delta: 20 })}>+</button>
+      </div>
+      <span class="inv-stat">UI backend: supersolid (TSX)</span>
+      <button class="menu-btn" id="settings-close" onClick={() => props.onClose()}>Close</button>
     </div>
   );
 }
@@ -194,12 +222,21 @@ function App() {
   const [frame, setFrame] = createSignal(EMPTY);
   bevy.on("frame", (f) => setFrame(f));
   const state = createMemo(() => frame().state);
+  const [invOpen, setInvOpen] = createSignal(false);
+  bevy.on("toggleInventory", () => setInvOpen((o) => !o));
 
   return (
     <div id="hud">
       {<Switch>
         <Match when={state() === "MainMenu"}><MainMenu /></Match>
-        <Match when={state() === "Playing"}><Hud f={frame} /></Match>
+        <Match when={state() === "Playing"}>
+          <div id="playing-root">
+            <Hud f={frame} />
+            {<Show when={invOpen()}>
+              <Inventory f={frame} onClose={() => setInvOpen(false)} />
+            </Show>}
+          </div>
+        </Match>
         <Match when={state() === "Paused"}><Pause /></Match>
         <Match when={state() === "GameOver"}><GameOver f={frame} /></Match>
       </Switch>}

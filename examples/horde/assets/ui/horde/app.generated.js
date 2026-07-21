@@ -264,50 +264,114 @@ function Hud(props) {
 	})();
 }
 $ss.hot("assets/ui/horde\\app.tsx#Hud", Hud);
+function Inventory(props) {
+	return (() => {
+		const _el28 = $ss.el("div");
+		$ss.attr(_el28, "class", "modal dim");
+		$ss.attr(_el28, "id", "inventory");
+		$ss.child(_el28, (() => {
+			const _el29 = $ss.el("h2");
+			$ss.attr(_el29, "class", "screen-title");
+			$ss.child(_el29, $ss.txt("Inventory (I to close)"));
+			return _el29;
+		})());
+		$ss.child(_el28, (() => {
+			const _el30 = $ss.el("div");
+			$ss.attr(_el30, "class", "inv-grid");
+			$ss.insert(_el30, () => $ss.cmp(For, {
+				get each() {
+					return props.f().inventory;
+				},
+				get children() {
+					return (w) => (() => {
+						const _el23 = $ss.el("div");
+						$ss.bind(_el23, "class", () => w.active ? "inv-card active" : "inv-card");
+						$ss.child(_el23, (() => {
+							const _el24 = $ss.el("span");
+							$ss.attr(_el24, "class", "inv-name");
+							$ss.insert(_el24, () => w.name);
+							return _el24;
+						})());
+						$ss.child(_el23, (() => {
+							const _el25 = $ss.el("span");
+							$ss.attr(_el25, "class", "inv-stat");
+							$ss.insert(_el25, () => `DMG ${Math.round(w.dmg)}   RoF ${w.rof.toFixed(2)}s`);
+							return _el25;
+						})());
+						$ss.child(_el23, (() => {
+							const _el26 = $ss.el("span");
+							$ss.attr(_el26, "class", "inv-stat");
+							$ss.insert(_el26, () => `Spread ${w.spread.toFixed(2)}   x${w.projectiles}`);
+							return _el26;
+						})());
+						$ss.child(_el23, (() => {
+							const _el27 = $ss.el("span");
+							$ss.attr(_el27, "class", "inv-stat");
+							$ss.insert(_el27, () => `Mag ${w.mag}   Reload ${w.reload.toFixed(1)}s`);
+							return _el27;
+						})());
+						return _el23;
+					})();
+				}
+			}));
+			return _el30;
+		})());
+		$ss.child(_el28, (() => {
+			const _el31 = $ss.el("button");
+			$ss.attr(_el31, "class", "menu-btn");
+			$ss.attr(_el31, "id", "inv-close");
+			$ss.on(_el31, "click", () => props.onClose());
+			$ss.child(_el31, $ss.txt("Close"));
+			return _el31;
+		})());
+		return _el28;
+	})();
+}
+$ss.hot("assets/ui/horde\\app.tsx#Inventory", Inventory);
 function MainMenu() {
 	const [settingsOpen, setSettingsOpen] = createSignal(false);
 	return (() => {
-		const _el23 = $ss.el("div");
-		$ss.attr(_el23, "class", "screen");
-		$ss.attr(_el23, "id", "main-menu");
-		$ss.child(_el23, (() => {
-			const _el24 = $ss.el("h1");
-			$ss.attr(_el24, "class", "title");
-			$ss.attr(_el24, "id", "title");
-			$ss.child(_el24, $ss.txt("HORDE"));
-			return _el24;
+		const _el32 = $ss.el("div");
+		$ss.attr(_el32, "class", "screen");
+		$ss.attr(_el32, "id", "main-menu");
+		$ss.child(_el32, (() => {
+			const _el33 = $ss.el("h1");
+			$ss.attr(_el33, "class", "title");
+			$ss.attr(_el33, "id", "title");
+			$ss.child(_el33, $ss.txt("HORDE"));
+			return _el33;
 		})());
-		$ss.child(_el23, (() => {
-			const _el25 = $ss.el("span");
-			$ss.attr(_el25, "class", "subtitle");
-			$ss.child(_el25, $ss.txt("survive the swarm"));
-			return _el25;
+		$ss.child(_el32, (() => {
+			const _el34 = $ss.el("span");
+			$ss.attr(_el34, "class", "subtitle");
+			$ss.child(_el34, $ss.txt("survive the swarm"));
+			return _el34;
 		})());
-		$ss.child(_el23, (() => {
-			const _el26 = $ss.el("button");
-			$ss.attr(_el26, "class", "menu-btn");
-			$ss.attr(_el26, "id", "start");
-			$ss.on(_el26, "click", () => intent("StartGame"));
-			$ss.child(_el26, $ss.txt("Start  (Enter)"));
-			return _el26;
+		$ss.child(_el32, (() => {
+			const _el35 = $ss.el("button");
+			$ss.attr(_el35, "class", "menu-btn");
+			$ss.attr(_el35, "id", "start");
+			$ss.on(_el35, "click", () => intent("StartGame"));
+			$ss.child(_el35, $ss.txt("Start  (Enter)"));
+			return _el35;
 		})());
-		$ss.child(_el23, (() => {
-			const _el27 = $ss.el("button");
-			$ss.attr(_el27, "class", "menu-btn");
-			$ss.attr(_el27, "id", "open-settings");
-			$ss.on(_el27, "click", () => setSettingsOpen(true));
-			$ss.child(_el27, $ss.txt("Settings"));
-			return _el27;
+		$ss.child(_el32, (() => {
+			const _el36 = $ss.el("button");
+			$ss.attr(_el36, "class", "menu-btn");
+			$ss.attr(_el36, "id", "open-settings");
+			$ss.on(_el36, "click", () => setSettingsOpen(true));
+			$ss.child(_el36, $ss.txt("Settings"));
+			return _el36;
 		})());
-		$ss.child(_el23, (() => {
-			const _el28 = $ss.el("button");
-			$ss.attr(_el28, "class", "menu-btn");
-			$ss.attr(_el28, "id", "quit");
-			$ss.on(_el28, "click", () => intent("Quit"));
-			$ss.child(_el28, $ss.txt("Quit"));
-			return _el28;
+		$ss.child(_el32, (() => {
+			const _el37 = $ss.el("button");
+			$ss.attr(_el37, "class", "menu-btn");
+			$ss.attr(_el37, "id", "quit");
+			$ss.on(_el37, "click", () => intent("Quit"));
+			$ss.child(_el37, $ss.txt("Quit"));
+			return _el37;
 		})());
-		$ss.insert(_el23, () => $ss.cmp(Show, {
+		$ss.insert(_el32, () => $ss.cmp(Show, {
 			get when() {
 				return settingsOpen();
 			},
@@ -315,120 +379,158 @@ function MainMenu() {
 				return $ss.cmp(Settings, { onClose: () => setSettingsOpen(false) });
 			}
 		}));
-		return _el23;
+		return _el32;
 	})();
 }
 $ss.hot("assets/ui/horde\\app.tsx#MainMenu", MainMenu);
-// Placeholder; real body added in Task B6.
 function Settings(props) {
+	const [cap, setCap] = createSignal(0);
 	return (() => {
-		const _el29 = $ss.el("div");
-		$ss.attr(_el29, "class", "modal");
-		$ss.attr(_el29, "id", "settings");
-		$ss.child(_el29, (() => {
-			const _el30 = $ss.el("button");
-			$ss.attr(_el30, "id", "settings-close");
-			$ss.on(_el30, "click", () => props.onClose());
-			$ss.child(_el30, $ss.txt("Close"));
-			return _el30;
+		const _el38 = $ss.el("div");
+		$ss.attr(_el38, "class", "modal dim");
+		$ss.attr(_el38, "id", "settings");
+		$ss.child(_el38, (() => {
+			const _el39 = $ss.el("h2");
+			$ss.attr(_el39, "class", "screen-title");
+			$ss.child(_el39, $ss.txt("Settings"));
+			return _el39;
 		})());
-		return _el29;
+		$ss.child(_el38, (() => {
+			const _el40 = $ss.el("div");
+			$ss.attr(_el40, "class", "settings-row");
+			$ss.child(_el40, (() => {
+				const _el41 = $ss.el("button");
+				$ss.attr(_el41, "id", "cap-dec");
+				$ss.on(_el41, "click", () => bevy.send("AdjustEnemyCap", { delta: -20 }));
+				$ss.child(_el41, $ss.txt("−"));
+				return _el41;
+			})());
+			$ss.child(_el40, (() => {
+				const _el42 = $ss.el("span");
+				$ss.attr(_el42, "id", "cap-label");
+				$ss.child(_el42, $ss.txt("Enemy cap ±20"));
+				return _el42;
+			})());
+			$ss.child(_el40, (() => {
+				const _el43 = $ss.el("button");
+				$ss.attr(_el43, "id", "cap-inc");
+				$ss.on(_el43, "click", () => bevy.send("AdjustEnemyCap", { delta: 20 }));
+				$ss.child(_el43, $ss.txt("+"));
+				return _el43;
+			})());
+			return _el40;
+		})());
+		$ss.child(_el38, (() => {
+			const _el44 = $ss.el("span");
+			$ss.attr(_el44, "class", "inv-stat");
+			$ss.child(_el44, $ss.txt("UI backend: supersolid (TSX)"));
+			return _el44;
+		})());
+		$ss.child(_el38, (() => {
+			const _el45 = $ss.el("button");
+			$ss.attr(_el45, "class", "menu-btn");
+			$ss.attr(_el45, "id", "settings-close");
+			$ss.on(_el45, "click", () => props.onClose());
+			$ss.child(_el45, $ss.txt("Close"));
+			return _el45;
+		})());
+		return _el38;
 	})();
 }
 $ss.hot("assets/ui/horde\\app.tsx#Settings", Settings);
 function Pause() {
 	return (() => {
-		const _el31 = $ss.el("div");
-		$ss.attr(_el31, "class", "screen dim");
-		$ss.attr(_el31, "id", "paused");
-		$ss.child(_el31, (() => {
-			const _el32 = $ss.el("h2");
-			$ss.attr(_el32, "class", "screen-title");
-			$ss.child(_el32, $ss.txt("Paused"));
-			return _el32;
+		const _el46 = $ss.el("div");
+		$ss.attr(_el46, "class", "screen dim");
+		$ss.attr(_el46, "id", "paused");
+		$ss.child(_el46, (() => {
+			const _el47 = $ss.el("h2");
+			$ss.attr(_el47, "class", "screen-title");
+			$ss.child(_el47, $ss.txt("Paused"));
+			return _el47;
 		})());
-		$ss.child(_el31, (() => {
-			const _el33 = $ss.el("button");
-			$ss.attr(_el33, "class", "menu-btn");
-			$ss.attr(_el33, "id", "resume");
-			$ss.on(_el33, "click", () => intent("Resume"));
-			$ss.child(_el33, $ss.txt("Resume  (Esc)"));
-			return _el33;
+		$ss.child(_el46, (() => {
+			const _el48 = $ss.el("button");
+			$ss.attr(_el48, "class", "menu-btn");
+			$ss.attr(_el48, "id", "resume");
+			$ss.on(_el48, "click", () => intent("Resume"));
+			$ss.child(_el48, $ss.txt("Resume  (Esc)"));
+			return _el48;
 		})());
-		$ss.child(_el31, (() => {
-			const _el34 = $ss.el("button");
-			$ss.attr(_el34, "class", "menu-btn");
-			$ss.attr(_el34, "id", "restart");
-			$ss.on(_el34, "click", () => intent("Restart"));
-			$ss.child(_el34, $ss.txt("Restart"));
-			return _el34;
+		$ss.child(_el46, (() => {
+			const _el49 = $ss.el("button");
+			$ss.attr(_el49, "class", "menu-btn");
+			$ss.attr(_el49, "id", "restart");
+			$ss.on(_el49, "click", () => intent("Restart"));
+			$ss.child(_el49, $ss.txt("Restart"));
+			return _el49;
 		})());
-		$ss.child(_el31, (() => {
-			const _el35 = $ss.el("button");
-			$ss.attr(_el35, "class", "menu-btn");
-			$ss.attr(_el35, "id", "pause-quit");
-			$ss.on(_el35, "click", () => intent("Quit"));
-			$ss.child(_el35, $ss.txt("Quit"));
-			return _el35;
+		$ss.child(_el46, (() => {
+			const _el50 = $ss.el("button");
+			$ss.attr(_el50, "class", "menu-btn");
+			$ss.attr(_el50, "id", "pause-quit");
+			$ss.on(_el50, "click", () => intent("Quit"));
+			$ss.child(_el50, $ss.txt("Quit"));
+			return _el50;
 		})());
-		return _el31;
+		return _el46;
 	})();
 }
 $ss.hot("assets/ui/horde\\app.tsx#Pause", Pause);
 function GameOver(props) {
 	const f = props.f;
 	return (() => {
-		const _el36 = $ss.el("div");
-		$ss.attr(_el36, "class", "screen dim");
-		$ss.attr(_el36, "id", "game-over");
-		$ss.child(_el36, (() => {
-			const _el37 = $ss.el("h2");
-			$ss.attr(_el37, "class", "screen-title danger");
-			$ss.child(_el37, $ss.txt("You Died"));
-			return _el37;
+		const _el51 = $ss.el("div");
+		$ss.attr(_el51, "class", "screen dim");
+		$ss.attr(_el51, "id", "game-over");
+		$ss.child(_el51, (() => {
+			const _el52 = $ss.el("h2");
+			$ss.attr(_el52, "class", "screen-title danger");
+			$ss.child(_el52, $ss.txt("You Died"));
+			return _el52;
 		})());
-		$ss.child(_el36, (() => {
-			const _el38 = $ss.el("div");
-			$ss.attr(_el38, "class", "panel stats");
-			$ss.child(_el38, (() => {
-				const _el39 = $ss.el("span");
-				$ss.insert(_el39, () => `Kills: ${f().kills}`);
-				return _el39;
+		$ss.child(_el51, (() => {
+			const _el53 = $ss.el("div");
+			$ss.attr(_el53, "class", "panel stats");
+			$ss.child(_el53, (() => {
+				const _el54 = $ss.el("span");
+				$ss.insert(_el54, () => `Kills: ${f().kills}`);
+				return _el54;
 			})());
-			$ss.child(_el38, (() => {
-				const _el40 = $ss.el("span");
-				$ss.insert(_el40, () => `Wave reached: ${f().wave}`);
-				return _el40;
+			$ss.child(_el53, (() => {
+				const _el55 = $ss.el("span");
+				$ss.insert(_el55, () => `Wave reached: ${f().wave}`);
+				return _el55;
 			})());
-			$ss.child(_el38, (() => {
-				const _el41 = $ss.el("span");
-				$ss.insert(_el41, () => `Pickups: ${f().pickups}`);
-				return _el41;
+			$ss.child(_el53, (() => {
+				const _el56 = $ss.el("span");
+				$ss.insert(_el56, () => `Pickups: ${f().pickups}`);
+				return _el56;
 			})());
-			$ss.child(_el38, (() => {
-				const _el42 = $ss.el("span");
-				$ss.insert(_el42, () => `Time survived: ${mmss(f().elapsed)}`);
-				return _el42;
+			$ss.child(_el53, (() => {
+				const _el57 = $ss.el("span");
+				$ss.insert(_el57, () => `Time survived: ${mmss(f().elapsed)}`);
+				return _el57;
 			})());
-			return _el38;
+			return _el53;
 		})());
-		$ss.child(_el36, (() => {
-			const _el43 = $ss.el("button");
-			$ss.attr(_el43, "class", "menu-btn");
-			$ss.attr(_el43, "id", "go-restart");
-			$ss.on(_el43, "click", () => intent("Restart"));
-			$ss.child(_el43, $ss.txt("Restart  (Enter)"));
-			return _el43;
+		$ss.child(_el51, (() => {
+			const _el58 = $ss.el("button");
+			$ss.attr(_el58, "class", "menu-btn");
+			$ss.attr(_el58, "id", "go-restart");
+			$ss.on(_el58, "click", () => intent("Restart"));
+			$ss.child(_el58, $ss.txt("Restart  (Enter)"));
+			return _el58;
 		})());
-		$ss.child(_el36, (() => {
-			const _el44 = $ss.el("button");
-			$ss.attr(_el44, "class", "menu-btn");
-			$ss.attr(_el44, "id", "go-quit");
-			$ss.on(_el44, "click", () => intent("Quit"));
-			$ss.child(_el44, $ss.txt("Quit"));
-			return _el44;
+		$ss.child(_el51, (() => {
+			const _el59 = $ss.el("button");
+			$ss.attr(_el59, "class", "menu-btn");
+			$ss.attr(_el59, "id", "go-quit");
+			$ss.on(_el59, "click", () => intent("Quit"));
+			$ss.child(_el59, $ss.txt("Quit"));
+			return _el59;
 		})());
-		return _el36;
+		return _el51;
 	})();
 }
 $ss.hot("assets/ui/horde\\app.tsx#GameOver", GameOver);
@@ -436,10 +538,12 @@ function App() {
 	const [frame, setFrame] = createSignal(EMPTY);
 	bevy.on("frame", (f) => setFrame(f));
 	const state = createMemo(() => frame().state);
+	const [invOpen, setInvOpen] = createSignal(false);
+	bevy.on("toggleInventory", () => setInvOpen((o) => !o));
 	return (() => {
-		const _el45 = $ss.el("div");
-		$ss.attr(_el45, "id", "hud");
-		$ss.insert(_el45, () => $ss.cmp(Switch, { get children() {
+		const _el61 = $ss.el("div");
+		$ss.attr(_el61, "id", "hud");
+		$ss.insert(_el61, () => $ss.cmp(Switch, { get children() {
 			return $ss.frag([
 				$ss.cmp(Match, {
 					get when() {
@@ -454,9 +558,27 @@ function App() {
 						return state() === "Playing";
 					},
 					get children() {
-						return $ss.cmp(Hud, { get f() {
-							return frame;
-						} });
+						return (() => {
+							const _el60 = $ss.el("div");
+							$ss.attr(_el60, "id", "playing-root");
+							$ss.child(_el60, $ss.cmp(Hud, { get f() {
+								return frame;
+							} }));
+							$ss.insert(_el60, () => $ss.cmp(Show, {
+								get when() {
+									return invOpen();
+								},
+								get children() {
+									return $ss.cmp(Inventory, {
+										get f() {
+											return frame;
+										},
+										onClose: () => setInvOpen(false)
+									});
+								}
+							}));
+							return _el60;
+						})();
 					}
 				}),
 				$ss.cmp(Match, {
@@ -479,7 +601,7 @@ function App() {
 				})
 			]);
 		} }));
-		return _el45;
+		return _el61;
 	})();
 }
 $ss.hot("assets/ui/horde\\app.tsx#App", App);

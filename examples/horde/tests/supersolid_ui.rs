@@ -120,6 +120,40 @@ fn game_over_shows_stats() {
 }
 
 #[test]
+fn toggle_inventory_event_opens_modal() {
+    use horde::ui::supersolid::bridge::ToggleInventoryFwd;
+    use horde::sim::WeaponKind;
+    use horde::sim::snapshot::WeaponSlot;
+    let mut app = app();
+    let _root = mount(&mut app);
+    set_state(&mut app, GameState::Playing);
+    edit_snapshot(&mut app, |s| {
+        s.inventory = vec![WeaponSlot { index: 0, kind: WeaponKind::Rocket, active: true }];
+    });
+    assert!(maybe_node(&app, "#inventory").is_none());
+    app.world_mut().trigger(ToggleInventoryFwd);
+    tick(&mut app, 2);
+    assert!(maybe_node(&app, "#inventory").is_some());
+    let card = node_by_selector(&app, "#inventory .inv-card");
+    let txt = text_content(&app, card);
+    assert!(txt.contains("Rocket") && txt.contains("DMG 60"), "card: {txt:?}");
+}
+
+#[test]
+fn settings_adjust_enemy_cap_mutates_config() {
+    let mut app = app();
+    let _root = mount(&mut app);
+    let before = app.world().resource::<horde::sim::SimConfig>().enemy_cap;
+    // Open settings, click "+".
+    let open_btn = node_by_selector(&app, "#open-settings");
+    click(&mut app, open_btn);
+    let cap_inc_id = node_by_selector(&app, "#cap-inc");
+    click(&mut app, cap_inc_id);
+    let after = app.world().resource::<horde::sim::SimConfig>().enemy_cap;
+    assert_eq!(after, (before + 20).min(800));
+}
+
+#[test]
 fn nameplates_and_damage_numbers_render_positioned() {
     use horde::sim::snapshot::{Nameplate, FloatingNumber};
     use horde::sim::EnemyKind;
