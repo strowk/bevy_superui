@@ -1,0 +1,20 @@
+warning: unused import: `impl_element_commons`
+   --> crates\bevy_flair_style\src\css_selector\element.rs:291:16
+    |
+291 | pub(crate) use impl_element_commons;
+    |                ^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `bevy_flair_style` (lib) generated 1 warning (run `cargo fix --lib -p bevy_flair_style` to apply 1 suggestion)
+warning: unused import: `tracing::error`
+  --> crates\bevy_flair_css_parser\src\loader.rs:16:5
+   |
+16 | use tracing::error;
+   |     ^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `bevy_flair_css_parser` (lib) generated 1 warning (run `cargo fix --lib -p bevy_flair_css_parser` to apply 1 suggestion)
+   Compiling horde v0.1.0 (C:\work\bevy_superui\examples\horde)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1m 09s

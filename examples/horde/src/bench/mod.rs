@@ -48,6 +48,7 @@ pub const DT: f64 = 1.0 / 60.0;
 pub const VIEWPORT: Vec2 = Vec2::new(1280.0, 720.0);
 
 /// Frame counter that drives the deterministic scripted auto-player.
+/// Frame 0 is the first update (MainMenu → sends StartGame); Playing typically begins at frame 1.
 #[derive(Resource, Default)]
 pub struct BenchFrame(pub u64);
 
@@ -197,7 +198,6 @@ pub fn build_bench_app(backend: Backend, sim: SimConfig) -> App {
             app.add_plugins(crate::ui::native::NativeUiPlugin);
         }
         Backend::Supersolid => {
-            crate::ui::supersolid::bridge::register_bridge(&mut app);
             app.add_plugins(crate::ui::supersolid::SupersolidUiPlugin);
         }
     }
