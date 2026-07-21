@@ -22,6 +22,17 @@ fn main() {
         }
     };
 
+    if args.profile {
+        let cap = *args.caps.first().unwrap();
+        let sim = sim_for(&args.preset, cap, args.seed);
+        eprintln!(
+            "horde-bench: profiling supersolid preset={} enemy_cap={} frames={} warmup={}",
+            args.preset, cap, args.frames, args.warmup
+        );
+        horde::bench::profile::run_profile(sim, args.frames, args.warmup);
+        return;
+    }
+
     if args.dhat {
         #[cfg(feature = "dhat-prof")]
         {

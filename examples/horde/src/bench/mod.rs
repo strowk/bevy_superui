@@ -1,6 +1,8 @@
 //! Headless macro-benchmark harness for the horde game.
 //! See docs/superpowers/specs/2026-07-21-horde-benchmark-harness-design.md.
 
+pub mod profile;
+
 use std::time::{Duration, Instant};
 
 use bevy::asset::io::memory::{Dir, MemoryAssetReader};
@@ -683,6 +685,8 @@ pub struct BenchArgs {
     pub seed: u64,
     pub json: bool,
     pub dhat: bool,
+    /// `--profile`: per-stage tracing breakdown of the supersolid frame.
+    pub profile: bool,
 }
 
 /// Build a SimConfig from a preset name, overriding enemy_cap and seed.
@@ -708,6 +712,7 @@ pub fn parse_args(argv: &[String]) -> Result<BenchArgs, String> {
     let mut seed = 0u64;
     let mut json = false;
     let mut dhat = false;
+    let mut profile = false;
 
     let mut i = 0;
     while i < argv.len() {
@@ -742,19 +747,25 @@ pub fn parse_args(argv: &[String]) -> Result<BenchArgs, String> {
             "--seed" => seed = advance(&mut i)?.parse().map_err(|_| "bad --seed".to_string())?,
             "--format" => json = advance(&mut i)? == "json",
             "--dhat" => dhat = true,
+            "--profile" => profile = true,
             other => return Err(format!("unknown arg '{other}'")),
         }
         i += 1;
     }
 
-    let backend = backend.ok_or("--backend is required (null|native|supersolid)")?;
+    // `--profile` only makes sense for supersolid, so it makes --backend optional.
+    let backend = match backend {
+        Some(b) => b,
+        None if profile => Backend::Supersolid,
+        None => return Err("--backend is required (null|native|supersolid)".to_string()),
+    };
     if caps.is_empty() {
         caps = vec![match preset.as_str() {
             "stress" => SimConfig::stress().enemy_cap,
             _ => SimConfig::play().enemy_cap,
         }];
     }
-    Ok(BenchArgs { backend, preset, caps, frames, warmup, seed, json, dhat })
+    Ok(BenchArgs { backend, preset, caps, frames, warmup, seed, json, dhat, profile })
 }
 
 #[cfg(test)]

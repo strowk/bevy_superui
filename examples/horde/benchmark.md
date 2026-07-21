@@ -83,7 +83,30 @@ Reports bytes + allocations per frame (`bytes_per_frame` is total allocated duri
 the measurement window — heap churn — not net-live or peak heap).
 Steady-state should trend toward ~zero as the allocations amortize.
 
-## Profiling (Tracy)
+## Profiling — per-stage attribution (`--profile`)
 
-Build the bin with `--features bench,bevy/trace_tracy` and attach Tracy to drill
-into which system inside `ui_backend` dominates (reconcile vs layout vs cascade).
+Splits the opaque `ui_backend` bucket into the five reconcile stages and prints a
+per-stage ms + %-of-frame table plus a one-line summary. Headless, deterministic,
+no GUI. Opt-in and zero-cost when off: it needs both the `--profile` flag **and**
+Bevy's per-system spans (`bevy/trace`); without the feature the report is empty and
+says so, and a normal run is byte-for-byte unaffected.
+
+    cargo run --release -p horde --features bench,bevy/trace --bin horde-bench -- \
+        --profile --preset stress --enemy-cap 400 --frames 200 --warmup 1500
+
+How it works: with `bevy/trace` every system is wrapped in a root
+`info_span!("system", name=…)`, and each stage lives in a different system, so a
+tracing layer that sums per-system busy-time attributes the whole frame (schedule-
+runner wrappers like `run_main` are excluded so leaves stay disjoint). The **same
+spans feed a Tracy flamegraph** — swap `bevy/trace` for `bevy/trace_tracy` and
+attach Tracy for the visual timeline; `--profile` is the headless equivalent.
+
+Note: `--profile` god-modes the player (refills `Health` each frame) so the game
+holds a steady full-swarm `Playing` frame. Without it, a long warmup under a stress
+swarm ends in the cheap `GameOver` screen and the profile measures an empty UI.
+
+Finding (400-enemy swarm, release, ~115 ms/frame): **~77% Boa render** (JS reactive
+re-run in `emit_bevy_inbox_system`), ~9% reconcile (DOM diff + bevy_ui apply), ~8%
+flair cascade, ~1% taffy, ~0.6% marshal. The bottleneck is the JS-side full
+re-render every frame, **not** the Rust reconcile or the JSON bridge — so optimize
+update granularity (fine-grained/keyed reactivity), not the diff or the marshal.
