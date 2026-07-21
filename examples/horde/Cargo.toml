@@ -3,6 +3,8 @@ name = "horde"
 version = "0.1.0"
 edition = "2021"
 publish = false
+# With the extra `horde-bench` bin, `cargo run -p horde` is otherwise ambiguous.
+default-run = "horde"
 
 [lib]
 name = "horde"
