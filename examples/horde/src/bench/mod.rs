@@ -256,6 +256,134 @@ pub fn time_backend(backend: Backend, sim: SimConfig, frames: usize, warmup: usi
     out
 }
 
+use crate::ui::supersolid::bridge::build_frame;
+
+/// Mean isolated cost of building the FrameDto (the JSON marshal) in ms.
+/// Runs a supersolid app (real snapshot churn) but times only `build_frame`.
+pub fn probe_marshal(sim: SimConfig, frames: usize, warmup: usize) -> f64 {
+    let mut app = build_bench_app(Backend::Supersolid, sim);
+    for _ in 0..warmup {
+        app.update();
+    }
+    let mut total = 0.0;
+    for _ in 0..frames {
+        app.update();
+        // Bind all borrows before the timer so only build_frame is measured.
+        let w = app.world();
+        let snap = w.resource::<UiSnapshot>();
+        let state = w.resource::<State<GameState>>();
+        let cfg = w.resource::<SimConfig>();
+        let t = Instant::now();
+        let dto = build_frame(snap, state.get(), cfg.arena_half);
+        total += t.elapsed().as_secs_f64() * 1000.0;
+        std::hint::black_box(&dto);
+    }
+    total / frames as f64
+}
+
+#[derive(Clone, Debug)]
+pub struct Report {
+    pub backend: Backend,
+    pub cap: usize,
+    pub frames: usize,
+    pub total: Stats,
+    /// Shared floor: mean total of the null backend (sim + snapshot).
+    pub shared_ms: f64,
+    /// UI-backend cost = total.mean − shared.
+    pub ui_ms: f64,
+    /// Supersolid only: isolated marshal cost (subset of ui_ms).
+    pub marshal_ms: Option<f64>,
+    /// Supersolid only: native backend mean total, for the gap.
+    pub native_total_ms: Option<f64>,
+}
+
+/// Run the full differential: the chosen backend + the null floor (+ marshal &
+/// native gap for supersolid).
+pub fn run_report(backend: Backend, sim: SimConfig, frames: usize, warmup: usize) -> Report {
+    let total = stats_from(time_backend(backend, sim.clone(), frames, warmup));
+    let shared = stats_from(time_backend(Backend::Null, sim.clone(), frames, warmup)).mean_ms;
+
+    let (marshal_ms, native_total_ms) = if backend == Backend::Supersolid {
+        let m = probe_marshal(sim.clone(), frames, warmup);
+        let n = stats_from(time_backend(Backend::Native, sim.clone(), frames, warmup)).mean_ms;
+        (Some(m), Some(n))
+    } else {
+        (None, None)
+    };
+
+    Report {
+        backend,
+        cap: sim.enemy_cap,
+        frames,
+        ui_ms: total.mean_ms - shared,
+        total,
+        shared_ms: shared,
+        marshal_ms,
+        native_total_ms,
+    }
+}
+
+/// Human-readable attribution table.
+pub fn report_table(r: &Report) -> String {
+    use std::fmt::Write as _;
+    let mut s = String::new();
+    let _ = writeln!(
+        s,
+        "backend={} enemy_cap={} frames={}",
+        r.backend.label(),
+        r.cap,
+        r.frames
+    );
+    let _ = writeln!(
+        s,
+        "  total : mean {:.3} ms | p50 {:.3} | p95 {:.3} | p99 {:.3} | {:.1} fps",
+        r.total.mean_ms, r.total.p50_ms, r.total.p95_ms, r.total.p99_ms, r.total.fps
+    );
+    let _ = writeln!(s, "  attribution (mean-based):");
+    let pct = |x: f64| if r.total.mean_ms > 0.0 { 100.0 * x / r.total.mean_ms } else { 0.0 };
+    let _ = writeln!(s, "    shared (sim+snapshot) : {:.3} ms ({:.1}%)", r.shared_ms, pct(r.shared_ms));
+    let _ = writeln!(s, "    ui_backend            : {:.3} ms ({:.1}%)  [optimization ceiling]", r.ui_ms, pct(r.ui_ms));
+    if let Some(m) = r.marshal_ms {
+        let _ = writeln!(s, "      of which marshal    : {:.3} ms ({:.1}%)", m, pct(m));
+        let _ = writeln!(s, "      reconcile+layout    : {:.3} ms ({:.1}%)  [finer split = Tracy follow-up]", r.ui_ms - m, pct(r.ui_ms - m));
+    }
+    if let Some(nt) = r.native_total_ms {
+        let gap = if nt > 0.0 { r.total.mean_ms / nt } else { f64::INFINITY };
+        let _ = writeln!(s, "  vs native floor: {:.3} ms  → gap {:.1}x  (closing to native saves up to {:.3} ms)", nt, gap, r.total.mean_ms - nt);
+    }
+    s
+}
+
+#[cfg(test)]
+mod report_tests {
+    use super::*;
+
+    #[test]
+    fn report_computes_ui_cost_as_total_minus_shared() {
+        let r = run_report(Backend::Supersolid, SimConfig::play(), 40, 10);
+        assert!((r.ui_ms - (r.total.mean_ms - r.shared_ms)).abs() < 1e-9);
+        assert!(r.marshal_ms.is_some(), "supersolid report must include marshal");
+        assert!(r.native_total_ms.is_some(), "supersolid report must include native gap");
+    }
+
+    #[test]
+    fn native_report_has_no_marshal() {
+        let r = run_report(Backend::Native, SimConfig::play(), 40, 10);
+        assert!(r.marshal_ms.is_none());
+        assert!(r.native_total_ms.is_none());
+    }
+
+    #[test]
+    fn table_renders_key_fields() {
+        let r = run_report(Backend::Supersolid, SimConfig::play(), 40, 10);
+        let t = report_table(&r);
+        assert!(t.contains("supersolid"));
+        assert!(t.contains("shared"));
+        assert!(t.contains("ui_backend"));
+        assert!(t.contains("marshal"));
+    }
+}
+
 #[cfg(test)]
 mod determinism_tests {
     use super::*;
