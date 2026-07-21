@@ -493,6 +493,10 @@ pub struct AllocReport {
 
 /// Measure per-frame allocation churn over `frames` steady-state updates.
 /// Requires an active `dhat::Profiler` in the caller (see the bin's `--dhat` path).
+///
+/// `bytes_per_frame` in the returned [`AllocReport`] is total bytes *allocated*
+/// during the measurement window divided by frame count — it measures heap churn,
+/// not net-live or peak heap size.
 #[cfg(feature = "dhat-prof")]
 pub fn run_alloc(backend: Backend, sim: SimConfig, frames: usize, warmup: usize) -> AllocReport {
     let mut app = build_bench_app(backend, sim);
