@@ -1,7 +1,7 @@
 //! Headless macro-benchmark harness for the horde game.
 //! See docs/superpowers/specs/2026-07-21-horde-benchmark-harness-design.md.
 
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use bevy::asset::io::memory::{Dir, MemoryAssetReader};
 use bevy::asset::io::{AssetSource, AssetSourceId};
@@ -212,6 +212,50 @@ pub fn trajectory_signature(app: &App) -> (u32, u32, usize) {
     (s.kills, s.wave, s.enemies.len())
 }
 
+/// Per-frame timing statistics from a benchmark run.
+#[derive(Clone, Copy, Debug)]
+pub struct Stats {
+    pub mean_ms: f64,
+    pub p50_ms: f64,
+    pub p95_ms: f64,
+    pub p99_ms: f64,
+    pub fps: f64,
+}
+
+/// Nearest-rank percentile over sorted samples using index `round(p*(n-1))`.
+pub fn stats_from(mut samples: Vec<f64>) -> Stats {
+    assert!(!samples.is_empty(), "stats_from: empty samples");
+    samples.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let n = samples.len();
+    let pct = |p: f64| {
+        let idx = ((n - 1) as f64 * p).round() as usize;
+        samples[idx]
+    };
+    let mean = samples.iter().sum::<f64>() / n as f64;
+    Stats {
+        mean_ms: mean,
+        p50_ms: pct(0.50),
+        p95_ms: pct(0.95),
+        p99_ms: pct(0.99),
+        fps: if mean > 0.0 { 1000.0 / mean } else { f64::INFINITY },
+    }
+}
+
+/// Drive `frames` measured updates (after `warmup`), returning per-frame ms.
+pub fn time_backend(backend: Backend, sim: SimConfig, frames: usize, warmup: usize) -> Vec<f64> {
+    let mut app = build_bench_app(backend, sim);
+    for _ in 0..warmup {
+        app.update();
+    }
+    let mut out = Vec::with_capacity(frames);
+    for _ in 0..frames {
+        let t = Instant::now();
+        app.update();
+        out.push(t.elapsed().as_secs_f64() * 1000.0);
+    }
+    out
+}
+
 #[cfg(test)]
 mod determinism_tests {
     use super::*;
@@ -236,6 +280,30 @@ mod determinism_tests {
         let (_kills, wave, enemies) = run_to(120);
         assert!(enemies > 0, "swarm should be populated by frame 120");
         assert!(wave >= 1, "at least wave 1 should have started");
+    }
+}
+
+#[cfg(test)]
+mod stats_tests {
+    use super::*;
+
+    #[test]
+    fn percentiles_on_known_data() {
+        // 1..=100 ms
+        let samples: Vec<f64> = (1..=100).map(|n| n as f64).collect();
+        let s = stats_from(samples);
+        assert!((s.mean_ms - 50.5).abs() < 1e-9);
+        assert_eq!(s.p50_ms, 51.0); // index round(0.5*99)=50 -> value 51
+        assert_eq!(s.p95_ms, 95.0);
+        assert_eq!(s.p99_ms, 99.0);
+        assert!((s.fps - 1000.0 / 50.5).abs() < 1e-9);
+    }
+
+    #[test]
+    fn timing_run_produces_frames() {
+        let v = time_backend(Backend::Null, SimConfig::play(), 30, 5);
+        assert_eq!(v.len(), 30);
+        assert!(v.iter().all(|&ms| ms >= 0.0));
     }
 }
 
