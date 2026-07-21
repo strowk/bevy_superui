@@ -206,6 +206,39 @@ pub fn build_bench_app(backend: Backend, sim: SimConfig) -> App {
     app
 }
 
+/// Cheap determinism fingerprint read from the current snapshot.
+pub fn trajectory_signature(app: &App) -> (u32, u32, usize) {
+    let s = app.world().resource::<UiSnapshot>();
+    (s.kills, s.wave, s.enemies.len())
+}
+
+#[cfg(test)]
+mod determinism_tests {
+    use super::*;
+
+    fn run_to(frame: usize) -> (u32, u32, usize) {
+        let mut app = build_bench_app(Backend::Null, SimConfig::play());
+        for _ in 0..frame {
+            app.update();
+        }
+        trajectory_signature(&app)
+    }
+
+    #[test]
+    fn identical_runs_produce_identical_trajectory() {
+        let a = run_to(120);
+        let b = run_to(120);
+        assert_eq!(a, b, "same seed + script must be bit-identical");
+    }
+
+    #[test]
+    fn trajectory_is_nontrivial() {
+        let (_kills, wave, enemies) = run_to(120);
+        assert!(enemies > 0, "swarm should be populated by frame 120");
+        assert!(wave >= 1, "at least wave 1 should have started");
+    }
+}
+
 #[cfg(test)]
 mod app_tests {
     use super::*;
