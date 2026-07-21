@@ -1,5 +1,6 @@
 //! Headless harness: mount the REAL authored Supersolid assets through the real
 //! `superui` runtime, inject a UiSnapshot + GameState, tick, and read the DOM.
+#![cfg(not(feature = "ui-native"))]
 #![allow(dead_code)]
 
 use bevy::asset::io::memory::{Dir, MemoryAssetReader};

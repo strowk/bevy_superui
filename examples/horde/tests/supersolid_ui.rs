@@ -1,3 +1,5 @@
+#![cfg(not(feature = "ui-native"))]
+
 mod support;
 use support::*;
 use horde::game_state::GameState;
