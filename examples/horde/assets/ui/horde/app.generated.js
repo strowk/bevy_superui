@@ -165,15 +165,15 @@ function Minimap(props) {
 		const _el16 = $ss.el("div");
 		$ss.attr(_el16, "class", "panel");
 		$ss.attr(_el16, "id", "minimap");
-		$ss.insert(_el16, () => $ss.cmp(For, {
+		$ss.insert(_el16, () => $ss.cmp(Index, {
 			get each() {
 				return props.f().blips;
 			},
 			get children() {
 				return (b) => (() => {
 					const _el15 = $ss.el("div");
-					$ss.bind(_el15, "class", () => "blip " + b.kind);
-					$ss.bind(_el15, "style", () => `left: ${Math.round(b.mx * 100)}%; top: ${Math.round(b.my * 100)}%`);
+					$ss.bind(_el15, "class", () => "blip " + b().kind);
+					$ss.bind(_el15, "style", () => `left: ${Math.round(b().mx * 100)}%; top: ${Math.round(b().my * 100)}%`);
 					return _el15;
 				})();
 			}
@@ -187,7 +187,7 @@ function Nameplates(props) {
 		const _el19 = $ss.el("div");
 		$ss.attr(_el19, "class", "overlay");
 		$ss.attr(_el19, "id", "nameplates");
-		$ss.insert(_el19, () => $ss.cmp(For, {
+		$ss.insert(_el19, () => $ss.cmp(Index, {
 			get each() {
 				return props.f().enemies;
 			},
@@ -195,12 +195,12 @@ function Nameplates(props) {
 				return (e) => (() => {
 					const _el17 = $ss.el("div");
 					$ss.attr(_el17, "class", "nameplate");
-					$ss.bind(_el17, "data-id", () => e.id);
-					$ss.bind(_el17, "style", () => `left: ${Math.round(e.sx - 22)}px; top: ${Math.round(e.sy - 30)}px`);
+					$ss.bind(_el17, "data-id", () => e().id);
+					$ss.bind(_el17, "style", () => `left: ${Math.round(e().sx - 22)}px; top: ${Math.round(e().sy - 30)}px`);
 					$ss.child(_el17, (() => {
 						const _el18 = $ss.el("div");
 						$ss.attr(_el18, "class", "np-fill");
-						$ss.bind(_el18, "style", () => `width: ${Math.round(e.frac * 100)}%; background-color: ${hpColor(e.frac)}`);
+						$ss.bind(_el18, "style", () => `width: ${Math.round(e().frac * 100)}%; background-color: ${hpColor(e().frac)}`);
 						return _el18;
 					})());
 					return _el17;
@@ -216,17 +216,17 @@ function DamageNumbers(props) {
 		const _el21 = $ss.el("div");
 		$ss.attr(_el21, "class", "overlay");
 		$ss.attr(_el21, "id", "damage-numbers");
-		$ss.insert(_el21, () => $ss.cmp(For, {
+		$ss.insert(_el21, () => $ss.cmp(Index, {
 			get each() {
 				return props.f().damage_numbers;
 			},
 			get children() {
 				return (d) => (() => {
 					const _el20 = $ss.el("span");
-					$ss.bind(_el20, "class", () => d.crit ? "dmg crit" : "dmg");
-					$ss.bind(_el20, "data-id", () => d.id);
-					$ss.bind(_el20, "style", () => `left: ${Math.round(d.sx)}px; top: ${Math.round(d.sy)}px; color: rgba(${d.crit ? "255, 199, 71" : "237, 245, 255"}, ${d.alpha})`);
-					$ss.insert(_el20, () => d.text);
+					$ss.bind(_el20, "class", () => d().crit ? "dmg crit" : "dmg");
+					$ss.bind(_el20, "data-id", () => d().id);
+					$ss.bind(_el20, "style", () => `left: ${Math.round(d().sx)}px; top: ${Math.round(d().sy)}px; color: rgba(${d().crit ? "255, 199, 71" : "237, 245, 255"}, ${d().alpha})`);
+					$ss.insert(_el20, () => d().text);
 					return _el20;
 				})();
 			}

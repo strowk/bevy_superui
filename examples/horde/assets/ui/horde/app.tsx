@@ -1,4 +1,4 @@
-import { createSignal, createMemo, For, Show, Switch, Match, render } from "supersolid";
+import { createSignal, createMemo, For, Index, Show, Switch, Match, render } from "supersolid";
 
 const EMPTY = {
   state: "MainMenu",
@@ -82,12 +82,12 @@ function WeaponBar(props) {
 function Minimap(props) {
   return (
     <div class="panel" id="minimap">
-      {<For each={props.f().blips}>
+      {<Index each={props.f().blips}>
         {(b) => (
-          <div class={"blip " + b.kind}
-               style={`left: ${Math.round(b.mx * 100)}%; top: ${Math.round(b.my * 100)}%`}></div>
+          <div class={"blip " + b().kind}
+               style={`left: ${Math.round(b().mx * 100)}%; top: ${Math.round(b().my * 100)}%`}></div>
         )}
-      </For>}
+      </Index>}
     </div>
   );
 }
@@ -95,15 +95,15 @@ function Minimap(props) {
 function Nameplates(props) {
   return (
     <div class="overlay" id="nameplates">
-      {<For each={props.f().enemies}>
+      {<Index each={props.f().enemies}>
         {(e) => (
-          <div class="nameplate" data-id={e.id}
-               style={`left: ${Math.round(e.sx - 22)}px; top: ${Math.round(e.sy - 30)}px`}>
+          <div class="nameplate" data-id={e().id}
+               style={`left: ${Math.round(e().sx - 22)}px; top: ${Math.round(e().sy - 30)}px`}>
             <div class="np-fill"
-                 style={`width: ${Math.round(e.frac * 100)}%; background-color: ${hpColor(e.frac)}`}></div>
+                 style={`width: ${Math.round(e().frac * 100)}%; background-color: ${hpColor(e().frac)}`}></div>
           </div>
         )}
-      </For>}
+      </Index>}
     </div>
   );
 }
@@ -111,14 +111,14 @@ function Nameplates(props) {
 function DamageNumbers(props) {
   return (
     <div class="overlay" id="damage-numbers">
-      {<For each={props.f().damage_numbers}>
+      {<Index each={props.f().damage_numbers}>
         {(d) => (
-          <span class={d.crit ? "dmg crit" : "dmg"} data-id={d.id}
-                style={`left: ${Math.round(d.sx)}px; top: ${Math.round(d.sy)}px; color: rgba(${d.crit ? "255, 199, 71" : "237, 245, 255"}, ${d.alpha})`}>
-            {d.text}
+          <span class={d().crit ? "dmg crit" : "dmg"} data-id={d().id}
+                style={`left: ${Math.round(d().sx)}px; top: ${Math.round(d().sy)}px; color: rgba(${d().crit ? "255, 199, 71" : "237, 245, 255"}, ${d().alpha})`}>
+            {d().text}
           </span>
         )}
-      </For>}
+      </Index>}
     </div>
   );
 }
