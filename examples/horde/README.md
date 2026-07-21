@@ -100,15 +100,23 @@ Settings adjustments use `bevy.send("AdjustEnemyCap", { delta })`. Keyboard `I`
 (toggle inventory) is forwarded from Rust to JS as `bevy.on("toggleInventory", …)` so
 the TSX inventory modal stays in sync with keyboard input without polling.
 
-## Known limitations
+## Performance baseline (by design)
 
-- **Per-frame full-snapshot serialization (design §9 — reactive store gap).** The entire
-  `UiSnapshot` is serialized to JSON and pushed over the event bridge every frame. Under a
-  large enemy swarm (~400 enemies, `stress` preset) this causes frame rate to drop to
-  approximately 5 FPS as hundreds of nameplate and damage-number divs reconcile. Frame rate
-  recovers to ~60 FPS when not in Playing state (snapshot assembly freezes). This is the
-  honest baseline; the planned follow-up is a reactive store that pushes only diffs, eliminating
-  the per-frame full-JSON cost. This is the documented gap from design §9.
+This example is a **real-world game-UI workload for benchmarking, profiling, and optimization
+work** — not a tuned showcase. The supersolid backend deliberately ships the simplest honest
+data path: every `Update` tick the entire `UiSnapshot` is serialized to JSON and pushed over the
+event bridge, and hundreds of nameplate / damage-number divs reconcile each frame. Under a large
+enemy swarm (~400 enemies, `stress` preset) this drives frame rate down to ~5 FPS; it recovers to
+~60 FPS outside the Playing state (snapshot assembly freezes). Enable `--features debug-ui` (on by
+default) to watch the frame-time graph go solid red under load.
+
+That cost is the **point**: it gives profiling and benchmarking workflows a real, measurable
+baseline to attack, and the `HORDE_PRESET` / `HORDE_ENEMY_CAP` knobs scale the on-screen element
+count so the workload is tunable. The planned follow-up (design §9 — the reactive-store gap) is a
+fine-grained store that mutates only changed fields instead of re-pushing the whole snapshot;
+this example is the honest "before" it will be measured against.
+
+## Known limitations
 
 - **Wasm: no wasm-bindgen/web runner included.** The wasm binary compiles cleanly
   (`cargo build -p horde --target wasm32-unknown-unknown`), but there is no wasm-bindgen
