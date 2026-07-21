@@ -354,6 +354,26 @@ pub fn report_table(r: &Report) -> String {
     s
 }
 
+/// Compact one-row-per-cap scaling view.
+pub fn sweep_table(reports: &[Report]) -> String {
+    use std::fmt::Write as _;
+    let mut s = String::new();
+    let _ = writeln!(s, "scaling sweep ({} backend):", reports.first().map(|r| r.backend.label()).unwrap_or("?"));
+    let _ = writeln!(s, "  cap      total(ms)      ui(ms)   marshal(ms)");
+    for r in reports {
+        let marshal = match r.marshal_ms {
+            Some(m) => format!("{:.3}", m),
+            None => "-".to_string(),
+        };
+        let _ = writeln!(
+            s,
+            "  {}       total={:.3}      ui={:.3}     {}",
+            r.cap, r.total.mean_ms, r.ui_ms, marshal
+        );
+    }
+    s
+}
+
 #[cfg(test)]
 mod report_tests {
     use super::*;
@@ -544,6 +564,24 @@ pub fn parse_args(argv: &[String]) -> Result<BenchArgs, String> {
         }];
     }
     Ok(BenchArgs { backend, preset, caps, frames, warmup, seed, json, dhat })
+}
+
+#[cfg(test)]
+mod sweep_tests {
+    use super::*;
+
+    #[test]
+    fn sweep_table_has_one_row_per_cap() {
+        let reports: Vec<Report> = [60usize, 200]
+            .iter()
+            .map(|&c| run_report(Backend::Native, sim_for("play", c, 1), 20, 5))
+            .collect();
+        let t = sweep_table(&reports);
+        assert!(t.contains("cap=60") || t.contains("60"));
+        assert!(t.contains("200"));
+        let rows = t.lines().filter(|l| l.contains("total")).count();
+        assert!(rows >= 2, "expected a data row per cap");
+    }
 }
 
 #[cfg(test)]

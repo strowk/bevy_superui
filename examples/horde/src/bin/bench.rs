@@ -1,4 +1,4 @@
-use horde::bench::{parse_args, report_json, report_table, run_report, sim_for};
+use horde::bench::{parse_args, report_json, report_table, run_report, sim_for, sweep_table};
 
 fn main() {
     let argv: Vec<String> = std::env::args().skip(1).collect();
@@ -13,13 +13,18 @@ fn main() {
         }
     };
 
+    let mut reports = Vec::new();
     for &cap in &args.caps {
         let sim = sim_for(&args.preset, cap, args.seed);
         let report = run_report(args.backend, sim, args.frames, args.warmup);
         if args.json {
             println!("{}", report_json(&report));
-        } else {
+        } else if args.caps.len() == 1 {
             print!("{}", report_table(&report));
         }
+        reports.push(report);
+    }
+    if !args.json && args.caps.len() > 1 {
+        print!("{}", sweep_table(&reports));
     }
 }
