@@ -58,7 +58,7 @@ function CombatLog(props) {
   return (
     <div class="panel" id="combat-log">
       {<For each={props.f().log}>
-        {(line) => <span class="log-line" style={`opacity: ${line.alpha}`}>{line.text}</span>}
+        {(line) => <span class="log-line" style={`color: rgba(237, 245, 255, ${line.alpha})`}>{line.text}</span>}
       </For>}
     </div>
   );
@@ -114,7 +114,7 @@ function DamageNumbers(props) {
       {<For each={props.f().damage_numbers}>
         {(d) => (
           <span class={d.crit ? "dmg crit" : "dmg"} data-id={d.id}
-                style={`left: ${Math.round(d.sx)}px; top: ${Math.round(d.sy)}px; opacity: ${d.alpha}`}>
+                style={`left: ${Math.round(d.sx)}px; top: ${Math.round(d.sy)}px; color: rgba(${d.crit ? "255, 199, 71" : "237, 245, 255"}, ${d.alpha})`}>
             {d.text}
           </span>
         )}

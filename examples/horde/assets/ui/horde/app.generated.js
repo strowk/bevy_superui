@@ -127,7 +127,7 @@ function CombatLog(props) {
 				return (line) => (() => {
 					const _el11 = $ss.el("span");
 					$ss.attr(_el11, "class", "log-line");
-					$ss.bind(_el11, "style", () => `opacity: ${line.alpha}`);
+					$ss.bind(_el11, "style", () => `color: rgba(237, 245, 255, ${line.alpha})`);
 					$ss.insert(_el11, () => line.text);
 					return _el11;
 				})();
@@ -225,7 +225,7 @@ function DamageNumbers(props) {
 					const _el20 = $ss.el("span");
 					$ss.bind(_el20, "class", () => d.crit ? "dmg crit" : "dmg");
 					$ss.bind(_el20, "data-id", () => d.id);
-					$ss.bind(_el20, "style", () => `left: ${Math.round(d.sx)}px; top: ${Math.round(d.sy)}px; opacity: ${d.alpha}`);
+					$ss.bind(_el20, "style", () => `left: ${Math.round(d.sx)}px; top: ${Math.round(d.sy)}px; color: rgba(${d.crit ? "255, 199, 71" : "237, 245, 255"}, ${d.alpha})`);
 					$ss.insert(_el20, () => d.text);
 					return _el20;
 				})();
