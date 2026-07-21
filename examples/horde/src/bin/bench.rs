@@ -1,3 +1,9 @@
+#[cfg(feature = "dhat-prof")]
+#[global_allocator]
+static ALLOC: dhat::Alloc = dhat::Alloc;
+
+#[cfg(feature = "dhat-prof")]
+use horde::bench::alloc_table;
 use horde::bench::{parse_args, report_json, report_table, run_report, sim_for, sweep_table};
 
 fn main() {
@@ -12,6 +18,21 @@ fn main() {
             std::process::exit(2);
         }
     };
+
+    if args.dhat {
+        #[cfg(feature = "dhat-prof")]
+        {
+            let _profiler = dhat::Profiler::new_heap();
+            for &cap in &args.caps {
+                let sim = sim_for(&args.preset, cap, args.seed);
+                let r = horde::bench::run_alloc(args.backend, sim, args.frames, args.warmup);
+                print!("{}", alloc_table(&r));
+            }
+        }
+        #[cfg(not(feature = "dhat-prof"))]
+        eprintln!("horde-bench: --dhat requires building with --features bench,dhat-prof");
+        return;
+    }
 
     let mut reports = Vec::new();
     for &cap in &args.caps {

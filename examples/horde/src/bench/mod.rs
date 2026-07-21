@@ -482,6 +482,48 @@ pub fn report_json(r: &Report) -> String {
     )
 }
 
+/// Per-frame allocation churn measured by dhat.
+#[derive(Clone, Copy, Debug)]
+pub struct AllocReport {
+    pub backend: Backend,
+    pub frames: usize,
+    pub bytes_per_frame: f64,
+    pub blocks_per_frame: f64,
+}
+
+/// Measure per-frame allocation churn over `frames` steady-state updates.
+/// Requires an active `dhat::Profiler` in the caller (see the bin's `--dhat` path).
+#[cfg(feature = "dhat-prof")]
+pub fn run_alloc(backend: Backend, sim: SimConfig, frames: usize, warmup: usize) -> AllocReport {
+    let mut app = build_bench_app(backend, sim);
+    for _ in 0..warmup {
+        app.update();
+    }
+    let before = dhat::HeapStats::get();
+    for _ in 0..frames {
+        app.update();
+    }
+    let after = dhat::HeapStats::get();
+    let dbytes = after.total_bytes.saturating_sub(before.total_bytes) as f64;
+    let dblocks = after.total_blocks.saturating_sub(before.total_blocks) as f64;
+    AllocReport {
+        backend,
+        frames,
+        bytes_per_frame: dbytes / frames as f64,
+        blocks_per_frame: dblocks / frames as f64,
+    }
+}
+
+pub fn alloc_table(r: &AllocReport) -> String {
+    format!(
+        "alloc churn: backend={} frames={} | {:.1} bytes/frame | {:.1} allocs/frame\n",
+        r.backend.label(),
+        r.frames,
+        r.bytes_per_frame,
+        r.blocks_per_frame,
+    )
+}
+
 #[derive(Clone, Debug)]
 pub struct BenchArgs {
     pub backend: Backend,
@@ -626,6 +668,19 @@ mod cli_tests {
         assert!(j.contains("\"total_mean_ms\""));
         assert!(j.contains("\"shared_ms\""));
         assert!(j.contains("\"ui_ms\""));
+    }
+}
+
+#[cfg(all(test, feature = "dhat-prof"))]
+mod alloc_tests {
+    use super::*;
+
+    #[test]
+    fn alloc_report_is_populated() {
+        let _p = dhat::Profiler::builder().testing().build();
+        let r = run_alloc(Backend::Supersolid, crate::sim::SimConfig::play(), 30, 5);
+        assert_eq!(r.frames, 30);
+        assert!(r.bytes_per_frame >= 0.0);
     }
 }
 
