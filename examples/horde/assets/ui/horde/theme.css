@@ -24,3 +24,6 @@
   width: 100%;
   height: 100%;
 }
+
+/* Horde component styles. Expanded in Task C1. */
+#hud { position: absolute; width: 100%; height: 100%; }

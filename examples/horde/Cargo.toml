@@ -5,9 +5,7 @@ edition = "2021"
 publish = false
 
 [features]
-# NOTE (Task A4 flips this): ui-native is temporarily still in default so the repo
-# stays runnable until the supersolid backend is wired.
-default = ["ui-native", "debug-ui"]
+default = ["debug-ui"]
 ui-native = []
 # Native state-preserving hot reload: live app.tsx via TsxLoader + the asset watcher.
 hmr = ["superui/hmr", "bevy/file_watcher"]
