@@ -341,11 +341,16 @@ pub fn report_table(r: &Report) -> String {
     );
     let _ = writeln!(s, "  attribution (mean-based):");
     let pct = |x: f64| if r.total.mean_ms > 0.0 { 100.0 * x / r.total.mean_ms } else { 0.0 };
+    // On noisy short runs the null floor can time marginally above the backend, making
+    // ui_ms slightly negative. Clamp the DISPLAYED figures to 0 (the raw field stays exact);
+    // a ~0 ui_backend just means this backend is within measurement noise of the floor.
+    let ui_disp = r.ui_ms.max(0.0);
     let _ = writeln!(s, "    shared (sim+snapshot) : {:.3} ms ({:.1}%)", r.shared_ms, pct(r.shared_ms));
-    let _ = writeln!(s, "    ui_backend            : {:.3} ms ({:.1}%)  [optimization ceiling]", r.ui_ms, pct(r.ui_ms));
+    let _ = writeln!(s, "    ui_backend            : {:.3} ms ({:.1}%)  [optimization ceiling]", ui_disp, pct(ui_disp));
     if let Some(m) = r.marshal_ms {
         let _ = writeln!(s, "      of which marshal    : {:.3} ms ({:.1}%)", m, pct(m));
-        let _ = writeln!(s, "      reconcile+layout    : {:.3} ms ({:.1}%)  [finer split = Tracy follow-up]", r.ui_ms - m, pct(r.ui_ms - m));
+        let reconcile = (ui_disp - m).max(0.0);
+        let _ = writeln!(s, "      reconcile+layout    : {:.3} ms ({:.1}%)  [finer split = Tracy follow-up]", reconcile, pct(reconcile));
     }
     if let Some(nt) = r.native_total_ms {
         let gap = if nt > 0.0 { r.total.mean_ms / nt } else { f64::INFINITY };
