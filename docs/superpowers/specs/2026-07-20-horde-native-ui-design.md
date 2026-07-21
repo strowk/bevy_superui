@@ -2,6 +2,7 @@
 
 Date: 2026-07-20
 Status: Design agreed. Scope = the **native-only** deliverable of the Horde build brief.
+Note (2026-07-21): native UI is now behind the opt-in `ui-native` feature (removed from `default`); default backend is supersolid per the 2026-07-21 port (`docs/superpowers/plans/2026-07-21-horde-supersolid-ui-port.md`).
 
 Source brief: `target/horde-prompt.md`.
 Direction context: `docs/superpowers/specs/2026-07-19-superui-component-framework-direction.md`.

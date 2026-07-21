@@ -1,5 +1,7 @@
 # Horde Supersolid UI Port — Implementation Plan
 
+**Status: COMPLETE (2026-07-21).** Windowed launch verified, all panels render, viewport-sizing bug fixed (commit e6e7d97). Tests: 32 passing (supersolid default), 20 passing (native). Perf baseline documented: ~5 FPS under stress swarm (reactive-store follow-up is the named gap).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Port the entire `examples/horde` UI from native `bevy_ui` to superui TSX (supersolid), keeping the native UI behind an opt-in `ui-native` feature that is removed from `default`, with both backends reading the identical `UiSnapshot` and raising the identical intents.
