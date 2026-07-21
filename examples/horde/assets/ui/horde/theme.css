@@ -25,5 +25,344 @@
   height: 100%;
 }
 
-/* Horde component styles. Expanded in Task C1. */
-#hud { position: absolute; width: 100%; height: 100%; }
+/* ── Horde component styles (Task C1) ────────────────────────────────────── */
+
+/* HUD root — full-screen, non-interacting container */
+#hud {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+}
+
+/* ── Generic panel card ─────────────────────────────────────────────────── */
+.panel {
+  background-color: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  padding: var(--space);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space);
+  color: var(--text);
+  font-size: 12px;
+}
+
+/* ── HUD panels (absolute positioning) ─────────────────────────────────── */
+
+/* Top-right: player HP / XP / weapon info (240 px wide) */
+#player-status {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 240px;
+}
+
+/* Top-center: wave / kills / dps / timer (280 px, centered) */
+#meters {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  margin-left: -140px;
+  width: 280px;
+  flex-direction: row;
+  justify-content: center;
+  padding: 6px var(--space);
+  font-size: 15px;
+}
+
+/* Bottom-right: minimap 160×160 */
+#minimap {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  width: 160px;
+  height: 160px;
+  background-color: rgba(13, 13, 20, 0.85);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  padding: 0;
+  /* no gap — blips are absolutely positioned inside */
+  overflow: hidden;
+}
+
+/* Bottom-center: weapon slots (320 px, centered) */
+#weapon-bar {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  margin-left: -160px;
+  width: 320px;
+  display: flex;
+  flex-direction: row;
+  gap: var(--space);
+  justify-content: center;
+}
+
+/* Bottom-left: combat log text lines (240 px) */
+#combat-log {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  width: 240px;
+  background-color: transparent;
+  border: none;
+  padding: 0;
+  gap: 2px;
+  pointer-events: none;
+}
+
+.log-line {
+  font-size: 12px;
+  color: var(--text);
+}
+
+/* ── Overlay layers (nameplates / damage numbers) ────────────────────────── */
+.overlay {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* ── Progress bars ──────────────────────────────────────────────────────── */
+.bar-track {
+  width: 100%;
+  height: 14px;
+  background-color: var(--bar-track);
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  background-color: var(--good);
+}
+
+.bar-fill.xp {
+  background-color: var(--accent);
+}
+
+/* ── Weapon slots ───────────────────────────────────────────────────────── */
+.slot {
+  width: 70px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--slot-idle);
+  border: 2px solid var(--panel-border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.slot.active {
+  background-color: var(--slot-active);
+  border-color: var(--accent);
+}
+
+.slot:hover {
+  background-color: var(--btn-hover);
+  border-color: var(--accent);
+}
+
+/* ── Enemy nameplates (tiny health bars above enemies) ──────────────────── */
+.nameplate {
+  position: absolute;
+  width: 44px;
+  height: 5px;
+  background-color: #262633;
+  overflow: hidden;
+}
+
+.np-fill {
+  height: 100%;
+}
+
+/* ── Floating damage numbers ────────────────────────────────────────────── */
+.dmg {
+  position: absolute;
+  color: var(--text);
+  font-size: 12px;
+  pointer-events: none;
+  user-select: none;
+}
+
+.dmg.crit {
+  color: var(--warn);
+  font-size: 15px;
+}
+
+/* ── Minimap blips ──────────────────────────────────────────────────────── */
+.blip {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 2px;
+  background-color: var(--text-dim);
+}
+
+.blip.player {
+  background-color: var(--accent);
+  width: 6px;
+  height: 6px;
+  border-radius: 3px;
+}
+
+.blip.enemy {
+  background-color: var(--danger);
+}
+
+.blip.pickup {
+  background-color: var(--good);
+}
+
+/* ── Fullscreen screens ─────────────────────────────────────────────────── */
+.screen {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+.screen.dim {
+  background-color: rgba(0, 0, 0, 0.6);
+}
+
+#main-menu {
+  background-color: var(--bg);
+}
+
+/* ── Screen titles and labels ───────────────────────────────────────────── */
+.title {
+  font-size: 72px;
+  color: var(--accent);
+  font-weight: bold;
+}
+
+.subtitle {
+  font-size: 15px;
+  color: var(--text-dim);
+}
+
+.screen-title {
+  font-size: 30px;
+  color: var(--text);
+}
+
+.screen-title.danger {
+  color: var(--danger);
+}
+
+/* Labels inside player-status */
+.label {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+/* ── Menu buttons ───────────────────────────────────────────────────────── */
+.menu-btn {
+  background-color: var(--btn-idle);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  padding: 11px 20px;
+  color: var(--text);
+  font-size: 15px;
+  cursor: pointer;
+  min-width: 160px;
+  justify-content: center;
+}
+
+.menu-btn:hover {
+  background-color: var(--btn-hover);
+  border-color: var(--accent);
+}
+
+.menu-btn:active {
+  background-color: var(--btn-pressed);
+}
+
+/* ── Modal overlays (inventory, settings) ───────────────────────────────── */
+.modal {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space);
+}
+
+.modal.dim {
+  background-color: rgba(0, 0, 0, 0.55);
+}
+
+/* ── Inventory grid ─────────────────────────────────────────────────────── */
+.inv-grid {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: var(--space);
+  width: 560px;
+}
+
+.inv-card {
+  flex: 0 0 calc(50% - 4px);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--space);
+  background-color: #292b3d;
+  border: 2px solid var(--panel-border);
+  border-radius: var(--radius);
+}
+
+.inv-card.active {
+  border-color: var(--accent);
+}
+
+.inv-name {
+  font-size: 15px;
+  color: var(--text);
+  font-weight: bold;
+}
+
+.inv-stat {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+/* ── Settings panel ─────────────────────────────────────────────────────── */
+.settings-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space);
+  color: var(--text);
+  font-size: 15px;
+}
+
+/* Badge / ammo labels in player-status */
+.badge {
+  font-size: 15px;
+  color: var(--text);
+}
+
+.ammo {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+/* Stats panel on game over screen */
+.panel.stats {
+  width: 300px;
+  font-size: 15px;
+}
