@@ -12,6 +12,11 @@ path = "src/lib.rs"
 name = "horde"
 path = "src/main.rs"
 
+[[bin]]
+name = "horde-bench"
+path = "src/bin/bench.rs"
+required-features = ["bench"]
+
 [features]
 default = ["debug-ui"]
 ui-native = []
@@ -19,6 +24,8 @@ ui-native = []
 hmr = ["superui/hmr", "bevy/file_watcher"]
 debug-ui = ["bevy/bevy_dev_tools"]
 mcp_debug = ["dep:bevy_brp_extras", "bevy/bevy_remote"]
+bench = []
+dhat-prof = ["dep:dhat"]
 
 [dependencies]
 bevy = { version = "0.17" }
@@ -26,6 +33,10 @@ superui = { path = "../../crates/superui" }
 superui_css = { path = "../../crates/superui_css" }
 superui_bridge = { path = "../../crates/superui_bridge" }
 serde = { version = "1", features = ["derive"] }
+
+[dependencies.dhat]
+optional = true
+version = "0.3"
 
 [dependencies.bevy_brp_extras]
 optional = true

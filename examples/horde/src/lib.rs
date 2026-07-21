@@ -4,3 +4,6 @@ pub mod input;
 pub mod sim;
 pub mod ui;
 pub mod world_render;
+
+#[cfg(feature = "bench")]
+pub mod bench;
