@@ -64,12 +64,42 @@ function CombatLog(props) {
   );
 }
 
+function WeaponBar(props) {
+  return (
+    <div id="weapon-bar">
+      {<For each={props.f().inventory}>
+        {(slot) => (
+          <button class={slot.active ? "slot active" : "slot"} data-index={slot.index}
+                  onClick={() => intent("SwitchWeapon", slot.index)}>
+            {`${slot.index + 1}. ${slot.name}`}
+          </button>
+        )}
+      </For>}
+    </div>
+  );
+}
+
+function Minimap(props) {
+  return (
+    <div class="panel" id="minimap">
+      {<For each={props.f().blips}>
+        {(b) => (
+          <div class={"blip " + b.kind}
+               style={`left: ${Math.round(b.mx * 100)}%; top: ${Math.round(b.my * 100)}%`}></div>
+        )}
+      </For>}
+    </div>
+  );
+}
+
 function Hud(props) {
   return (
     <div id="playing">
       <PlayerStatus f={props.f} />
       <Meters f={props.f} />
       <CombatLog f={props.f} />
+      <WeaponBar f={props.f} />
+      <Minimap f={props.f} />
     </div>
   );
 }

@@ -55,3 +55,43 @@ fn meters_and_log_render() {
     assert_eq!(lines.len(), 1);
     assert_eq!(text_content(&app, lines[0]), "Wave 3");
 }
+
+#[test]
+fn weapon_bar_lists_slots_and_switch_raises_intent() {
+    use horde::sim::{Intent, WeaponKind};
+    use horde::sim::snapshot::WeaponSlot;
+    let mut app = app();
+    let _root = mount(&mut app);
+    set_state(&mut app, GameState::Playing);
+    edit_snapshot(&mut app, |s| {
+        s.inventory = vec![
+            WeaponSlot { index: 0, kind: WeaponKind::Pistol, active: true },
+            WeaponSlot { index: 1, kind: WeaponKind::Smg, active: false },
+        ];
+    });
+    let slots = nodes_by_selector(&app, "#weapon-bar .slot");
+    assert_eq!(slots.len(), 2);
+    assert_eq!(text_content(&app, slots[0]), "1. Pistol");
+    assert!(classes(&app, slots[0]).iter().any(|c| c == "active"));
+    click(&mut app, slots[1]);
+    let q = app.world().resource::<horde::sim::IntentQueue>();
+    assert!(q.0.iter().any(|i| matches!(i, Intent::SwitchWeapon(1))), "queue: {:?}", q.0);
+}
+
+#[test]
+fn minimap_renders_blips_positioned() {
+    use horde::sim::snapshot::{Blip, BlipKind};
+    use bevy::prelude::Vec2;
+    let mut app = app();
+    let _root = mount(&mut app);
+    set_state(&mut app, GameState::Playing);
+    edit_snapshot(&mut app, |s| {
+        s.blips = vec![Blip { id: u64::MAX, world_pos: Vec2::ZERO, screen_pos: Vec2::ZERO, kind: BlipKind::Player }];
+    });
+    let blips = nodes_by_selector(&app, "#minimap .blip");
+    assert_eq!(blips.len(), 1);
+    // world (0,0) → center (mx=my=0.5) → 50%.
+    let style = attr(&app, blips[0], "style");
+    assert!(style.contains("left: 50%") && style.contains("top: 50%"), "style: {style:?}");
+    assert!(classes(&app, blips[0]).iter().any(|c| c == "player"));
+}

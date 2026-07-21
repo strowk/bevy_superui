@@ -137,67 +137,118 @@ function CombatLog(props) {
 	})();
 }
 $ss.hot("assets/ui/horde\\app.tsx#CombatLog", CombatLog);
+function WeaponBar(props) {
+	return (() => {
+		const _el14 = $ss.el("div");
+		$ss.attr(_el14, "id", "weapon-bar");
+		$ss.insert(_el14, () => $ss.cmp(For, {
+			get each() {
+				return props.f().inventory;
+			},
+			get children() {
+				return (slot) => (() => {
+					const _el13 = $ss.el("button");
+					$ss.bind(_el13, "class", () => slot.active ? "slot active" : "slot");
+					$ss.bind(_el13, "data-index", () => slot.index);
+					$ss.on(_el13, "click", () => intent("SwitchWeapon", slot.index));
+					$ss.insert(_el13, () => `${slot.index + 1}. ${slot.name}`);
+					return _el13;
+				})();
+			}
+		}));
+		return _el14;
+	})();
+}
+$ss.hot("assets/ui/horde\\app.tsx#WeaponBar", WeaponBar);
+function Minimap(props) {
+	return (() => {
+		const _el16 = $ss.el("div");
+		$ss.attr(_el16, "class", "panel");
+		$ss.attr(_el16, "id", "minimap");
+		$ss.insert(_el16, () => $ss.cmp(For, {
+			get each() {
+				return props.f().blips;
+			},
+			get children() {
+				return (b) => (() => {
+					const _el15 = $ss.el("div");
+					$ss.bind(_el15, "class", () => "blip " + b.kind);
+					$ss.bind(_el15, "style", () => `left: ${Math.round(b.mx * 100)}%; top: ${Math.round(b.my * 100)}%`);
+					return _el15;
+				})();
+			}
+		}));
+		return _el16;
+	})();
+}
+$ss.hot("assets/ui/horde\\app.tsx#Minimap", Minimap);
 function Hud(props) {
 	return (() => {
-		const _el13 = $ss.el("div");
-		$ss.attr(_el13, "id", "playing");
-		$ss.child(_el13, $ss.cmp(PlayerStatus, { get f() {
+		const _el17 = $ss.el("div");
+		$ss.attr(_el17, "id", "playing");
+		$ss.child(_el17, $ss.cmp(PlayerStatus, { get f() {
 			return props.f;
 		} }));
-		$ss.child(_el13, $ss.cmp(Meters, { get f() {
+		$ss.child(_el17, $ss.cmp(Meters, { get f() {
 			return props.f;
 		} }));
-		$ss.child(_el13, $ss.cmp(CombatLog, { get f() {
+		$ss.child(_el17, $ss.cmp(CombatLog, { get f() {
 			return props.f;
 		} }));
-		return _el13;
+		$ss.child(_el17, $ss.cmp(WeaponBar, { get f() {
+			return props.f;
+		} }));
+		$ss.child(_el17, $ss.cmp(Minimap, { get f() {
+			return props.f;
+		} }));
+		return _el17;
 	})();
 }
 $ss.hot("assets/ui/horde\\app.tsx#Hud", Hud);
 function MainMenu() {
 	const [settingsOpen, setSettingsOpen] = createSignal(false);
 	return (() => {
-		const _el14 = $ss.el("div");
-		$ss.attr(_el14, "class", "screen");
-		$ss.attr(_el14, "id", "main-menu");
-		$ss.child(_el14, (() => {
-			const _el15 = $ss.el("h1");
-			$ss.attr(_el15, "class", "title");
-			$ss.attr(_el15, "id", "title");
-			$ss.child(_el15, $ss.txt("HORDE"));
-			return _el15;
-		})());
-		$ss.child(_el14, (() => {
-			const _el16 = $ss.el("span");
-			$ss.attr(_el16, "class", "subtitle");
-			$ss.child(_el16, $ss.txt("survive the swarm"));
-			return _el16;
-		})());
-		$ss.child(_el14, (() => {
-			const _el17 = $ss.el("button");
-			$ss.attr(_el17, "class", "menu-btn");
-			$ss.attr(_el17, "id", "start");
-			$ss.on(_el17, "click", () => intent("StartGame"));
-			$ss.child(_el17, $ss.txt("Start  (Enter)"));
-			return _el17;
-		})());
-		$ss.child(_el14, (() => {
-			const _el18 = $ss.el("button");
-			$ss.attr(_el18, "class", "menu-btn");
-			$ss.attr(_el18, "id", "open-settings");
-			$ss.on(_el18, "click", () => setSettingsOpen(true));
-			$ss.child(_el18, $ss.txt("Settings"));
-			return _el18;
-		})());
-		$ss.child(_el14, (() => {
-			const _el19 = $ss.el("button");
-			$ss.attr(_el19, "class", "menu-btn");
-			$ss.attr(_el19, "id", "quit");
-			$ss.on(_el19, "click", () => intent("Quit"));
-			$ss.child(_el19, $ss.txt("Quit"));
+		const _el18 = $ss.el("div");
+		$ss.attr(_el18, "class", "screen");
+		$ss.attr(_el18, "id", "main-menu");
+		$ss.child(_el18, (() => {
+			const _el19 = $ss.el("h1");
+			$ss.attr(_el19, "class", "title");
+			$ss.attr(_el19, "id", "title");
+			$ss.child(_el19, $ss.txt("HORDE"));
 			return _el19;
 		})());
-		$ss.insert(_el14, () => $ss.cmp(Show, {
+		$ss.child(_el18, (() => {
+			const _el20 = $ss.el("span");
+			$ss.attr(_el20, "class", "subtitle");
+			$ss.child(_el20, $ss.txt("survive the swarm"));
+			return _el20;
+		})());
+		$ss.child(_el18, (() => {
+			const _el21 = $ss.el("button");
+			$ss.attr(_el21, "class", "menu-btn");
+			$ss.attr(_el21, "id", "start");
+			$ss.on(_el21, "click", () => intent("StartGame"));
+			$ss.child(_el21, $ss.txt("Start  (Enter)"));
+			return _el21;
+		})());
+		$ss.child(_el18, (() => {
+			const _el22 = $ss.el("button");
+			$ss.attr(_el22, "class", "menu-btn");
+			$ss.attr(_el22, "id", "open-settings");
+			$ss.on(_el22, "click", () => setSettingsOpen(true));
+			$ss.child(_el22, $ss.txt("Settings"));
+			return _el22;
+		})());
+		$ss.child(_el18, (() => {
+			const _el23 = $ss.el("button");
+			$ss.attr(_el23, "class", "menu-btn");
+			$ss.attr(_el23, "id", "quit");
+			$ss.on(_el23, "click", () => intent("Quit"));
+			$ss.child(_el23, $ss.txt("Quit"));
+			return _el23;
+		})());
+		$ss.insert(_el18, () => $ss.cmp(Show, {
 			get when() {
 				return settingsOpen();
 			},
@@ -205,24 +256,24 @@ function MainMenu() {
 				return $ss.cmp(Settings, { onClose: () => setSettingsOpen(false) });
 			}
 		}));
-		return _el14;
+		return _el18;
 	})();
 }
 $ss.hot("assets/ui/horde\\app.tsx#MainMenu", MainMenu);
 // Placeholder; real body added in Task B6.
 function Settings(props) {
 	return (() => {
-		const _el20 = $ss.el("div");
-		$ss.attr(_el20, "class", "modal");
-		$ss.attr(_el20, "id", "settings");
-		$ss.child(_el20, (() => {
-			const _el21 = $ss.el("button");
-			$ss.attr(_el21, "id", "settings-close");
-			$ss.on(_el21, "click", () => props.onClose());
-			$ss.child(_el21, $ss.txt("Close"));
-			return _el21;
+		const _el24 = $ss.el("div");
+		$ss.attr(_el24, "class", "modal");
+		$ss.attr(_el24, "id", "settings");
+		$ss.child(_el24, (() => {
+			const _el25 = $ss.el("button");
+			$ss.attr(_el25, "id", "settings-close");
+			$ss.on(_el25, "click", () => props.onClose());
+			$ss.child(_el25, $ss.txt("Close"));
+			return _el25;
 		})());
-		return _el20;
+		return _el24;
 	})();
 }
 $ss.hot("assets/ui/horde\\app.tsx#Settings", Settings);
@@ -231,9 +282,9 @@ function App() {
 	bevy.on("frame", (f) => setFrame(f));
 	const state = createMemo(() => frame().state);
 	return (() => {
-		const _el24 = $ss.el("div");
-		$ss.attr(_el24, "id", "hud");
-		$ss.insert(_el24, () => $ss.cmp(Switch, { get children() {
+		const _el28 = $ss.el("div");
+		$ss.attr(_el28, "id", "hud");
+		$ss.insert(_el28, () => $ss.cmp(Switch, { get children() {
 			return $ss.frag([
 				$ss.cmp(Match, {
 					get when() {
@@ -259,9 +310,9 @@ function App() {
 					},
 					get children() {
 						return (() => {
-							const _el22 = $ss.el("div");
-							$ss.attr(_el22, "id", "paused");
-							return _el22;
+							const _el26 = $ss.el("div");
+							$ss.attr(_el26, "id", "paused");
+							return _el26;
 						})();
 					}
 				}),
@@ -271,15 +322,15 @@ function App() {
 					},
 					get children() {
 						return (() => {
-							const _el23 = $ss.el("div");
-							$ss.attr(_el23, "id", "game-over");
-							return _el23;
+							const _el27 = $ss.el("div");
+							$ss.attr(_el27, "id", "game-over");
+							return _el27;
 						})();
 					}
 				})
 			]);
 		} }));
-		return _el24;
+		return _el28;
 	})();
 }
 $ss.hot("assets/ui/horde\\app.tsx#App", App);
