@@ -18,6 +18,10 @@ function App() {
     <div id="hud">
       <h1 id="title">HORDE</h1>
       <span id="state">{frame().state}</span>
+      <div id="spike-track">
+        <div id="spike-fill"
+             style={`width: ${Math.round(100 * frame().player_hp / frame().player_max_hp)}%`}></div>
+      </div>
     </div>
   );
 }

@@ -1,18 +1,7 @@
-// This example/benchmark vehicle retains some intentionally-unused scaffolding:
-// sim API surface (Rng::unit_vec, Intent::Quit, IntentQueue::drain, Nameplate::kind)
-// exists for future Supersolid backend parity and the benchmark harness — it mirrors
-// the full public contract even where the current native-UI path doesn't consume every field.
-#![allow(dead_code)]
-
 use bevy::prelude::*;
 
-mod game_state;
-mod input;
-mod sim;
-mod ui;
-mod world_render;
-
-use game_state::GameState;
+use horde::game_state::{self, GameState};
+use horde::{input, sim, ui, world_render};
 
 fn main() {
     let mut app = App::new();

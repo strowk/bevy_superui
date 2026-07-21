@@ -40,6 +40,17 @@ function App() {
 			$ss.insert(_el2, () => frame().state);
 			return _el2;
 		})());
+		$ss.child(_el0, (() => {
+			const _el3 = $ss.el("div");
+			$ss.attr(_el3, "id", "spike-track");
+			$ss.child(_el3, (() => {
+				const _el4 = $ss.el("div");
+				$ss.attr(_el4, "id", "spike-fill");
+				$ss.bind(_el4, "style", () => `width: ${Math.round(100 * frame().player_hp / frame().player_max_hp)}%`);
+				return _el4;
+			})());
+			return _el3;
+		})());
 		return _el0;
 	})();
 }

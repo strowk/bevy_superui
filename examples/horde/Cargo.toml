@@ -4,6 +4,14 @@ version = "0.1.0"
 edition = "2021"
 publish = false
 
+[lib]
+name = "horde"
+path = "src/lib.rs"
+
+[[bin]]
+name = "horde"
+path = "src/main.rs"
+
 [features]
 default = ["debug-ui"]
 ui-native = []
