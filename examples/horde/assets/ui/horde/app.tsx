@@ -12,6 +12,68 @@ function intent(kind, index) {
   bevy.send("HordeIntent", { kind, index: index || 0 });
 }
 
+function hpColor(f) {
+  f = Math.max(0, Math.min(1, f));
+  const r = Math.round((0.95 * (1 - f * f) + 0.10) * 255);
+  const g = Math.round((0.30 + 0.62 * f) * 255);
+  const b = Math.round(0.30 * 255);
+  return `rgb(${r}, ${g}, ${b})`;
+}
+function mmss(sec) {
+  const m = Math.floor(sec / 60), s = Math.floor(sec % 60);
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+function PlayerStatus(props) {
+  const f = props.f;
+  const hpFrac = () => f().player_hp / f().player_max_hp;
+  const xpFrac = () => (f().xp % 100) / 100;
+  return (
+    <div class="panel" id="player-status">
+      <span class="label">HP</span>
+      <div class="bar-track">
+        <div class="bar-fill" id="hp-fill"
+             style={`width: ${Math.round(100 * hpFrac())}%; background-color: ${hpColor(hpFrac())}`}></div>
+      </div>
+      <span class="label">XP</span>
+      <div class="bar-track">
+        <div class="bar-fill xp" id="xp-fill" style={`width: ${Math.round(100 * xpFrac())}%`}></div>
+      </div>
+      <span class="badge" id="weapon-badge">{f().active_weapon || "—"}</span>
+      <span class="ammo" id="ammo">{f().reloading ? "reloading…" : `${f().ammo} / ${f().ammo_size}`}</span>
+    </div>
+  );
+}
+
+function Meters(props) {
+  const f = props.f;
+  return (
+    <div class="panel" id="meters">
+      <span>{`Wave ${f().wave}   Kills ${f().kills}   DPS ${Math.round(f().dps)}   ${mmss(f().elapsed)}`}</span>
+    </div>
+  );
+}
+
+function CombatLog(props) {
+  return (
+    <div class="panel" id="combat-log">
+      {<For each={props.f().log}>
+        {(line) => <span class="log-line" style={`opacity: ${line.alpha}`}>{line.text}</span>}
+      </For>}
+    </div>
+  );
+}
+
+function Hud(props) {
+  return (
+    <div id="playing">
+      <PlayerStatus f={props.f} />
+      <Meters f={props.f} />
+      <CombatLog f={props.f} />
+    </div>
+  );
+}
+
 function MainMenu() {
   const [settingsOpen, setSettingsOpen] = createSignal(false);
   return (
@@ -46,7 +108,7 @@ function App() {
     <div id="hud">
       {<Switch>
         <Match when={state() === "MainMenu"}><MainMenu /></Match>
-        <Match when={state() === "Playing"}><div id="playing" /></Match>
+        <Match when={state() === "Playing"}><Hud f={frame} /></Match>
         <Match when={state() === "Paused"}><div id="paused" /></Match>
         <Match when={state() === "GameOver"}><div id="game-over" /></Match>
       </Switch>}
