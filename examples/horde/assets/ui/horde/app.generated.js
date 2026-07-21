@@ -182,73 +182,132 @@ function Minimap(props) {
 	})();
 }
 $ss.hot("assets/ui/horde\\app.tsx#Minimap", Minimap);
+function Nameplates(props) {
+	return (() => {
+		const _el19 = $ss.el("div");
+		$ss.attr(_el19, "class", "overlay");
+		$ss.attr(_el19, "id", "nameplates");
+		$ss.insert(_el19, () => $ss.cmp(For, {
+			get each() {
+				return props.f().enemies;
+			},
+			get children() {
+				return (e) => (() => {
+					const _el17 = $ss.el("div");
+					$ss.attr(_el17, "class", "nameplate");
+					$ss.bind(_el17, "data-id", () => e.id);
+					$ss.bind(_el17, "style", () => `left: ${Math.round(e.sx - 22)}px; top: ${Math.round(e.sy - 30)}px`);
+					$ss.child(_el17, (() => {
+						const _el18 = $ss.el("div");
+						$ss.attr(_el18, "class", "np-fill");
+						$ss.bind(_el18, "style", () => `width: ${Math.round(e.frac * 100)}%; background-color: ${hpColor(e.frac)}`);
+						return _el18;
+					})());
+					return _el17;
+				})();
+			}
+		}));
+		return _el19;
+	})();
+}
+$ss.hot("assets/ui/horde\\app.tsx#Nameplates", Nameplates);
+function DamageNumbers(props) {
+	return (() => {
+		const _el21 = $ss.el("div");
+		$ss.attr(_el21, "class", "overlay");
+		$ss.attr(_el21, "id", "damage-numbers");
+		$ss.insert(_el21, () => $ss.cmp(For, {
+			get each() {
+				return props.f().damage_numbers;
+			},
+			get children() {
+				return (d) => (() => {
+					const _el20 = $ss.el("span");
+					$ss.bind(_el20, "class", () => d.crit ? "dmg crit" : "dmg");
+					$ss.bind(_el20, "data-id", () => d.id);
+					$ss.bind(_el20, "style", () => `left: ${Math.round(d.sx)}px; top: ${Math.round(d.sy)}px; opacity: ${d.alpha}`);
+					$ss.insert(_el20, () => d.text);
+					return _el20;
+				})();
+			}
+		}));
+		return _el21;
+	})();
+}
+$ss.hot("assets/ui/horde\\app.tsx#DamageNumbers", DamageNumbers);
 function Hud(props) {
 	return (() => {
-		const _el17 = $ss.el("div");
-		$ss.attr(_el17, "id", "playing");
-		$ss.child(_el17, $ss.cmp(PlayerStatus, { get f() {
+		const _el22 = $ss.el("div");
+		$ss.attr(_el22, "id", "playing");
+		$ss.child(_el22, $ss.cmp(PlayerStatus, { get f() {
 			return props.f;
 		} }));
-		$ss.child(_el17, $ss.cmp(Meters, { get f() {
+		$ss.child(_el22, $ss.cmp(Meters, { get f() {
 			return props.f;
 		} }));
-		$ss.child(_el17, $ss.cmp(CombatLog, { get f() {
+		$ss.child(_el22, $ss.cmp(CombatLog, { get f() {
 			return props.f;
 		} }));
-		$ss.child(_el17, $ss.cmp(WeaponBar, { get f() {
+		$ss.child(_el22, $ss.cmp(WeaponBar, { get f() {
 			return props.f;
 		} }));
-		$ss.child(_el17, $ss.cmp(Minimap, { get f() {
+		$ss.child(_el22, $ss.cmp(Minimap, { get f() {
 			return props.f;
 		} }));
-		return _el17;
+		$ss.child(_el22, $ss.cmp(Nameplates, { get f() {
+			return props.f;
+		} }));
+		$ss.child(_el22, $ss.cmp(DamageNumbers, { get f() {
+			return props.f;
+		} }));
+		return _el22;
 	})();
 }
 $ss.hot("assets/ui/horde\\app.tsx#Hud", Hud);
 function MainMenu() {
 	const [settingsOpen, setSettingsOpen] = createSignal(false);
 	return (() => {
-		const _el18 = $ss.el("div");
-		$ss.attr(_el18, "class", "screen");
-		$ss.attr(_el18, "id", "main-menu");
-		$ss.child(_el18, (() => {
-			const _el19 = $ss.el("h1");
-			$ss.attr(_el19, "class", "title");
-			$ss.attr(_el19, "id", "title");
-			$ss.child(_el19, $ss.txt("HORDE"));
-			return _el19;
+		const _el23 = $ss.el("div");
+		$ss.attr(_el23, "class", "screen");
+		$ss.attr(_el23, "id", "main-menu");
+		$ss.child(_el23, (() => {
+			const _el24 = $ss.el("h1");
+			$ss.attr(_el24, "class", "title");
+			$ss.attr(_el24, "id", "title");
+			$ss.child(_el24, $ss.txt("HORDE"));
+			return _el24;
 		})());
-		$ss.child(_el18, (() => {
-			const _el20 = $ss.el("span");
-			$ss.attr(_el20, "class", "subtitle");
-			$ss.child(_el20, $ss.txt("survive the swarm"));
-			return _el20;
+		$ss.child(_el23, (() => {
+			const _el25 = $ss.el("span");
+			$ss.attr(_el25, "class", "subtitle");
+			$ss.child(_el25, $ss.txt("survive the swarm"));
+			return _el25;
 		})());
-		$ss.child(_el18, (() => {
-			const _el21 = $ss.el("button");
-			$ss.attr(_el21, "class", "menu-btn");
-			$ss.attr(_el21, "id", "start");
-			$ss.on(_el21, "click", () => intent("StartGame"));
-			$ss.child(_el21, $ss.txt("Start  (Enter)"));
-			return _el21;
+		$ss.child(_el23, (() => {
+			const _el26 = $ss.el("button");
+			$ss.attr(_el26, "class", "menu-btn");
+			$ss.attr(_el26, "id", "start");
+			$ss.on(_el26, "click", () => intent("StartGame"));
+			$ss.child(_el26, $ss.txt("Start  (Enter)"));
+			return _el26;
 		})());
-		$ss.child(_el18, (() => {
-			const _el22 = $ss.el("button");
-			$ss.attr(_el22, "class", "menu-btn");
-			$ss.attr(_el22, "id", "open-settings");
-			$ss.on(_el22, "click", () => setSettingsOpen(true));
-			$ss.child(_el22, $ss.txt("Settings"));
-			return _el22;
+		$ss.child(_el23, (() => {
+			const _el27 = $ss.el("button");
+			$ss.attr(_el27, "class", "menu-btn");
+			$ss.attr(_el27, "id", "open-settings");
+			$ss.on(_el27, "click", () => setSettingsOpen(true));
+			$ss.child(_el27, $ss.txt("Settings"));
+			return _el27;
 		})());
-		$ss.child(_el18, (() => {
-			const _el23 = $ss.el("button");
-			$ss.attr(_el23, "class", "menu-btn");
-			$ss.attr(_el23, "id", "quit");
-			$ss.on(_el23, "click", () => intent("Quit"));
-			$ss.child(_el23, $ss.txt("Quit"));
-			return _el23;
+		$ss.child(_el23, (() => {
+			const _el28 = $ss.el("button");
+			$ss.attr(_el28, "class", "menu-btn");
+			$ss.attr(_el28, "id", "quit");
+			$ss.on(_el28, "click", () => intent("Quit"));
+			$ss.child(_el28, $ss.txt("Quit"));
+			return _el28;
 		})());
-		$ss.insert(_el18, () => $ss.cmp(Show, {
+		$ss.insert(_el23, () => $ss.cmp(Show, {
 			get when() {
 				return settingsOpen();
 			},
@@ -256,24 +315,24 @@ function MainMenu() {
 				return $ss.cmp(Settings, { onClose: () => setSettingsOpen(false) });
 			}
 		}));
-		return _el18;
+		return _el23;
 	})();
 }
 $ss.hot("assets/ui/horde\\app.tsx#MainMenu", MainMenu);
 // Placeholder; real body added in Task B6.
 function Settings(props) {
 	return (() => {
-		const _el24 = $ss.el("div");
-		$ss.attr(_el24, "class", "modal");
-		$ss.attr(_el24, "id", "settings");
-		$ss.child(_el24, (() => {
-			const _el25 = $ss.el("button");
-			$ss.attr(_el25, "id", "settings-close");
-			$ss.on(_el25, "click", () => props.onClose());
-			$ss.child(_el25, $ss.txt("Close"));
-			return _el25;
+		const _el29 = $ss.el("div");
+		$ss.attr(_el29, "class", "modal");
+		$ss.attr(_el29, "id", "settings");
+		$ss.child(_el29, (() => {
+			const _el30 = $ss.el("button");
+			$ss.attr(_el30, "id", "settings-close");
+			$ss.on(_el30, "click", () => props.onClose());
+			$ss.child(_el30, $ss.txt("Close"));
+			return _el30;
 		})());
-		return _el24;
+		return _el29;
 	})();
 }
 $ss.hot("assets/ui/horde\\app.tsx#Settings", Settings);
@@ -282,9 +341,9 @@ function App() {
 	bevy.on("frame", (f) => setFrame(f));
 	const state = createMemo(() => frame().state);
 	return (() => {
-		const _el28 = $ss.el("div");
-		$ss.attr(_el28, "id", "hud");
-		$ss.insert(_el28, () => $ss.cmp(Switch, { get children() {
+		const _el33 = $ss.el("div");
+		$ss.attr(_el33, "id", "hud");
+		$ss.insert(_el33, () => $ss.cmp(Switch, { get children() {
 			return $ss.frag([
 				$ss.cmp(Match, {
 					get when() {
@@ -310,9 +369,9 @@ function App() {
 					},
 					get children() {
 						return (() => {
-							const _el26 = $ss.el("div");
-							$ss.attr(_el26, "id", "paused");
-							return _el26;
+							const _el31 = $ss.el("div");
+							$ss.attr(_el31, "id", "paused");
+							return _el31;
 						})();
 					}
 				}),
@@ -322,15 +381,15 @@ function App() {
 					},
 					get children() {
 						return (() => {
-							const _el27 = $ss.el("div");
-							$ss.attr(_el27, "id", "game-over");
-							return _el27;
+							const _el32 = $ss.el("div");
+							$ss.attr(_el32, "id", "game-over");
+							return _el32;
 						})();
 					}
 				})
 			]);
 		} }));
-		return _el28;
+		return _el33;
 	})();
 }
 $ss.hot("assets/ui/horde\\app.tsx#App", App);

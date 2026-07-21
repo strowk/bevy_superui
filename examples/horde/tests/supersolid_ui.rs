@@ -95,3 +95,31 @@ fn minimap_renders_blips_positioned() {
     assert!(style.contains("left: 50%") && style.contains("top: 50%"), "style: {style:?}");
     assert!(classes(&app, blips[0]).iter().any(|c| c == "player"));
 }
+
+#[test]
+fn nameplates_and_damage_numbers_render_positioned() {
+    use horde::sim::snapshot::{Nameplate, FloatingNumber};
+    use horde::sim::EnemyKind;
+    use bevy::prelude::Vec2;
+    let mut app = app();
+    let _root = mount(&mut app);
+    set_state(&mut app, GameState::Playing);
+    edit_snapshot(&mut app, |s| {
+        s.enemies = vec![Nameplate {
+            id: 7, world_pos: Vec2::ZERO, screen_pos: Vec2::new(100.0, 200.0),
+            hp: 15.0, max_hp: 30.0, kind: EnemyKind::Grunt,
+        }];
+        s.damage_numbers = vec![FloatingNumber {
+            id: 9, world_pos: Vec2::ZERO, screen_pos: Vec2::new(50.0, 60.0),
+            amount: 42.0, crit: true, age: 0.0, ttl: 1.0,
+        }];
+    });
+    let np = node_by_selector(&app, "#nameplates .nameplate");
+    let s = attr(&app, np, "style");
+    assert!(s.contains("left: 78px") && s.contains("top: 170px"), "np style: {s:?}");
+    let fill = node_by_selector(&app, "#nameplates .np-fill");
+    assert!(attr(&app, fill, "style").contains("width: 50%"));
+    let dmg = node_by_selector(&app, "#damage-numbers .dmg");
+    assert_eq!(text_content(&app, dmg), "42");
+    assert!(classes(&app, dmg).iter().any(|c| c == "crit"));
+}

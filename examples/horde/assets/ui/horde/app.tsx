@@ -92,6 +92,37 @@ function Minimap(props) {
   );
 }
 
+function Nameplates(props) {
+  return (
+    <div class="overlay" id="nameplates">
+      {<For each={props.f().enemies}>
+        {(e) => (
+          <div class="nameplate" data-id={e.id}
+               style={`left: ${Math.round(e.sx - 22)}px; top: ${Math.round(e.sy - 30)}px`}>
+            <div class="np-fill"
+                 style={`width: ${Math.round(e.frac * 100)}%; background-color: ${hpColor(e.frac)}`}></div>
+          </div>
+        )}
+      </For>}
+    </div>
+  );
+}
+
+function DamageNumbers(props) {
+  return (
+    <div class="overlay" id="damage-numbers">
+      {<For each={props.f().damage_numbers}>
+        {(d) => (
+          <span class={d.crit ? "dmg crit" : "dmg"} data-id={d.id}
+                style={`left: ${Math.round(d.sx)}px; top: ${Math.round(d.sy)}px; opacity: ${d.alpha}`}>
+            {d.text}
+          </span>
+        )}
+      </For>}
+    </div>
+  );
+}
+
 function Hud(props) {
   return (
     <div id="playing">
@@ -100,6 +131,8 @@ function Hud(props) {
       <CombatLog f={props.f} />
       <WeaponBar f={props.f} />
       <Minimap f={props.f} />
+      <Nameplates f={props.f} />
+      <DamageNumbers f={props.f} />
     </div>
   );
 }
