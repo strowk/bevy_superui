@@ -5,12 +5,30 @@ attributes it across UI backends so optimizations can be predicted and proven.
 
 Design: `docs/superpowers/specs/2026-07-21-horde-benchmark-harness-design.md`.
 
-> **Always use `--release` for cross-backend comparison.**
-> In debug builds the backends' relative costs can invert — native has been
-> measured *slower* than supersolid in debug mode because Boa's interpreter
-> overhead is dwarfed by unoptimized Bevy-UI widget traversal. Debug numbers
-> are misleading for any before/after or native-gap work. Use
-> `cargo run --release` (shown in every example below) for meaningful results.
+> **Both profiles matter — measure in the one you care about, and stay consistent.**
+> Release is what ships; debug is what you and users build day-to-day (faster
+> builds), and it's where the swarm hitch bites hardest — debug is roughly 5–6×
+> slower than release. Supersolid is slower than native in *both* profiles, so
+> either is valid for the native-vs-supersolid gap; just never compare a debug
+> "before" against a release "after". Examples below use `--release`; drop it to
+> measure debug. Optimizations should ideally help both.
+
+## Current finding (what to optimize)
+
+Measured on the fixed harness (supersolid UI actually mounts — it needs
+`app.generated.js` in the asset set, else it silently renders nothing):
+
+- Supersolid's cost is **almost entirely the per-frame reconcile** — `ui_backend`
+  is ~98–99.7% of the frame; `marshal` (the JSON bridge) is ~0.1% and irrelevant.
+- It scales ~**linearly with live enemy count**: ~0.32 ms of reconcile *per enemy
+  per frame*. ~25 enemies → 9.6 ms (102 fps); ~392 enemies → 125 ms (8 fps).
+- **Native does the identical tree ~19–85× faster** (1.5 ms at 400 enemies). The
+  gap is reconcile *overhead* (Boa re-running the reactive render for every `<For>`
+  row + DOM diff + flair re-cascade + taffy every frame), not the underlying work.
+- The **p99 tail** (e.g. p50 90 / p99 451 ms at 400) is the visible hitch: a wave
+  spawns → the `<For>` reconcile spikes.
+
+So: optimize the **reconcile path / update granularity**, not the JSON bridge.
 
 ## Run
 
