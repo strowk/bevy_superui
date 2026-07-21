@@ -34,6 +34,18 @@
   height: 100%;
 }
 
+/* Playing-state wrappers must fill the viewport so the absolutely-positioned HUD
+   panels anchor to the full window. Without this, bevy_ui's default row-flex
+   stretches these wrappers to full HEIGHT but collapses them to content WIDTH,
+   so `right`/`left:50%`-anchored panels (player-status, minimap, meters,
+   weapon-bar) pile up on the left edge. */
+#playing-root,
+#playing {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+}
+
 /* ── Generic panel card ─────────────────────────────────────────────────── */
 .panel {
   background-color: var(--panel);
