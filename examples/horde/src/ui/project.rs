@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use crate::sim::UiSnapshot;
 
 /// Fills `screen_pos` for every world-positioned snapshot item using the 2D camera.
-/// Skipped cleanly when there is no camera/window (headless).
+/// Skipped cleanly when there is no camera/window (headless). Shared by both UI backends.
 pub fn project_snapshot(
     mut snap: ResMut<UiSnapshot>,
     cameras: Query<(&Camera, &GlobalTransform)>,
