@@ -17,3 +17,4 @@
 
 # Build output logs from bench runs
 *.log
+dhat-heap.json
