@@ -55,6 +55,10 @@ pub struct BenchFrame(pub u64);
 const HTML: &str = include_str!("../../assets/ui/horde/index.html");
 const CSS: &str = include_str!("../../assets/ui/horde/theme.css");
 const TSX: &str = include_str!("../../assets/ui/horde/app.tsx");
+// The bench builds WITHOUT the `hmr` feature, so SupersolidUiPlugin loads the
+// pre-transpiled `app.generated.js` (not `app.tsx`). It MUST be in the memory
+// asset dir or the runtime never mounts and the supersolid UI is silently empty.
+const JS: &str = include_str!("../../assets/ui/horde/app.generated.js");
 
 /// Deterministic scripted player: frame-indexed movement/aim/fire + periodic
 /// weapon-switch and inventory-toggle. No wall-clock, no randomness of its own.
@@ -135,6 +139,7 @@ fn memory_asset_dir() -> Dir {
     dir.insert_asset("ui/horde/index.html".as_ref(), HTML.as_bytes());
     dir.insert_asset("ui/horde/theme.css".as_ref(), CSS.as_bytes());
     dir.insert_asset("ui/horde/app.tsx".as_ref(), TSX.as_bytes());
+    dir.insert_asset("ui/horde/app.generated.js".as_ref(), JS.as_bytes());
     dir
 }
 
@@ -417,6 +422,63 @@ pub fn workload_summary(w: &Workload) -> String {
 /// Full workload line for the single-cap report.
 pub fn workload_line(w: &Workload) -> String {
     format!("  workload: {}\n", workload_summary(w))
+}
+
+/// Count of the actual `bevy_ui` nodes a backend emits for a settled swarm. This
+/// is a STRUCTURAL fact captured correctly headless (the reconciled node tree is
+/// the same headless or windowed), so it can reveal whether one backend produces
+/// a heavier tree than the other — a render-cost driver the timing pass misses.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct UiNodeCounts {
+    /// bevy_ui `Node` entities (native builds these directly).
+    pub nodes: usize,
+    /// bevy_ui `Text` entities.
+    pub texts: usize,
+    /// superui DOM elements (supersolid's own tree, if a `UiRuntime` exists).
+    pub dom_nodes: usize,
+}
+
+/// Build `backend`, run `settle` updates (swarm build-up + supersolid mount), then
+/// count live `Node`/`Text` UI entities AND, for supersolid, the superui DOM size.
+pub fn count_ui_nodes(backend: Backend, sim: SimConfig, settle: usize) -> UiNodeCounts {
+    let mut app = build_bench_app(backend, sim);
+    for _ in 0..settle {
+        app.update();
+    }
+    let dom_nodes = app
+        .world()
+        .get_non_send_resource::<superui_bridge::UiRuntime>()
+        .map(|rt| {
+            let d = rt.dom.borrow();
+            d.query_selector_all(d.document(), "*").len()
+        })
+        .unwrap_or(0);
+    let world = app.world_mut();
+    let mut node_q = world.query_filtered::<(), With<Node>>();
+    let nodes = node_q.iter(world).count();
+    let mut text_q = world.query_filtered::<(), With<Text>>();
+    let texts = text_q.iter(world).count();
+    UiNodeCounts { nodes, texts, dom_nodes }
+}
+
+#[cfg(test)]
+mod node_count_tests {
+    use super::*;
+
+    /// Diagnostic: does supersolid emit a heavier bevy_ui tree than native for the
+    /// same swarm? Prints counts (run with --nocapture); asserts both are non-empty.
+    /// #[ignore]d — settling a 400-enemy supersolid swarm takes minutes; run on demand:
+    /// `cargo test -p horde --features bench node_counts -- --ignored --nocapture`.
+    #[test]
+    #[ignore = "slow diagnostic: builds a full supersolid swarm (~5 min)"]
+    fn native_vs_supersolid_node_counts() {
+        let n = count_ui_nodes(Backend::Native, sim_for("stress", 400, 1), 400);
+        let s = count_ui_nodes(Backend::Supersolid, sim_for("stress", 400, 1), 400);
+        println!("NATIVE:     bevy_nodes={} texts={} dom={}", n.nodes, n.texts, n.dom_nodes);
+        println!("SUPERSOLID: bevy_nodes={} texts={} dom={}", s.nodes, s.texts, s.dom_nodes);
+        assert!(n.nodes > 0, "native produced no UI nodes");
+        assert!(s.nodes > 0, "supersolid produced no UI nodes");
+    }
 }
 
 #[cfg(test)]
