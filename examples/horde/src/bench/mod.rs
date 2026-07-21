@@ -359,7 +359,7 @@ pub fn sweep_table(reports: &[Report]) -> String {
     use std::fmt::Write as _;
     let mut s = String::new();
     let _ = writeln!(s, "scaling sweep ({} backend):", reports.first().map(|r| r.backend.label()).unwrap_or("?"));
-    let _ = writeln!(s, "  cap      total(ms)      ui(ms)   marshal(ms)");
+    let _ = writeln!(s, "  {:>6}  {:>12}  {:>12}  {:>12}", "cap", "total(ms)", "ui(ms)", "marshal(ms)");
     for r in reports {
         let marshal = match r.marshal_ms {
             Some(m) => format!("{:.3}", m),
@@ -367,7 +367,7 @@ pub fn sweep_table(reports: &[Report]) -> String {
         };
         let _ = writeln!(
             s,
-            "  {}       total={:.3}      ui={:.3}     {}",
+            "  {:>6}  {:>12.3}  {:>12.3}  {:>12}",
             r.cap, r.total.mean_ms, r.ui_ms, marshal
         );
     }
@@ -577,10 +577,14 @@ mod sweep_tests {
             .map(|&c| run_report(Backend::Native, sim_for("play", c, 1), 20, 5))
             .collect();
         let t = sweep_table(&reports);
-        assert!(t.contains("cap=60") || t.contains("60"));
-        assert!(t.contains("200"));
-        let rows = t.lines().filter(|l| l.contains("total")).count();
-        assert!(rows >= 2, "expected a data row per cap");
+        assert!(t.contains("60"), "cap 60 row missing");
+        assert!(t.contains("200"), "cap 200 row missing");
+        // A data row's first whitespace-delimited token is the cap number.
+        let data_rows = t
+            .lines()
+            .filter(|l| l.split_whitespace().next().map_or(false, |tok| tok.parse::<usize>().is_ok()))
+            .count();
+        assert_eq!(data_rows, 2, "expected exactly one data row per cap");
     }
 }
 
