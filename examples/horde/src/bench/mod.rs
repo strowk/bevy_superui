@@ -437,6 +437,156 @@ mod stats_tests {
     }
 }
 
+/// Dependency-free JSON serialization of a report.
+pub fn report_json(r: &Report) -> String {
+    let opt = |v: Option<f64>| match v {
+        Some(x) => format!("{:.6}", x),
+        None => "null".to_string(),
+    };
+    format!(
+        "{{\"backend\":\"{}\",\"enemy_cap\":{},\"frames\":{},\
+         \"total_mean_ms\":{:.6},\"p50_ms\":{:.6},\"p95_ms\":{:.6},\"p99_ms\":{:.6},\"fps\":{:.3},\
+         \"shared_ms\":{:.6},\"ui_ms\":{:.6},\"marshal_ms\":{},\"native_total_ms\":{}}}",
+        r.backend.label(),
+        r.cap,
+        r.frames,
+        r.total.mean_ms,
+        r.total.p50_ms,
+        r.total.p95_ms,
+        r.total.p99_ms,
+        r.total.fps,
+        r.shared_ms,
+        r.ui_ms,
+        opt(r.marshal_ms),
+        opt(r.native_total_ms),
+    )
+}
+
+#[derive(Clone, Debug)]
+pub struct BenchArgs {
+    pub backend: Backend,
+    pub preset: String,
+    pub caps: Vec<usize>,
+    pub frames: usize,
+    pub warmup: usize,
+    pub seed: u64,
+    pub json: bool,
+    pub dhat: bool,
+}
+
+/// Build a SimConfig from a preset name, overriding enemy_cap and seed.
+pub fn sim_for(preset: &str, cap: usize, seed: u64) -> SimConfig {
+    let mut cfg = match preset {
+        "stress" => SimConfig::stress(),
+        _ => SimConfig::play(),
+    };
+    cfg.enemy_cap = cap;
+    if seed != 0 {
+        cfg.seed = seed;
+    }
+    cfg
+}
+
+/// Minimal `--key value` / `--flag` parser. `backend` is required.
+pub fn parse_args(argv: &[String]) -> Result<BenchArgs, String> {
+    let mut backend: Option<Backend> = None;
+    let mut preset = "play".to_string();
+    let mut caps: Vec<usize> = Vec::new();
+    let mut frames = 1000usize;
+    let mut warmup = 100usize;
+    let mut seed = 0u64;
+    let mut json = false;
+    let mut dhat = false;
+
+    let mut i = 0;
+    while i < argv.len() {
+        let key = argv[i].as_str();
+        // Advance i and return the next token, or an error.
+        let advance = |i: &mut usize| -> Result<&str, String> {
+            *i += 1;
+            argv.get(*i).map(|s| s.as_str()).ok_or_else(|| format!("missing value for {key}"))
+        };
+        match key {
+            "--backend" => {
+                backend = Some(match advance(&mut i)? {
+                    "null" => Backend::Null,
+                    "native" => Backend::Native,
+                    "supersolid" => Backend::Supersolid,
+                    other => return Err(format!("unknown backend '{other}'")),
+                });
+            }
+            "--preset" => preset = advance(&mut i)?.to_string(),
+            "--enemy-cap" => {
+                let v = advance(&mut i)?.parse().map_err(|_| "bad --enemy-cap".to_string())?;
+                caps = vec![v];
+            }
+            "--sweep" => {
+                caps = advance(&mut i)?
+                    .split(',')
+                    .map(|s| s.trim().parse::<usize>().map_err(|_| "bad --sweep list".to_string()))
+                    .collect::<Result<_, _>>()?;
+            }
+            "--frames" => frames = advance(&mut i)?.parse().map_err(|_| "bad --frames".to_string())?,
+            "--warmup" => warmup = advance(&mut i)?.parse().map_err(|_| "bad --warmup".to_string())?,
+            "--seed" => seed = advance(&mut i)?.parse().map_err(|_| "bad --seed".to_string())?,
+            "--format" => json = advance(&mut i)? == "json",
+            "--dhat" => dhat = true,
+            other => return Err(format!("unknown arg '{other}'")),
+        }
+        i += 1;
+    }
+
+    let backend = backend.ok_or("--backend is required (null|native|supersolid)")?;
+    if caps.is_empty() {
+        caps = vec![match preset.as_str() {
+            "stress" => SimConfig::stress().enemy_cap,
+            _ => SimConfig::play().enemy_cap,
+        }];
+    }
+    Ok(BenchArgs { backend, preset, caps, frames, warmup, seed, json, dhat })
+}
+
+#[cfg(test)]
+mod cli_tests {
+    use super::*;
+
+    fn args(v: &[&str]) -> Vec<String> {
+        v.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn parses_backend_and_flags() {
+        let a = parse_args(&args(&[
+            "--backend", "supersolid", "--preset", "stress",
+            "--sweep", "60,400", "--frames", "500", "--warmup", "50",
+            "--seed", "7", "--format", "json",
+        ]))
+        .unwrap();
+        assert_eq!(a.backend, Backend::Supersolid);
+        assert_eq!(a.preset, "stress");
+        assert_eq!(a.caps, vec![60, 400]);
+        assert_eq!(a.frames, 500);
+        assert_eq!(a.warmup, 50);
+        assert_eq!(a.seed, 7);
+        assert!(a.json);
+    }
+
+    #[test]
+    fn backend_is_required() {
+        assert!(parse_args(&args(&["--frames", "10"])).is_err());
+    }
+
+    #[test]
+    fn json_contains_fields() {
+        let r = run_report(Backend::Native, sim_for("play", 60, 1), 20, 5);
+        let j = report_json(&r);
+        assert!(j.contains("\"backend\":\"native\""));
+        assert!(j.contains("\"total_mean_ms\""));
+        assert!(j.contains("\"shared_ms\""));
+        assert!(j.contains("\"ui_ms\""));
+    }
+}
+
 #[cfg(test)]
 mod app_tests {
     use super::*;
