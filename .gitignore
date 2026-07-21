@@ -14,3 +14,7 @@
 # Stray test output captures
 /test_output.txt
 **/test_output.txt
+
+# Build output logs from bench runs
+*.log
+dhat-heap.json

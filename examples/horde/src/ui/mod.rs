@@ -2,10 +2,10 @@ use bevy::prelude::*;
 
 pub mod project;
 
-#[cfg(feature = "ui-native")]
+#[cfg(any(feature = "ui-native", feature = "bench"))]
 pub mod native;
 
-#[cfg(not(feature = "ui-native"))]
+#[cfg(any(not(feature = "ui-native"), feature = "bench"))]
 pub mod supersolid;
 
 pub fn add_ui(app: &mut App) {
