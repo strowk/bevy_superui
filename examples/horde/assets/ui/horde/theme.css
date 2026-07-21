@@ -1,0 +1,26 @@
+:root {
+  --bg: #090b13;
+  --panel: #171c2b;
+  --panel-top: #262e45;
+  --panel-border: #3d527a;
+  --text: #edf5ff;
+  --text-dim: #8ca1c7;
+  --accent: #40d9ff;
+  --danger: #ff5461;
+  --good: #59eb8c;
+  --warn: #ffc747;
+  --bar-track: #1a1f2e;
+  --slot-active: #384d6b;
+  --slot-idle: #262938;
+  --btn-idle: #212940;
+  --btn-hover: #36456b;
+  --btn-pressed: #1a2133;
+  --space: 8px;
+  --radius: 8px;
+}
+
+#root {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+}
