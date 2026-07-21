@@ -162,6 +162,34 @@ function Settings(props) {
   );
 }
 
+function Pause() {
+  return (
+    <div class="screen dim" id="paused">
+      <h2 class="screen-title">Paused</h2>
+      <button class="menu-btn" id="resume" onClick={() => intent("Resume")}>Resume  (Esc)</button>
+      <button class="menu-btn" id="restart" onClick={() => intent("Restart")}>Restart</button>
+      <button class="menu-btn" id="pause-quit" onClick={() => intent("Quit")}>Quit</button>
+    </div>
+  );
+}
+
+function GameOver(props) {
+  const f = props.f;
+  return (
+    <div class="screen dim" id="game-over">
+      <h2 class="screen-title danger">You Died</h2>
+      <div class="panel stats">
+        <span>{`Kills: ${f().kills}`}</span>
+        <span>{`Wave reached: ${f().wave}`}</span>
+        <span>{`Pickups: ${f().pickups}`}</span>
+        <span>{`Time survived: ${mmss(f().elapsed)}`}</span>
+      </div>
+      <button class="menu-btn" id="go-restart" onClick={() => intent("Restart")}>Restart  (Enter)</button>
+      <button class="menu-btn" id="go-quit" onClick={() => intent("Quit")}>Quit</button>
+    </div>
+  );
+}
+
 function App() {
   const [frame, setFrame] = createSignal(EMPTY);
   bevy.on("frame", (f) => setFrame(f));
@@ -172,8 +200,8 @@ function App() {
       {<Switch>
         <Match when={state() === "MainMenu"}><MainMenu /></Match>
         <Match when={state() === "Playing"}><Hud f={frame} /></Match>
-        <Match when={state() === "Paused"}><div id="paused" /></Match>
-        <Match when={state() === "GameOver"}><div id="game-over" /></Match>
+        <Match when={state() === "Paused"}><Pause /></Match>
+        <Match when={state() === "GameOver"}><GameOver f={frame} /></Match>
       </Switch>}
     </div>
   );

@@ -97,6 +97,29 @@ fn minimap_renders_blips_positioned() {
 }
 
 #[test]
+fn pause_resume_intent() {
+    use horde::sim::Intent;
+    let mut app = app();
+    let _root = mount(&mut app);
+    set_state(&mut app, GameState::Paused);
+    let resume_btn = node_by_selector(&app, "#resume");
+    click(&mut app, resume_btn);
+    let q = app.world().resource::<horde::sim::IntentQueue>();
+    assert!(q.0.iter().any(|i| matches!(i, Intent::Resume)));
+}
+
+#[test]
+fn game_over_shows_stats() {
+    let mut app = app();
+    let _root = mount(&mut app);
+    edit_snapshot(&mut app, |s| { s.kills = 9; s.wave = 4; s.pickups = 2; s.elapsed = 130.0; });
+    set_state(&mut app, GameState::GameOver);
+    let panel = node_by_selector(&app, "#game-over .stats");
+    let txt = text_content(&app, panel);
+    assert!(txt.contains("Kills: 9") && txt.contains("Wave reached: 4") && txt.contains("02:10"), "txt: {txt:?}");
+}
+
+#[test]
 fn nameplates_and_damage_numbers_render_positioned() {
     use horde::sim::snapshot::{Nameplate, FloatingNumber};
     use horde::sim::EnemyKind;

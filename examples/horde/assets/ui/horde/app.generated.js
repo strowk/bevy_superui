@@ -336,14 +336,110 @@ function Settings(props) {
 	})();
 }
 $ss.hot("assets/ui/horde\\app.tsx#Settings", Settings);
+function Pause() {
+	return (() => {
+		const _el31 = $ss.el("div");
+		$ss.attr(_el31, "class", "screen dim");
+		$ss.attr(_el31, "id", "paused");
+		$ss.child(_el31, (() => {
+			const _el32 = $ss.el("h2");
+			$ss.attr(_el32, "class", "screen-title");
+			$ss.child(_el32, $ss.txt("Paused"));
+			return _el32;
+		})());
+		$ss.child(_el31, (() => {
+			const _el33 = $ss.el("button");
+			$ss.attr(_el33, "class", "menu-btn");
+			$ss.attr(_el33, "id", "resume");
+			$ss.on(_el33, "click", () => intent("Resume"));
+			$ss.child(_el33, $ss.txt("Resume  (Esc)"));
+			return _el33;
+		})());
+		$ss.child(_el31, (() => {
+			const _el34 = $ss.el("button");
+			$ss.attr(_el34, "class", "menu-btn");
+			$ss.attr(_el34, "id", "restart");
+			$ss.on(_el34, "click", () => intent("Restart"));
+			$ss.child(_el34, $ss.txt("Restart"));
+			return _el34;
+		})());
+		$ss.child(_el31, (() => {
+			const _el35 = $ss.el("button");
+			$ss.attr(_el35, "class", "menu-btn");
+			$ss.attr(_el35, "id", "pause-quit");
+			$ss.on(_el35, "click", () => intent("Quit"));
+			$ss.child(_el35, $ss.txt("Quit"));
+			return _el35;
+		})());
+		return _el31;
+	})();
+}
+$ss.hot("assets/ui/horde\\app.tsx#Pause", Pause);
+function GameOver(props) {
+	const f = props.f;
+	return (() => {
+		const _el36 = $ss.el("div");
+		$ss.attr(_el36, "class", "screen dim");
+		$ss.attr(_el36, "id", "game-over");
+		$ss.child(_el36, (() => {
+			const _el37 = $ss.el("h2");
+			$ss.attr(_el37, "class", "screen-title danger");
+			$ss.child(_el37, $ss.txt("You Died"));
+			return _el37;
+		})());
+		$ss.child(_el36, (() => {
+			const _el38 = $ss.el("div");
+			$ss.attr(_el38, "class", "panel stats");
+			$ss.child(_el38, (() => {
+				const _el39 = $ss.el("span");
+				$ss.insert(_el39, () => `Kills: ${f().kills}`);
+				return _el39;
+			})());
+			$ss.child(_el38, (() => {
+				const _el40 = $ss.el("span");
+				$ss.insert(_el40, () => `Wave reached: ${f().wave}`);
+				return _el40;
+			})());
+			$ss.child(_el38, (() => {
+				const _el41 = $ss.el("span");
+				$ss.insert(_el41, () => `Pickups: ${f().pickups}`);
+				return _el41;
+			})());
+			$ss.child(_el38, (() => {
+				const _el42 = $ss.el("span");
+				$ss.insert(_el42, () => `Time survived: ${mmss(f().elapsed)}`);
+				return _el42;
+			})());
+			return _el38;
+		})());
+		$ss.child(_el36, (() => {
+			const _el43 = $ss.el("button");
+			$ss.attr(_el43, "class", "menu-btn");
+			$ss.attr(_el43, "id", "go-restart");
+			$ss.on(_el43, "click", () => intent("Restart"));
+			$ss.child(_el43, $ss.txt("Restart  (Enter)"));
+			return _el43;
+		})());
+		$ss.child(_el36, (() => {
+			const _el44 = $ss.el("button");
+			$ss.attr(_el44, "class", "menu-btn");
+			$ss.attr(_el44, "id", "go-quit");
+			$ss.on(_el44, "click", () => intent("Quit"));
+			$ss.child(_el44, $ss.txt("Quit"));
+			return _el44;
+		})());
+		return _el36;
+	})();
+}
+$ss.hot("assets/ui/horde\\app.tsx#GameOver", GameOver);
 function App() {
 	const [frame, setFrame] = createSignal(EMPTY);
 	bevy.on("frame", (f) => setFrame(f));
 	const state = createMemo(() => frame().state);
 	return (() => {
-		const _el33 = $ss.el("div");
-		$ss.attr(_el33, "id", "hud");
-		$ss.insert(_el33, () => $ss.cmp(Switch, { get children() {
+		const _el45 = $ss.el("div");
+		$ss.attr(_el45, "id", "hud");
+		$ss.insert(_el45, () => $ss.cmp(Switch, { get children() {
 			return $ss.frag([
 				$ss.cmp(Match, {
 					get when() {
@@ -368,11 +464,7 @@ function App() {
 						return state() === "Paused";
 					},
 					get children() {
-						return (() => {
-							const _el31 = $ss.el("div");
-							$ss.attr(_el31, "id", "paused");
-							return _el31;
-						})();
+						return $ss.cmp(Pause, {});
 					}
 				}),
 				$ss.cmp(Match, {
@@ -380,16 +472,14 @@ function App() {
 						return state() === "GameOver";
 					},
 					get children() {
-						return (() => {
-							const _el32 = $ss.el("div");
-							$ss.attr(_el32, "id", "game-over");
-							return _el32;
-						})();
+						return $ss.cmp(GameOver, { get f() {
+							return frame;
+						} });
 					}
 				})
 			]);
 		} }));
-		return _el33;
+		return _el45;
 	})();
 }
 $ss.hot("assets/ui/horde\\app.tsx#App", App);
