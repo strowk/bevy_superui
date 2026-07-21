@@ -362,6 +362,8 @@ mod report_tests {
     fn report_computes_ui_cost_as_total_minus_shared() {
         let r = run_report(Backend::Supersolid, SimConfig::play(), 40, 10);
         assert!((r.ui_ms - (r.total.mean_ms - r.shared_ms)).abs() < 1e-9);
+        assert!(r.ui_ms >= 0.0, "ui_ms must be non-negative (supersolid UI cannot be cheaper than the null floor)");
+        assert!(r.ui_ms <= r.total.mean_ms + 1e-9, "ui_ms cannot exceed total");
         assert!(r.marshal_ms.is_some(), "supersolid report must include marshal");
         assert!(r.native_total_ms.is_some(), "supersolid report must include native gap");
     }
