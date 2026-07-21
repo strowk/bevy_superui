@@ -5,19 +5,33 @@ edition = "2021"
 publish = false
 
 [features]
+# NOTE (Task A4 flips this): ui-native is temporarily still in default so the repo
+# stays runnable until the supersolid backend is wired.
 default = ["ui-native", "debug-ui"]
 ui-native = []
-# debug-ui enables the Bevy FPS debug overlay (top-left corner). On by default (dev/benchmark
-# vehicle); disable with `--no-default-features --features ui-native`.
+# Native state-preserving hot reload: live app.tsx via TsxLoader + the asset watcher.
+hmr = ["superui/hmr", "bevy/file_watcher"]
 debug-ui = ["bevy/bevy_dev_tools"]
 mcp_debug = ["dep:bevy_brp_extras", "bevy/bevy_remote"]
 
 [dependencies]
 bevy = { version = "0.17" }
+superui = { path = "../../crates/superui" }
+superui_css = { path = "../../crates/superui_css" }
+superui_bridge = { path = "../../crates/superui_bridge" }
+serde = { version = "1", features = ["derive"] }
 
 [dependencies.bevy_brp_extras]
 optional = true
 version = "0.17.3"
+
+# Host-only: pre-transpile app.tsx -> app.generated.js for wasm / no-HMR native.
+[build-dependencies]
+supersolid = { path = "../../crates/supersolid" }
+
+[dev-dependencies]
+superui_dom = { path = "../../crates/superui_dom" }
+superui_html = { path = "../../crates/superui_html" }
 
 # file_watcher (hot-reload) is native-only; wasm build drops it.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
