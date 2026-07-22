@@ -1,0 +1,613 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   VOIDFARER — Flight OS menu system.
+
+   A sci-fi game-menu design realized in superui's bevy_ui + flair 0.6 CSS.
+   What the port gives up vs. the original browser design (superui limits):
+     • bevy_ui defaults every node to `display:flex; flex-direction:row`, so
+       every stacking container sets `flex-direction:column` explicitly.
+     • flair 0.6 has no `letter-spacing` / `font-weight` / `opacity` / `inset`
+       properties → tracking & bold weights are dropped, alpha is baked into
+       rgba(), and `inset:0` is written as the four side offsets.
+     • No `clip-path`/`backdrop-filter` → the hex emblem is a rounded rotated
+       square; the pause "blur" is a translucent scrim.
+     • `text-shadow` takes offset+color only (no blur radius).
+     • No repeating-gradient tiling → the fine starfield is a handful of dots.
+     • Custom woff2 fonts can't load (bevy wants ttf/otf) → default font; the
+       techy feel comes from uppercase copy + the layout.
+   Everything else (flex/grid, gradients, box/text-shadow, borders, transforms,
+   @keyframes animation via the `animation` shorthand, CSS vars) is real flair.
+   ───────────────────────────────────────────────────────────────────────── */
+
+:root {
+  --ac: #ff7b1c;          /* accent (Flight-OS orange) */
+  --ac-soft: rgba(255, 123, 28, 0.08);
+  --danger: #ff4545;
+  --ink: #04060b;         /* deep space background */
+  --panel: rgba(9, 14, 21, 0.85);
+  --panel-solid: rgba(8, 12, 19, 0.96);
+  --line: #223046;        /* hairline border */
+  --line-soft: #1a2434;
+  --bright: #e8eef4;
+  --text: #c9d4de;
+  --dim: #8b9aa8;
+  --dimmer: #5c6b7a;
+  --faint: #46545f;
+}
+
+/* ── Animations — declared up front so referencing rules resolve the name
+   (flair 0.6 registers @keyframes single-pass, in source order). Only
+   color / background-color are ReflectAnimatable here, so those are all we
+   animate (the emblem glow is a static box-shadow). ───────────────────────── */
+@keyframes blink {
+  0% { color: #ff7b1c; }
+  50% { color: rgba(255, 123, 28, 0); }
+  100% { color: rgba(255, 123, 28, 0); }
+}
+@keyframes blipBlink {
+  0% { background-color: #ff7b1c; }
+  50% { background-color: rgba(255, 123, 28, 0); }
+  100% { background-color: rgba(255, 123, 28, 0); }
+}
+@keyframes blipBlinkDanger {
+  0% { background-color: #ff4545; }
+  50% { background-color: rgba(255, 69, 69, 0); }
+  100% { background-color: rgba(255, 69, 69, 0); }
+}
+
+#root {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+}
+
+/* Full-viewport stage. */
+.stage {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--ink);
+  overflow: hidden;
+}
+
+/* ── Backdrop layers ─────────────────────────────────────────────────────── */
+.backdrop {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+}
+.nebula {
+  background-image: radial-gradient(ellipse 90% 70% at 50% 40%, rgba(20, 32, 52, 0.35), transparent 60%);
+}
+.vignette {
+  background-image: radial-gradient(ellipse 120% 90% at 50% 110%, rgba(0, 0, 0, 0.7), transparent 55%);
+}
+.starfield {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+}
+.star {
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background-color: rgba(200, 220, 240, 0.85);
+}
+
+/* ── Top / bottom chrome bars (kept above overlays so tabs stay clickable) ── */
+.topbar,
+.botbar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 24px;
+  z-index: 100;
+}
+.topbar {
+  top: 0;
+  border-bottom-width: 1px;
+  border-bottom-color: rgba(40, 56, 76, 0.5);
+}
+.botbar {
+  bottom: 0;
+  padding: 12px 24px;
+  border-top-width: 1px;
+  border-top-color: rgba(40, 56, 76, 0.5);
+}
+.mono {
+  font-size: 12px;
+  color: var(--dimmer);
+}
+.mono.small {
+  font-size: 11px;
+  color: var(--faint);
+}
+.accent {
+  color: var(--ac);
+}
+.tabs {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  column-gap: 6px;
+}
+.tabs-label {
+  font-size: 11px;
+  color: var(--dimmer);
+  margin-right: 6px;
+}
+.tab {
+  padding: 4px 10px;
+  border: 1px var(--line);
+  color: var(--dimmer);
+  font-size: 12px;
+  /* Baseline so `.tab.active`/`:hover` toggling background-color has a value to
+     revert to — flair has no implicit `initial`, else it warns "set … to None". */
+  background-color: rgba(0, 0, 0, 0);
+}
+.tab:hover {
+  color: var(--text);
+  border-color: var(--dimmer);
+}
+.tab.active {
+  border-color: var(--ac);
+  color: var(--ac);
+  background-color: var(--ac-soft);
+}
+
+/* ── Screen: full-viewport panels layered over the backdrop ──────────────── */
+.screen {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Main menu ───────────────────────────────────────────────────────────── */
+.main {
+  justify-content: center;
+  padding-left: 9vw;
+}
+.brand {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  column-gap: 22px;
+  margin-bottom: 10px;
+}
+.emblem {
+  width: 74px;
+  height: 74px;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background-image: linear-gradient(160deg, #39434e, #181f27 60%, #0d1218);
+  transform: rotate(45deg);
+}
+.emblem-inner {
+  width: 46px;
+  height: 46px;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background-color: #0a0d11;
+}
+.emblem-core {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background-image: radial-gradient(ellipse 70% 70% at 50% 42%, #ffd9a0 0%, #ff9a2e 40%, #c9520a 75%, #7a2c04 100%);
+  transform: rotate(-45deg);
+  /* Static glow — flair 0.6 can't animate BoxShadow, so no pulse keyframes. */
+  box-shadow: 0 0 22px 5px rgba(255, 123, 28, 0.65);
+}
+.brand-text {
+  display: flex;
+  flex-direction: column;
+}
+.title {
+  display: flex;
+  flex-direction: row;
+  font-size: 52px;
+  color: var(--bright);
+  text-shadow: 0 2px rgba(120, 160, 210, 0.55);
+}
+.tagline {
+  display: flex;
+  flex-direction: row;
+  font-size: 12px;
+  color: var(--dimmer);
+  margin-top: 8px;
+}
+.cursor {
+  color: var(--ac);
+  animation: 1.2s ease-in-out infinite blink;
+}
+.divider {
+  width: 56px;
+  height: 2px;
+  background-color: var(--ac);
+  margin-top: 26px;
+  margin-bottom: 30px;
+  box-shadow: 0 0 12px rgba(255, 123, 28, 0.55);
+}
+.menu-list {
+  display: flex;
+  flex-direction: column;
+  row-gap: 10px;
+  width: 480px;
+}
+.menu-item {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border: 1px var(--line);
+  border-left-width: 3px;
+  border-left-color: var(--line);
+  background-color: var(--panel);
+}
+.menu-item.primary {
+  border-left-color: var(--ac);
+}
+.menu-item:hover {
+  background-color: rgba(20, 28, 40, 0.95);
+  border-color: var(--ac);
+  border-left-color: var(--ac);
+  transform: translateX(8px);
+}
+.menu-item.danger:hover {
+  background-color: rgba(40, 16, 16, 0.95);
+  border-color: var(--danger);
+  border-left-color: var(--danger);
+}
+.mi-left {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  column-gap: 16px;
+}
+.mi-num {
+  font-size: 12px;
+  color: var(--dimmer);
+}
+.mi-num.on {
+  color: var(--ac);
+}
+.mi-title {
+  font-size: 19px;
+  color: var(--text);
+}
+.mi-title.on {
+  color: var(--bright);
+}
+.mi-hint {
+  font-size: 11px;
+  color: var(--faint);
+}
+
+/* ── Overlay scrim (pause / settings) ────────────────────────────────────── */
+.overlay {
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(2, 4, 8, 0.55);
+}
+
+/* ── Pause card ──────────────────────────────────────────────────────────── */
+.pause-card {
+  display: flex;
+  flex-direction: column;
+  width: 430px;
+  border: 1px var(--line);
+  background-color: var(--panel-solid);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+}
+.card-head {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  column-gap: 10px;
+  padding: 14px 20px;
+  border-bottom-width: 1px;
+  border-bottom-color: var(--line-soft);
+}
+.blip {
+  width: 8px;
+  height: 8px;
+  background-color: var(--ac);
+  animation: 1.4s ease-in-out infinite blipBlink;
+}
+.blip.danger {
+  background-color: var(--danger);
+  animation: 0.9s ease-in-out infinite blipBlinkDanger;
+}
+.card-head-text {
+  font-size: 12px;
+  color: var(--dim);
+}
+.pause-title {
+  padding: 26px 20px 8px;
+  font-size: 34px;
+  color: var(--bright);
+}
+.pause-sub {
+  padding: 0 20px 22px;
+  font-size: 11px;
+  color: var(--dimmer);
+}
+.btn-col {
+  display: flex;
+  flex-direction: column;
+  row-gap: 8px;
+  padding: 0 20px 22px;
+}
+.btn {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 13px 16px;
+  border: 1px var(--line);
+  font-size: 15px;
+  color: var(--text);
+  background-color: rgba(0, 0, 0, 0);
+}
+.btn:hover {
+  border-color: var(--ac);
+  background-color: rgba(20, 28, 40, 0.9);
+}
+.btn.primary {
+  border-color: var(--ac);
+  background-color: var(--ac-soft);
+  color: #ffb877;
+}
+.btn.primary:hover {
+  background-color: rgba(255, 123, 28, 0.18);
+  color: #ffd0a0;
+}
+.btn.quiet {
+  color: var(--dim);
+}
+.btn.quiet:hover {
+  border-color: var(--danger);
+  color: #ff8a8a;
+  background-color: rgba(40, 16, 16, 0.6);
+}
+
+/* ── Settings card ───────────────────────────────────────────────────────── */
+.settings-card {
+  display: flex;
+  flex-direction: column;
+  width: 780px;
+  border: 1px var(--line);
+  background-color: var(--panel-solid);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+}
+.settings-head {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 24px;
+  border-bottom-width: 1px;
+  border-bottom-color: var(--line-soft);
+}
+.settings-title {
+  font-size: 22px;
+  color: var(--bright);
+}
+.close-btn {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  font-size: 12px;
+  color: var(--ac);
+  padding: 8px 14px;
+  border: 1px var(--line);
+  background-color: rgba(0, 0, 0, 0);
+}
+.close-btn:hover {
+  border-color: var(--ac);
+  background-color: var(--ac-soft);
+}
+.settings-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 40px;
+  padding: 20px 24px 26px;
+}
+.settings-col {
+  display: flex;
+  flex-direction: column;
+}
+.section {
+  font-size: 11px;
+  color: var(--ac);
+  padding: 12px 0 6px;
+  border-bottom-width: 1px;
+  border-bottom-color: var(--line-soft);
+  margin-bottom: 6px;
+}
+.section.gap {
+  margin-top: 12px;
+}
+.cfg-row {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  padding: 11px 0;
+}
+.cfg-label {
+  font-size: 14px;
+  color: var(--text);
+}
+
+/* Segmented control */
+.seg {
+  display: flex;
+  flex-direction: row;
+}
+.seg-opt {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 5px 12px;
+  border: 1px var(--line);
+  font-size: 11px;
+  color: var(--dimmer);
+  background-color: rgba(0, 0, 0, 0);
+}
+.seg-opt:hover {
+  color: var(--text);
+}
+.seg-opt.active {
+  border-color: var(--ac);
+  background-color: var(--ac);
+  color: #06090f;
+}
+
+/* Toggle switch */
+.toggle {
+  position: relative;
+  width: 44px;
+  height: 22px;
+  border: 1px var(--line);
+  background-color: rgba(10, 15, 22, 0.8);
+}
+.toggle.on {
+  border-color: var(--ac);
+  background-color: rgba(255, 123, 28, 0.12);
+}
+.knob {
+  position: absolute;
+  top: 2px;
+  width: 16px;
+  height: 16px;
+  background-color: #3a4a5c;
+}
+.toggle.on .knob {
+  background-color: var(--ac);
+}
+
+/* Slider */
+.slider {
+  position: relative;
+  width: 200px;
+  height: 6px;
+  background-color: #1a2430;
+}
+.slider-fill {
+  height: 100%;
+  background-color: var(--ac);
+}
+.slider-handle {
+  position: absolute;
+  top: -4px;
+  width: 12px;
+  height: 14px;
+  margin-left: -6px;
+  background-color: var(--bright);
+}
+
+/* ── Game over ───────────────────────────────────────────────────────────── */
+.over {
+  align-items: center;
+  justify-content: center;
+  background-image: radial-gradient(ellipse 80% 60% at 50% 45%, rgba(80, 10, 10, 0.22), transparent 70%);
+}
+.over-tag {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  column-gap: 10px;
+  margin-bottom: 18px;
+}
+.over-tag-text {
+  font-size: 13px;
+  color: #ff6a6a;
+}
+.over-title {
+  font-size: 76px;
+  color: var(--bright);
+  text-shadow: 0 0 rgba(255, 69, 69, 0.6);
+}
+.over-sub {
+  font-size: 13px;
+  color: var(--dim);
+  margin-top: 16px;
+}
+.statrow {
+  display: flex;
+  flex-direction: row;
+  column-gap: 1px;
+  margin-top: 44px;
+  margin-bottom: 44px;
+  border: 1px #2a1a1e;
+  background-color: #2a1a1e;
+}
+.stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 18px 30px;
+  background-color: rgba(10, 10, 14, 0.92);
+}
+.stat-label {
+  font-size: 11px;
+  color: var(--dimmer);
+  margin-bottom: 8px;
+}
+.stat-val {
+  font-size: 26px;
+  color: var(--bright);
+}
+.stat-val.accent {
+  color: var(--ac);
+}
+.action-row {
+  display: flex;
+  flex-direction: row;
+  column-gap: 12px;
+}
+.action {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 14px 28px;
+  border: 1px var(--line);
+  font-size: 15px;
+  color: var(--text);
+  background-color: rgba(0, 0, 0, 0);
+}
+.action:hover {
+  border-color: var(--ac);
+  background-color: rgba(20, 28, 40, 0.9);
+}
+.action.solid {
+  background-color: var(--ac);
+  color: #06090f;
+}
+.action.solid:hover {
+  box-shadow: 0 0 30px rgba(255, 123, 28, 0.5);
+}
