@@ -246,7 +246,21 @@ mod tests {
         let out = code("const a = <div><Counter/></div>;");
         assert!(out.contains(r#"$ss.el("div")"#), "{out}");
         assert!(out.contains("$ss.cmp(Counter"), "nested component child must lower, not drop:\n{out}");
-        assert!(out.contains("$ss.child("), "and be appended as a child:\n{out}");
+        // A component's return value is opaque (may be an accessor), so it must be
+        // inserted (resolved reactively), not statically appended via $ss.child.
+        assert!(out.contains("$ss.insert("), "component child must be inserted:\n{out}");
+        assert!(reparses_as_plain_js(&out), "{out}");
+    }
+
+    #[test]
+    fn bare_control_flow_child_is_inserted() {
+        // <For> directly inside <ul> (no {…} wrapper) must resolve its accessor
+        // via $ss.insert, not be dropped by $ss.child.
+        let out = code("const a = <ul><For each={items()}>{f}</For></ul>;");
+        assert!(out.contains("$ss.cmp(For"), "For must lower to a component call:\n{out}");
+        assert!(out.contains("$ss.insert("), "bare control-flow child must be inserted:\n{out}");
+        assert!(!out.contains("$ss.child(_el0, $ss.cmp"),
+            "component child must NOT be statically appended:\n{out}");
         assert!(reparses_as_plain_js(&out), "{out}");
     }
 

@@ -430,8 +430,17 @@ impl<'a> Lower<'a> {
                 ChildKind::Element(el) => {
                     // Recurse through the tag-case entry so a nested *component*
                     // child (`<div><Counter/></div>`) lowers to $ss.cmp, not
-                    // $ss.el("Counter").  Resolves the Task-3 deferral.
+                    // $ss.el("Counter").
                     match self.lower_jsx_element(el) {
+                        // A component's return value is opaque (node, array, or an
+                        // accessor from control-flow like <For>/<Show>), so it must
+                        // be inserted (resolved reactively), matching the {…}-wrapped
+                        // form.  Plain intrinsic elements return a node synchronously,
+                        // so the cheaper static $ss.child append stays correct.
+                        Some(expr) if is_component_tag(el) => {
+                            let thunk = self.thunk(expr);
+                            self.insert_stmt(&local, thunk)
+                        }
                         Some(expr) => self.child_stmt(&local, expr),
                         None => continue,
                     }
@@ -623,6 +632,17 @@ impl<'a> VisitMut<'a> for Lower<'a> {
 /// True iff `s` begins with an uppercase character (JSX component convention).
 fn starts_uppercase(s: &str) -> bool {
     s.chars().next().is_some_and(|c| c.is_uppercase())
+}
+
+/// True iff this JSX element's tag is a component (uppercase identifier /
+/// `IdentifierReference`). Its lowered value (`$ss.cmp`) is opaque — possibly an
+/// accessor — so it must be inserted (resolved reactively), not appended.
+fn is_component_tag(element: &JSXElement<'_>) -> bool {
+    match &element.opening_element.name {
+        JSXElementName::IdentifierReference(_) => true,
+        JSXElementName::Identifier(id) => starts_uppercase(id.name.as_str()),
+        _ => false,
+    }
 }
 
 /// If `stmt` is a top-level component definition, return its binding name:
