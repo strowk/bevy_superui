@@ -29,7 +29,22 @@ struct ExpectInFlight {
     action: String,
 }
 
-pub fn run_spec(app: &mut App, spec_js: &str) -> Vec<TestResult> {
+/// Options for [`run_spec_with`].
+pub struct RunOptions {
+    /// Snapshot config for `toHaveScreenshot`.  `None` means screenshot
+    /// assertions auto-pass without comparing pixels (headless default).
+    pub snapshot: Option<crate::snapshot::SnapshotConfig>,
+    /// Logical name of the spec file, used as the snapshot sub-directory.
+    pub spec_file: String,
+    /// If `true`, the app has a real render pipeline and `capture` is valid.
+    pub render: bool,
+}
+
+/// Run a compiled spec JS string against `app`, using the supplied options.
+///
+/// This is the primary entry point; [`run_spec`] is a thin wrapper that
+/// passes sensible headless defaults.
+pub fn run_spec_with(app: &mut App, spec_js: &str, opts: &RunOptions) -> Vec<TestResult> {
     // Ensure UI mounted + ABI installed.
     let root = crate::host::mount(app);
     let _ = root;
@@ -45,9 +60,22 @@ pub fn run_spec(app: &mut App, spec_js: &str) -> Vec<TestResult> {
     let tests = with_ctx(app, abi::take_registered_tests);
     let mut out = Vec::new();
     for t in &tests {
-        out.push(run_one(app, t));
+        out.push(run_one(app, t, opts));
     }
     out
+}
+
+/// Convenience wrapper: run a spec in headless mode with no snapshot config.
+pub fn run_spec(app: &mut App, spec_js: &str) -> Vec<TestResult> {
+    run_spec_with(
+        app,
+        spec_js,
+        &RunOptions {
+            snapshot: None,
+            spec_file: "spec".into(),
+            render: false,
+        },
+    )
 }
 
 fn snapshot_body(app: &App) -> String {
@@ -55,7 +83,7 @@ fn snapshot_body(app: &App) -> String {
     crate::trace::serialize_body(&rt.dom.borrow())
 }
 
-fn run_one(app: &mut App, test: &RegisteredTest) -> TestResult {
+fn run_one(app: &mut App, test: &RegisteredTest, opts: &RunOptions) -> TestResult {
     let handle: JsPromiseHandle = with_ctx(app, |ctx| abi::run_test(ctx, test));
     // Per-test step trace.
     let mut steps: Vec<Step> = Vec::new();
@@ -150,14 +178,44 @@ fn run_one(app: &mut App, test: &RegisteredTest) -> TestResult {
         let mut still = Vec::new();
         for mut e in expects.drain(..) {
             if e.matcher == "screenshot" {
-                // Task 9 handles screenshots; for now pass-through.
-                with_ctx(app, |ctx| {
-                    abi::resolve(ctx, e.id, r#"{"ok":true,"value":null}"#)
-                });
+                // One-shot capture + baseline diff (Task 9).
+                // Screenshot is NOT added to the retry loop — capture once,
+                // compare, resolve immediately.
+                let name = e.expected.as_str().unwrap_or("screenshot").to_string();
+                let result = if opts.render {
+                    match crate::render::capture(app) {
+                        Some(img) => match &opts.snapshot {
+                            Some(cfg) => crate::snapshot::match_screenshot(
+                                cfg,
+                                &opts.spec_file,
+                                &name,
+                                img.width,
+                                img.height,
+                                &img.rgba,
+                            ),
+                            None => Ok(()),
+                        },
+                        None => Err("screenshot capture failed".into()),
+                    }
+                } else {
+                    // Headless: no pixels available; treat as pass.
+                    Ok(())
+                };
+                let (status, payload) = match &result {
+                    Ok(()) => (
+                        StepStatus::Ok,
+                        r#"{"ok":true,"value":null}"#.to_string(),
+                    ),
+                    Err(msg) => (
+                        StepStatus::Failed(msg.clone()),
+                        serde_json::json!({"ok": false, "error": msg}).to_string(),
+                    ),
+                };
+                with_ctx(app, |ctx| abi::resolve(ctx, e.id, &payload));
                 steps.push(Step {
                     index: steps.len(),
                     action: e.action,
-                    status: StepStatus::Ok,
+                    status,
                     dom_after: snapshot_body(app),
                     screenshot: None,
                 });

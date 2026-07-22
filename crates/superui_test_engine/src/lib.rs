@@ -6,5 +6,6 @@ pub mod host;
 pub mod locator;
 pub mod matchers;
 pub mod render;
+pub mod snapshot;
 pub mod trace;
 pub mod transpile;
