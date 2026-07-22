@@ -106,6 +106,30 @@ pub fn build_render_app_and_mount(project: &HostProject, width: u32, height: u32
     let mut app = build_render_app(project, width, height);
     host::mount(&mut app);
     host::install_abi(&mut app);
+
+    // CRITICAL for non-blank screenshots: bevy_ui does NOT auto-associate a root
+    // UI node's percentage/viewport sizing with a camera that renders to an
+    // *Image* target (only the implicit Window camera gets that association).
+    // Without this, the `SuperUiRoot` node's `width/height: 100%` resolves
+    // against an *unknown* viewport and collapses to 0x0, which in turn makes
+    // every `inset:0`/`position:absolute`/`100%` descendant collapse — the whole
+    // UI lays out at negative/zero coordinates off-screen and the frame is blank
+    // (only the flat backdrop fill is captured). Tagging the root with the
+    // offscreen camera makes `100%` resolve to the target size (e.g. 1280x720).
+    let cam = {
+        let world = app.world_mut();
+        let mut cq = world.query_filtered::<Entity, With<Camera>>();
+        cq.iter(world).next()
+    };
+    if let Some(cam) = cam {
+        let world = app.world_mut();
+        let mut rq = world.query_filtered::<Entity, With<superui::prelude::SuperUiRoot>>();
+        let roots: Vec<Entity> = rq.iter(world).collect();
+        for root in roots {
+            world.entity_mut(root).insert(bevy::ui::UiTargetCamera(cam));
+        }
+    }
+
     // Let layout + render settle so the target actually has pixels.
     host::tick(&mut app, 8);
     app

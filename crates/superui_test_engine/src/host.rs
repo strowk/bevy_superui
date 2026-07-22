@@ -89,9 +89,21 @@ pub fn mount(app: &mut App) -> Entity {
             s.load::<JsSource>(paths.js.clone()),
         )
     };
+    // The root MUST fill the viewport: game_menu (and similar UIs) have a
+    // `#root`/`.stage` tree with `100%`/`inset:0`/`position:absolute` children
+    // that collapse to zero against an auto-sized root, producing BLANK
+    // screenshots. Filling the viewport is harmless for the headless DOM tests
+    // (they don't inspect layout).
     let root = app
         .world_mut()
-        .spawn((Node::default(), SuperUiRoot { html, css, js }))
+        .spawn((
+            Node {
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                ..default()
+            },
+            SuperUiRoot { html, css, js },
+        ))
         .id();
     for _ in 0..256 {
         app.update();
