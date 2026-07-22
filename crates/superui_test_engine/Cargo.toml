@@ -1,0 +1,24 @@
+[package]
+name = "superui_test_engine"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+bevy = { version = "0.17" }
+superui = { path = "../superui" }
+superui_bridge = { path = "../superui_bridge" }
+superui_dom = { path = "../superui_dom" }
+superui_css = { path = "../superui_css" }
+supersolid = { path = "../supersolid" }
+superui_js = { path = "../superui_js" }
+boa_engine = { workspace = true }
+boa_gc = { workspace = true }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+image = "0.25"
+toml = "0.8"
+
+[[bin]]
+name = "superui_test"
+path = "src/bin/superui_test.rs"
