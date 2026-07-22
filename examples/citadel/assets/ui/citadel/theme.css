@@ -1,0 +1,573 @@
+:root {
+  --bg:          #070a12;
+  --bg-2:        #0b1020;
+  --panel:       #111a2e;
+  --panel-2:     #16223a;
+  --panel-top:   #1d2c48;
+  --border:      #2b3f66;
+  --border-hi:   #3b5a8e;
+  --text:        #dfe9fb;
+  --text-dim:    #8398c0;
+  --text-faint:  #566a92;
+  --accent:      #46e0ff;
+  --gold:        #ffcf5c;
+  --good:        #4fe08a;
+  --bad:         #ff5d6c;
+  --track:       #0a1220;
+  --space:       8px;
+  --radius:      7px;
+}
+
+#root {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* ── HUD root — full-screen vertical stack ─────────────────────────────── */
+#hud {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg);
+  color: var(--text);
+  font-size: 12px;
+}
+
+/* ── Top ledger bar ─────────────────────────────────────────────────────── */
+#ledger {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  height: 62px;
+  padding: 0 14px;
+  background-color: var(--panel-top);
+  border-width: 0 0 2px 0;
+  border-color: var(--border-hi);
+  box-shadow: 0px 3px 12px rgba(0, 0, 0, 0.55);
+  z-index: 10;
+}
+
+.ledger-brand {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 7px;
+  padding: 0 12px 0 4px;
+  border-width: 0 1px 0 0;
+  border-color: var(--border);
+  height: 40px;
+}
+.brand-mark {
+  font-size: 20px;
+  color: var(--accent);
+  text-shadow: 0px 0px var(--accent);
+}
+.brand-name {
+  font-size: 18px;
+  color: var(--text);
+}
+
+.chips {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.chip {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 10px;
+  background-color: var(--panel);
+  border: 1px var(--border);
+  border-radius: var(--radius);
+  min-width: 116px;
+}
+.chip:hover {
+  border-color: var(--accent);
+  background-color: var(--panel-2);
+}
+.chip-icon {
+  font-size: 16px;
+  color: var(--accent);
+}
+.chip-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.chip-name {
+  font-size: 9px;
+  color: var(--text-faint);
+}
+.chip-nums {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+.chip-val {
+  font-size: 14px;
+  color: var(--text);
+}
+.chip-rate {
+  font-size: 10px;
+}
+.chip-rate.up   { color: var(--good); }
+.chip-rate.down { color: var(--bad); }
+
+.clock-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 4px 14px;
+  background-color: var(--bg-2);
+  border: 1px var(--border-hi);
+  border-radius: var(--radius);
+}
+.clock-label {
+  font-size: 8px;
+  color: var(--text-faint);
+}
+.clock {
+  font-size: 20px;
+  color: var(--gold);
+  text-shadow: 0px 1px rgba(0, 0, 0, 0.7);
+}
+
+/* ── Body: three columns ────────────────────────────────────────────────── */
+#body {
+  display: flex;
+  flex-direction: row;
+  gap: 10px;
+  padding: 10px;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: var(--bg);
+}
+
+/* ── Left: tech rail ────────────────────────────────────────────────────── */
+.rail {
+  display: flex;
+  flex-direction: column;
+  width: 232px;
+  background-color: var(--panel);
+  border: 1px var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.rail-head {
+  display: flex;
+  flex-direction: column;
+  padding: 9px 12px;
+  background-color: var(--panel-top);
+  border-width: 0 0 1px 0;
+  border-color: var(--border);
+  gap: 1px;
+}
+.rail-title {
+  font-size: 13px;
+  color: var(--accent);
+}
+.rail-sub {
+  font-size: 9px;
+  color: var(--text-faint);
+}
+.rail-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  overflow: hidden;
+}
+
+.tech {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 5px;
+  border-width: 0 0 0 3px;
+  border-color: var(--border);
+  background-color: var(--panel-2);
+}
+.tech-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 4px;
+  background-color: var(--text-faint);
+}
+.tech-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+}
+.tech-name {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.tech-track {
+  width: 100%;
+  height: 3px;
+  background-color: var(--track);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.tech-fill {
+  height: 100%;
+  background-color: var(--accent);
+  border-radius: 2px;
+}
+.tech-state {
+  font-size: 8px;
+  color: var(--text-faint);
+}
+.tech.locked {
+  background-color: rgba(20, 26, 42, 0.6);
+  border-color: #263049;
+}
+.tech.locked .tech-name { color: var(--text-faint); }
+.tech.researching {
+  border-color: var(--accent);
+  background-color: rgba(20, 42, 58, 0.55);
+}
+.tech.researching .tech-dot { background-color: var(--accent); }
+.tech.researching .tech-name { color: var(--text); }
+.tech.researching .tech-state { color: var(--accent); }
+.tech.done {
+  border-color: var(--good);
+}
+.tech.done .tech-dot { background-color: var(--good); }
+.tech.done .tech-name { color: var(--good); }
+.tech.done .tech-state { color: var(--good); }
+
+/* ── Center: production grid ────────────────────────────────────────────── */
+#production {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  background-color: var(--panel);
+  border: 1px var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.prod-head {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 14px;
+  background-color: var(--panel-top);
+  border-width: 0 0 1px 0;
+  border-color: var(--border);
+}
+.prod-title {
+  font-size: 14px;
+  color: var(--gold);
+}
+.prod-sub {
+  font-size: 10px;
+  color: var(--text-faint);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  padding: 10px;
+  overflow: hidden;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px 9px;
+  background-color: var(--panel-2);
+  border-width: 3px 1px 1px 1px;
+  border-color: var(--border);
+  border-radius: 6px;
+  /* Baseline so leaving `.card.building` can revert box-shadow (else flair warns
+     "Cannot set property to None"). Transparent = invisible by default. */
+  box-shadow: 0px 0px rgba(0, 0, 0, 0);
+}
+.card:hover {
+  border-color: var(--border-hi);
+  background-color: var(--panel-top);
+}
+
+.card-top {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.card-name {
+  font-size: 11px;
+  color: var(--text);
+}
+.tier-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 5px;
+  background-color: var(--text-faint);
+}
+
+.card-tags {
+  display: flex;
+  flex-direction: row;
+  gap: 4px;
+}
+.tag {
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 8px;
+  background-color: var(--track);
+  color: var(--text-dim);
+  border: 1px var(--border);
+}
+.tag.lvl { color: var(--text); }
+.tag.afford.ok  { color: var(--good); border-color: rgba(79, 224, 138, 0.4); }
+.tag.afford.no  { color: var(--bad);  border-color: rgba(255, 93, 108, 0.4); }
+
+.card-cost {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+.cost-label {
+  font-size: 8px;
+  color: var(--text-faint);
+}
+.cost-vals {
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+.card-track {
+  width: 100%;
+  height: 6px;
+  background-color: var(--track);
+  border-radius: 3px;
+  overflow: hidden;
+  border: 1px rgba(255, 255, 255, 0.04);
+}
+.card-fill {
+  height: 100%;
+  background-color: var(--accent);
+  border-radius: 3px;
+}
+
+.card-foot {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+.badge {
+  padding: 1px 7px;
+  border-radius: 4px;
+  font-size: 8px;
+  background-color: var(--track);
+  color: var(--text-dim);
+}
+.card-tierlab {
+  font-size: 9px;
+  color: var(--text-faint);
+}
+
+/* Category accents (frame color + tag color). State variants below override the
+   frame color; `available` cards keep the category color (no state override). */
+.card.economy  { border-color: #4fe08a; }
+.card.military { border-color: #ff5d6c; }
+.card.science  { border-color: #46e0ff; }
+.card.civic    { border-color: #c58bff; }
+.tag.cat.economy  { color: #4fe08a; }
+.tag.cat.military { color: #ff5d6c; }
+.tag.cat.science  { color: #46e0ff; }
+.tag.cat.civic    { color: #c58bff; }
+
+/* Tier dot colors (1..5, dim → bright) */
+.tier-dot.t1 { background-color: #6b7d9e; }
+.tier-dot.t2 { background-color: #58a7c9; }
+.tier-dot.t3 { background-color: #4fbf9a; }
+.tier-dot.t4 { background-color: #c9a24f; }
+.tier-dot.t5 { background-color: #ff7ad1; }
+
+/* Tier tints on card background (subtle) */
+.card.tier-4 { background-color: #1a2338; }
+.card.tier-5 { background-color: #221d3a; }
+
+/* State treatments */
+.card.locked {
+  background-color: rgba(14, 19, 32, 0.75);
+  border-color: #223049;
+}
+.card.locked .card-name { color: var(--text-faint); }
+/* `available` keeps its category frame color (see above) — no override here. */
+.card.building {
+  border-color: var(--accent);
+  box-shadow: 0px 0px rgba(70, 224, 255, 0.35);
+  background-color: #142b3a;
+}
+.card.building .card-fill { background-color: var(--gold); }
+.card.done {
+  border-color: rgba(79, 224, 138, 0.55);
+}
+.card.done .card-fill { background-color: var(--good); }
+
+.badge.st.locked    { color: var(--text-faint); }
+.badge.st.available { color: var(--text-dim); }
+.badge.st.building  { color: var(--gold);  background-color: rgba(255, 207, 92, 0.14); }
+.badge.st.done      { color: var(--good);  background-color: rgba(79, 224, 138, 0.14); }
+
+/* ── Right column ───────────────────────────────────────────────────────── */
+#right-column {
+  display: flex;
+  flex-direction: column;
+  width: 258px;
+  height: 100%;
+  gap: 10px;
+  overflow: hidden;
+}
+
+.side-panel {
+  display: flex;
+  flex-direction: column;
+  background-color: var(--panel);
+  border: 1px var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.side-head {
+  padding: 7px 12px;
+  background-color: var(--panel-top);
+  border-width: 0 0 1px 0;
+  border-color: var(--border);
+}
+.side-title {
+  font-size: 12px;
+  color: var(--accent);
+}
+
+/* Roster */
+#roster { height: 42%; }
+.roster-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 7px;
+  overflow: hidden;
+}
+.unit {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 8px;
+  border-radius: 5px;
+  background-color: var(--panel-2);
+  border-width: 0 0 0 3px;
+  border-color: var(--border);
+}
+.unit-glyph {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+.unit-name {
+  font-size: 10px;
+  color: var(--text-dim);
+  width: 100%;
+}
+.unit-count {
+  font-size: 11px;
+  color: var(--text);
+}
+.unit-status {
+  font-size: 8px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background-color: var(--track);
+  color: var(--text-faint);
+}
+.unit.idle   { border-color: #445a80; }
+.unit.moving { border-color: var(--accent); }
+.unit.moving .unit-status { color: var(--accent); }
+.unit.combat { border-color: var(--bad); background-color: rgba(42, 20, 26, 0.5); }
+.unit.combat .unit-status { color: var(--bad); }
+
+/* Queue */
+#queue { height: 27%; }
+.queue-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px;
+  overflow: hidden;
+}
+.qrow {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 8px;
+  border-radius: 5px;
+  background-color: var(--panel-2);
+  border-width: 0 0 0 3px;
+  border-color: var(--gold);
+}
+.q-name {
+  font-size: 10px;
+  color: var(--text-dim);
+  width: 96px;
+  overflow: hidden;
+}
+.q-track {
+  width: 100%;
+  height: 5px;
+  background-color: var(--track);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.q-fill {
+  height: 100%;
+  background-color: var(--gold);
+  border-radius: 3px;
+}
+.q-pct {
+  font-size: 9px;
+  color: var(--gold);
+}
+
+/* Events */
+#events { height: 31%; }
+.event-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 10px;
+  overflow: hidden;
+}
+.event-line {
+  font-size: 10px;
+  color: var(--text-dim);
+  line-height: 15px;
+}

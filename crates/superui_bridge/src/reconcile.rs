@@ -147,9 +147,25 @@ impl UiRuntime {
             }
         }
 
-        world
-            .entity_mut(parent_entity)
-            .replace_children(&child_entities);
+        // Equality guard: `replace_children` unconditionally re-sets each child's
+        // `ChildOf`/the parent's `Children`, marking them `Changed` — which makes
+        // taffy re-lay-out the whole subtree (and flair's `calculate_is_root` touch
+        // every child's `NodeStyleData`) every frame even when the child list is
+        // identical. Skipping the call when unchanged produces byte-identical layout
+        // and styling (verified) while removing the spurious relayout. Genuine
+        // spawns/reorders/removals change the list, so the call still runs then.
+        let children_unchanged = world
+            .get::<Children>(parent_entity)
+            .map(|c| {
+                c.len() == child_entities.len()
+                    && c.iter().zip(child_entities.iter()).all(|(a, b)| a == *b)
+            })
+            .unwrap_or(child_entities.is_empty());
+        if !children_unchanged {
+            world
+                .entity_mut(parent_entity)
+                .replace_children(&child_entities);
+        }
 
         // A text <input> has no DOM children; render its value/placeholder as
         // `Text` ON the input element entity itself (done after replace_children
@@ -360,22 +376,34 @@ impl UiRuntime {
             }
         }
 
-        // class -> ClassList (whitespace-separated).
+        // class -> ClassList (whitespace-separated). Skip the insert when the value
+        // is unchanged: Bevy's `insert` marks the component `Changed`, and flair's
+        // cascade is gated on `Changed<ClassList>`, so re-inserting an identical
+        // value every reconcile pass drives a full re-cascade for every stable node
+        // each frame. An equality guard lets flair's own "needs recalculation" marker
+        // do its job.
         let classes = dom.classes(node);
-        if classes.is_empty() {
-            ec.insert(ClassList::empty());
+        let new_classes = if classes.is_empty() {
+            ClassList::empty()
         } else {
-            ec.insert(ClassList::new(&classes.join(" ")));
+            ClassList::new(&classes.join(" "))
+        };
+        if ec.get::<ClassList>() != Some(&new_classes) {
+            ec.insert(new_classes);
         }
 
-        // Remaining attributes (excluding id/class/style) -> AttributeList.
+        // Remaining attributes (excluding id/class/style) -> AttributeList. Same
+        // equality guard as class, for the same reason (flair filters its cascade on
+        // `Changed<AttributeList>`).
         let mut attrs = AttributeList::new();
         for (k, v) in dom.attributes(node) {
             if k != "id" && k != "class" && k != "style" {
                 attrs.set_attribute(k.as_str(), v.as_str());
             }
         }
-        ec.insert(attrs);
+        if ec.get::<AttributeList>() != Some(&attrs) {
+            ec.insert(attrs);
+        }
 
         // inline style -> InlineStyle.
         match dom.get_attribute(node, "style") {

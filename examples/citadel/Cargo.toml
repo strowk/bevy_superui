@@ -1,0 +1,54 @@
+[package]
+name = "citadel"
+version = "0.1.0"
+edition = "2021"
+publish = false
+# With the extra `citadel-bench` bin, `cargo run -p citadel` is otherwise ambiguous.
+default-run = "citadel"
+
+[lib]
+name = "citadel"
+path = "src/lib.rs"
+
+[[bin]]
+name = "citadel"
+path = "src/main.rs"
+
+[[bin]]
+name = "citadel-bench"
+path = "src/bin/bench.rs"
+required-features = ["bench"]
+
+[features]
+default = ["debug-ui"]
+# Native state-preserving hot reload: live app.tsx via TsxLoader + the asset watcher.
+hmr = ["superui/hmr", "bevy/file_watcher"]
+debug-ui = ["bevy/bevy_dev_tools"]
+bench = []
+dhat-prof = ["dep:dhat"]
+
+[dependencies]
+bevy = { version = "0.17" }
+superui = { path = "../../crates/superui" }
+superui_css = { path = "../../crates/superui_css" }
+superui_bridge = { path = "../../crates/superui_bridge" }
+serde = { version = "1", features = ["derive"] }
+
+[dependencies.dhat]
+optional = true
+version = "0.3"
+
+# Host-only: pre-transpile app.tsx -> app.generated.js for wasm / no-HMR native.
+[build-dependencies]
+supersolid = { path = "../../crates/supersolid" }
+
+[dev-dependencies]
+superui_dom = { path = "../../crates/superui_dom" }
+superui_html = { path = "../../crates/superui_html" }
+
+# file_watcher (hot-reload) is native-only; wasm build drops it.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+bevy = { version = "0.17", features = ["file_watcher"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { version = "0.3", features = ["wasm_js"] }
