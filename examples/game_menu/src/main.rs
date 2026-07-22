@@ -43,6 +43,22 @@ fn main() {
             .add_systems(Update, mcp_debug::debug_click_system);
     }
 
+    
+    // FPS debug overlay in the reserved top-left corner (opt-in via `debug-ui`).
+    app.add_plugins({
+        #[cfg(feature = "debug-ui")]
+        {
+            (
+                bevy::diagnostic::FrameTimeDiagnosticsPlugin::default(),
+                bevy::dev_tools::fps_overlay::FpsOverlayPlugin::default(),
+            )
+        }
+        #[cfg(not(feature = "debug-ui"))]
+        {
+            ()
+        }
+    });
+
     app.run();
 }
 

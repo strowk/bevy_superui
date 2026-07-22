@@ -9,6 +9,7 @@ publish = false
 # Native state-preserving hot reload: live `.tsx` via TsxLoader + the asset watcher.
 # `cargo run -p game_menu --features hmr`.
 hmr = ["superui/hmr", "bevy/file_watcher"]
+debug-ui = ["bevy/bevy_dev_tools"]
 # Bevy Remote Protocol + BRP extras so bevy_brp_mcp can drive/screenshot the app.
 mcp_debug = ["dep:bevy_brp_extras", "bevy/bevy_remote"]
 
