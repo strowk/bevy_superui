@@ -18,6 +18,19 @@ pub struct SpecOutcome {
 
 const MAX_ITERS_PER_TEST: usize = 2000;
 const SETTLE_TICKS: usize = 2;
+/// Frames an expect matcher polls the live DOM before it gives up and rejects.
+const EXPECT_TIMEOUT_ITERS: usize = 120;
+
+/// An auto-waiting expect assertion being polled each frame until it passes or
+/// its budget is exhausted.
+struct ExpectInFlight {
+    id: u64,
+    matcher: String,
+    locator: Option<LocatorSpec>,
+    expected: serde_json::Value,
+    remaining: usize,
+    last_err: String,
+}
 
 pub fn run_spec(app: &mut App, spec_js: &str) -> Vec<SpecOutcome> {
     // Ensure UI mounted + ABI installed.
@@ -44,6 +57,8 @@ fn run_one(app: &mut App, test: &RegisteredTest) -> SpecOutcome {
     let handle: JsPromiseHandle = with_ctx(app, |ctx| abi::run_test(ctx, test));
     // In-flight side-effecting commands awaiting settle: (id, remaining ticks).
     let mut inflight: Vec<(u64, usize)> = Vec::new();
+    // In-flight expect matchers, polled against the live DOM each frame.
+    let mut expects: Vec<ExpectInFlight> = Vec::new();
 
     for _ in 0..MAX_ITERS_PER_TEST {
         // 1. Drain newly enqueued commands and start executing them.
@@ -71,10 +86,19 @@ fn run_one(app: &mut App, test: &RegisteredTest) -> SpecOutcome {
                     press(app, locator, key);
                     inflight.push((q.id, SETTLE_TICKS));
                 }
-                Command::Expect { .. } => {
-                    // Implemented in Task 6; until then resolve ok to keep the loop moving.
-                    with_ctx(app, |ctx| {
-                        abi::resolve(ctx, q.id, r#"{"ok":true,"value":null}"#)
+                Command::Expect {
+                    matcher,
+                    locator,
+                    expected,
+                    ..
+                } => {
+                    expects.push(ExpectInFlight {
+                        id: q.id,
+                        matcher: matcher.clone(),
+                        locator: locator.clone(),
+                        expected: expected.clone(),
+                        remaining: EXPECT_TIMEOUT_ITERS,
+                        last_err: String::new(),
                     });
                 }
             }
@@ -98,6 +122,40 @@ fn run_one(app: &mut App, test: &RegisteredTest) -> SpecOutcome {
             inflight.retain(|e| e.1 > 0);
         }
 
+        // 3b. Poll in-flight expect matchers against the live DOM. Each one
+        // retries until it passes or its per-frame budget is exhausted, then
+        // rejects with the last diagnostic (which the prelude turns into a
+        // thrown Error, failing the test).
+        let mut still = Vec::new();
+        for mut e in expects.drain(..) {
+            if e.matcher == "screenshot" {
+                // Task 9 handles screenshots; for now pass-through.
+                with_ctx(app, |ctx| {
+                    abi::resolve(ctx, e.id, r#"{"ok":true,"value":null}"#)
+                });
+                continue;
+            }
+            match crate::matchers::evaluate(app, &e.matcher, &e.locator, &e.expected) {
+                Ok(()) => {
+                    with_ctx(app, |ctx| {
+                        abi::resolve(ctx, e.id, r#"{"ok":true,"value":null}"#)
+                    });
+                }
+                Err(msg) => {
+                    e.last_err = msg;
+                    e.remaining -= 1;
+                    if e.remaining == 0 {
+                        let payload =
+                            serde_json::json!({ "ok": false, "error": e.last_err }).to_string();
+                        with_ctx(app, |ctx| abi::resolve(ctx, e.id, &payload));
+                    } else {
+                        still.push(e);
+                    }
+                }
+            }
+        }
+        expects = still;
+
         // Pump the continuations enqueued by the resolves (and the initial
         // test-body await). This runs the awaiting JS which enqueues the next
         // command; drained on the following iteration.
@@ -106,7 +164,7 @@ fn run_one(app: &mut App, test: &RegisteredTest) -> SpecOutcome {
         });
 
         // 4. Done?
-        if inflight.is_empty() {
+        if inflight.is_empty() && expects.is_empty() {
             if let Some(res) = with_ctx(app, |ctx| abi::promise_settled(ctx, &handle)) {
                 return match res {
                     Ok(()) => SpecOutcome {

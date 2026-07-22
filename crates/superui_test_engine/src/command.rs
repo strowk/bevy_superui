@@ -19,9 +19,14 @@ pub enum Command {
         locator: crate::locator::LocatorSpec,
     },
     Expect {
-        // Fields filled in in Task 6; capture the whole payload for now.
-        #[serde(flatten)]
-        raw: serde_json::Value,
+        /// "visible" | "text" | "count" | "class" | "attribute" | "screenshot"
+        matcher: String,
+        #[serde(default)]
+        locator: Option<crate::locator::LocatorSpec>,
+        #[serde(default)]
+        expected: serde_json::Value,
+        #[serde(default)]
+        opts: serde_json::Value,
     },
 }
 

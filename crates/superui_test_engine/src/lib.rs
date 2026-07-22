@@ -4,4 +4,5 @@ pub mod command;
 pub mod driver;
 pub mod host;
 pub mod locator;
+pub mod matchers;
 pub mod transpile;
