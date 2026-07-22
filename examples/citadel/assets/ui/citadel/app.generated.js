@@ -525,28 +525,28 @@ function App() {
 	return (() => {
 		const _el71 = $ss.el("div");
 		$ss.attr(_el71, "id", "hud");
-		$ss.child(_el71, $ss.cmp(Ledger, { get f() {
+		$ss.insert(_el71, () => $ss.cmp(Ledger, { get f() {
 			return frame;
 		} }));
 		$ss.child(_el71, (() => {
 			const _el72 = $ss.el("div");
 			$ss.attr(_el72, "id", "body");
-			$ss.child(_el72, $ss.cmp(TechRail, { get f() {
+			$ss.insert(_el72, () => $ss.cmp(TechRail, { get f() {
 				return frame;
 			} }));
-			$ss.child(_el72, $ss.cmp(ProductionGrid, { get f() {
+			$ss.insert(_el72, () => $ss.cmp(ProductionGrid, { get f() {
 				return frame;
 			} }));
 			$ss.child(_el72, (() => {
 				const _el73 = $ss.el("div");
 				$ss.attr(_el73, "id", "right-column");
-				$ss.child(_el73, $ss.cmp(UnitRoster, { get f() {
+				$ss.insert(_el73, () => $ss.cmp(UnitRoster, { get f() {
 					return frame;
 				} }));
-				$ss.child(_el73, $ss.cmp(BuildQueue, { get f() {
+				$ss.insert(_el73, () => $ss.cmp(BuildQueue, { get f() {
 					return frame;
 				} }));
-				$ss.child(_el73, $ss.cmp(EventLog, { get f() {
+				$ss.insert(_el73, () => $ss.cmp(EventLog, { get f() {
 					return frame;
 				} }));
 				return _el73;

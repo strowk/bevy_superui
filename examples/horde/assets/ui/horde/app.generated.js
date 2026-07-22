@@ -248,25 +248,25 @@ function Hud(props) {
 	return (() => {
 		const _el22 = $ss.el("div");
 		$ss.attr(_el22, "id", "playing");
-		$ss.child(_el22, $ss.cmp(PlayerStatus, { get f() {
+		$ss.insert(_el22, () => $ss.cmp(PlayerStatus, { get f() {
 			return props.f;
 		} }));
-		$ss.child(_el22, $ss.cmp(Meters, { get f() {
+		$ss.insert(_el22, () => $ss.cmp(Meters, { get f() {
 			return props.f;
 		} }));
-		$ss.child(_el22, $ss.cmp(CombatLog, { get f() {
+		$ss.insert(_el22, () => $ss.cmp(CombatLog, { get f() {
 			return props.f;
 		} }));
-		$ss.child(_el22, $ss.cmp(WeaponBar, { get f() {
+		$ss.insert(_el22, () => $ss.cmp(WeaponBar, { get f() {
 			return props.f;
 		} }));
-		$ss.child(_el22, $ss.cmp(Minimap, { get f() {
+		$ss.insert(_el22, () => $ss.cmp(Minimap, { get f() {
 			return props.f;
 		} }));
-		$ss.child(_el22, $ss.cmp(Nameplates, { get f() {
+		$ss.insert(_el22, () => $ss.cmp(Nameplates, { get f() {
 			return props.f;
 		} }));
-		$ss.child(_el22, $ss.cmp(DamageNumbers, { get f() {
+		$ss.insert(_el22, () => $ss.cmp(DamageNumbers, { get f() {
 			return props.f;
 		} }));
 		return _el22;
@@ -570,7 +570,7 @@ function App() {
 						return (() => {
 							const _el60 = $ss.el("div");
 							$ss.attr(_el60, "id", "playing-root");
-							$ss.child(_el60, $ss.cmp(Hud, { get f() {
+							$ss.insert(_el60, () => $ss.cmp(Hud, { get f() {
 								return frame;
 							} }));
 							$ss.insert(_el60, () => $ss.cmp(Show, {
