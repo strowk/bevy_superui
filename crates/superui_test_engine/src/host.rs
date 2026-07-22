@@ -66,6 +66,20 @@ pub(crate) struct HostAssetPaths {
 }
 
 pub fn mount(app: &mut App) -> Entity {
+    // Idempotency guard: if a UiRuntime is already present the UI has already
+    // been mounted.  Return the existing SuperUiRoot entity rather than
+    // spawning a second one (which would be a stray, orphaned entity).
+    if app.world().contains_non_send::<UiRuntime>() {
+        let mut q = app.world_mut().query::<(Entity, &SuperUiRoot)>();
+        if let Ok((entity, _)) = q.single(app.world()) {
+            return entity;
+        }
+        // Degenerate: runtime exists but root entity is gone/ambiguous.
+        // Fall through to the normal spawn path so the caller always gets a
+        // valid entity back (mount_when_ready won't re-init because the
+        // runtime guard in that system returns early when UiRuntime exists).
+    }
+
     let paths = app.world().resource::<HostAssetPaths>().clone();
     let (html, css, js) = {
         let s = app.world().resource::<AssetServer>().clone();

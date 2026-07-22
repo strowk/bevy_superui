@@ -55,6 +55,14 @@ fn native(context: &mut Context, f: fn(&JsValue, &[JsValue], &mut Context) -> Js
 }
 
 pub fn install(context: &mut Context) {
+    // Idempotency guard: if TestState is already present in the realm's
+    // host-defined storage, ABI is already installed.  Re-inserting would
+    // silently wipe any tests that have been registered since the first call,
+    // and re-evaluating prelude.js would re-register the $sstest global.
+    if context.realm().host_defined().get::<TestState>().is_some() {
+        return;
+    }
+
     context.realm().host_defined_mut().insert(TestState::default());
 
     let obj = JsObject::with_object_proto(context.intrinsics());
