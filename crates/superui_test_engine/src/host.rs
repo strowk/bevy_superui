@@ -86,3 +86,13 @@ pub fn tick(app: &mut App, n: usize) {
         app.update();
     }
 }
+
+/// After mount, install the `$sstest` ABI into the live runtime's Boa context.
+pub fn install_abi(app: &mut App) {
+    let mut rt = app
+        .world_mut()
+        .remove_non_send_resource::<UiRuntime>()
+        .expect("mounted");
+    crate::abi::install(rt.engine.context_mut());
+    app.world_mut().insert_non_send_resource(rt);
+}

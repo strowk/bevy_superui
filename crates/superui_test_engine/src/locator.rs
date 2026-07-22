@@ -1,13 +1,13 @@
 use superui_dom::{Dom, NodeId};
 
-#[derive(serde::Deserialize, Clone, Debug, Default)]
+#[derive(serde::Deserialize, serde::Serialize, Clone, Debug, Default)]
 pub struct LocatorStep {
     pub sel: String,
     #[serde(rename = "hasText", default)]
     pub has_text: Option<String>,
 }
 
-#[derive(serde::Deserialize, Clone, Debug, Default)]
+#[derive(serde::Deserialize, serde::Serialize, Clone, Debug, Default)]
 pub struct LocatorSpec {
     pub steps: Vec<LocatorStep>,
     #[serde(default)]

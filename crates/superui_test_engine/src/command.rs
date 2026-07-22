@@ -4,7 +4,25 @@ use serde::{Deserialize, Serialize};
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum Command {
     Noop,
-    // extended in later tasks: Click { locator }, Fill { .. }, Expect { .. }, Screenshot { .. }
+    Click {
+        locator: crate::locator::LocatorSpec,
+    },
+    Fill {
+        locator: crate::locator::LocatorSpec,
+        text: String,
+    },
+    Press {
+        locator: crate::locator::LocatorSpec,
+        key: String,
+    },
+    Hover {
+        locator: crate::locator::LocatorSpec,
+    },
+    Expect {
+        // Fields filled in in Task 6; capture the whole payload for now.
+        #[serde(flatten)]
+        raw: serde_json::Value,
+    },
 }
 
 #[derive(Clone, Debug)]
