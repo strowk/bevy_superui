@@ -9,12 +9,7 @@ use superui_dom::NodeId;
 use crate::abi::{self, JsPromiseHandle, RegisteredTest};
 use crate::command::Command;
 use crate::locator::{resolve_locator, LocatorSpec};
-
-pub struct SpecOutcome {
-    pub name: String,
-    pub passed: bool,
-    pub error: Option<String>,
-}
+use crate::trace::{Step, StepStatus, TestResult};
 
 const MAX_ITERS_PER_TEST: usize = 2000;
 const SETTLE_TICKS: usize = 2;
@@ -30,9 +25,11 @@ struct ExpectInFlight {
     expected: serde_json::Value,
     remaining: usize,
     last_err: String,
+    /// Human-readable action label for the trace step.
+    action: String,
 }
 
-pub fn run_spec(app: &mut App, spec_js: &str) -> Vec<SpecOutcome> {
+pub fn run_spec(app: &mut App, spec_js: &str) -> Vec<TestResult> {
     // Ensure UI mounted + ABI installed.
     let root = crate::host::mount(app);
     let _ = root;
@@ -53,10 +50,17 @@ pub fn run_spec(app: &mut App, spec_js: &str) -> Vec<SpecOutcome> {
     out
 }
 
-fn run_one(app: &mut App, test: &RegisteredTest) -> SpecOutcome {
+fn snapshot_body(app: &App) -> String {
+    let rt = app.world().non_send_resource::<UiRuntime>();
+    crate::trace::serialize_body(&rt.dom.borrow())
+}
+
+fn run_one(app: &mut App, test: &RegisteredTest) -> TestResult {
     let handle: JsPromiseHandle = with_ctx(app, |ctx| abi::run_test(ctx, test));
-    // In-flight side-effecting commands awaiting settle: (id, remaining ticks).
-    let mut inflight: Vec<(u64, usize)> = Vec::new();
+    // Per-test step trace.
+    let mut steps: Vec<Step> = Vec::new();
+    // In-flight side-effecting commands awaiting settle: (id, remaining ticks, action label).
+    let mut inflight: Vec<(u64, usize, String)> = Vec::new();
     // In-flight expect matchers, polled against the live DOM each frame.
     let mut expects: Vec<ExpectInFlight> = Vec::new();
 
@@ -71,20 +75,24 @@ fn run_one(app: &mut App, test: &RegisteredTest) -> SpecOutcome {
                     });
                 }
                 Command::Click { locator } => {
+                    let action = format!("click {}", locator_label(locator));
                     dispatch(app, locator, "click");
-                    inflight.push((q.id, SETTLE_TICKS));
+                    inflight.push((q.id, SETTLE_TICKS, action));
                 }
                 Command::Hover { locator } => {
+                    let action = format!("hover {}", locator_label(locator));
                     dispatch(app, locator, "mouseover");
-                    inflight.push((q.id, SETTLE_TICKS));
+                    inflight.push((q.id, SETTLE_TICKS, action));
                 }
                 Command::Fill { locator, text } => {
+                    let action = format!("fill {} {:?}", locator_label(locator), text);
                     fill(app, locator, text);
-                    inflight.push((q.id, SETTLE_TICKS));
+                    inflight.push((q.id, SETTLE_TICKS, action));
                 }
                 Command::Press { locator, key } => {
+                    let action = format!("press {} {:?}", locator_label(locator), key);
                     press(app, locator, key);
-                    inflight.push((q.id, SETTLE_TICKS));
+                    inflight.push((q.id, SETTLE_TICKS, action));
                 }
                 Command::Expect {
                     matcher,
@@ -92,6 +100,7 @@ fn run_one(app: &mut App, test: &RegisteredTest) -> SpecOutcome {
                     expected,
                     ..
                 } => {
+                    let action = format!("expect {}", matcher);
                     expects.push(ExpectInFlight {
                         id: q.id,
                         matcher: matcher.clone(),
@@ -99,6 +108,7 @@ fn run_one(app: &mut App, test: &RegisteredTest) -> SpecOutcome {
                         expected: expected.clone(),
                         remaining: EXPECT_TIMEOUT_ITERS,
                         last_err: String::new(),
+                        action,
                     });
                 }
             }
@@ -110,13 +120,24 @@ fn run_one(app: &mut App, test: &RegisteredTest) -> SpecOutcome {
         // 3. Resolve settled in-flight commands.
         let settled = !app.world().non_send_resource::<UiRuntime>().dirty;
         if settled {
-            let ready: Vec<u64> = {
+            let ready: Vec<(u64, String)> = {
                 inflight.iter_mut().for_each(|e| e.1 = e.1.saturating_sub(1));
-                inflight.iter().filter(|e| e.1 == 0).map(|e| e.0).collect()
+                inflight
+                    .iter()
+                    .filter(|e| e.1 == 0)
+                    .map(|e| (e.0, e.2.clone()))
+                    .collect()
             };
-            for id in ready {
+            for (id, action) in ready {
                 with_ctx(app, |ctx| {
                     abi::resolve(ctx, id, r#"{"ok":true,"value":null}"#)
+                });
+                steps.push(Step {
+                    index: steps.len(),
+                    action,
+                    status: StepStatus::Ok,
+                    dom_after: snapshot_body(app),
+                    screenshot: None,
                 });
             }
             inflight.retain(|e| e.1 > 0);
@@ -133,12 +154,26 @@ fn run_one(app: &mut App, test: &RegisteredTest) -> SpecOutcome {
                 with_ctx(app, |ctx| {
                     abi::resolve(ctx, e.id, r#"{"ok":true,"value":null}"#)
                 });
+                steps.push(Step {
+                    index: steps.len(),
+                    action: e.action,
+                    status: StepStatus::Ok,
+                    dom_after: snapshot_body(app),
+                    screenshot: None,
+                });
                 continue;
             }
             match crate::matchers::evaluate(app, &e.matcher, &e.locator, &e.expected) {
                 Ok(()) => {
                     with_ctx(app, |ctx| {
                         abi::resolve(ctx, e.id, r#"{"ok":true,"value":null}"#)
+                    });
+                    steps.push(Step {
+                        index: steps.len(),
+                        action: e.action,
+                        status: StepStatus::Ok,
+                        dom_after: snapshot_body(app),
+                        screenshot: None,
                     });
                 }
                 Err(msg) => {
@@ -148,6 +183,13 @@ fn run_one(app: &mut App, test: &RegisteredTest) -> SpecOutcome {
                         let payload =
                             serde_json::json!({ "ok": false, "error": e.last_err }).to_string();
                         with_ctx(app, |ctx| abi::resolve(ctx, e.id, &payload));
+                        steps.push(Step {
+                            index: steps.len(),
+                            action: e.action,
+                            status: StepStatus::Failed(e.last_err),
+                            dom_after: snapshot_body(app),
+                            screenshot: None,
+                        });
                     } else {
                         still.push(e);
                     }
@@ -167,24 +209,27 @@ fn run_one(app: &mut App, test: &RegisteredTest) -> SpecOutcome {
         if inflight.is_empty() && expects.is_empty() {
             if let Some(res) = with_ctx(app, |ctx| abi::promise_settled(ctx, &handle)) {
                 return match res {
-                    Ok(()) => SpecOutcome {
+                    Ok(()) => TestResult {
                         name: test.name.clone(),
                         passed: true,
                         error: None,
+                        steps,
                     },
-                    Err(e) => SpecOutcome {
+                    Err(e) => TestResult {
                         name: test.name.clone(),
                         passed: false,
                         error: Some(e),
+                        steps,
                     },
                 };
             }
         }
     }
-    SpecOutcome {
+    TestResult {
         name: test.name.clone(),
         passed: false,
         error: Some("timed out".into()),
+        steps,
     }
 }
 
@@ -235,5 +280,14 @@ fn press(app: &mut App, spec: &LocatorSpec, key: &str) {
             .resource_mut::<PendingDomEvents>()
             .0
             .push(PendingDomEvent::new(node, "keydown"));
+    }
+}
+
+/// Format a locator spec as a short human-readable label for trace steps.
+fn locator_label(spec: &LocatorSpec) -> String {
+    let sel = spec.steps.iter().map(|s| s.sel.as_str()).collect::<Vec<_>>().join(" ");
+    match spec.nth {
+        Some(i) => format!("{sel}.nth({i})"),
+        None => sel,
     }
 }
