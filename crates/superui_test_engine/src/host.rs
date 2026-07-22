@@ -21,18 +21,25 @@ pub struct HostProject {
     pub tsx: bool,
 }
 
-pub fn build_headless_app(project: &HostProject) -> App {
+/// Register the in-memory asset source for a project and return the js/tsx path
+/// that `mount()` should load. Shared by the headless and render hosts.
+pub(crate) fn register_project_assets(app: &mut App, project: &HostProject) -> String {
     let dir = Dir::new("assets".into());
     dir.insert_asset("ui/index.html".as_ref(), project.html.as_bytes().to_vec());
     dir.insert_asset("ui/style.css".as_ref(), project.css.as_bytes().to_vec());
     let ui_js_path = if project.tsx { "ui/app.tsx" } else { "ui/app.js" };
     dir.insert_asset(ui_js_path.as_ref(), project.js_or_tsx.as_bytes().to_vec());
 
-    let mut app = App::new();
     app.register_asset_source(
         AssetSourceId::Default,
         AssetSource::build().with_reader(move || Box::new(MemoryAssetReader { root: dir.clone() })),
     );
+    ui_js_path.to_string()
+}
+
+pub fn build_headless_app(project: &HostProject) -> App {
+    let mut app = App::new();
+    let ui_js_path = register_project_assets(&mut app, project);
     app.add_plugins((
         bevy::time::TimePlugin,
         bevy::app::TaskPoolPlugin::default(),
@@ -49,13 +56,13 @@ pub fn build_headless_app(project: &HostProject) -> App {
     app.finish();
 
     // Store the js path so mount() can load the right handle type.
-    app.insert_resource(HostAssetPaths { js: ui_js_path.to_string() });
+    app.insert_resource(HostAssetPaths { js: ui_js_path });
     app
 }
 
 #[derive(Resource, Clone)]
-struct HostAssetPaths {
-    js: String,
+pub(crate) struct HostAssetPaths {
+    pub(crate) js: String,
 }
 
 pub fn mount(app: &mut App) -> Entity {
