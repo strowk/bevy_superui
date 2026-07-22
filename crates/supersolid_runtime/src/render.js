@@ -147,6 +147,11 @@
   // Returns the new `current` (null | Node | Node[]). Array branch delegates
   // to the keyed minimal-move array reconcile.
   function reconcile(parent, anchor, current, value) {
+    // Entity-keyed list controller: it owns its own DOM (insert/remove against
+    // parent+anchor). Delegate and keep `current` null — nothing else to place.
+    if (value && value.__ssKeyed) {
+      return value.update(parent, anchor);
+    }
     if (value == null || value === true || value === false) {
       clearNodes(parent, current);
       return null;
@@ -283,6 +288,96 @@
         } else parentNode.removeChild(a[aStart++]);
       }
     }
+  }
+
+  // ---- Entity-keyed reactive list (the "store keyed by entity") ----
+  //
+  // A fused store+renderer for high-frequency, per-entity data feeds (the horde
+  // overlays: enemies, damage numbers, minimap blips). `each` is an accessor to
+  // the raw per-frame array; `by` names the identity field (default "id").
+  //
+  // Each key gets ONE persistent row built once, with a reactive proxy whose
+  // properties are per-FIELD signals. On every frame the controller does a lean
+  // incremental diff: for a surviving key it writes only its field signals (the
+  // equals-gate skips unchanged fields, and a row re-runs only the bindings whose
+  // field actually changed); a new key builds a row + inserts its DOM; a vanished
+  // key disposes + removes its DOM. There is NO whole-list re-diff and NO list-
+  // signal rewrite — this is what makes it O(changed DOM) instead of the generic
+  // <For>'s O(n) mapArray rebuild + reconcileArrays every frame.
+  //
+  // DOM order is append/remove (survivors keep their node, new rows append). That
+  // is correct for absolutely-positioned overlays; use <For> when order matters.
+  function Keyed(props) {
+    var by = props.by || "id";
+    var mapFn = props.children;
+    var owner = globalThis.$ssGetOwner();
+    var rows = new Map(); // key -> { node, dispose, sigs: { field: [get,set] } }
+    onCleanup(function () {
+      rows.forEach(function (r) { r.dispose(); });
+      rows.clear();
+    });
+
+    // Build one row under its own root (attached to the list's stable owner so the
+    // insert effect's re-runs never dispose it): a per-field signal + getter proxy,
+    // then the author's row body reading those getters. `names`/`sets` are PARALLEL
+    // arrays of the mutable (non-key) fields so the per-frame update is an indexed
+    // loop — no `for..in`/hasOwnProperty, and the identity field is never rewritten.
+    function makeRow(item) {
+      var r = null;
+      createRoot(function (dispose) {
+        var proxy = {};
+        var names = [];
+        var sets = [];
+        for (var k in item) {
+          if (!Object.prototype.hasOwnProperty.call(item, k)) continue;
+          var pair = createSignal(item[k]);
+          // The getter IS the signal read (no wrapper closure) so `e.sx` is one call.
+          Object.defineProperty(proxy, k, { enumerable: true, configurable: true, get: pair[0] });
+          if (k !== by) { names.push(k); sets.push(pair[1]); }
+        }
+        var node = mapFn(proxy);
+        r = { node: node, dispose: dispose, names: names, sets: sets };
+      }, owner);
+      return r;
+    }
+
+    var controller = {
+      __ssKeyed: true,
+      // Reconcile the managed rows to `props.each`, inserting new DOM before
+      // `anchor`. Field-signal writes here collect into the current update cycle
+      // (we run inside the insert effect's flush), so a row's style binding that
+      // reads several changed fields still re-runs exactly once.
+      update: function (parent, anchor) {
+        var arr = props.each || [];
+        var live = new Set();
+        for (var i = 0; i < arr.length; i++) {
+          var item = arr[i];
+          var key = item[by];
+          var row = rows.get(key);
+          if (row) {
+            var names = row.names, sets = row.sets;
+            for (var j = 0; j < names.length; j++) sets[j](item[names[j]]);
+          } else {
+            row = makeRow(item);
+            rows.set(key, row);
+            parent.insertBefore(row.node, anchor);
+          }
+          live.add(key);
+        }
+        rows.forEach(function (row, key) {
+          if (!live.has(key)) {
+            if (row.node && row.node.parentNode) row.node.parentNode.removeChild(row.node);
+            row.dispose();
+            rows.delete(key);
+          }
+        });
+        return null; // DOM is owned here; nothing for insert's reconcile to place.
+      },
+    };
+
+    // Read `each` so the enclosing insert effect subscribes to the source array,
+    // then hand the controller to reconcile (which delegates via `__ssKeyed`).
+    return function () { props.each; return controller; };
   }
 
   function insert(parent, accessor) {
@@ -505,6 +600,7 @@
   globalThis.render = render;
   globalThis.Show = Show;
   globalThis.For = For;
+  globalThis.Keyed = Keyed;
   globalThis.Index = Index;
   globalThis.Switch = Switch;
   globalThis.Match = Match;

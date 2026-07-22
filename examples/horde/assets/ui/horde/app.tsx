@@ -1,4 +1,4 @@
-import { createSignal, createMemo, For, Index, Show, Switch, Match, render } from "supersolid";
+import { createSignal, createMemo, For, Keyed, Index, Show, Switch, Match, render } from "supersolid";
 
 const EMPTY = {
   state: "MainMenu",
@@ -79,15 +79,21 @@ function WeaponBar(props) {
   );
 }
 
+// The three high-frequency, per-entity overlays render through <Keyed> — an
+// entity-keyed reactive store fused with rendering. Each entity id owns a stable
+// row with per-FIELD signals; the per-frame snapshot is diffed into those cells,
+// so a moving enemy re-runs only its own position binding (its unchanged health/
+// id bindings stay put) and there is no per-frame whole-list reconcile. `e` is the
+// row proxy: `e.sx` is a fine-grained reactive read.
 function Minimap(props) {
   return (
     <div class="panel" id="minimap">
-      {<Index each={props.f().blips}>
+      {<Keyed each={props.f().blips} by="id">
         {(b) => (
-          <div class={"blip " + b().kind}
-               style={`left: ${Math.round(b().mx * 100)}%; top: ${Math.round(b().my * 100)}%`}></div>
+          <div class={"blip " + b.kind}
+               style={`left: ${Math.round(b.mx * 100)}%; top: ${Math.round(b.my * 100)}%`}></div>
         )}
-      </Index>}
+      </Keyed>}
     </div>
   );
 }
@@ -95,15 +101,15 @@ function Minimap(props) {
 function Nameplates(props) {
   return (
     <div class="overlay" id="nameplates">
-      {<Index each={props.f().enemies}>
+      {<Keyed each={props.f().enemies} by="id">
         {(e) => (
-          <div class="nameplate" data-id={e().id}
-               style={`left: ${Math.round(e().sx - 22)}px; top: ${Math.round(e().sy - 30)}px`}>
+          <div class="nameplate" data-id={e.id}
+               style={`left: ${Math.round(e.sx - 22)}px; top: ${Math.round(e.sy - 30)}px`}>
             <div class="np-fill"
-                 style={`width: ${Math.round(e().frac * 100)}%; background-color: ${hpColor(e().frac)}`}></div>
+                 style={`width: ${Math.round(e.frac * 100)}%; background-color: ${hpColor(e.frac)}`}></div>
           </div>
         )}
-      </Index>}
+      </Keyed>}
     </div>
   );
 }
@@ -111,14 +117,14 @@ function Nameplates(props) {
 function DamageNumbers(props) {
   return (
     <div class="overlay" id="damage-numbers">
-      {<Index each={props.f().damage_numbers}>
+      {<Keyed each={props.f().damage_numbers} by="id">
         {(d) => (
-          <span class={d().crit ? "dmg crit" : "dmg"} data-id={d().id}
-                style={`left: ${Math.round(d().sx)}px; top: ${Math.round(d().sy)}px; color: rgba(${d().crit ? "255, 199, 71" : "237, 245, 255"}, ${d().alpha})`}>
-            {d().text}
+          <span class={d.crit ? "dmg crit" : "dmg"} data-id={d.id}
+                style={`left: ${Math.round(d.sx)}px; top: ${Math.round(d.sy)}px; color: rgba(${d.crit ? "255, 199, 71" : "237, 245, 255"}, ${d.alpha})`}>
+            {d.text}
           </span>
         )}
-      </Index>}
+      </Keyed>}
     </div>
   );
 }

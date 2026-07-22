@@ -27,6 +27,33 @@ Design: `docs/superpowers/specs/2026-07-21-horde-benchmark-harness-design.md`.
 
 So: optimize the **reconcile path / update granularity**, not the JSON bridge.
 
+## Optimization applied: `<Keyed>` entity-keyed store
+
+The overlays (enemies, damage numbers, blips) now render through **`<Keyed each=… by="id">`**
+— an entity-keyed reactive store fused with rendering (`supersolid_runtime` render
+layer). Each entity id owns a stable row with per-**field** signals; the per-frame
+snapshot is diffed into those cells, so a row re-runs only the bindings whose field
+changed and there is no per-frame whole-list reconcile.
+
+Measured at the god-moded full swarm (`--profile --preset stress --enemy-cap 400
+--frames 200 --warmup 700`, median of 3 idle runs each):
+
+| build | mean frame | Boa render stage | FPS-eq |
+|-------|-----------:|-----------------:|-------:|
+| baseline (`<Index>` over whole snapshot) | 65.4 ms | 52.5 ms (81%) | 15.3 |
+| `<Keyed>` entity store | 52.4 ms | 37.3 ms (74%) | 19.1 |
+
+→ **~1.25× faster total frame (~20%); ~1.4× on the Boa-render stage** the change targets.
+
+Why not more: in horde **every enemy moves every frame**, so every position binding
+must re-run regardless of keying — that unavoidable cost (≈9 ms/300 enemies in an
+isolated JS micro-bench, `overlay_microbench` in `supersolid_runtime`) is the floor
+both approaches pay. The store only removes the *machinery* above it (skipped
+unchanged bindings + no full list re-diff). A naive store routed through the generic
+`<For>` is actually **slower** than `<Index>` (double keyed diff every frame); the win
+needs the fused `<Keyed>` that owns its DOM and does one lean incremental keyed pass.
+Flair cascade (~7 ms) and reconcile (~3 ms) are untouched and now a larger share.
+
 ## Run
 
     cargo run --release -p horde --features bench --bin horde-bench -- --backend supersolid
