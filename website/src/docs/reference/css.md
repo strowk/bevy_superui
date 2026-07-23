@@ -14,7 +14,7 @@ Unknown properties and rules are ignored, never fatal.
 | id (`#app`) | ✅ | T0 | |
 | descendant (`.todo .label`) | ✅ | T0 | |
 | compound (`.todo.completed`) | ✅ | T1 | |
-| `:hover` | 🟡 | T1 | on pointer hover (bugged at the moment) |
+| `:hover` | ✅ | T1 | on pointer hover |
 | `:checked` | ✅ | T1 | checkbox state |
 | child (`>`) / sibling (`+`, `~`) | ✅ | T2 | |
 | `:nth-child` | ✅ | T2 | |

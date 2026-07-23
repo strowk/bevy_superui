@@ -94,10 +94,6 @@
   border-radius: var(--radius);
   min-width: 116px;
 }
-.chip:hover {
-  border-color: var(--accent);
-  background-color: var(--panel-2);
-}
 .chip-icon {
   font-size: 16px;
   color: var(--accent);
@@ -306,10 +302,6 @@
   /* Baseline so leaving `.card.building` can revert box-shadow (else flair warns
      "Cannot set property to None"). Transparent = invisible by default. */
   box-shadow: 0px 0px rgba(0, 0, 0, 0);
-}
-.card:hover {
-  border-color: var(--border-hi);
-  background-color: var(--panel-top);
 }
 
 .card-top {
@@ -570,4 +562,33 @@
   font-size: 10px;
   color: var(--text-dim);
   line-height: 15px;
+}
+
+/* ── Hover feedback (interactive :hover across the dense repeated rows) ──────
+   Placed last so these win source-order ties against equal-specificity state
+   variants (.tech.researching, .unit.combat, .card.building, …) — hover then
+   shows on every row regardless of state. Sweeping the mouse across the grid
+   and rails toggles :hover on many nodes at once, which is the live stress the
+   headless benchmark can't measure (real cursor → real per-hover flair recalc).
+   Only border-color / background-color change — both flair-supported; no
+   transform / transition (roadmap in the CSS ledger). */
+.card:hover {
+  border-color: var(--border-hi);
+  background-color: var(--panel-top);
+}
+.chip:hover {
+  border-color: var(--accent);
+  background-color: var(--panel-2);
+}
+.tech:hover {
+  border-color: var(--accent);
+  background-color: var(--panel-top);
+}
+.unit:hover {
+  border-color: var(--accent);
+  background-color: var(--panel-top);
+}
+.qrow:hover {
+  border-color: var(--accent);
+  background-color: var(--panel-top);
 }

@@ -5,6 +5,7 @@
 
 use std::collections::HashSet;
 
+use bevy::picking::hover::Hovered;
 use bevy::picking::Pickable;
 use bevy::prelude::*;
 use bevy::ui::{Checked, ComputedNode};
@@ -112,8 +113,19 @@ impl UiRuntime {
                 None => {
                     // Spawn a fresh entity for this node.
                     let e = match kind {
+                        // `Hovered(false)`: flair reads `:hover` from this component
+                        // (`sync_hovered_system`), but `bevy_picking::update_is_hovered`
+                        // only *updates* entities that already have it — it never inserts
+                        // it. Without this, every `:hover` rule silently does nothing.
+                        // Attaching it here (the one node-spawn chokepoint) makes hover
+                        // pseudo-classes fire for all element nodes (Approach A).
                         NodeKind::Element(el) => world
-                            .spawn((Node::default(), html_type_name(&el.tag), DomNode(child)))
+                            .spawn((
+                                Node::default(),
+                                html_type_name(&el.tag),
+                                DomNode(child),
+                                Hovered::default(),
+                            ))
                             .id(),
                         NodeKind::Text(t) => {
                             world.spawn((Text::new(t.clone()), DomNode(child))).id()

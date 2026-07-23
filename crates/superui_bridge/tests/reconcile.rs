@@ -72,6 +72,45 @@ fn reconciles_dom_tree_into_entities() {
 }
 
 #[test]
+fn element_nodes_carry_hovered_for_hover_pseudo_class() {
+    // Regression guard: element entities must be spawned with `Hovered`, or every
+    // `:hover` CSS rule silently does nothing — `bevy_picking::update_is_hovered`
+    // only *updates* entities that already have the component, it never inserts it.
+    // Text-node entities are not styled targets and must NOT get it.
+    use bevy::picking::hover::Hovered;
+
+    let dom = Rc::new(RefCell::new(superui_html::parse_document(
+        "<ul class='list'><li>one</li></ul>",
+    )));
+    let mut app = test_app();
+    let root = mount(&mut app, dom.clone());
+    app.update();
+
+    let ul = app.world_mut().get::<Children>(root).unwrap()[0];
+    assert!(
+        app.world().get::<Hovered>(ul).is_some(),
+        "<ul> element entity must carry Hovered so `:hover` can fire"
+    );
+
+    let li = app.world_mut().get::<Children>(ul).unwrap()[0];
+    assert!(
+        app.world().get::<Hovered>(li).is_some(),
+        "<li> element entity must carry Hovered so `:hover` can fire"
+    );
+
+    // The <li>'s text-node child entity is not a styled element — no Hovered.
+    let text_entity = app.world_mut().get::<Children>(li).unwrap()[0];
+    assert!(
+        app.world().get::<Text>(text_entity).is_some(),
+        "expected the text-node child entity",
+    );
+    assert!(
+        app.world().get::<Hovered>(text_entity).is_none(),
+        "text-node entities must not carry Hovered",
+    );
+}
+
+#[test]
 fn syncs_identity_and_updates_in_place() {
     let dom = Rc::new(RefCell::new(superui_html::parse_document(
         "<div id='root'><input type='checkbox' class='a b'></div>",
