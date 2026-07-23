@@ -21,3 +21,6 @@ dhat-heap.json
 
 # Assembled Pages output (built by CI / local dry-run)
 /dist
+
+# mdBook build output
+/website/book/

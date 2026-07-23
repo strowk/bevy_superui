@@ -1,0 +1,14 @@
+[book]
+title = "superui"
+authors = ["Timur Sultanaev"]
+description = "Browser-like HTML/CSS/JS + Solid-style TSX game UI for Bevy."
+src = "src"
+language = "en"
+
+[output.html]
+default-theme = "navy"
+preferred-dark-theme = "navy"
+site-url = "/bevy_superui/"
+git-repository-url = "https://github.com/strowk/bevy_superui"
+additional-css = ["theme/css/site.css"]
+no-section-label = true
