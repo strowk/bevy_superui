@@ -19,8 +19,12 @@ declare module "supersolid" {
    * `count()`. Reading is what subscribes; there is no separate `.subscribe`.
    */
   export type Accessor<T> = () => T;
-  /** Writes a signal's value, re-running exactly the bindings that read it. */
-  export type Setter<T> = (next: T) => void;
+  /**
+   * Writes a signal's value, re-running exactly the bindings that read it.
+   * Accepts either a new value or an updater that receives the previous value.
+   * @example setCount(5); setCount((n) => n + 1);
+   */
+  export type Setter<T> = (value: T | ((prev: T) => T)) => void;
 
   /**
    * Create a reactive signal — the fundamental unit of state.
@@ -120,12 +124,14 @@ declare module "supersolid" {
   /**
    * Overlay-style keyed list: reuse a mapped node per item identity WITHOUT
    * enforcing DOM order. Correct for absolutely-positioned overlays; use
-   * {@link For} when order matters. `by` names the identity key field.
+   * {@link For} when order matters. `by` names the identity key field on each
+   * item; the child receives the item (a fine-grained reactive row proxy).
+   * @example <Keyed each={blips()} by="id">{(b) => <div class={b.kind} />}</Keyed>
    */
-  export const Keyed: (props: {
-    each: unknown;
-    by: string;
-    children: unknown;
+  export const Keyed: <T>(props: {
+    each: readonly T[] | undefined | null;
+    by: keyof T & string;
+    children: (item: T) => unknown;
   }) => unknown;
 
   /**
@@ -167,16 +173,20 @@ interface Bevy {
   /**
    * Fire a registered command into the game: triggers the Bevy `Event` bound to
    * `name` on the Rust side, deserializing `data` (as JSON) into that event type.
-   * Unregistered names warn and no-op.
+   * Unregistered names warn and no-op. Pass a type argument to check the payload
+   * against your command's shape.
    * @example bevy.send("HordeIntent", { kind: "StartGame", index: 0 });
+   * @example bevy.send<AdjustEnemyCap>("AdjustEnemyCap", { delta: -20 });
    */
-  send(name: string, data?: unknown): void;
+  send<T = unknown>(name: string, data?: T): void;
   /**
    * Subscribe to a registered game event. `cb` runs with the event's JSON
-   * payload each time the ECS emits `name`.
+   * payload each time the ECS emits `name`. Pass a type argument to type the
+   * payload the callback receives.
    * @example bevy.on("frame", (f) => setFrame(f));
+   * @example bevy.on<Frame>("frame", (f) => setFrame(f)); // f is Frame
    */
-  on(name: string, cb: (data: any) => void): void;
+  on<T = any>(name: string, cb: (data: T) => void): void;
 }
 
 /** The superui JS↔Bevy bridge. See {@link Bevy}. */
