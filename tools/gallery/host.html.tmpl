@@ -70,6 +70,7 @@
         try { cache[i] = await (await fetch(src.path)).text(); }
         catch (e) { cache[i] = '// failed to load ' + src.path; }
       }
+      delete codeEl.dataset.highlighted;
       codeEl.textContent = cache[i];
       codeEl.className = 'language-' + src.lang;
       if (window.hljs) hljs.highlightElement(codeEl);
