@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<base href="./">
+<title>{{TITLE}} — superui demo</title>
+<link rel="stylesheet" href="../vendor/highlight.css">
+<style>
+  :root { --bg:#1e1e28; --panel:#262633; --fg:#e6e6ef; --muted:#9a9ab0; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; background:var(--bg); color:var(--fg);
+              font-family:system-ui, sans-serif; }
+  #banner { padding:8px 12px; background:#2f2a4a; font-size:13px; border-bottom:1px solid #3a3a52; }
+  #banner code { background:#00000040; padding:1px 5px; border-radius:4px; }
+  #view-tabs { display:none; background:var(--panel); }
+  #layout { display:flex; height:calc(100% - 37px); }
+  #app-pane { flex:1 1 55%; position:relative; min-width:0; border-right:1px solid #3a3a52; }
+  #superui-canvas { width:100%; height:100%; display:block; }
+  #loader { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+            padding:0 24px; text-align:center; color:var(--muted); font-size:14px; }
+  #code-pane { flex:1 1 45%; display:flex; flex-direction:column; min-width:0; }
+  #tabs { display:flex; gap:2px; background:var(--panel); padding:6px 6px 0; flex-wrap:wrap; }
+  .tab { padding:6px 12px; cursor:pointer; color:var(--muted); border:none; background:transparent;
+         font-size:13px; border-radius:6px 6px 0 0; }
+  .tab.active { color:var(--fg); background:var(--bg); }
+  #code-scroll { flex:1; overflow:auto; margin:0; }
+  #code-scroll code { display:block; padding:12px 16px; font-size:13px; line-height:1.5;
+                      font-family:ui-monospace, "Cascadia Code", Consolas, monospace; }
+  @media (max-width:800px) {
+    #layout { flex-direction:column; }
+    #app-pane, #code-pane { flex:1 1 auto; border:none; }
+    #view-tabs { display:flex; }
+    .hidden { display:none !important; }
+  }
+</style>
+</head>
+<body>
+  <div id="banner">
+    ▶ Static WebAssembly build of <strong>{{TITLE}}</strong>. Live hot-reload of the UI is
+    <strong>native-only</strong> — <code>git clone … &amp;&amp; cargo run -p {{SLUG}}</code>
+    (add <code>--features hmr</code> for the supersolid TSX examples) to edit it live.
+  </div>
+  <div id="view-tabs">
+    <button class="tab active" data-view="app">Demo</button>
+    <button class="tab" data-view="code">Code</button>
+  </div>
+  <div id="layout">
+    <div id="app-pane">
+      <canvas id="superui-canvas"></canvas>
+      <div id="loader">Loading {{TITLE}} — this is a large WebAssembly binary, please wait…</div>
+    </div>
+    <div id="code-pane">
+      <div id="tabs"></div>
+      <pre id="code-scroll"><code id="code-el"></code></pre>
+    </div>
+  </div>
+
+  <script>window.__SOURCES__ = {{SOURCES_JSON}};</script>
+  <script src="../vendor/highlight.min.js"></script>
+  <script>
+    const sources = window.__SOURCES__ || [];
+    const tabsEl = document.getElementById('tabs');
+    const codeEl = document.getElementById('code-el');
+    const cache = {};
+    async function show(i) {
+      const src = sources[i];
+      [...tabsEl.children].forEach((t, j) => t.classList.toggle('active', i === j));
+      if (cache[i] == null) {
+        try { cache[i] = await (await fetch(src.path)).text(); }
+        catch (e) { cache[i] = '// failed to load ' + src.path; }
+      }
+      codeEl.textContent = cache[i];
+      codeEl.className = 'language-' + src.lang;
+      if (window.hljs) hljs.highlightElement(codeEl);
+    }
+    sources.forEach((src, i) => {
+      const b = document.createElement('button');
+      b.className = 'tab' + (i === 0 ? ' active' : '');
+      b.textContent = src.name;
+      b.onclick = () => show(i);
+      tabsEl.appendChild(b);
+    });
+    if (sources.length) show(0);
+
+    const appPane = document.getElementById('app-pane');
+    const codePane = document.getElementById('code-pane');
+    document.querySelectorAll('#view-tabs .tab').forEach(t => {
+      t.onclick = () => {
+        document.querySelectorAll('#view-tabs .tab').forEach(x => x.classList.remove('active'));
+        t.classList.add('active');
+        const app = t.dataset.view === 'app';
+        appPane.classList.toggle('hidden', !app);
+        codePane.classList.toggle('hidden', app);
+      };
+    });
+  </script>
+
+  <script type="module">
+    import init from './{{WASM_JS}}';
+    const loader = document.getElementById('loader');
+    init().catch((e) => {
+      // winit throws to yield control back to the browser event loop; ignore that one.
+      if (!(e instanceof Error) || !String(e.message).includes('Using exceptions for control flow')) {
+        console.error(e);
+      }
+    }).finally(() => { if (loader) loader.remove(); });
+  </script>
+</body>
+</html>

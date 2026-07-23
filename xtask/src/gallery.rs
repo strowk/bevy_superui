@@ -1,1 +1,3 @@
-// filled in Task 4
+pub fn render(_examples: &[crate::manifest::Example]) -> String {
+    String::new()
+}
