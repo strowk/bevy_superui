@@ -40,5 +40,9 @@ mod tests {
         assert!(out.contains("assets/ui/game_menu/app.tsx"));
         assert!(out.contains("cargo run -p game_menu"));
         assert!(!out.contains("{{"), "no unsubstituted template tokens");
+        // Site back-nav (relative to /examples/<slug>/).
+        assert!(out.contains(r#"href="../""#), "links back to the examples gallery");
+        assert!(out.contains(r#"href="../../docs/""#), "links to docs");
+        assert!(out.contains("Examples"));
     }
 }

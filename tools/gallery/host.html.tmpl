@@ -13,8 +13,12 @@
               font-family:system-ui, sans-serif; }
   #banner { padding:8px 12px; background:#2f2a4a; font-size:13px; border-bottom:1px solid #3a3a52; }
   #banner code { background:#00000040; padding:1px 5px; border-radius:4px; }
+  #site-nav { display:flex; gap:16px; padding:8px 12px; background:#262633;
+              border-bottom:1px solid #3a3a52; font-size:13px; }
+  #site-nav a { color:#a99bff; text-decoration:none; }
+  #site-nav a:hover { text-decoration:underline; }
   #view-tabs { display:none; background:var(--panel); }
-  #layout { display:flex; height:calc(100% - 37px); }
+  #layout { display:flex; height:calc(100% - 70px); }
   #app-pane { flex:1 1 55%; position:relative; min-width:0; border-right:1px solid #3a3a52; }
   #superui-canvas { width:100%; height:100%; display:block; }
   #loader { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
@@ -36,6 +40,12 @@
 </style>
 </head>
 <body>
+  <nav id="site-nav">
+    <a href="../../">Home</a>
+    <a href="../../docs/">Docs</a>
+    <a href="../">Examples</a>
+    <a href="https://github.com/strowk/bevy_superui">GitHub</a>
+  </nav>
   <div id="banner">
     ▶ Static WebAssembly build of <strong>{{TITLE}}</strong>. Live hot-reload of the UI is
     <strong>native-only</strong> — <code>git clone … &amp;&amp; cargo run -p {{SLUG}}</code>
