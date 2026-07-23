@@ -27,3 +27,7 @@ dhat-heap.json
 
 # Playwright MCP
 /.playwright-mcp/
+# Playwright/verification screenshots dropped at repo root
+/docs-page.png
+/landing-page.png
+/supersolid.png
