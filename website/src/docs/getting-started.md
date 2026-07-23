@@ -1,4 +1,4 @@
-﻿# Getting Started
+# Getting Started
 
 > superui is not yet published to crates.io. Add it as a path or git dependency.
 

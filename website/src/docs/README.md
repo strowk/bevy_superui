@@ -1,4 +1,4 @@
-﻿# Introduction
+# Introduction
 
 superui is a Bevy plugin that provides a browser-like environment for running
 HTML/CSS/JS applications — and Solid-style `.tsx` components via the supersolid

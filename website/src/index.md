@@ -1,4 +1,4 @@
-﻿<div class="superui-landing"></div>
+<div class="superui-landing"></div>
 
 # superui
 
