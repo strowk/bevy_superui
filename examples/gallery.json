@@ -10,10 +10,10 @@
       "title": "Game Menu",
       "description": "A sci-fi game menu with multiple screens and a tab switcher, in supersolid TSX." },
     { "slug": "citadel", "package": "citadel", "category": "Stress tests",
-      "title": "Citadel",
+      "title": "Citadel", "build_args": "--no-default-features",
       "description": "An economy/among-buildings sim UI — a reactive-node stress test." },
     { "slug": "horde", "package": "horde", "category": "Stress tests",
-      "title": "Horde", "tags": ["Playable game"],
+      "title": "Horde", "tags": ["Playable game"], "build_args": "--no-default-features",
       "description": "A survivors-like game (move, shoot, level up) with a reactive HUD under an enemy swarm — also a UI stress test." }
   ]
 }
