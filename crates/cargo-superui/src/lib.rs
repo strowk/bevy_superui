@@ -13,6 +13,52 @@ struct Package {
     manifest_path: String,
 }
 
+/// One editor-types module projected by `cargo superui install`.
+pub struct ProjectedModule {
+    /// cargo-metadata package that ships the canonical `.d.ts`.
+    pub package: &'static str,
+    /// Canonical `.d.ts` filename beside that package's `Cargo.toml`.
+    pub dts_filename: &'static str,
+    /// tsconfig `paths` key / import specifier.
+    pub specifier: &'static str,
+    /// Location under `superui_modules/` (also the tsconfig marker tail).
+    pub subpath: &'static str,
+    /// Absence of a required module's package is a hard error; optional is a skip.
+    pub required: bool,
+}
+
+impl ProjectedModule {
+    /// Unique substring identifying this module's `paths` entry in a tsconfig.
+    pub fn marker(&self) -> String {
+        format!("superui_modules/{}", self.subpath)
+    }
+    /// The `paths` value pointing at the projected `index.d.ts`.
+    pub fn index_path(&self) -> String {
+        format!("./superui_modules/{}/index.d.ts", self.subpath)
+    }
+}
+
+/// The modules `cargo superui install` projects, in order. supersolid is the
+/// primary (required) module; superui/test types are optional.
+pub fn projected_modules() -> Vec<ProjectedModule> {
+    vec![
+        ProjectedModule {
+            package: "supersolid",
+            dts_filename: "supersolid.d.ts",
+            specifier: "supersolid",
+            subpath: "supersolid",
+            required: true,
+        },
+        ProjectedModule {
+            package: "superui",
+            dts_filename: "superui-test.d.ts",
+            specifier: "superui/test",
+            subpath: "superui/test",
+            required: false,
+        },
+    ]
+}
+
 /// Given `cargo metadata` JSON, locate `package` and return the path to
 /// `filename` bundled alongside its `Cargo.toml`.
 pub fn find_module_dts(metadata_json: &str, package: &str, filename: &str) -> Option<PathBuf> {
@@ -49,18 +95,25 @@ pub const TSCONFIG_TEMPLATE: &str = r#"{
     "baseUrl": ".",                 // anchor the paths below to this folder
     "paths": {
       // map the bare `supersolid` import to its projected editor types
-      "supersolid": ["./superui_modules/supersolid/index.d.ts"]
+      "supersolid": ["./superui_modules/supersolid/index.d.ts"],
+      // map the `superui/test` import to the projected test-framework types
+      "superui/test": ["./superui_modules/superui/test/index.d.ts"]
     }
   },
-  // files the language server should type-check: projected types + this app's UI
-  "include": ["superui_modules/**/*.d.ts", "assets/**/*.ts", "assets/**/*.tsx"]
+  // files the language server should type-check: projected types, UI, and specs
+  "include": ["superui_modules/**/*.d.ts", "assets/**/*.ts", "assets/**/*.tsx", "tests/**/*.ts"]
 }
 "#;
 
-/// True if the tsconfig source already maps the supersolid module. Substring
-/// check (not a JSONC parse) — sufficient because the projected path is unique.
+/// True if the tsconfig source already contains a `paths` marker substring.
+/// Substring check (not a JSONC parse) — sufficient because markers are unique.
+pub fn tsconfig_has_path(src: &str, marker: &str) -> bool {
+    src.contains(marker)
+}
+
+/// True if the tsconfig maps the supersolid module (back-compat wrapper).
 pub fn tsconfig_has_supersolid_path(src: &str) -> bool {
-    src.contains(SUPERSOLID_PATH_MARKER)
+    tsconfig_has_path(src, SUPERSOLID_PATH_MARKER)
 }
 
 /// True if `.gitignore` source lacks a line ignoring the module tree. A bare
@@ -124,6 +177,28 @@ mod tests {
     #[test]
     fn gitignore_ok_when_present_without_slash() {
         assert!(!gitignore_needs_entry("/target\nsuperui_modules\n"));
+    }
+
+    #[test]
+    fn tsconfig_template_maps_superui_test() {
+        let m = projected_modules().into_iter().find(|m| m.specifier == "superui/test").unwrap();
+        assert!(tsconfig_has_path(TSCONFIG_TEMPLATE, &m.marker()));
+    }
+
+    #[test]
+    fn projected_modules_marks_supersolid_required_and_test_optional() {
+        let mods = projected_modules();
+        assert!(mods.iter().find(|m| m.specifier == "supersolid").unwrap().required);
+        assert!(!mods.iter().find(|m| m.specifier == "superui/test").unwrap().required);
+    }
+
+    #[test]
+    fn superui_test_module_paths_are_correct() {
+        let m = projected_modules().into_iter().find(|m| m.specifier == "superui/test").unwrap();
+        assert_eq!(m.package, "superui");
+        assert_eq!(m.dts_filename, "superui-test.d.ts");
+        assert_eq!(m.marker(), "superui_modules/superui/test");
+        assert_eq!(m.index_path(), "./superui_modules/superui/test/index.d.ts");
     }
 
     #[test]
