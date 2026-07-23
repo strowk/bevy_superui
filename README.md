@@ -35,10 +35,6 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 Each example is compiled to WebAssembly and published on GitHub Pages, showing the
 running app beside its authored source (TSX where applicable).
 
-> **Note:** Links below go live after the first successful `Deploy Pages` workflow run on
-> `main`. If you see a 404, the initial deploy has not yet run — trigger it via
-> **Actions → Deploy Pages → Run workflow**.
-
 **Apps**
 
 | Example | Live demo | Description |
