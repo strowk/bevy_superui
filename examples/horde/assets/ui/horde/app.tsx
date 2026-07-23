@@ -1,6 +1,33 @@
-import { createSignal, createMemo, For, Keyed, Index, Show, Switch, Match, render } from "supersolid";
+import { createSignal, createMemo, For, Keyed, Index, Show, Switch, Match, render, Accessor } from "supersolid";
 
-const EMPTY = {
+// --- Frame model: mirrors the serde DTOs in src/ui/supersolid/bridge.rs ---
+// Hand-authored for now; this is the exact JSON shape bevy.on("frame") delivers.
+type GameState = "MainMenu" | "Playing" | "Paused" | "GameOver";
+
+interface Slot {
+  index: number; name: string; active: boolean;
+  dmg: number; rof: number; spread: number; projectiles: number; mag: number; reload: number;
+}
+interface Enemy { id: string; sx: number; sy: number; frac: number; }
+interface Dmg { id: string; sx: number; sy: number; text: string; crit: boolean; alpha: number; }
+interface Blip { id: string; mx: number; my: number; kind: string; }
+interface Log { text: string; alpha: number; }
+
+interface Frame {
+  state: GameState;
+  player_hp: number; player_max_hp: number;
+  xp: number; level: number; wave: number; kills: number; pickups: number;
+  active_weapon: string | null;
+  ammo: number; ammo_size: number; reloading: boolean; cooldown_frac: number;
+  dps: number; elapsed: number;
+  inventory: Slot[];
+  enemies: Enemy[];
+  damage_numbers: Dmg[];
+  blips: Blip[];
+  log: Log[];
+}
+
+const EMPTY: Frame = {
   state: "MainMenu",
   player_hp: 0, player_max_hp: 1, xp: 0, level: 0, wave: 0, kills: 0, pickups: 0,
   active_weapon: null, ammo: 0, ammo_size: 0, reloading: false, cooldown_frac: 0,
@@ -8,7 +35,7 @@ const EMPTY = {
   inventory: [], enemies: [], damage_numbers: [], blips: [], log: [],
 };
 
-function intent(kind, index) {
+function intent(kind: string, index?: number) {
   bevy.send("HordeIntent", { kind, index: index || 0 });
 }
 
@@ -24,7 +51,7 @@ function mmss(sec) {
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
-function PlayerStatus(props) {
+function PlayerStatus(props: { f: Accessor<Frame> }) {
   const f = props.f;
   const hpFrac = () => f().player_hp / f().player_max_hp;
   const xpFrac = () => (f().xp % 100) / 100;
@@ -45,7 +72,7 @@ function PlayerStatus(props) {
   );
 }
 
-function Meters(props) {
+function Meters(props: { f: Accessor<Frame> }) {
   const f = props.f;
   return (
     <div class="panel" id="meters">
@@ -54,7 +81,7 @@ function Meters(props) {
   );
 }
 
-function CombatLog(props) {
+function CombatLog(props: { f: Accessor<Frame> }) {
   return (
     <div class="panel" id="combat-log">
       {<For each={props.f().log}>
@@ -64,7 +91,7 @@ function CombatLog(props) {
   );
 }
 
-function WeaponBar(props) {
+function WeaponBar(props: { f: Accessor<Frame> }) {
   return (
     <div id="weapon-bar">
       {<For each={props.f().inventory}>
@@ -85,7 +112,7 @@ function WeaponBar(props) {
 // so a moving enemy re-runs only its own position binding (its unchanged health/
 // id bindings stay put) and there is no per-frame whole-list reconcile. `e` is the
 // row proxy: `e.sx` is a fine-grained reactive read.
-function Minimap(props) {
+function Minimap(props: { f: Accessor<Frame> }) {
   return (
     <div class="panel" id="minimap">
       {<Keyed each={props.f().blips} by="id">
@@ -98,7 +125,7 @@ function Minimap(props) {
   );
 }
 
-function Nameplates(props) {
+function Nameplates(props: { f: Accessor<Frame> }) {
   return (
     <div class="overlay" id="nameplates">
       {<Keyed each={props.f().enemies} by="id">
@@ -114,7 +141,7 @@ function Nameplates(props) {
   );
 }
 
-function DamageNumbers(props) {
+function DamageNumbers(props: { f: Accessor<Frame> }) {
   return (
     <div class="overlay" id="damage-numbers">
       {<Keyed each={props.f().damage_numbers} by="id">
@@ -129,7 +156,7 @@ function DamageNumbers(props) {
   );
 }
 
-function Hud(props) {
+function Hud(props: { f: Accessor<Frame> }) {
   return (
     <div id="playing">
       <PlayerStatus f={props.f} />
@@ -143,7 +170,7 @@ function Hud(props) {
   );
 }
 
-function Inventory(props) {
+function Inventory(props: { f: Accessor<Frame>; onClose: () => void }) {
   return (
     <div class="modal dim" id="inventory">
       <h2 class="screen-title">Inventory (I to close)</h2>
@@ -180,7 +207,7 @@ function MainMenu() {
   );
 }
 
-function Settings(props) {
+function Settings(props: { onClose: () => void }) {
   const [cap, setCap] = createSignal(0);
   return (
     <div class="modal dim" id="settings">
@@ -207,7 +234,7 @@ function Pause() {
   );
 }
 
-function GameOver(props) {
+function GameOver(props: { f: Accessor<Frame> }) {
   const f = props.f;
   return (
     <div class="screen dim" id="game-over">
@@ -226,7 +253,7 @@ function GameOver(props) {
 
 function App() {
   const [frame, setFrame] = createSignal(EMPTY);
-  bevy.on("frame", (f) => setFrame(f));
+  bevy.on("frame", (f: Frame) => setFrame(f));
   const state = createMemo(() => frame().state);
   const [invOpen, setInvOpen] = createSignal(false);
   bevy.on("toggleInventory", () => setInvOpen((o) => !o));
