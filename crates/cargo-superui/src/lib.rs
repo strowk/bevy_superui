@@ -13,13 +13,18 @@ struct Package {
     manifest_path: String,
 }
 
-/// Given `cargo metadata` JSON, locate the `supersolid` package and return the
-/// path to its bundled `supersolid.d.ts` (a sibling of its `Cargo.toml`).
-pub fn find_supersolid_dts(metadata_json: &str) -> Option<PathBuf> {
+/// Given `cargo metadata` JSON, locate `package` and return the path to
+/// `filename` bundled alongside its `Cargo.toml`.
+pub fn find_module_dts(metadata_json: &str, package: &str, filename: &str) -> Option<PathBuf> {
     let meta: Metadata = serde_json::from_str(metadata_json).ok()?;
-    let pkg = meta.packages.into_iter().find(|p| p.name == "supersolid")?;
+    let pkg = meta.packages.into_iter().find(|p| p.name == package)?;
     let dir = Path::new(&pkg.manifest_path).parent()?;
-    Some(dir.join("supersolid.d.ts"))
+    Some(dir.join(filename))
+}
+
+/// Locate the `supersolid` package's bundled `supersolid.d.ts`.
+pub fn find_supersolid_dts(metadata_json: &str) -> Option<PathBuf> {
+    find_module_dts(metadata_json, "supersolid", "supersolid.d.ts")
 }
 
 /// Marker substring identifying the projected supersolid module in a tsconfig.
@@ -119,5 +124,23 @@ mod tests {
     #[test]
     fn gitignore_ok_when_present_without_slash() {
         assert!(!gitignore_needs_entry("/target\nsuperui_modules\n"));
+    }
+
+    #[test]
+    fn finds_superui_test_dts_from_metadata() {
+        let json = r#"{
+            "packages": [
+                { "name": "superui", "manifest_path": "/w/crates/superui/Cargo.toml" },
+                { "name": "supersolid", "manifest_path": "/w/crates/supersolid/Cargo.toml" }
+            ]
+        }"#;
+        let got = find_module_dts(json, "superui", "superui-test.d.ts").unwrap();
+        assert_eq!(got, PathBuf::from("/w/crates/superui/superui-test.d.ts"));
+    }
+
+    #[test]
+    fn find_module_dts_none_when_package_absent() {
+        let json = r#"{ "packages": [ { "name": "bevy", "manifest_path": "/x/Cargo.toml" } ] }"#;
+        assert!(find_module_dts(json, "superui", "superui-test.d.ts").is_none());
     }
 }
