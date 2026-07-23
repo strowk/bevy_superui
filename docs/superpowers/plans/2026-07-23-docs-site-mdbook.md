@@ -985,6 +985,104 @@ git commit -m "ci(site): build mdBook site + overlay demos under /examples/; upd
 
 ---
 
+## Task 8: Push, verify deployment, verify the live site
+
+**Files:** none (deploy + verification only).
+
+**Interfaces:**
+- Consumes: everything from Tasks 1–7 on `main`; the `Deploy Pages` workflow (`.github/workflows/deploy-pages.yml`), which triggers on push to `main`.
+- Produces: a confirmed-live site at `https://strowk.github.io/bevy_superui/`.
+
+This task is procedural (no TDD). It runs only after Tasks 1–7 are committed and the working tree is clean. **Prerequisite:** the Playwright MCP server must be connected (its `mcp__playwright__browser_*` tools available) for the visual verification steps.
+
+> Heads-up on the in-progress gallery-deploy repair: before pushing, confirm the local `main` is rebased on the latest remote `main` so this deploy does not race or clobber that work. If a `Deploy Pages` run is already in flight, let it finish first.
+
+- [ ] **Step 1: Confirm a clean tree and sync with remote main**
+
+Run:
+```bash
+git status --porcelain && git fetch origin && git log --oneline origin/main..HEAD
+```
+Expected: no uncommitted changes (empty `--porcelain` output); the log shows exactly the Task 1–7 commits ahead of `origin/main`. If `origin/main` has new commits, `git rebase origin/main` and re-run Task 7's `mdbook build` verification before continuing.
+
+- [ ] **Step 2: Push to main**
+
+Run: `git push origin main`
+Expected: push succeeds; `git rev-parse HEAD` matches `git rev-parse origin/main`.
+
+- [ ] **Step 3: Watch the Deploy Pages run to completion via `gh`**
+
+Run:
+```bash
+sleep 10
+RUN_ID=$(gh run list --workflow "Deploy Pages" --branch main --limit 1 --json databaseId --jq '.[0].databaseId')
+echo "watching run $RUN_ID"
+gh run watch "$RUN_ID" --exit-status --interval 20
+```
+Expected: `gh run watch` streams job progress and exits 0 when the run **succeeds**. If it exits non-zero, the deploy failed — do NOT proceed to visual verification; instead:
+```bash
+gh run view "$RUN_ID" --log-failed
+```
+Read the failing step, fix the underlying cause (likely in `website/` or `deploy-pages.yml`), commit, and restart from Step 2. This is a debugging loop, not a step to skip.
+
+- [ ] **Step 4: Confirm the deployed page URL and that it serves 200**
+
+Run:
+```bash
+gh run view "$RUN_ID" --json url --jq .url
+curl -sI https://strowk.github.io/bevy_superui/ | head -n 1
+curl -sI https://strowk.github.io/bevy_superui/examples/ | head -n 1
+```
+Expected: both `curl` calls return `HTTP/2 200`. (GitHub Pages CDN can lag the workflow by up to a minute; if you see 404, wait 30s and retry the `curl` before assuming failure.)
+
+- [ ] **Step 5: Verify the live landing page with Playwright MCP**
+
+Use `mcp__playwright__browser_navigate` to open `https://strowk.github.io/bevy_superui/`, then `mcp__playwright__browser_snapshot` to capture the accessibility tree, then `mcp__playwright__browser_take_screenshot` (full page) for a visual record.
+
+Assert from the snapshot:
+- The hero heading `superui` and the tagline text are present.
+- The CTA links **Read the docs**, **See examples**, **GitHub** are present.
+- The four feature cards (Web stack / Solid-style TSX / Hot reload / Familiar APIs) are present.
+- The mdBook **sidebar and top menu bar are NOT visible** (chrome-light landing).
+
+If the sidebar/menu-bar IS visible on the live page, the `body:has(.superui-landing)` CSS did not take effect — treat as a failure, revisit Task 3's selectors against the deployed HTML, commit, and restart from Step 2.
+
+- [ ] **Step 6: Verify the live docs page with Playwright MCP**
+
+Navigate to `https://strowk.github.io/bevy_superui/docs/` (`mcp__playwright__browser_navigate`) and `mcp__playwright__browser_snapshot`.
+
+Assert:
+- The **Introduction** heading/content renders.
+- The mdBook **sidebar IS visible** here (shows Guide / Reference / Examples entries) — confirming chrome is hidden only on the landing.
+- Clicking a Reference sidebar entry (e.g. CSS) via `mcp__playwright__browser_click` navigates to that page and it renders.
+
+- [ ] **Step 7: Verify the live gallery with Playwright MCP**
+
+Navigate to `https://strowk.github.io/bevy_superui/examples/` and `mcp__playwright__browser_snapshot` + `mcp__playwright__browser_take_screenshot`.
+
+Assert:
+- Category sections (**Apps**, **Stress tests**) render.
+- Example cards for `todomvc`, `todomvc_supersolid`, `game_menu`, `citadel`, `horde` are present, with the `Playable game` badge on Horde.
+- No literal `<!-- superui:gallery -->` text is visible (the preprocessor ran).
+- A card's link points under `/bevy_superui/examples/<slug>/` (inspect an anchor via `mcp__playwright__browser_evaluate` returning `document.querySelector('a.card').getAttribute('href')`).
+
+- [ ] **Step 8: Spot-check one demo host page loads (shell only)**
+
+Navigate to `https://strowk.github.io/bevy_superui/examples/todomvc/`. The wasm binary is large; use `mcp__playwright__browser_navigate` then `mcp__playwright__browser_snapshot`.
+
+Assert (shell, not full app run):
+- The back-nav row (Home / Docs / Examples / GitHub) is present.
+- The `superui-canvas` element and the loading banner are present.
+- The **Code** view lists the authored source files (tabs).
+
+(Do not block on the wasm app fully initializing — it can be slow on the CDN and is not the subject of this verification.)
+
+- [ ] **Step 9: Close the browser and report**
+
+Call `mcp__playwright__browser_close`. Summarize the verification: deployed run id + URL, and a PASS/observations line for landing, docs, gallery, and the demo shell, attaching the screenshots taken.
+
+---
+
 ## Self-Review
 
 **Spec coverage:**
@@ -998,6 +1096,7 @@ git commit -m "ci(site): build mdBook site + overlay demos under /examples/; upd
 - xtask reduced to host-page; gallery.rs + gallery.html.tmpl retired → Task 5. ✓
 - Preprocessor unit tests (fragment render, marker expand) + xtask tests green → Tasks 4, 5, 6. ✓
 - CI: install mdbook, build, overlay, README links → Task 7. ✓
+- Deploy to main + verify deployment (`gh`) + verify live site (Playwright MCP) → Task 8. ✓
 
 **Deviations from spec (deliberate):**
 - Landing chrome-hide uses a `.superui-landing` marker + `body:has()` CSS instead of a `theme/index.hbs` override. Same outcome, avoids editing a version-sensitive Handlebars template. Marker token is `<!-- superui:gallery -->` for the gallery (HTML comment, collision-proof) rather than `{{#gallery}}`.
