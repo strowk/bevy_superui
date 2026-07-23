@@ -1,0 +1,19 @@
+{
+  "examples": [
+    { "slug": "todomvc", "package": "todomvc", "category": "Apps",
+      "title": "TodoMVC (HTML/CSS/JS)",
+      "description": "The classic TodoMVC authored in plain HTML/CSS/JS on superui." },
+    { "slug": "todomvc_supersolid", "package": "todomvc_supersolid", "category": "Apps",
+      "title": "TodoMVC (Supersolid TSX)",
+      "description": "The same TodoMVC authored in Solid-style .tsx with the supersolid framework." },
+    { "slug": "game_menu", "package": "game_menu", "category": "Apps",
+      "title": "Game Menu",
+      "description": "A sci-fi game menu with multiple screens and a tab switcher, in supersolid TSX." },
+    { "slug": "citadel", "package": "citadel", "category": "Stress tests",
+      "title": "Citadel",
+      "description": "An economy/among-buildings sim UI — a reactive-node stress test." },
+    { "slug": "horde", "package": "horde", "category": "Stress tests",
+      "title": "Horde", "tags": ["Playable game"],
+      "description": "A survivors-like game (move, shoot, level up) with a reactive HUD under an enemy swarm — also a UI stress test." }
+  ]
+}
