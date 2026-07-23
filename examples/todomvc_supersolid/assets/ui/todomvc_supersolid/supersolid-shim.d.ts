@@ -13,6 +13,7 @@ declare module "supersolid" {
     children: (item: any, index: () => number) => unknown;
   }) => unknown;
   export const Show: (props: { when: unknown; children: unknown }) => unknown;
+  export const Keyed: (props: { each: unknown; by: string; children: unknown }) => unknown;
   export const Index: (props: {
     each: readonly unknown[];
     children: (item: () => any, index: number) => unknown;

@@ -9,9 +9,7 @@
     "module": "esnext",
     "moduleResolution": "bundler",
     "target": "esnext",
-    "noEmit": true,
-    "skipLibCheck": true,
-    "types": []
+    "noEmit": true
   },
   "include": ["**/*.ts", "**/*.tsx", "supersolid-shim.d.ts"]
 }
