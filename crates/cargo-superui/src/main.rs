@@ -21,6 +21,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     }
     match args.first().map(String::as_str) {
         Some("install") => install(&args[1..]),
+        None => Err("no command given; try `cargo superui install`".into()),
         other => Err(format!("unknown command {other:?}; try `cargo superui install`").into()),
     }
 }
