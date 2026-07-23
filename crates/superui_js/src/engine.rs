@@ -10,6 +10,39 @@ use superui_dom::{Dom, Event, NodeId};
 use crate::state::{with_host_state, wrap_node, EventData, HostState};
 use crate::JsEngine;
 
+/// Build the Boa [`Context`]. Native keeps Boa's default `StdClock` — unchanged.
+#[cfg(not(target_arch = "wasm32"))]
+fn build_context() -> Context {
+    Context::default()
+}
+
+/// On `wasm32-unknown-unknown` Boa's default `StdClock` calls
+/// `std::time::SystemTime::now()`, which panics ("time not implemented on this
+/// platform"). Inject a `web-time`-backed clock instead — Boa's `Date` builtin
+/// reads it, so without this the engine dies the first time author JS touches the
+/// current time. This path exists only on wasm; native is untouched above.
+#[cfg(target_arch = "wasm32")]
+fn build_context() -> Context {
+    use boa_engine::context::time::{Clock, JsInstant};
+
+    #[derive(Debug, Clone, Copy, Default)]
+    struct WebClock;
+
+    impl Clock for WebClock {
+        fn now(&self) -> JsInstant {
+            let since_epoch = web_time::SystemTime::now()
+                .duration_since(web_time::UNIX_EPOCH)
+                .unwrap_or_default();
+            JsInstant::new(since_epoch.as_secs(), since_epoch.subsec_nanos())
+        }
+    }
+
+    Context::builder()
+        .clock(Rc::new(WebClock))
+        .build()
+        .expect("failed to build Boa context")
+}
+
 /// A Boa JS context wired to a shared [`Dom`]. Single-threaded.
 pub struct BoaEngine {
     pub(crate) context: Context,
@@ -21,7 +54,7 @@ impl BoaEngine {
     /// `HostDefined` slot; call `superui_api::install` before evaluating author
     /// scripts to populate the DOM/Web API surface.
     pub fn new(dom: Rc<RefCell<Dom>>) -> Self {
-        let context = Context::default();
+        let context = build_context();
         context
             .realm()
             .host_defined_mut()
