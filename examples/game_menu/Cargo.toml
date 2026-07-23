@@ -26,7 +26,8 @@ version = "0.17.3"
 [build-dependencies]
 supersolid = { path = "../../crates/supersolid" }
 
-# Boa (via superui) needs the JS getrandom backend on wasm.
+# Boa (via superui) needs the JS getrandom backend on wasm; `webgl2` selects the
+# WebGL2 wgpu backend for the web build.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.3", features = ["wasm_js"] }
 bevy = { version = "0.17", features = ["webgl2"] }
