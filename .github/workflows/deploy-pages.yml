@@ -40,10 +40,19 @@ jobs:
           rustup toolchain install stable --profile minimal
           rustup target add wasm32-unknown-unknown
 
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: wasm-${{ matrix.slug }}
+
       - name: Resolve dependencies and derive wasm-bindgen version
         run: |
           cargo metadata --format-version=1 --quiet > metadata.json
-          WB=$(jq -r '.packages[] | select(.name=="wasm-bindgen") | .version' metadata.json | sort -u | head -1)
+          mapfile -t WB_VERSIONS < <(jq -r '.packages[] | select(.name=="wasm-bindgen") | .version' metadata.json | sort -u)
+          if [ "${#WB_VERSIONS[@]}" -ne 1 ]; then
+            echo "::error::expected exactly one wasm-bindgen version, found: ${WB_VERSIONS[*]}"
+            exit 1
+          fi
+          WB="${WB_VERSIONS[0]}"
           echo "Using wasm-bindgen $WB"
           echo "WB_VERSION=$WB" >> "$GITHUB_ENV"
 
@@ -51,10 +60,6 @@ jobs:
         uses: taiki-e/install-action@v2
         with:
           tool: wasm-bindgen-cli@${{ env.WB_VERSION }},binaryen
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          key: wasm-${{ matrix.slug }}
 
       - name: Build wasm (release, WebGL2)
         run: cargo build -p ${{ matrix.package }} --release --target wasm32-unknown-unknown ${{ matrix.build_args }}
@@ -89,6 +94,9 @@ jobs:
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install Rust
+        run: rustup toolchain install stable --profile minimal
 
       - name: Download example artifacts
         uses: actions/download-artifact@v4
