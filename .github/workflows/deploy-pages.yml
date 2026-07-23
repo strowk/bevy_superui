@@ -1,0 +1,116 @@
+name: Deploy Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: set
+        run: |
+          matrix=$(jq -c '{include: .examples | map({slug, package, build_args: (.build_args // "")})}' examples/gallery.json)
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: discover
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.discover.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust + wasm target
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup target add wasm32-unknown-unknown
+
+      - name: Resolve dependencies and derive wasm-bindgen version
+        run: |
+          cargo metadata --format-version=1 --quiet > metadata.json
+          WB=$(jq -r '.packages[] | select(.name=="wasm-bindgen") | .version' metadata.json | sort -u | head -1)
+          echo "Using wasm-bindgen $WB"
+          echo "WB_VERSION=$WB" >> "$GITHUB_ENV"
+
+      - name: Install wasm-bindgen-cli (exact match) and binaryen
+        uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-bindgen-cli@${{ env.WB_VERSION }},binaryen
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: wasm-${{ matrix.slug }}
+
+      - name: Build wasm (release, WebGL2)
+        run: cargo build -p ${{ matrix.package }} --release --target wasm32-unknown-unknown ${{ matrix.build_args }}
+
+      - name: wasm-bindgen
+        run: |
+          wasm-bindgen --no-typescript --target web \
+            --out-dir "stage/${{ matrix.slug }}" --out-name "${{ matrix.slug }}" \
+            "target/wasm32-unknown-unknown/release/${{ matrix.package }}.wasm"
+
+      - name: wasm-opt
+        run: |
+          wasm-opt -Oz -o "stage/${{ matrix.slug }}/${{ matrix.slug }}_bg.wasm" \
+            "stage/${{ matrix.slug }}/${{ matrix.slug }}_bg.wasm"
+
+      - name: Generate host page
+        run: cargo run -p xtask -- host-page --slug ${{ matrix.slug }} --out "stage/${{ matrix.slug }}"
+
+      - name: Copy app assets (after build so app.generated.js exists)
+        run: cp -r "examples/${{ matrix.slug }}/assets" "stage/${{ matrix.slug }}/assets"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: example-${{ matrix.slug }}
+          path: stage/${{ matrix.slug }}
+
+  assemble-and-deploy:
+    needs: [discover, build]
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download example artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: downloaded
+          pattern: example-*
+
+      - name: Assemble dist/
+        run: |
+          mkdir -p dist
+          for d in downloaded/example-*; do
+            slug="${d#downloaded/example-}"
+            mv "$d" "dist/$slug"
+          done
+          cp -r tools/gallery/vendor dist/vendor
+
+      - name: Generate gallery index
+        run: cargo run -p xtask -- gallery-index --out dist/index.html
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - id: deploy
+        uses: actions/deploy-pages@v4

@@ -18,3 +18,6 @@
 # Build output logs from bench runs
 *.log
 dhat-heap.json
+
+# Assembled Pages output (built by CI / local dry-run)
+/dist
