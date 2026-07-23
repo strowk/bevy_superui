@@ -31,17 +31,22 @@ pub const GITIGNORE_ENTRY: &str = "superui_modules/";
 /// tsconfig written verbatim when an app dir has none. Makes
 /// `import ... from "supersolid"` resolve to the projected module.
 pub const TSCONFIG_TEMPLATE: &str = r#"{
+  // Editor-only config: it tells TypeScript / your IDE how to resolve and
+  // type-check the .tsx UI. superui's Rust transpiler is the real consumer of
+  // the source — nothing here affects the build or runtime.
   "compilerOptions": {
-    "jsx": "preserve",
-    "module": "esnext",
-    "moduleResolution": "bundler",
-    "target": "esnext",
-    "noEmit": true,
-    "baseUrl": ".",
+    "jsx": "preserve",              // leave JSX untouched (no React runtime)
+    "module": "esnext",             // use modern ES module syntax
+    "moduleResolution": "bundler",  // resolve bare imports the way a bundler does
+    "target": "esnext",             // don't down-level; we only type-check
+    "noEmit": true,                 // never emit output — editor concern only
+    "baseUrl": ".",                 // anchor the paths below to this folder
     "paths": {
+      // map the bare `supersolid` import to its projected editor types
       "supersolid": ["./superui_modules/supersolid/index.d.ts"]
     }
   },
+  // files the language server should type-check: projected types + this app's UI
   "include": ["superui_modules/**/*.d.ts", "assets/**/*.ts", "assets/**/*.tsx"]
 }
 "#;
