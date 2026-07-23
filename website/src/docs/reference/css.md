@@ -49,7 +49,7 @@ Unknown properties and rules are ignored, never fatal.
 | `font-size` / `font-family` | ✅ | T1 | |
 | `text-align` / `line-height` | ✅ | T1 | |
 | `transition` | ✅ | T2 | |
-| `transform` (translate/scale/rotate) | ✅ | T2 | |
+| `transform` | ✅ | T2 | 2D only: `translate[X/Y]`, `scale[X/Y]`, `rotate`/`rotateZ`. No 3D (`rotateX/Y`, `rotate3d`, `translateZ`, `perspective`) or `matrix`/`skew`. Functions must appear in order `translate scale rotate` |
 | `background-image` (gradient) | ✅ | T2 | linear / radial gradients |
 | `opacity` | 🟡 | T2 | |
 | `background-image: url()` | 🟡 | T2 | needs image assets |
