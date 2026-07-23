@@ -267,6 +267,11 @@
   border-left-width: 3px;
   border-left-color: var(--line);
   background-color: var(--panel);
+  /* Baseline so `:hover`'s translateX has a value to revert to — flair has no
+     implicit `initial`; without this the item slides right and never returns
+     (it warns "Cannot set property to None"). Same reason `.tab` sets a
+     baseline background-color above. */
+  transform: translateX(0);
 }
 .menu-item.primary {
   border-left-color: var(--ac);
@@ -599,6 +604,9 @@
   font-size: 15px;
   color: var(--text);
   background-color: rgba(0, 0, 0, 0);
+  /* Baseline so `.action.solid:hover`'s box-shadow can revert (see `.menu-item`
+     transform note) — else the glow sticks after the pointer leaves. */
+  box-shadow: 0px 0px rgba(0, 0, 0, 0);
 }
 .action:hover {
   border-color: var(--ac);
