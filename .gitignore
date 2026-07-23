@@ -25,6 +25,11 @@ dhat-heap.json
 # mdBook build output
 /website/book/
 
+# Locally-built demo wasm dropped into the book src for `mdbook serve` preview
+# (built by hand / an xtask helper; the gallery page README.md stays tracked)
+/website/src/examples/*/
+/website/src/examples/vendor/
+
 # Playwright MCP
 /.playwright-mcp/
 # Playwright/verification screenshots dropped at repo root
