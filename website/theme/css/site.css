@@ -43,3 +43,16 @@ body:has(.superui-landing) #content main {
 .feature p { margin: 0; color: #9a9ab0; }
 .status-note { max-width: 720px; margin: 0 auto 64px; padding: 14px 18px; text-align: center;
                background: #2f2a4a; border: 1px solid #3a3a52; border-radius: 8px; color: #d8d2ff; }
+
+/* --- examples gallery cards --- */
+.gallery-cat h2 { margin: 28px 0 12px; font-size: 15px; text-transform: uppercase;
+                  letter-spacing: .08em; color: #9a9ab0; border-bottom: 1px solid #3a3a52;
+                  padding-bottom: 6px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+.card { display: block; text-decoration: none; color: inherit; background: #262633;
+        border: 1px solid #3a3a52; border-radius: 10px; padding: 18px; transition: border-color .15s; }
+.card:hover { border-color: #7c6cff; }
+.card h3 { margin: 0 0 6px; font-size: 18px; }
+.card p { margin: 0; color: #9a9ab0; font-size: 14px; }
+.badges { margin-top: 10px; display: flex; gap: 6px; flex-wrap: wrap; }
+.badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #3a3358; color: #d8d2ff; }

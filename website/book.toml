@@ -12,3 +12,7 @@ site-url = "/bevy_superui/"
 git-repository-url = "https://github.com/strowk/bevy_superui"
 additional-css = ["theme/css/site.css"]
 no-section-label = true
+
+[preprocessor.gallery]
+command = "cargo run -q -p mdbook-gallery --"
+manifest = "../examples/gallery.json"
