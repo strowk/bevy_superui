@@ -61,11 +61,16 @@ jobs:
         with:
           tool: wasm-bindgen-cli@${{ env.WB_VERSION }}
 
-      # binaryen (wasm-opt) isn't a taiki-e/install-action tool, and the crates.io
-      # `binaryen` crate is Rust bindings with no `wasm-opt` binary — install the
-      # Ubuntu package instead, which provides /usr/bin/wasm-opt.
+      # Pin binaryen from GitHub releases. Ubuntu's apt binaryen is v108, which is
+      # too old to preserve wasm-bindgen's reference-types externref table even
+      # with --enable-reference-types — the module then fails `Table.grow` at load.
+      # v119 handles it (verified locally). taiki-e/install-action has no binaryen
+      # tool and the crates.io `binaryen` crate ships no wasm-opt, so download it.
       - name: Install binaryen (wasm-opt)
-        run: sudo apt-get update && sudo apt-get install -y binaryen
+        run: |
+          BINARYEN=version_119
+          curl -sSfL "https://github.com/WebAssembly/binaryen/releases/download/${BINARYEN}/binaryen-${BINARYEN}-x86_64-linux.tar.gz" | tar xz
+          echo "$PWD/binaryen-${BINARYEN}/bin" >> "$GITHUB_PATH"
 
       - name: Build wasm (release, WebGL2)
         run: cargo build -p ${{ matrix.package }} --release --target wasm32-unknown-unknown ${{ matrix.build_args }}
