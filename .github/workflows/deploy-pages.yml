@@ -76,9 +76,14 @@ jobs:
             --out-dir "stage/${{ matrix.slug }}" --out-name "${{ matrix.slug }}" \
             "target/wasm32-unknown-unknown/release/${{ matrix.package }}.wasm"
 
+      # --enable-reference-types is REQUIRED: wasm-bindgen emits an externref
+      # table, and without this flag wasm-opt caps it so the init-time
+      # `Table.grow` fails at load ("WebAssembly.Table.grow(): failed to grow
+      # table by 4"). --enable-bulk-memory keeps memory.copy/fill intact.
       - name: wasm-opt
         run: |
-          wasm-opt -Oz -o "stage/${{ matrix.slug }}/${{ matrix.slug }}_bg.wasm" \
+          wasm-opt -Oz --enable-reference-types --enable-bulk-memory \
+            -o "stage/${{ matrix.slug }}/${{ matrix.slug }}_bg.wasm" \
             "stage/${{ matrix.slug }}/${{ matrix.slug }}_bg.wasm"
 
       - name: Generate host page
