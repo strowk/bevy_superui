@@ -52,7 +52,9 @@ pub fn tsconfig_has_supersolid_path(src: &str) -> bool {
     src.contains(SUPERSOLID_PATH_MARKER)
 }
 
-/// True if `.gitignore` source lacks a line ignoring the module tree.
+/// True if `.gitignore` source lacks a line ignoring the module tree. A bare
+/// `superui_modules` (no trailing slash) counts as present — git matches the
+/// directory either way.
 pub fn gitignore_needs_entry(src: &str) -> bool {
     !src.lines().any(|l| l.trim() == GITIGNORE_ENTRY.trim_end_matches('/')
         || l.trim() == GITIGNORE_ENTRY)
@@ -106,5 +108,10 @@ mod tests {
     #[test]
     fn gitignore_ok_when_present() {
         assert!(!gitignore_needs_entry("/target\nsuperui_modules/\n"));
+    }
+
+    #[test]
+    fn gitignore_ok_when_present_without_slash() {
+        assert!(!gitignore_needs_entry("/target\nsuperui_modules\n"));
     }
 }
