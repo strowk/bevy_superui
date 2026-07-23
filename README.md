@@ -30,3 +30,41 @@ Portions of this repository are derived from [`bevy_flair`](https://github.com/e
 
 Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in the work by you, as defined in the Apache-2.0 license, shall be dual-licensed as above, without any additional terms or conditions.
 
+## Live examples
+
+Each example is compiled to WebAssembly and published on GitHub Pages, showing the
+running app beside its authored source (TSX where applicable).
+
+> **Note:** Links below go live after the first successful `Deploy Pages` workflow run on
+> `main`. If you see a 404, the initial deploy has not yet run — trigger it via
+> **Actions → Deploy Pages → Run workflow**.
+
+**Apps**
+
+| Example | Live demo | Description |
+| --- | --- | --- |
+| TodoMVC (HTML/CSS/JS) | [Open](https://strowk.github.io/bevy_superui/todomvc/) | Classic TodoMVC in plain HTML/CSS/JS |
+| TodoMVC (Supersolid TSX) | [Open](https://strowk.github.io/bevy_superui/todomvc_supersolid/) | The same app authored in Solid-style .tsx |
+| Game Menu | [Open](https://strowk.github.io/bevy_superui/game_menu/) | Multi-screen sci-fi game menu in supersolid TSX |
+
+**Stress tests** (deliberately heavy — may run slowly in-browser)
+
+| Example | Live demo | Description |
+| --- | --- | --- |
+| Citadel | [Open](https://strowk.github.io/bevy_superui/citadel/) | Economy sim UI — reactive-node stress test |
+| Horde | [Open](https://strowk.github.io/bevy_superui/horde/) | Survivors-like **playable game** + reactive-HUD stress test |
+
+> ▶ These are static wasm builds. **Hot reload of the UI is native-only** —
+> `git clone` and `cargo run -p <example>` (add `--features hmr` for the supersolid
+> TSX examples) to edit HTML/CSS/TSX live.
+
+## Deploying the gallery (maintainers)
+
+The gallery is built and published by `.github/workflows/deploy-pages.yml` on every
+push to `main` (or via **Run workflow**). One-time setup: repo **Settings → Pages →
+Source → GitHub Actions**.
+
+To add an example: create the crate under `examples/<slug>/` (wasm-buildable, with a
+`web_window` canvas hook), then append one object to `examples/gallery.json`. The slug
+becomes its permanent URL — don't rename a published slug.
+
