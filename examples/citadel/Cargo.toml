@@ -52,3 +52,4 @@ bevy = { version = "0.17", features = ["file_watcher"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.3", features = ["wasm_js"] }
+bevy = { version = "0.17", features = ["webgl2"] }

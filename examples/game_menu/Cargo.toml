@@ -29,3 +29,4 @@ supersolid = { path = "../../crates/supersolid" }
 # Boa (via superui) needs the JS getrandom backend on wasm.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.3", features = ["wasm_js"] }
+bevy = { version = "0.17", features = ["webgl2"] }

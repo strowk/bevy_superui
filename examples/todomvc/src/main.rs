@@ -17,11 +17,26 @@ struct TodoAdded {
     label: String,
 }
 
+/// On the web, bind the primary window to the host page's `<canvas id="superui-canvas">`
+/// and size it to that element. Identity on native (default OS window).
+fn web_window(window: bevy::window::Window) -> bevy::window::Window {
+    #[cfg(target_arch = "wasm32")]
+    let window = bevy::window::Window {
+        canvas: Some("#superui-canvas".into()),
+        fit_canvas_to_parent: true,
+        ..window
+    };
+    window
+}
+
 fn main() {
     let mut app = App::new();
     app.add_plugins(DefaultPlugins.set(AssetPlugin {
         // Enable native hot reload (design §6). Inert on wasm.
         watch_for_changes_override: Some(true),
+        ..default()
+    }).set(WindowPlugin {
+        primary_window: Some(web_window(Window::default())),
         ..default()
     }))
     .add_plugins(SuperUiPlugin);

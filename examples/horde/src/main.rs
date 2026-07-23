@@ -3,10 +3,25 @@ use bevy::prelude::*;
 use horde::game_state::{self, GameState};
 use horde::{input, sim, ui, world_render};
 
+/// On the web, bind the primary window to the host page's `<canvas id="superui-canvas">`
+/// and size it to that element. Identity on native (default OS window).
+fn web_window(window: bevy::window::Window) -> bevy::window::Window {
+    #[cfg(target_arch = "wasm32")]
+    let window = bevy::window::Window {
+        canvas: Some("#superui-canvas".into()),
+        fit_canvas_to_parent: true,
+        ..window
+    };
+    window
+}
+
 fn main() {
     let mut app = App::new();
     app.add_plugins(DefaultPlugins.set(AssetPlugin {
         watch_for_changes_override: Some(cfg!(not(target_arch = "wasm32"))),
+        ..default()
+    }).set(WindowPlugin {
+        primary_window: Some(web_window(Window::default())),
         ..default()
     }))
     .init_state::<GameState>()

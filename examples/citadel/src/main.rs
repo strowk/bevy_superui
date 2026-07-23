@@ -16,6 +16,18 @@ const CRANK_STEP: usize = 16; // one grid row of 4 × a few
 const CRANK_MIN: usize = 8;
 const CRANK_MAX: usize = 400; // matches the benchmark's stress ceiling
 
+/// On the web, bind the primary window to the host page's `<canvas id="superui-canvas">`
+/// and size it to that element. Identity on native (default OS window).
+fn web_window(window: bevy::window::Window) -> bevy::window::Window {
+    #[cfg(target_arch = "wasm32")]
+    let window = bevy::window::Window {
+        canvas: Some("#superui-canvas".into()),
+        fit_canvas_to_parent: true,
+        ..window
+    };
+    window
+}
+
 fn main() {
     App::new()
         // Insert BEFORE SimPlugin so it keeps our (lighter) windowed config instead
@@ -28,11 +40,11 @@ fn main() {
             seed: 1,
         })
         .add_plugins(DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window {
+            primary_window: Some(web_window(Window {
                 title: "Citadel".into(),
                 resolution: (1600u32, 900u32).into(),
                 ..default()
-            }),
+            })),
             ..default()
         }))
         .add_plugins((SimPlugin, SupersolidUiPlugin))

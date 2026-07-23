@@ -17,6 +17,18 @@ use superui_css::style::StyleSheet;
 /// with the `hmr` feature; every other build loads the pre-transpiled `.js`.
 const USE_LIVE_TSX: bool = cfg!(all(not(target_arch = "wasm32"), feature = "hmr"));
 
+/// On the web, bind the primary window to the host page's `<canvas id="superui-canvas">`
+/// and size it to that element. Identity on native (default OS window).
+fn web_window(window: bevy::window::Window) -> bevy::window::Window {
+    #[cfg(target_arch = "wasm32")]
+    let window = bevy::window::Window {
+        canvas: Some("#superui-canvas".into()),
+        fit_canvas_to_parent: true,
+        ..window
+    };
+    window
+}
+
 fn main() {
     let mut app = App::new();
 
@@ -25,7 +37,10 @@ fn main() {
         watch_for_changes_override: Some(USE_LIVE_TSX),
         ..default()
     };
-    app.add_plugins(DefaultPlugins.set(asset_plugin))
+    app.add_plugins(DefaultPlugins.set(asset_plugin).set(WindowPlugin {
+        primary_window: Some(web_window(Window::default())),
+        ..default()
+    }))
         .add_plugins(SuperUiPlugin);
 
     #[cfg(feature = "debug-ui")]
