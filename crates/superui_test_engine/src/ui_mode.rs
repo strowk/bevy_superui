@@ -61,18 +61,6 @@ struct UiState {
     frame_size: (u32, u32),
 }
 
-// Clone is needed to move HostProject into the resource.
-impl Clone for HostProject {
-    fn clone(&self) -> Self {
-        HostProject {
-            html: self.html.clone(),
-            css: self.css.clone(),
-            js_or_tsx: self.js_or_tsx.clone(),
-            tsx: self.tsx,
-        }
-    }
-}
-
 /// Entry point invoked by the CLI for `superui test --ui`.
 pub fn run(cfg: &TestConfig, project: &HostProject, specs: &[PathBuf]) {
     let state = UiState {

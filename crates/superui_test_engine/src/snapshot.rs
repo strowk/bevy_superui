@@ -8,6 +8,10 @@
 
 use std::path::{Path, PathBuf};
 
+/// Per-channel RGBA delta (0-255) below which a pixel is considered unchanged.
+/// Used both for the diff-ratio computation and the diff-image highlight loop.
+const PIXEL_TOLERANCE: u8 = 4;
+
 pub struct SnapshotConfig {
     pub dir: PathBuf,
     pub update: bool,
@@ -93,7 +97,7 @@ pub fn match_screenshot(
         ));
     }
 
-    let ratio = diff_ratio(base.as_raw(), actual, 4);
+    let ratio = diff_ratio(base.as_raw(), actual, PIXEL_TOLERANCE);
     if ratio <= cfg.max_diff_ratio {
         Ok(())
     } else {
@@ -106,7 +110,7 @@ pub fn match_screenshot(
         for i in 0..(actual.len() / 4) {
             let o = i * 4;
             let differs =
-                (0..4).any(|c| base.as_raw()[o + c].abs_diff(actual[o + c]) > 4);
+                (0..4).any(|c| base.as_raw()[o + c].abs_diff(actual[o + c]) > PIXEL_TOLERANCE);
             let v = if differs { 255u8 } else { 0u8 };
             diff[o] = v;
             diff[o + 1] = v;

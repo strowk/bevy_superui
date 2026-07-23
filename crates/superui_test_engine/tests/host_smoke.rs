@@ -1,4 +1,4 @@
-use superui_test_engine::host::{build_headless_app, mount, tick, HostProject};
+use superui_test_engine::host::{build_headless_app, mount, HostProject};
 
 fn fixture() -> HostProject {
     HostProject {

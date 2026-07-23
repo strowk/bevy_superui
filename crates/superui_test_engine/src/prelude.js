@@ -5,14 +5,16 @@ globalThis.test = function (name, fn) {
   $sstest.register(name, fn);
 };
 
-function makeLocator(steps) {
+function makeLocator(steps, nth) {
   return {
     steps: steps,
+    _nth: nth === undefined ? null : nth,
     locator(sel, opts) {
       const step = { sel: sel, hasText: opts && opts.hasText ? String(opts.hasText) : null };
-      return makeLocator(steps.concat([step]));
+      // Carry the current nth forward so chaining after `.nth()` does not drop it.
+      return makeLocator(steps.concat([step]), this._nth);
     },
-    nth(i) { const s = steps.slice(); s._nth = i; return makeLocator(s); },
+    nth(i) { return makeLocator(steps, i); },
     first() { return this.nth(0); },
     async click() { return enqueue({ type: "click", locator: serialize(this) }); },
     async fill(text) { return enqueue({ type: "fill", locator: serialize(this), text: String(text) }); },
@@ -21,7 +23,7 @@ function makeLocator(steps) {
   };
 }
 function serialize(loc) {
-  return { steps: loc.steps.map(s => ({ sel: s.sel, hasText: s.hasText })), nth: loc.steps._nth ?? null };
+  return { steps: loc.steps.map(s => ({ sel: s.sel, hasText: s.hasText })), nth: loc._nth ?? null };
 }
 function enqueue(cmd) {
   return $sstest.enqueue(JSON.stringify(cmd)).then(function (json) {

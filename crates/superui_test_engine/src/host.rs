@@ -14,6 +14,7 @@ use superui::JsSource;
 use superui_bridge::UiRuntime;
 use superui_css::style::StyleSheet;
 
+#[derive(Clone)]
 pub struct HostProject {
     pub html: String,
     pub css: String,

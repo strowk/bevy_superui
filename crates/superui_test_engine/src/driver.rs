@@ -15,6 +15,30 @@ const MAX_ITERS_PER_TEST: usize = 2000;
 const SETTLE_TICKS: usize = 2;
 /// Frames an expect matcher polls the live DOM before it gives up and rejects.
 const EXPECT_TIMEOUT_ITERS: usize = 120;
+/// Frames an action (click/fill/press/hover) auto-waits for its locator to
+/// resolve to at least one node before it gives up and fails the test.
+const ACTION_TIMEOUT_ITERS: usize = 120;
+
+/// The concrete input effect an auto-waiting action performs once its locator
+/// resolves to at least one node.
+enum PendingActionKind {
+    Click,
+    Hover,
+    Fill { text: String },
+    Press { key: String },
+}
+
+/// An action command whose locator did not yet match any node. It re-checks the
+/// live DOM each frame until it resolves (then dispatches) or its budget is
+/// exhausted (then fails the test).
+struct ActionInFlight {
+    id: u64,
+    locator: LocatorSpec,
+    kind: PendingActionKind,
+    remaining: usize,
+    /// Human-readable action label for the trace step.
+    action: String,
+}
 
 /// An auto-waiting expect assertion being polled each frame until it passes or
 /// its budget is exhausted.
@@ -91,6 +115,8 @@ fn run_one(app: &mut App, test: &RegisteredTest, opts: &RunOptions) -> TestResul
     let mut inflight: Vec<(u64, usize, String)> = Vec::new();
     // In-flight expect matchers, polled against the live DOM each frame.
     let mut expects: Vec<ExpectInFlight> = Vec::new();
+    // Actions whose locator matched zero nodes: auto-waiting for it to resolve.
+    let mut pending_actions: Vec<ActionInFlight> = Vec::new();
 
     for _ in 0..MAX_ITERS_PER_TEST {
         // 1. Drain newly enqueued commands and start executing them.
@@ -104,23 +130,51 @@ fn run_one(app: &mut App, test: &RegisteredTest, opts: &RunOptions) -> TestResul
                 }
                 Command::Click { locator } => {
                     let action = format!("click {}", locator_label(locator));
-                    dispatch(app, locator, "click");
-                    inflight.push((q.id, SETTLE_TICKS, action));
+                    start_action(
+                        app,
+                        q.id,
+                        locator.clone(),
+                        PendingActionKind::Click,
+                        action,
+                        &mut inflight,
+                        &mut pending_actions,
+                    );
                 }
                 Command::Hover { locator } => {
                     let action = format!("hover {}", locator_label(locator));
-                    dispatch(app, locator, "mouseover");
-                    inflight.push((q.id, SETTLE_TICKS, action));
+                    start_action(
+                        app,
+                        q.id,
+                        locator.clone(),
+                        PendingActionKind::Hover,
+                        action,
+                        &mut inflight,
+                        &mut pending_actions,
+                    );
                 }
                 Command::Fill { locator, text } => {
                     let action = format!("fill {} {:?}", locator_label(locator), text);
-                    fill(app, locator, text);
-                    inflight.push((q.id, SETTLE_TICKS, action));
+                    start_action(
+                        app,
+                        q.id,
+                        locator.clone(),
+                        PendingActionKind::Fill { text: text.clone() },
+                        action,
+                        &mut inflight,
+                        &mut pending_actions,
+                    );
                 }
                 Command::Press { locator, key } => {
                     let action = format!("press {} {:?}", locator_label(locator), key);
-                    press(app, locator, key);
-                    inflight.push((q.id, SETTLE_TICKS, action));
+                    start_action(
+                        app,
+                        q.id,
+                        locator.clone(),
+                        PendingActionKind::Press { key: key.clone() },
+                        action,
+                        &mut inflight,
+                        &mut pending_actions,
+                    );
                 }
                 Command::Expect {
                     matcher,
@@ -170,6 +224,39 @@ fn run_one(app: &mut App, test: &RegisteredTest, opts: &RunOptions) -> TestResul
             }
             inflight.retain(|e| e.1 > 0);
         }
+
+        // 3a. Poll auto-waiting actions whose locator matched zero nodes. Each
+        // re-checks the live DOM: once it resolves to >=1 node the input is
+        // dispatched and the action moves into the normal settle path; if the
+        // budget is exhausted it rejects (failing the test).
+        let mut still_actions = Vec::new();
+        for mut a in pending_actions.drain(..) {
+            if !resolve_nodes(app, &a.locator).is_empty() {
+                perform_action(app, &a.locator, &a.kind);
+                inflight.push((a.id, SETTLE_TICKS, a.action));
+                continue;
+            }
+            a.remaining -= 1;
+            if a.remaining == 0 {
+                let err = format!(
+                    "locator matched 0 elements: {}",
+                    locator_label(&a.locator)
+                );
+                let payload =
+                    serde_json::json!({ "ok": false, "error": err }).to_string();
+                with_ctx(app, |ctx| abi::resolve(ctx, a.id, &payload));
+                steps.push(Step {
+                    index: steps.len(),
+                    action: a.action,
+                    status: StepStatus::Failed(err),
+                    dom_after: snapshot_body(app),
+                    screenshot: None,
+                });
+            } else {
+                still_actions.push(a);
+            }
+        }
+        pending_actions = still_actions;
 
         // 3b. Poll in-flight expect matchers against the live DOM. Each one
         // retries until it passes or its per-frame budget is exhausted, then
@@ -264,7 +351,7 @@ fn run_one(app: &mut App, test: &RegisteredTest, opts: &RunOptions) -> TestResul
         });
 
         // 4. Done?
-        if inflight.is_empty() && expects.is_empty() {
+        if inflight.is_empty() && expects.is_empty() && pending_actions.is_empty() {
             if let Some(res) = with_ctx(app, |ctx| abi::promise_settled(ctx, &handle)) {
                 return match res {
                     Ok(()) => TestResult {
@@ -305,6 +392,45 @@ fn resolve_nodes(app: &App, spec: &LocatorSpec) -> Vec<NodeId> {
     let rt = app.world().non_send_resource::<UiRuntime>();
     let dom = rt.dom.borrow();
     resolve_locator(&dom, spec)
+}
+
+/// Begin an action command. If its locator already matches >=1 node the input
+/// is dispatched immediately and the command enters the normal settle path; if
+/// it matches zero nodes the action is parked in `pending_actions` to auto-wait
+/// for the locator to resolve (and ultimately fail if it never does).
+#[allow(clippy::too_many_arguments)]
+fn start_action(
+    app: &mut App,
+    id: u64,
+    locator: LocatorSpec,
+    kind: PendingActionKind,
+    action: String,
+    inflight: &mut Vec<(u64, usize, String)>,
+    pending_actions: &mut Vec<ActionInFlight>,
+) {
+    if resolve_nodes(app, &locator).is_empty() {
+        pending_actions.push(ActionInFlight {
+            id,
+            locator,
+            kind,
+            remaining: ACTION_TIMEOUT_ITERS,
+            action,
+        });
+    } else {
+        perform_action(app, &locator, &kind);
+        inflight.push((id, SETTLE_TICKS, action));
+    }
+}
+
+/// Dispatch the concrete input effect for an action whose locator is known to
+/// resolve to at least one node.
+fn perform_action(app: &mut App, spec: &LocatorSpec, kind: &PendingActionKind) {
+    match kind {
+        PendingActionKind::Click => dispatch(app, spec, "click"),
+        PendingActionKind::Hover => dispatch(app, spec, "mouseover"),
+        PendingActionKind::Fill { text } => fill(app, spec, text),
+        PendingActionKind::Press { key } => press(app, spec, key),
+    }
 }
 
 fn dispatch(app: &mut App, spec: &LocatorSpec, event: &str) {
