@@ -1,4 +1,3 @@
-mod gallery;
 mod host;
 mod manifest;
 mod sources;
@@ -19,9 +18,8 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().collect();
     match args.get(1).map(String::as_str) {
         Some("host-page") => host_page(&args[2..]),
-        Some("gallery-index") => gallery_index(&args[2..]),
         other => Err(format!(
-            "usage: xtask <host-page --slug S --out DIR | gallery-index --out FILE> (got {other:?})"
+            "usage: xtask host-page --slug S --out DIR (got {other:?})"
         )
         .into()),
     }
@@ -45,17 +43,5 @@ fn host_page(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     std::fs::create_dir_all(&out_dir)?;
     std::fs::write(Path::new(&out_dir).join("index.html"), html)?;
     println!("wrote {out_dir}/index.html ({} source files)", srcs.len());
-    Ok(())
-}
-
-fn gallery_index(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
-    let out = flag(args, "--out").ok_or("gallery-index requires --out")?;
-    let examples = manifest::load(Path::new(MANIFEST))?;
-    let html = gallery::render(&examples);
-    if let Some(parent) = Path::new(&out).parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-    std::fs::write(&out, html)?;
-    println!("wrote {out} ({} examples)", examples.len());
     Ok(())
 }
