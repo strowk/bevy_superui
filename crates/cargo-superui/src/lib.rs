@@ -39,6 +39,7 @@ pub const TSCONFIG_TEMPLATE: &str = r#"{
     "module": "esnext",             // use modern ES module syntax
     "moduleResolution": "bundler",  // resolve bare imports the way a bundler does
     "target": "esnext",             // don't down-level; we only type-check
+    "lib": ["ESNext", "DOM"],       // std JS + web globals (document, console, fetch, timers)
     "noEmit": true,                 // never emit output — editor concern only
     "baseUrl": ".",                 // anchor the paths below to this folder
     "paths": {

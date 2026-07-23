@@ -155,3 +155,34 @@ declare namespace JSX {
     children: {};
   }
 }
+
+// ---------------------------------------------------------------------------
+// The `window.bevy` bridge — the one NON-web global superui injects. The
+// standard web globals it also provides (document, console, setTimeout, fetch,
+// window) come from the DOM lib (see the tsconfig `lib`), so only `bevy`, which
+// is superui-specific, is declared here.
+
+/** The superui JS↔Bevy bridge — the JS↔ECS channel. Also reachable as `window.bevy`. */
+interface Bevy {
+  /**
+   * Fire a registered command into the game: triggers the Bevy `Event` bound to
+   * `name` on the Rust side, deserializing `data` (as JSON) into that event type.
+   * Unregistered names warn and no-op.
+   * @example bevy.send("HordeIntent", { kind: "StartGame", index: 0 });
+   */
+  send(name: string, data?: unknown): void;
+  /**
+   * Subscribe to a registered game event. `cb` runs with the event's JSON
+   * payload each time the ECS emits `name`.
+   * @example bevy.on("frame", (f) => setFrame(f));
+   */
+  on(name: string, cb: (data: any) => void): void;
+}
+
+/** The superui JS↔Bevy bridge. See {@link Bevy}. */
+declare const bevy: Bevy;
+
+// The runtime aliases `window` to `globalThis`, so `window.bevy` works too.
+interface Window {
+  readonly bevy: Bevy;
+}
