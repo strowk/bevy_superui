@@ -2,8 +2,8 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use superui_cli::{
-    find_supersolid_dts, gitignore_needs_entry, tsconfig_has_supersolid_path, GITIGNORE_ENTRY,
-    SUPERSOLID_PATH_MARKER, TSCONFIG_TEMPLATE,
+    find_module_dts, gitignore_needs_entry, projected_modules, tsconfig_has_path, GITIGNORE_ENTRY,
+    TSCONFIG_TEMPLATE,
 };
 
 fn main() {
@@ -37,35 +37,52 @@ fn install(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
         None => current_package_dir()?,
     };
 
-    // Locate supersolid's bundled types via the resolved dependency graph.
     let metadata = run_cargo(&["metadata", "--format-version", "1"])?;
-    let dts_src = find_supersolid_dts(&metadata)
-        .ok_or("no `supersolid` dependency resolved — add it (or `superui`) to Cargo.toml")?;
-    let dts = std::fs::read_to_string(&dts_src)
-        .map_err(|e| format!("reading {}: {e}", dts_src.display()))?;
 
-    // 1. Project the types (derived artifact — always overwrite).
-    let module_dir = app_dir.join("superui_modules").join("supersolid");
-    std::fs::create_dir_all(&module_dir)?;
-    let index = module_dir.join("index.d.ts");
-    std::fs::write(&index, &dts)?;
-    println!("wrote {}", index.display());
+    // 1. Project each module's types (derived artifacts — always overwrite).
+    for m in projected_modules() {
+        let dts_src = match find_module_dts(&metadata, m.package, m.dts_filename) {
+            Some(p) => p,
+            None if m.required => {
+                return Err(format!(
+                    "no `{}` dependency resolved — add it (or `superui`) to Cargo.toml",
+                    m.package
+                )
+                .into());
+            }
+            None => {
+                println!("skip {} types — `{}` not in dependency graph", m.specifier, m.package);
+                continue;
+            }
+        };
+        let dts = std::fs::read_to_string(&dts_src)
+            .map_err(|e| format!("reading {}: {e}", dts_src.display()))?;
+        let module_dir = app_dir.join("superui_modules").join(m.subpath);
+        std::fs::create_dir_all(&module_dir)?;
+        let index = module_dir.join("index.d.ts");
+        std::fs::write(&index, &dts)?;
+        println!("wrote {}", index.display());
+    }
 
-    // 2. tsconfig: create if absent, else guide.
+    // 2. tsconfig: create from template if absent, else guide per module.
     let tsconfig = app_dir.join("tsconfig.json");
     if !tsconfig.exists() {
         std::fs::write(&tsconfig, TSCONFIG_TEMPLATE)?;
         println!("wrote {}", tsconfig.display());
     } else {
         let existing = std::fs::read_to_string(&tsconfig)?;
-        if tsconfig_has_supersolid_path(&existing) {
-            println!("ok   {} (already maps supersolid)", tsconfig.display());
-        } else {
-            println!(
-                "note {} exists but does not map supersolid — add to compilerOptions.paths:\n      \"supersolid\": [\"./{}/index.d.ts\"]",
-                tsconfig.display(),
-                SUPERSOLID_PATH_MARKER
-            );
+        for m in projected_modules() {
+            if tsconfig_has_path(&existing, &m.marker()) {
+                println!("ok   {} (already maps {})", tsconfig.display(), m.specifier);
+            } else {
+                println!(
+                    "note {} exists but does not map {} — add to compilerOptions.paths:\n      \"{}\": [\"{}\"]",
+                    tsconfig.display(),
+                    m.specifier,
+                    m.specifier,
+                    m.index_path()
+                );
+            }
         }
     }
 
@@ -83,7 +100,7 @@ fn install(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
         println!("updated {}", gitignore.display());
     }
 
-    println!("done: supersolid IDE types installed in {}", app_dir.display());
+    println!("done: superui IDE types installed in {}", app_dir.display());
     Ok(())
 }
 
