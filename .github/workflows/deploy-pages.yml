@@ -56,10 +56,16 @@ jobs:
           echo "Using wasm-bindgen $WB"
           echo "WB_VERSION=$WB" >> "$GITHUB_ENV"
 
-      - name: Install wasm-bindgen-cli (exact match) and binaryen
+      - name: Install wasm-bindgen-cli (exact match)
         uses: taiki-e/install-action@v2
         with:
-          tool: wasm-bindgen-cli@${{ env.WB_VERSION }},binaryen
+          tool: wasm-bindgen-cli@${{ env.WB_VERSION }}
+
+      # binaryen (wasm-opt) isn't a taiki-e/install-action tool, and the crates.io
+      # `binaryen` crate is Rust bindings with no `wasm-opt` binary — install the
+      # Ubuntu package instead, which provides /usr/bin/wasm-opt.
+      - name: Install binaryen (wasm-opt)
+        run: sudo apt-get update && sudo apt-get install -y binaryen
 
       - name: Build wasm (release, WebGL2)
         run: cargo build -p ${{ matrix.package }} --release --target wasm32-unknown-unknown ${{ matrix.build_args }}
