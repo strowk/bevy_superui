@@ -114,23 +114,29 @@ jobs:
       - name: Install Rust
         run: rustup toolchain install stable --profile minimal
 
+      - name: Install mdBook
+        uses: taiki-e/install-action@v2
+        with:
+          tool: mdbook
+
+      - name: Build the site (landing + docs + gallery index)
+        run: mdbook build website --dest-dir "$GITHUB_WORKSPACE/dist"
+
       - name: Download example artifacts
         uses: actions/download-artifact@v4
         with:
           path: downloaded
           pattern: example-*
 
-      - name: Assemble dist/
+      - name: Overlay demos under dist/examples/
         run: |
-          mkdir -p dist
+          mkdir -p dist/examples
+          cp -r tools/gallery/vendor dist/examples/vendor
           for d in downloaded/example-*; do
             slug="${d#downloaded/example-}"
-            mv "$d" "dist/$slug"
+            rm -rf "dist/examples/$slug"
+            mv "$d" "dist/examples/$slug"
           done
-          cp -r tools/gallery/vendor dist/vendor
-
-      - name: Generate gallery index
-        run: cargo run -p xtask -- gallery-index --out dist/index.html
 
       - uses: actions/upload-pages-artifact@v3
         with:

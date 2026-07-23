@@ -39,20 +39,38 @@ running app beside its authored source (TSX where applicable).
 
 | Example | Live demo | Description |
 | --- | --- | --- |
-| TodoMVC (HTML/CSS/JS) | [Open](https://strowk.github.io/bevy_superui/todomvc/) | Classic TodoMVC in plain HTML/CSS/JS |
-| TodoMVC (Supersolid TSX) | [Open](https://strowk.github.io/bevy_superui/todomvc_supersolid/) | The same app authored in Solid-style .tsx |
-| Game Menu | [Open](https://strowk.github.io/bevy_superui/game_menu/) | Multi-screen sci-fi game menu in supersolid TSX |
+| TodoMVC (HTML/CSS/JS) | [Open](https://strowk.github.io/bevy_superui/examples/todomvc/) | Classic TodoMVC in plain HTML/CSS/JS |
+| TodoMVC (Supersolid TSX) | [Open](https://strowk.github.io/bevy_superui/examples/todomvc_supersolid/) | The same app authored in Solid-style .tsx |
+| Game Menu | [Open](https://strowk.github.io/bevy_superui/examples/game_menu/) | Multi-screen sci-fi game menu in supersolid TSX |
 
 **Stress tests** (deliberately heavy — may run slowly in-browser)
 
 | Example | Live demo | Description |
 | --- | --- | --- |
-| Citadel | [Open](https://strowk.github.io/bevy_superui/citadel/) | Economy sim UI — reactive-node stress test |
-| Horde | [Open](https://strowk.github.io/bevy_superui/horde/) | Survivors-like **playable game** + reactive-HUD stress test |
+| Citadel | [Open](https://strowk.github.io/bevy_superui/examples/citadel/) | Economy sim UI — reactive-node stress test |
+| Horde | [Open](https://strowk.github.io/bevy_superui/examples/horde/) | Survivors-like **playable game** + reactive-HUD stress test |
 
 > ▶ These are static wasm builds. **Hot reload of the UI is native-only** —
 > `git clone` and `cargo run -p <example>` (add `--features hmr` for the supersolid
 > TSX examples) to edit HTML/CSS/TSX live.
+
+## Documentation site
+
+The full site (landing, docs, and the examples gallery) is a single mdBook
+project under `website/`, deployed to GitHub Pages by the `Deploy Pages`
+workflow.
+
+Run it locally:
+
+```bash
+cargo install mdbook        # once
+mdbook serve website        # live-reload at http://localhost:3000
+```
+
+The gallery index is generated from `examples/gallery.json` by the
+`mdbook-gallery` preprocessor (built automatically via `cargo run` during the
+mdBook build). Per-example wasm demos are built only in CI; the
+`/examples/<slug>/` links 404 under local `mdbook serve`, which is expected.
 
 ## Deploying the gallery (maintainers)
 
