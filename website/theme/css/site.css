@@ -52,7 +52,8 @@ body:has(.superui-landing) #content main {
 .card { display: block; text-decoration: none; color: inherit; background: #262633;
         border: 1px solid #3a3a52; border-radius: 10px; padding: 18px; transition: border-color .15s; }
 .card:hover { border-color: #7c6cff; }
-.card h3 { margin: 0 0 6px; font-size: 18px; }
-.card p { margin: 0; color: #9a9ab0; font-size: 14px; }
+/* Match the original <h3>/<p> card look (bold accent title + muted description). */
+.card .card-title { margin: 0 0 6px; font-size: 18px; font-weight: 700; color: #a99bff; }
+.card .card-desc { margin: 0; color: #9a9ab0; font-size: 14px; line-height: 1.45; }
 .badges { margin-top: 10px; display: flex; gap: 6px; flex-wrap: wrap; }
 .badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #3a3358; color: #d8d2ff; }

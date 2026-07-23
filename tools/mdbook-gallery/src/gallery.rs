@@ -62,8 +62,12 @@ pub fn render(examples: &[Example]) -> String {
             } else {
                 format!("<div class=\"badges\">{badges}</div>")
             };
+            // Use div (not <h3>/<p>) inside the card anchor: mdBook post-processes
+            // headings to inject a `<a class="header">` link, and a nested <a> inside
+            // this card <a> is invalid HTML — the browser splits the card apart. Plain
+            // divs are immune across mdBook versions.
             out.push_str(&format!(
-                "<a class=\"card\" href=\"{slug}/\"><h3>{title}</h3><p>{desc}</p>{badges_html}</a>",
+                "<a class=\"card\" href=\"{slug}/\"><div class=\"card-title\">{title}</div><div class=\"card-desc\">{desc}</div>{badges_html}</a>",
                 slug = e.slug,
                 title = e.title,
                 desc = e.description,
@@ -103,6 +107,12 @@ mod tests {
         // Card links are relative to the /examples/ page.
         assert!(out.contains(r#"href="todomvc/""#));
         assert!(out.contains(r#"href="todomvc_supersolid/""#));
+        // Title/description use plain divs, NOT <h3>/<p> (which mdBook would turn
+        // into anchored headings, nesting an <a> inside the card <a> and breaking it).
+        assert!(out.contains(r#"<div class="card-title">todomvc title</div>"#));
+        assert!(out.contains(r#"<div class="card-desc">"#));
+        assert!(!out.contains("<h3"));
+        assert!(!out.contains("<p>"));
         // Badge chip.
         assert!(out.contains(r#"<span class="badge">Playable game</span>"#));
         // A fragment — no document shell.
