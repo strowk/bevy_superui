@@ -48,3 +48,12 @@ cargo build -p game_menu --target wasm32-unknown-unknown
 `cargo run` sets the working directory to this crate so `assets/` resolves. An
 optional `mcp_debug` feature (`--features mcp_debug`) registers
 `bevy_brp_extras::BrpExtrasPlugin` for BRP inspection.
+
+## Testing
+
+SuperUI tests are run via the `superui_test_engine` crate:
+
+```bash
+cd examples/game_menu
+cargo run -p superui_test_engine --bin superui_test
+```
