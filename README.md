@@ -56,10 +56,6 @@ running app beside its authored source (TSX where applicable).
 
 ## Deploying the gallery (maintainers)
 
-The gallery is built and published by `.github/workflows/deploy-pages.yml` on every
-push to `main` (or via **Run workflow**). One-time setup: repo **Settings → Pages →
-Source → GitHub Actions**.
-
 To add an example: create the crate under `examples/<slug>/` (wasm-buildable, with a
 `web_window` canvas hook), then append one object to `examples/gallery.json`. The slug
 becomes its permanent URL — don't rename a published slug.
