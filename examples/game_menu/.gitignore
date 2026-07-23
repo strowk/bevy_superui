@@ -4,3 +4,4 @@ assets/ui/game_menu/app.generated.js
 # Generated HTML report from `superui_test` runs (baselines are committed; the
 # report is a per-run artifact).
 tests/report.html
+superui_modules/

@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "jsx": "preserve",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "target": "esnext",
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "supersolid": ["./superui_modules/supersolid/index.d.ts"]
+    }
+  },
+  "include": ["superui_modules/**/*.d.ts", "assets/**/*.ts", "assets/**/*.tsx"]
+}
