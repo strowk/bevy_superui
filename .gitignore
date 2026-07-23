@@ -24,3 +24,6 @@ dhat-heap.json
 
 # mdBook build output
 /website/book/
+
+# Playwright MCP
+/.playwright-mcp/
