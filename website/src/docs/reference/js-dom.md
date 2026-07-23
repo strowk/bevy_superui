@@ -1,8 +1,7 @@
 # JS / DOM / Web API ledger
 
-Status ✅ Supported · 🟡 Roadmap · ⛔ Won't support. Tier T0–T3.
-Engine: Boa on every target (design §5). ✅ = installed by `superui_api` +
-`superui_bridge` and covered by tests.
+**Legend:** ✅ supported today · 🟡 not supported yet, but planned · ⛔ won't be
+supported. Tier T0–T3.
 
 ## document
 
@@ -36,10 +35,10 @@ Engine: Boa on every target (design §5). ✅ = installed by `superui_api` +
 | `id` / `className` | ✅ | T0 | |
 | `textContent` / `innerText` | ✅ | T0 | |
 | text node `.data` / `.nodeValue` / `.textContent` (get/set) | ✅ | T0 | mutate a Text node's value from JS — Supersolid text bindings |
-| `value` (get/set) | ✅ | T1 | text inputs render value; see reconciler |
+| `value` (get/set) | ✅ | T1 | text inputs render value |
 | `checked` (get/set) | ✅ | T1 | drives `:checked` |
 | `classList.add/remove/toggle/contains` | ✅ | T0 | |
-| `style.setProperty / getPropertyValue` | ✅ | T1 | inline style, cascaded by flair |
+| `style.setProperty / getPropertyValue` | ✅ | T1 | inline style |
 | `getBoundingClientRect()` | 🟡 | T2 | needs post-layout read-back |
 | `focus()` / `blur()` | 🟡 | T1 | focus is set on click today |
 
@@ -52,11 +51,12 @@ Engine: Boa on every target (design §5). ✅ = installed by `superui_api` +
 | `event.target` / `currentTarget` | ✅ | T0 | |
 | `event.type` / `defaultPrevented` | ✅ | T0 | |
 | `event.preventDefault` / `stopPropagation` / `stopImmediatePropagation` | ✅ | T0 | |
-| `click` | ✅ | T0 | via `bevy_picking` |
+| `click` | ✅ | T0 | on pointer click |
 | `change` (checkbox) | ✅ | T1 | fired on checkbox toggle |
 | `input` (text field) | ✅ | T1 | fired on character typed |
 | `keydown` / `keyup` | ✅ | T1 | dispatched to focused node |
-| `event.key` / `keyCode` / `code` | 🟡 | T1 | **not exposed yet** — key identity unavailable to JS; add an Add button instead of Enter |
+| `event.key` | ✅ | T1 | key identity, e.g. `"Enter"`, `"Backspace"`, `"a"` |
+| `event.keyCode` / `code` | 🟡 | T1 | not exposed yet — use `event.key` |
 | `submit` | 🟡 | T1 | no `<form>` submit wiring yet |
 | `mouseover` / `mouseout` / `focus` / `blur` events | 🟡 | T1 | hover state exists in CSS; JS events roadmap |
 
@@ -65,54 +65,25 @@ Engine: Boa on every target (design §5). ✅ = installed by `superui_api` +
 | API | Status | Tier | Notes |
 |---|---|---|---|
 | `console.log/warn/error/info` | ✅ | T0 | |
-| `console.debug/trace/table/group` | 🟡 | T2 | not installed — currently throws; roadmap to stub for graceful degradation |
+| `console.debug/trace/table/group` | 🟡 | T2 | not installed — calls throw `TypeError`; roadmap to stub for graceful degradation |
 | `setTimeout` / `setInterval` / `clearTimeout` / `clearInterval` | ✅ | T1 | driven by Bevy's clock |
 | `window` (alias of `globalThis`) | ✅ | T1 | |
-| `window.bevy.send(name, data)` | ✅ | T1 | JS → ECS (design §8) |
+| `window.bevy.send(name, data)` | ✅ | T1 | JS → ECS |
 | `window.bevy.on(name, cb)` | ✅ | T1 | ECS → JS |
 | `window.bevy.query(path)` | 🟡 | T2 | async state read — Phase 2 |
-| `history.pushState` / `replaceState` / `popstate` / `location` | 🟡 | T3 | in-memory routing state (design §7) |
+| `history.pushState` / `replaceState` / `popstate` / `location` | 🟡 | T3 | in-memory routing state |
 | `fetch` / `XMLHttpRequest` | ⛔ | — | network; warn-and-reject stub only |
 | `localStorage` / `cookie` | ⛔ | — | out of scope (games persist via ECS) |
 
-## Supersolid runtime (framework globals)
+## Reserved globals
 
-Provided by `supersolid_runtime` (installed into every `UiRuntime`), not part of the
-browser DOM/Web API surface. Available to author `.js` and to Plan 2's transpiled
-`.tsx` (whose `import { … } from "solid-js"` is stripped in favour of these globals).
+The Supersolid framework installs its own globals (documented on the
+[Supersolid framework](supersolid.md) page). Authored code shares the global namespace
+with them, so **don't shadow these names**:
 
-| Global | Status | Since | Notes |
-|---|---|---|---|
-| `createSignal(v, {equals?})` → `[get, set]` | ✅ | T0 | fine-grained signal; updater-form set; `equals` gates notifications |
-| `createEffect(fn, seed?)` | ✅ | T0 | tracks reads, re-runs on change; disposed with owner |
-| `createMemo(fn, seed?, {equals?})` | ✅ | T0 | lazy, memoized derived value; is itself a source |
-| `createRoot(fn => …)` | ✅ | T0 | disposable reactive scope |
-| `onMount(fn)` / `onCleanup(fn)` | ✅ | T0 | run-once-after-setup / owner teardown |
-| `createContext(default?)` / `useContext(ctx)` | ✅ | T0 | context via the owner tree |
-| `untrack(fn)` / `batch(fn)` | ✅ | T0 | read without subscribing / coalesce writes |
-
-### Render + control flow (`supersolid_runtime` render layer)
-
-Compiler-internal `$ss.*` helpers (emitted by the transpiler) and author-facing
-control-flow globals. All build/mutate the arena DOM; downstream reconcile is unchanged.
-
-| Global | Status | Since | Notes |
-|---|---|---|---|
-| `$ss.el` / `$ss.txt` / `$ss.attr` / `$ss.child` | ✅ | T0 | build-once nodes; `value`/`checked` set as properties, else attributes |
-| `$ss.on` | ✅ | T0 | `addEventListener` (handler as-is) |
-| `$ss.bind` | ✅ | T0 | reactive attribute (effect); surgical re-apply |
-| `$ss.insert` | ✅ | T0 | reactive child around an anchor; surgical text; keyed minimal-move list reconcile |
-| `$ss.cmp` / `$ss.frag` | ✅ | T0 | run-once component (`untrack`); fragment array |
-| `render(code, mountEl)` | ✅ | T0 | root entry; returns `dispose` |
-| `<Show>` | ✅ | T0 | conditional; branch disposal via memo recompute |
-| `<For>` | ✅ | T0 | keyed by item identity; per-row disposable roots; state preserved on reorder |
-| `<Index>` | ✅ | T0 | keyed by position; item is an in-place-updated signal |
-| `<Switch>` / `<Match>` | ✅ | T0 | first truthy branch, else fallback |
-| `$ss.hot(id, fn)` | ✅ | T0 | tags a component with a stable HMR id (`"<assetpath>#<Name>"`); no-op off-HMR |
-
-**State-preserving hot reload (Plan 5).** When the `superui/hmr` feature is enabled **and** the
-asset server is watching (`bevy/file_watcher`), a `.tsx`/`.js` edit re-execs on the same engine and
-`render()` rehydrates each component's signal cells (keyed by `module × instance × creation-order`),
-rebuilding the DOM fresh while preserving values. A per-instance signal-shape change (add/remove)
-resets that instance. `<For>` rows preserve state by item identity, `<Index>` rows by position.
-Off by default (feature off, or no watcher) — then `render()`/`$ss.cmp` take the Plan-4 fast paths.
+| Kind | Reserved names |
+|---|---|
+| Reactive core | `createSignal`, `createEffect`, `createMemo`, `createRoot`, `createContext`, `useContext`, `onMount`, `onCleanup`, `untrack`, `batch` |
+| Render / control flow | `render`, `Show`, `For`, `Index`, `Switch`, `Match` |
+| Framework namespace | `$ss` (compiler-internal helpers) |
+| Bridge | `window.bevy` |

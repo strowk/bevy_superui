@@ -1,9 +1,9 @@
 # CSS property / selector ledger
 
-Status ✅ Supported · 🟡 Roadmap · ⛔ Won't support. Tier T0–T3.
-Engine: forked `bevy_flair` 0.6 (`superui_css`) over taffy + `bevy_ui`. Supported
-surface = { standards-shaped CSS } ∩ { what taffy/bevy_ui express } (design §1).
-Unknown properties/rules are skipped, never fatal.
+**Legend:** ✅ supported today · 🟡 not supported yet, but planned · ⛔ won't be
+supported. Tier T0–T3.
+
+Unknown properties and rules are ignored, never fatal.
 
 ## Selectors
 
@@ -11,20 +11,21 @@ Unknown properties/rules are skipped, never fatal.
 |---|---|---|---|
 | type (`li`) | ✅ | T0 | |
 | class (`.todo`) | ✅ | T0 | |
-| id (`#app`) | ✅ | T0 | matches on entity `Name` |
+| id (`#app`) | ✅ | T0 | |
 | descendant (`.todo .label`) | ✅ | T0 | |
 | compound (`.todo.completed`) | ✅ | T1 | |
-| `:hover` | ✅ | T1 | via `bevy_picking` hover |
+| `:hover` | ✅ | T1 | on pointer hover |
 | `:checked` | ✅ | T1 | checkbox state |
-| `:focus` | 🟡 | T1 | **roadmap: `:focus` styling.** Focus is tracked for keyboard/event routing (click + Tab set it), but the bridge doesn't yet mirror it into `bevy_input_focus::InputFocus`, so flair's `:focus` selector never matches — no focus ring / focus styles today. Plan: on focus change, write the focused node's entity into `InputFocus` so flair styles it (pairs with the full-editing work in the HTML ledger) |
-| child (`>`) / sibling (`+`, `~`) | 🟡 | T2 | |
-| `:nth-child`, `::before/::after` | 🟡 | T2 | |
+| child (`>`) / sibling (`+`, `~`) | ✅ | T2 | |
+| `:nth-child` | ✅ | T2 | |
+| `:focus` | 🟡 | T1 | not styled yet — focus is tracked for keyboard/event routing (click + Tab set it), but `:focus` selectors don't match, so there's no focus ring / focus styling today |
+| `::before` / `::after` | 🟡 | T2 | generated content not produced yet |
 
 ## Properties (layout)
 
 | Property | Status | Tier | Notes |
 |---|---|---|---|
-| `display: flex / none` | ✅ | T0 | taffy flexbox |
+| `display: flex / none` | ✅ | T0 | flexbox |
 | `flex-direction` / `flex-wrap` | ✅ | T0 | |
 | `flex-grow` / `flex-shrink` / `flex-basis` | ✅ | T1 | |
 | `justify-content` / `align-items` / `align-content` | ✅ | T0 | |
@@ -33,8 +34,8 @@ Unknown properties/rules are skipped, never fatal.
 | `margin` / `padding` (+ sides) | ✅ | T0 | |
 | `position: relative / absolute` + `top/right/bottom/left` | ✅ | T1 | |
 | `overflow` | ✅ | T1 | |
-| `display: grid` | 🟡 | T2 | taffy supports grid; wiring roadmap |
-| `float` | ⛔ | — | not in taffy's box model (design §2) |
+| `display: grid` | ✅ | T2 | grid layout |
+| `float` | ⛔ | — | not supported |
 
 ## Properties (visual / text)
 
@@ -46,16 +47,18 @@ Unknown properties/rules are skipped, never fatal.
 | `border-radius` | ✅ | T1 | |
 | `box-shadow` | ✅ | T2 | |
 | `font-size` / `font-family` | ✅ | T1 | |
+| `text-align` / `line-height` | ✅ | T1 | |
+| `transition` | ✅ | T2 | |
+| `transform` (translate/scale/rotate) | ✅ | T2 | |
+| `background-image` (gradient) | ✅ | T2 | linear / radial gradients |
 | `opacity` | 🟡 | T2 | |
-| `transition` | 🟡 | T2 | flair has animation infra |
-| `transform` (translate/scale/rotate) | 🟡 | T2 | |
-| `background-image` (gradient) | 🟡 | T2 | flair parses gradients |
-| `text-align` / `line-height` | 🟡 | T1 | |
-| `background-image: url()` | 🟡 | T2 | needs asset wiring |
+| `background-image: url()` | 🟡 | T2 | needs image assets |
 
 ## At-rules
 
 | At-rule | Status | Tier | Notes |
 |---|---|---|---|
-| `@media` | 🟡 | T2 | flair supports media selectors |
-| `@keyframes` / `@import` / `@layer` | 🟡 | T2 | flair infra present |
+| `@media` | ✅ | T2 | |
+| `@keyframes` | ✅ | T2 | |
+| `@import` | ✅ | T2 | |
+| `@layer` | ✅ | T2 | |
