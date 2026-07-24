@@ -17,6 +17,7 @@ use crate::abi::{self, JsPromiseHandle, RegisteredTest};
 use crate::command::Command;
 use crate::driver::RunOptions;
 use crate::locator::{resolve_locator, LocatorSpec};
+use crate::snapshot;
 use crate::trace::{Step, StepStatus, TestResult};
 
 const SETTLE_TICKS: usize = 2;
@@ -66,6 +67,14 @@ enum Phase {
     Done,
 }
 
+/// Tracks an in-flight screenshot capture across frames.
+struct ScreenshotCapture {
+    id: u64,
+    name: String,
+    action: String,
+    frames_waited: usize,
+}
+
 /// Per-test working state, reset when a new test starts.
 struct TestWork {
     name: String,
@@ -76,6 +85,9 @@ struct TestWork {
     expects: Vec<ExpectInFlight>,
     pending_actions: Vec<ActionInFlight>,
     iter: usize,
+    /// Active screenshot-matcher capture, if any: (expect id, baseline name,
+    /// action label, frames waited).
+    capturing: Option<ScreenshotCapture>,
 }
 
 pub struct RunState {
@@ -86,6 +98,12 @@ pub struct RunState {
     current: usize,
     work: Option<TestWork>,
     pub results: Vec<TestResult>,
+    /// Frames since the last live-preview capture kick.
+    preview_cooldown: usize,
+    /// Latest preview frame ready for the egui pane (width, height, rgba).
+    preview: Option<(u32, u32, Vec<u8>)>,
+    /// True while a preview capture is in flight (avoid overlapping requests).
+    preview_inflight: bool,
 }
 
 impl RunState {
@@ -133,6 +151,9 @@ pub fn start_run(
         current: 0,
         work: None,
         results: Vec::new(),
+        preview_cooldown: 0,
+        preview: None,
+        preview_inflight: false,
     }
 }
 
@@ -143,6 +164,7 @@ pub fn step(world: &mut World, run: &mut RunState) {
         Phase::Running => step_running(world, run),
         Phase::Done => {}
     }
+    drive_preview(world, run);
 }
 
 fn step_mounting(world: &mut World, run: &mut RunState) {
@@ -179,6 +201,7 @@ fn begin_test(world: &mut World, run: &mut RunState) {
         expects: Vec::new(),
         pending_actions: Vec::new(),
         iter: 0,
+        capturing: None,
     });
 }
 
@@ -293,25 +316,60 @@ fn step_running(world: &mut World, run: &mut RunState) {
         }
         work.pending_actions = still_actions;
 
-        // 3b. Poll in-flight expect matchers against the live DOM.
-        let mut still = Vec::new();
-        for mut e in std::mem::take(&mut work.expects) {
-            if e.matcher == "screenshot" {
-                // Screenshot capture is added in Task 5. Without a render pipeline
-                // (headless / render == false) treat it as a pass.
-                let result: Result<(), String> = if opts_render {
-                    // Placeholder until Task 5: pass so the loop still terminates.
-                    Ok(())
-                } else {
-                    Ok(())
+        // 3b-pre. Drive an in-flight screenshot capture (Task 5).
+        if let Some(mut cap) = work.capturing.take() {
+            let sink = world.resource::<crate::render::CaptureSink>().0.clone();
+            let ready = sink.lock().unwrap().take();
+            if let Some(img) = ready {
+                let result = match &run.opts.snapshot {
+                    Some(cfg) => snapshot::match_screenshot(
+                        cfg, &run.opts.spec_file, &cap.name, img.width, img.height, &img.rgba,
+                    ),
+                    None => Ok(()),
                 };
                 let (status, payload) = match &result {
                     Ok(()) => (StepStatus::Ok, r#"{"ok":true,"value":null}"#.to_string()),
                     Err(msg) => (StepStatus::Failed(msg.clone()), serde_json::json!({"ok": false, "error": msg}).to_string()),
                 };
-                with_ctx(world, |ctx| abi::resolve(ctx, e.id, &payload));
+                with_ctx(world, |ctx| abi::resolve(ctx, cap.id, &payload));
                 let dom = snapshot_body(world);
-                work.steps.push(Step { index: work.steps.len(), action: e.action, status, dom_after: dom, screenshot: None });
+                work.steps.push(Step { index: work.steps.len(), action: cap.action, status, dom_after: dom, screenshot: None });
+            } else {
+                cap.frames_waited += 1;
+                if cap.frames_waited > 64 {
+                    // Give up: capture never fired.
+                    let msg = "screenshot capture failed".to_string();
+                    let payload = serde_json::json!({"ok": false, "error": msg}).to_string();
+                    with_ctx(world, |ctx| abi::resolve(ctx, cap.id, &payload));
+                    let dom = snapshot_body(world);
+                    work.steps.push(Step { index: work.steps.len(), action: cap.action, status: StepStatus::Failed(msg), dom_after: dom, screenshot: None });
+                } else {
+                    work.capturing = Some(cap);
+                }
+            }
+        }
+
+        // 3b. Poll in-flight expect matchers against the live DOM.
+        let mut still = Vec::new();
+        for mut e in std::mem::take(&mut work.expects) {
+            if e.matcher == "screenshot" {
+                let name = e.expected.as_str().unwrap_or("screenshot").to_string();
+                if opts_render && work.capturing.is_none() {
+                    // Kick an async capture; resolved by the sub-state above.
+                    let handle = world.resource::<crate::render::RenderTargetHandle>().0.clone();
+                    let sink = world.resource::<crate::render::CaptureSink>().0.clone();
+                    crate::render::spawn_screenshot(world, handle, sink);
+                    work.capturing = Some(ScreenshotCapture { id: e.id, name, action: e.action, frames_waited: 0 });
+                } else if !opts_render {
+                    // Headless: no pixels; pass immediately.
+                    with_ctx(world, |ctx| abi::resolve(ctx, e.id, r#"{"ok":true,"value":null}"#));
+                    let dom = snapshot_body(world);
+                    work.steps.push(Step { index: work.steps.len(), action: e.action, status: StepStatus::Ok, dom_after: dom, screenshot: None });
+                } else {
+                    // A capture is already in flight for a prior screenshot expect;
+                    // requeue this one for a later frame.
+                    still.push(e);
+                }
                 continue;
             }
             match crate::matchers::evaluate(world, &e.matcher, &e.locator, &e.expected) {
@@ -351,7 +409,10 @@ fn step_running(world: &mut World, run: &mut RunState) {
     // conflict between the earlier `&mut TestWork` borrow and the `&mut run`
     // needed by `finish_current_test`.
     let idle = run.work.as_ref().map_or(false, |w| {
-        w.inflight.is_empty() && w.expects.is_empty() && w.pending_actions.is_empty()
+        w.inflight.is_empty()
+            && w.expects.is_empty()
+            && w.pending_actions.is_empty()
+            && w.capturing.is_none()
     });
     if idle {
         // Read the promise handle by cloning the JsValue (cheap ref-counted clone).
@@ -371,6 +432,44 @@ fn step_running(world: &mut World, run: &mut RunState) {
             };
             finish_current_test(world, run, outcome);
         }
+    }
+}
+
+fn drive_preview(world: &mut World, run: &mut RunState) {
+    // Poll for a completed preview frame first.
+    if run.preview_inflight {
+        let sink = world.resource::<crate::render::CaptureSink>().0.clone();
+        if let Some(img) = sink.lock().unwrap().take() {
+            run.preview = Some((img.width, img.height, img.rgba));
+            run.preview_inflight = false;
+        }
+        return;
+    }
+    // Don't fight a screenshot-matcher capture for the sink.
+    let busy = run
+        .work
+        .as_ref()
+        .map(|w| w.capturing.is_some())
+        .unwrap_or(false);
+    if busy || !run.opts.render {
+        return;
+    }
+    if run.preview_cooldown > 0 {
+        run.preview_cooldown -= 1;
+        return;
+    }
+    let handle = world.resource::<crate::render::RenderTargetHandle>().0.clone();
+    let sink = world.resource::<crate::render::CaptureSink>().0.clone();
+    crate::render::spawn_screenshot(world, handle, sink);
+    run.preview_inflight = true;
+    run.preview_cooldown = 10; // re-capture roughly every ~10 frames
+}
+
+impl RunState {
+    /// Latest live-preview frame, consumed once (the egui pane re-registers a
+    /// texture only when a new frame arrives).
+    pub fn take_preview(&mut self) -> Option<(u32, u32, Vec<u8>)> {
+        self.preview.take()
     }
 }
 
