@@ -72,10 +72,6 @@ function App() {
     setTodos(todos().map((t) => ({ ...t, done: !allDone })));
   };
 
-  // NOTE: control-flow components (<For>, <Show>) are wrapped in `{...}` so the
-  // transpiler routes them through $ss.insert (which resolves their returned
-  // accessor). A bare <For>/<Show> child lowers to $ss.child, which silently
-  // drops the accessor function and renders nothing.
   return (
     <div id="app">
       <h1>todos</h1>
@@ -85,15 +81,15 @@ function App() {
                checked={todos().length > 0 && todos().every((t) => t.done)}
                onChange={() => toggleAll()} />
         <ul id="todo-list">
-          {<For each={filtered()}>
+          <For each={filtered()}>
             {(todo) => <TodoItem todo={todo} onToggle={toggle} onRemove={remove} />}
-          </For>}
+          </For>
         </ul>
       </div>
-      {<Show when={todos().length > 0}>
+      <Show when={todos().length > 0}>
         <Footer remaining={remaining()} filter={filter()}
                 onFilter={setFilter} onClearCompleted={clearCompleted} />
-      </Show>}
+      </Show>
     </div>
   );
 }
