@@ -135,17 +135,18 @@ pub fn build_render_app_and_mount(project: &HostProject, width: u32, height: u32
     app
 }
 
-/// Spawn a screenshot request against the offscreen target, tick until the
-/// async capture fires, and return the decoded RGBA frame.
-pub fn capture(app: &mut App) -> Option<CapturedImage> {
-    let handle = app.world().resource::<RenderTargetHandle>().0.clone();
-    let sink = app.world().resource::<CaptureSink>().0.clone();
-
-    // Clear any previous capture.
+/// Clear `sink` and spawn a one-shot screenshot request against `handle`. The
+/// observer decodes the captured frame into `sink` and despawns itself. Callers
+/// pump frames (blocking via `app.update()` in `capture`, or across live frames
+/// in the incremental UI stepper) and poll `sink` for the result.
+pub(crate) fn spawn_screenshot(
+    world: &mut World,
+    handle: Handle<Image>,
+    sink: Arc<Mutex<Option<CapturedImage>>>,
+) {
     *sink.lock().unwrap() = None;
-
     let observer_sink = sink.clone();
-    app.world_mut()
+    world
         .spawn(Screenshot::image(handle))
         .observe(
             move |trigger: On<ScreenshotCaptured>, mut commands: Commands| {
@@ -156,10 +157,18 @@ pub fn capture(app: &mut App) -> Option<CapturedImage> {
                     rgba: img.data.clone().unwrap_or_default(),
                 };
                 *observer_sink.lock().unwrap() = Some(captured);
-                // The screenshot entity is one-shot; clean it up.
                 commands.entity(trigger.event().entity).despawn();
             },
         );
+}
+
+/// Spawn a screenshot request against the offscreen target, tick until the
+/// async capture fires, and return the decoded RGBA frame. (Headless/blocking.)
+pub fn capture(app: &mut App) -> Option<CapturedImage> {
+    let handle = app.world().resource::<RenderTargetHandle>().0.clone();
+    let sink = app.world().resource::<CaptureSink>().0.clone();
+
+    spawn_screenshot(app.world_mut(), handle, sink.clone());
 
     // Capture is async (spans render sub-app frames); poll the sink.
     for _ in 0..64 {
