@@ -11,6 +11,7 @@ superui_js = { path = "../superui_js" }
 superui_api = { path = "../superui_api" }
 superui_css = { path = "../superui_css" }
 superui_bridge = { path = "../superui_bridge" }
+superui_paths = { path = "../superui_paths" }
 
 bevy = { version = "0.17", default-features = false, features = [
     "std",

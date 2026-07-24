@@ -8,16 +8,13 @@
 //! exact same pattern), and an exclusive `apply_hot_reload` system that consumes
 //! the flags and performs the actual rebuild / re-exec.
 
-use std::cell::RefCell;
-use std::rc::Rc;
-
 use bevy::ecs::message::MessageReader;
 use bevy::prelude::*;
 use superui_bridge::UiRuntime;
 use superui_css::style::StyleSheet;
 
 use crate::assets::{HtmlSource, JsSource};
-use crate::mount::SuperUiRoot;
+use crate::mount::{SuperUiRoot, SuperUiSubresources};
 
 /// Small resource recording which asset types changed this frame.
 #[derive(Resource, Default)]
@@ -27,19 +24,19 @@ pub struct HotReloadFlags {
     pub css: bool,
 }
 
-/// Normal system: compare `AssetEvent::Modified` ids against the mounted root's
-/// handles and write flags. Runs every frame regardless of runtime state (cheap).
+/// Compare `AssetEvent::Modified` ids against the mounted root's handles and set
+/// flags. `html` comes from `SuperUiRoot`; `js`/`css` from the discovered
+/// `SuperUiSubresources` (absent until Phase 1 runs).
 pub fn detect_hot_reload(
     mut html_events: MessageReader<AssetEvent<HtmlSource>>,
     mut js_events: MessageReader<AssetEvent<JsSource>>,
     mut css_events: MessageReader<AssetEvent<StyleSheet>>,
-    root: Query<&SuperUiRoot>,
+    root: Query<(&SuperUiRoot, Option<&SuperUiSubresources>)>,
     mut flags: ResMut<HotReloadFlags>,
 ) {
-    let Ok(root) = root.single() else {
+    let Ok((root, sub)) = root.single() else {
         return;
     };
-
     for e in html_events.read() {
         if let AssetEvent::Modified { id } = e {
             if *id == root.html.id() {
@@ -49,107 +46,75 @@ pub fn detect_hot_reload(
     }
     for e in js_events.read() {
         if let AssetEvent::Modified { id } = e {
-            if *id == root.js.id() {
+            if sub.map(|s| *id == s.js.id()).unwrap_or(false) {
                 flags.js = true;
             }
         }
     }
     for e in css_events.read() {
         if let AssetEvent::Modified { id } = e {
-            if *id == root.css.id() {
+            if sub.and_then(|s| s.css.as_ref()).map(|h| *id == h.id()).unwrap_or(false) {
                 flags.css = true;
             }
         }
     }
 }
 
-/// Exclusive system: consume `HotReloadFlags` and perform rebuild/re-exec when
-/// the runtime is live. Runs inside the chained bridge set (after `detect_hot_reload`,
-/// before `reconcile_system`), gated by `runtime_exists`.
+/// Consume `HotReloadFlags`. HTML change → full remount (state lost): tear down the
+/// runtime + `SuperUiSubresources` so `mount_when_ready` re-reads the manifest and
+/// re-discovers subresources. JS/CSS change → mutate the live runtime in place.
 ///
-/// - HTML changed → rebuild DOM from fresh HTML, then re-run JS against new DOM.
-/// - JS-only changed → full JS re-execution against current DOM.
-/// - Any change → `dirty = true` so reconcile runs.
+/// Runs inside the chained bridge set gated by `runtime_exists`; removing the
+/// runtime here makes the remaining chained systems skip (their inherited
+/// `runtime_exists` condition re-evaluates to false), so the teardown is safe.
 pub fn apply_hot_reload(world: &mut World) {
-    // Read and clear flags atomically.
-    let (html_changed, js_changed, css_changed) = {
+    let (html_changed, js_changed, _css_changed) = {
         let mut flags = world.resource_mut::<HotReloadFlags>();
-        let h = flags.html;
-        let j = flags.js;
-        let c = flags.css;
+        let v = (flags.html, flags.js, flags.css);
         flags.html = false;
         flags.js = false;
         flags.css = false;
-        (h, j, c)
+        v
     };
-
-    if !(html_changed || js_changed || css_changed) {
+    if !(html_changed || js_changed || _css_changed) {
         return;
     }
 
-    // Pull the root handles before we touch the runtime.
-    let root = {
-        let mut q = world.query::<&SuperUiRoot>();
+    // Root entity + discovered subresources (nothing to do before Phase 1 ran).
+    let (entity, js_handle) = {
+        let mut q = world.query::<(Entity, &SuperUiSubresources)>();
         match q.iter(world).next() {
-            Some(r) => SuperUiRoot {
-                html: r.html.clone(),
-                css: r.css.clone(),
-                js: r.js.clone(),
-            },
+            Some((e, sub)) => (e, sub.js.clone()),
             None => return,
         }
     };
 
-    let Some(mut rt) = world.remove_non_send_resource::<UiRuntime>() else {
-        return;
-    };
-
     if html_changed {
-        if let Some(src) = world
-            .resource::<Assets<HtmlSource>>()
-            .get(&root.html)
-            .map(|h| h.0.clone())
-        {
-            // FIX 3: Despawn the old child subtree before rebuilding so
-            // stale entities don't leak (the new runtime's stale-sweep never
-            // sees them because its node_to_entity map is empty).
-            let bound_non_root: Vec<Entity> = rt.bound_non_root_entities();
-            for entity in bound_non_root {
-                if let Ok(ec) = world.get_entity_mut(entity) {
+        // Full remount: despawn the reconciled subtree, drop the runtime + marker.
+        if let Some(rt) = world.remove_non_send_resource::<UiRuntime>() {
+            for e in rt.bound_non_root_entities() {
+                if let Ok(ec) = world.get_entity_mut(e) {
                     ec.despawn();
                 }
             }
+        }
+        world.entity_mut(entity).remove::<SuperUiSubresources>();
+        return; // mount_when_ready rebuilds next frame
+    }
 
-            // Rebuild the whole runtime around the fresh DOM. Recompute the HMR
-            // gate (an HTML-rebuild only happens while watching, so the feature
-            // decides it here; no re-warn — mount_when_ready owns the warning).
-            let watching = world.resource::<AssetServer>().watching_for_changes();
-            let hmr = crate::mount::hmr_active(watching);
-            let dom = Rc::new(RefCell::new(superui_html::parse_document(&src)));
-            let entity = rt.root;
-            let stylesheet = rt.stylesheet.clone();
-            rt = UiRuntime::new(dom, entity, stylesheet, hmr);
-        }
-        // After an HTML rebuild we must also re-run JS (fresh DOM).
+    // JS/CSS change: keep state, re-exec / restyle against the current DOM.
+    let Some(mut rt) = world.remove_non_send_resource::<UiRuntime>() else {
+        return;
+    };
+    if js_changed {
         if let Some(js) = world
             .resource::<Assets<JsSource>>()
-            .get(&root.js)
-            .map(|j| j.0.clone())
-        {
-            rt.run_script(&js);
-        }
-    } else if js_changed {
-        // Full JS re-execution against the current DOM (design §6).
-        if let Some(js) = world
-            .resource::<Assets<JsSource>>()
-            .get(&root.js)
+            .get(&js_handle)
             .map(|j| j.0.clone())
         {
             rt.run_script(&js);
         }
     }
-
-    // CSS-only change still needs a reconcile pass so flair re-applies styles.
-    rt.dirty = true;
+    rt.dirty = true; // CSS-only change still needs a reconcile pass.
     world.insert_non_send_resource(rt);
 }

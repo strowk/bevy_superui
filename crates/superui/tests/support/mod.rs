@@ -12,8 +12,7 @@ use bevy::prelude::*;
 use bevy::text::TextPlugin;
 use bevy::ui::UiPlugin;
 use std::sync::LazyLock;
-use superui::{HtmlSource, JsSource, SuperUiPlugin, SuperUiRoot};
-use superui_css::style::StyleSheet;
+use superui::{HtmlSource, SuperUiPlugin, SuperUiRoot};
 
 pub static ASSETS: LazyLock<Dir> = LazyLock::new(|| Dir::new("assets".into()));
 
@@ -46,14 +45,28 @@ pub fn app() -> App {
     app
 }
 
-/// Spawn a `SuperUiRoot` referencing the given in-memory asset paths.
-pub fn spawn_root(app: &mut App, html: &str, css: &str, js: &str) -> Entity {
+/// Build a Model-2 entry document: a `<head>` that links `css` and scripts `js`
+/// (both in-memory asset paths at the root), with `body` as the document body.
+pub fn entry_doc(body: &str, css: &str, js: &str) -> String {
+    format!(
+        "<html><head><link rel=\"stylesheet\" href=\"{css}\">\
+         <script src=\"{js}\"></script></head><body>{body}</body></html>"
+    )
+}
+
+/// Spawn a Model-2 `SuperUiRoot` from a freshly synthesized, uniquely-named entry.
+pub fn spawn_root(app: &mut App, body: &str, css: &str, js: &str) -> Entity {
+    static SEQ: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+    let n = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    spawn_root_entry(app, &format!("index_{n}.html"), body, css, js)
+}
+
+/// Like [`spawn_root`] but with a caller-chosen entry asset path, so a test can
+/// re-`put(entry, entry_doc(...))` later to exercise remount-on-html-change.
+pub fn spawn_root_entry(app: &mut App, entry: &str, body: &str, css: &str, js: &str) -> Entity {
+    put(entry, entry_doc(body, css, js).as_bytes());
     let server = app.world().resource::<AssetServer>().clone();
-    let root = SuperUiRoot {
-        html: server.load::<HtmlSource>(html.to_string()),
-        css: server.load::<StyleSheet>(css.to_string()),
-        js: server.load::<JsSource>(js.to_string()),
-    };
+    let root = SuperUiRoot { html: server.load::<HtmlSource>(entry.to_string()) };
     app.world_mut().spawn((Node::default(), root)).id()
 }
 

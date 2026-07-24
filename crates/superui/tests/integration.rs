@@ -7,7 +7,6 @@ use superui_css::prelude::TypeName;
 
 #[test]
 fn mounts_authored_ui_and_runs_js() {
-    put("t8.html", b"<ul id='list'></ul>");
     put("t8.css", b"li { }");
     put(
         "t8.js",
@@ -17,7 +16,7 @@ fn mounts_authored_ui_and_runs_js() {
     );
 
     let mut app = app();
-    let root = spawn_root(&mut app, "t8.html", "t8.css", "t8.js");
+    let root = spawn_root(&mut app, "<ul id='list'></ul>", "t8.css", "t8.js");
     tick(&mut app, 32);
 
     // The JS-created <li> exists as an entity with TypeName "li".
@@ -31,7 +30,6 @@ fn mounts_authored_ui_and_runs_js() {
 
 #[test]
 fn hot_reload_js_re_executes_and_reconciles() {
-    put("t9.html", b"<div id='host'></div>");
     put("t9.css", b"span { }");
     put(
         "t9.js",
@@ -40,7 +38,7 @@ fn hot_reload_js_re_executes_and_reconciles() {
     );
 
     let mut app = app();
-    let _root = spawn_root(&mut app, "t9.html", "t9.css", "t9.js");
+    let _root = spawn_root(&mut app, "<div id='host'></div>", "t9.css", "t9.js");
     tick(&mut app, 32);
 
     // v1 span exists.
@@ -80,7 +78,6 @@ fn hot_reload_js_re_executes_and_reconciles() {
 fn html_hot_reload_despawns_old_entities_no_leak() {
     // Mount with 3 lis, then hot-reload HTML+JS to produce 1 li;
     // assert old 3 are gone (no leak), exactly 1 remains.
-    put("leak.html", b"<ul id='h'></ul>");
     put("leak.css", b"li { }");
     put(
         "leak.js",
@@ -89,7 +86,7 @@ fn html_hot_reload_despawns_old_entities_no_leak() {
     );
 
     let mut app = app();
-    let _root = spawn_root(&mut app, "leak.html", "leak.css", "leak.js");
+    let _root = spawn_root_entry(&mut app, "leak.html", "<ul id='h'></ul>", "leak.css", "leak.js");
     tick(&mut app, 32);
 
     let count_li = |app: &mut App| {
@@ -108,7 +105,7 @@ fn html_hot_reload_despawns_old_entities_no_leak() {
             .world_mut()
             .resource_mut::<Assets<superui::HtmlSource>>();
         if let Some(h) = assets.get_mut(&html_handle) {
-            h.0 = "<ul id='h'></ul>".to_string();
+            h.0 = entry_doc("<ul id='h'></ul>", "leak.css", "leak.js");
         }
     }
     // Also mutate JS so re-run produces only 1 li.
@@ -128,7 +125,7 @@ fn html_hot_reload_despawns_old_entities_no_leak() {
     app.world_mut().write_message(bevy::asset::AssetEvent::Modified {
         id: html_handle.id(),
     });
-    tick(&mut app, 8);
+    tick(&mut app, 12);
 
     assert_eq!(
         count_li(&mut app),
@@ -147,7 +144,6 @@ struct Added {
 
 #[test]
 fn capstone_click_drives_js_and_bevy_send() {
-    put("cap.html", b"<button id='add'>Add</button><ul id='list'></ul>");
     put("cap.css", b".done { }");
     put(
         "cap.js",
@@ -165,7 +161,7 @@ fn capstone_click_drives_js_and_bevy_send() {
     app.init_resource::<Log>();
     app.add_observer(|ev: On<Added>, mut l: ResMut<Log>| l.0.push(ev.event().clone()));
 
-    let _root = spawn_root(&mut app, "cap.html", "cap.css", "cap.js");
+    let _root = spawn_root(&mut app, "<button id='add'>Add</button><ul id='list'></ul>", "cap.css", "cap.js");
     tick(&mut app, 32);
 
     // No <li> yet.
