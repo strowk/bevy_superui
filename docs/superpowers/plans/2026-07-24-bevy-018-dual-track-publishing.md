@@ -757,11 +757,23 @@ and stops.**
 
 On `main`: `cargo run -p xtask -- publish` (expect green — this is `cargo package`, no upload). On `release/bevy-0.17`: `git checkout release/bevy-0.17 && cargo run -p xtask -- publish` (expect green), then `git checkout main`.
 
-- [ ] **Step 2 (Claude): Deliver the handoff and stop**
+- [ ] **Step 2 (Claude): Ask the user to do the publishing, and explain how**
 
-Print the "MAINTAINER HANDOFF" block below verbatim to the maintainer as the
-final message, noting the dry runs are green. Do **not** run any command from it.
-This completes Claude's involvement in the plan.
+In the final message, explicitly **ask the user to perform the publishing
+themselves** (Claude cannot and will not), and explain how: confirm the dry runs
+are green, then hand over the "MAINTAINER HANDOFF" block below verbatim as the
+step-by-step instructions. Say plainly why it's on them — it's irreversible,
+needs their `cargo login` token + crates.io ownership, and the first publish of
+each name claims it under their account. Offer to answer questions or help
+troubleshoot the output afterward, but do **not** run any command from the
+handoff block. This completes Claude's involvement in the plan.
+
+Suggested wording for Claude's final message:
+> "The workspace is publish-ready and both branches dry-run green. I can't run
+> the actual publish for you — it's irreversible, uses your crates.io login, and
+> the first publish claims each crate name under your account. Please run it
+> yourself with the steps below, and I'll help if anything errors:"  *(then the
+> MAINTAINER HANDOFF block)*
 
 ---
 
