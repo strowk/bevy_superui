@@ -3,6 +3,7 @@
 //! lowering to the `$ss` runtime ABI. Bevy-free; the asset loader lives in
 //! `superui` (native-only) so `oxc` never enters a wasm build (direction spec §11.3).
 
+pub mod build;
 mod imports;
 mod jsx;
 mod pipeline;

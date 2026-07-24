@@ -6,3 +6,4 @@ license.workspace = true
 
 [dependencies]
 oxc.workspace = true
+superui_paths = { path = "../superui_paths" }
