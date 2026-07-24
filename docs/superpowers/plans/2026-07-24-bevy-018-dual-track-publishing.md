@@ -15,7 +15,7 @@
 - **Fork rename:** `bevy_flair_core→superui_flair_core`, `bevy_flair_style→superui_flair_style`, `bevy_flair_css_parser→superui_flair_css_parser`.
 - **Fork patch markers (exact):** `// >>> SUPERUI-FORK-PATCH: <id>  (docs/fork-patches.md#<id>)` … `// <<< SUPERUI-FORK-PATCH: <id>`.
 - **Publish scope:** every crate including `superui_test_engine`; drop all `publish = false`.
-- **Never auto-`cargo publish`.** Publishing to crates.io is irreversible — the plan drives to `cargo package` dry-run-green; the real publish is a manual maintainer step (Task 13).
+- **Never auto-`cargo publish`.** Publishing to crates.io is irreversible. The executing agent (Claude) MUST NOT run `cargo publish` or `xtask publish --execute` under any circumstances — not even if asked mid-execution. It drives everything to `cargo package` dry-run-green, then **stops and hands the maintainer written, copy-pasteable publish instructions** (Task 13). The maintainer runs the real publish themselves.
 - **Do not touch `superui_test_engine` source logic** (parallel bugfix in flight); only its manifest metadata + bevy version.
 - **DRY / YAGNI / TDD / frequent commits.** Preserve upstream flair attribution in NOTICE + per-crate metadata.
 
@@ -727,11 +727,19 @@ git add README.md website/ docs/fork-patches.md
 git commit -m "docs: confirm 0.2.x/bevy-0.18 as current track"
 ```
 
-### Task 13: First real publish (MANUAL, maintainer-gated)
+### Task 13: Publish handoff (MAINTAINER runs the real publish — Claude does NOT)
 
 **Files:** none (release action).
 
 **Interfaces:** none.
+
+> **⚠️ Execution rule:** When Claude executes this plan, Task 13 is a **handoff,
+> not an action**. Claude performs Steps 0–1 (preflight + dry runs only — these
+> are safe, network-read-only) and then **stops and prints the maintainer the
+> exact `--execute` commands below (Steps 2–4) for them to run themselves**.
+> Claude must NEVER run `cargo publish` or `xtask publish --execute`. The plan is
+> "complete" for Claude once the dry runs are green and the handoff instructions
+> have been delivered.
 
 > **Name availability (checked 2026-07-24):** all 14 crate names — `superui`,
 > `supersolid`, `cargo-superui`, `superui_dom`, `superui_html`, `superui_js`,
