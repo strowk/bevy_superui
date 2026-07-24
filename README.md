@@ -1,34 +1,100 @@
-# bevy superui
+<p align="center">
+  <img src="website/src/logo.svg" alt="superui" width="360">
+</p>
 
-Bevy SuperUI is a crate for bevy to write game UI's using browser-like HTML/CSS/JS stack coupled with first class support for solid-style TSX components and powerful hot reload.
+<h1 align="center">bevy superui</h1>
 
-It is built on top of bevy_ui (inheriting some of its limitations) and incorporates somewhat modified bevy_flair for CSS support.
+<p align="center">
+  <b>A browser-like UI environment for <a href="https://bevyengine.org/">Bevy</a> —
+  author game UI with HTML, CSS, and reactive <code>.tsx</code> components, with
+  state-preserving hot reload.</b>
+</p>
 
-The goal of this projct is to provide the best possible developer experience for writing game UI's in bevy with a focus on rapid iteration and compatibility with existing web development knowledge and practices.
+<p align="center">
+  <a href="https://strowk.github.io/bevy_superui/"><img alt="Docs & live demos" src="https://img.shields.io/badge/docs%20%26%20live%20demos-strowk.github.io-34e6d6"></a>
+  <a href="https://bevyengine.org/"><img alt="Bevy 0.17" src="https://img.shields.io/badge/bevy-0.17-232326"></a>
+  <a href="#license"><img alt="License: MIT or Apache-2.0" src="https://img.shields.io/badge/license-MIT%2FApache--2.0-blue"></a>
+</p>
 
-## Status
+superui gives Bevy a browser-like runtime for building game UI. You write
+interfaces the way you would for the web — an `index.html`, a stylesheet, and
+components — and superui renders them with `bevy_ui`, styles them with a CSS
+engine (a modified [`bevy_flair`](https://github.com/eckz/bevy_flair)), and runs
+their logic in an embedded JavaScript engine.
 
-This is in very early stages of development, but technically some working examples are already available.
+On top of that sits **supersolid**, a reactive `.tsx` layer: components are plain
+functions that return markup, state lives in signals, and only the parts of the UI
+that actually changed get updated. The goal is the best possible developer
+experience for game UI in Bevy — rapid iteration and compatibility with the web
+knowledge you already have.
 
-The code is mostly AI generated and is not yet reviewed as such, so it is not guaranteed to be correct or safe. Use at your own risk.
-Most of API surface can be expected to be relied upon though, because I am more or less trying to support API's that are already known in web development, however a certain flux is expected at this stage.
+> 📖 **[Read the docs →](https://strowk.github.io/bevy_superui/docs/getting-started.html)**
+> &nbsp;·&nbsp; ▶ **[Try the live demos →](https://strowk.github.io/bevy_superui/#gallery)**
 
-## License
+## Highlights
 
-Bevy SuperUI is dual-licensed under either
+- 🌐 **Web-like authoring** — `index.html` + CSS + components; concepts and much of
+  the API surface mirror the web, so existing knowledge carries over.
+- ⚡ **Reactive TSX** — the supersolid layer gives you signals, effects, memos, and
+  control-flow components (`<Show>`, `<For>`, `<Index>`, `<Switch>`).
+- 🔥 **State-preserving hot reload** — edit a `.tsx`/`.css` and the running UI
+  rebuilds in place *without* losing its state (native, `--features hmr`).
+- 🔌 **JS ↔ ECS bridge** — `bevy.send` / `bevy.on` wire UI events to Bevy events and
+  stream live game state back into the interface.
+- 🎨 **Real CSS** — element/class/id/attribute/pseudo selectors, animations, and more
+  via the modified `bevy_flair` engine.
+- 📦 **Native and WebAssembly** — the same UI runs in a Bevy window or in the browser.
 
-- MIT License ([LICENSE-MIT](LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
-- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or <http://www.apache.org/licenses/LICENSE-2.0>)
+## A quick taste
 
-at your option.
+`app.tsx` — a button that counts its own clicks:
 
-This means you can select the license you prefer. This dual-licensing approach is the de-facto standard in the Rust and Bevy ecosystems.
+```tsx
+import { createSignal, render } from "supersolid";
 
-Portions of this repository are derived from [`bevy_flair`](https://github.com/eckz/bevy_flair) (the vendored crates under `crates/bevy_flair_*`), which is itself dual-licensed under MIT OR Apache-2.0. Copyright over those portions remains with the original authors; see the upstream project for details.
+function Counter() {
+  const [count, setCount] = createSignal(0);
+  return (
+    <button class="counter" onClick={() => setCount(count() + 1)}>
+      clicked {count()} times
+    </button>
+  );
+}
 
-### Your contributions
+render(() => <Counter />, document.getElementById("root"));
+```
 
-Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in the work by you, as defined in the Apache-2.0 license, shall be dual-licensed as above, without any additional terms or conditions.
+Mount it from Bevy with one plugin and one spawn:
+
+```rust
+use bevy::prelude::*;
+use superui::prelude::{SuperUiPlugin, SuperUiRoot};
+
+fn main() {
+    App::new()
+        .add_plugins(DefaultPlugins)
+        .add_plugins(SuperUiPlugin)
+        .add_systems(Startup, setup)
+        .run();
+}
+
+fn setup(mut commands: Commands, assets: Res<AssetServer>) {
+    commands.spawn(Camera2d);
+    commands.spawn(SuperUiRoot::from_asset_dir("ui/counter", &assets));
+}
+```
+
+See the [Getting Started guide](https://strowk.github.io/bevy_superui/docs/getting-started.html)
+for the full walkthrough, and the
+[`examples/counter`](examples/counter/) crate for the complete source.
+
+## How it fits together
+
+| Layer | What it is |
+| --- | --- |
+| **superui** | The framework: the browser-like HTML/CSS/JS environment and the Bevy plugin that hosts it, built on `bevy_ui` + a modified `bevy_flair`. |
+| **supersolid** | The reactive `.tsx` layer you author components in — signals, effects, control flow, and rendering. |
+| **bevy bridge** | `bevy.send` / `bevy.on`, the JSON channel between your UI and the ECS. |
 
 ## Live examples
 
@@ -40,7 +106,7 @@ running app beside its authored source (TSX where applicable).
 | Example | Live demo | Description |
 | --- | --- | --- |
 | TodoMVC (HTML/CSS/JS) | [Open](https://strowk.github.io/bevy_superui/examples/todomvc/) | Classic TodoMVC in plain HTML/CSS/JS |
-| TodoMVC (Supersolid TSX) | [Open](https://strowk.github.io/bevy_superui/examples/todomvc_supersolid/) | The same app authored in Solid-style .tsx |
+| TodoMVC (supersolid TSX) | [Open](https://strowk.github.io/bevy_superui/examples/todomvc_supersolid/) | The same app authored in reactive `.tsx` |
 | Game Menu | [Open](https://strowk.github.io/bevy_superui/examples/game_menu/) | Multi-screen sci-fi game menu in supersolid TSX |
 
 **Stress tests** (deliberately heavy — may run slowly in-browser)
@@ -54,13 +120,57 @@ running app beside its authored source (TSX where applicable).
 > `git clone` and `cargo run -p <example>` (add `--features hmr` for the supersolid
 > TSX examples) to edit HTML/CSS/TSX live.
 
-## Documentation site
+## Status
 
-The full site (landing, docs, and the examples gallery) is a single mdBook
-project under `website/`, deployed to GitHub Pages by the `Deploy Pages`
+This is still in very early development, though several working examples already run
+(see the demos above). 
+
+The code is largely AI-generated and not yet fully
+reviewed, so it is not guaranteed to be correct or safe — use at your own risk.
+
+APIs are expected to be in flux at this stage, but the surface deliberately mirrors
+familiar web APIs, so most of it should be reasonable to build on.
+
+## License
+
+Bevy SuperUI is dual-licensed under either
+
+- MIT License ([LICENSE-MIT](LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or <http://www.apache.org/licenses/LICENSE-2.0>)
+
+at your option.
+
+This means you can select the license you prefer. This dual-licensing approach is
+the de-facto standard in the Rust and Bevy ecosystems.
+
+Portions of this repository are derived from [`bevy_flair`](https://github.com/eckz/bevy_flair)
+(the vendored crates under `crates/bevy_flair_*`), which is itself dual-licensed
+under MIT OR Apache-2.0. Copyright over those portions remains with the original
+authors; see the upstream project for details.
+
+### Your contributions
+
+Unless you explicitly state otherwise, any contribution intentionally submitted for
+inclusion in the work by you, as defined in the Apache-2.0 license, shall be
+dual-licensed as above, without any additional terms or conditions.
+
+## Deploying docs (for maintainers)
+
+To add an example: create the crate under `examples/<slug>/` (wasm-buildable, with
+a `web_window` canvas hook), then append one object to `examples/gallery.json`. The
+slug becomes its permanent URL — don't rename a published slug. The full site
+(landing, docs, and gallery) is deployed to GitHub Pages by the `Deploy Pages`
 workflow.
 
-Run it locally:
+### Documentation
+
+The [documentation site](https://strowk.github.io/bevy_superui/) covers a
+TSX-first guide (setup, project structure, hot reload) and a full concepts section
+(components & JSX, signals, effects, control flow, lifecycle, context, and the
+Bevy bridge), plus reference ledgers for the supported CSS, HTML, and JS/DOM
+surface.
+
+The site is a single mdBook project under `website/`. Run it locally:
 
 ```bash
 cargo install mdbook        # once
@@ -68,13 +178,7 @@ mdbook serve website        # live-reload at http://localhost:3000
 ```
 
 The gallery index is generated from `examples/gallery.json` by the
-`mdbook-gallery` preprocessor (built automatically via `cargo run` during the
-mdBook build). Per-example wasm demos are built only in CI; the
-`/examples/<slug>/` links 404 under local `mdbook serve`, which is expected.
-
-## Deploying the gallery (maintainers)
-
-To add an example: create the crate under `examples/<slug>/` (wasm-buildable, with a
-`web_window` canvas hook), then append one object to `examples/gallery.json`. The slug
-becomes its permanent URL — don't rename a published slug.
-
+`mdbook-gallery` preprocessor, and code blocks are highlighted at build time by a
+Shiki preprocessor (`website/tools/mdbook-shiki`, needs Node). Per-example wasm
+demos are built only in CI, so the `/examples/<slug>/` links 404 under local
+`mdbook serve` — that's expected.
