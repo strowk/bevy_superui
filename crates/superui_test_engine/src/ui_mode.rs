@@ -61,6 +61,9 @@ struct UnderTestCamera(Entity);
 
 pub fn run(cfg: &TestConfig, project: &HostProject, specs: &[PathBuf]) {
     let mut app = App::new();
+    // MUST be before DefaultPlugins (AssetPlugin inside it requires custom
+    // asset sources to be registered first).
+    let ui_js_path = host::register_project_assets(&mut app, project);
     app.add_plugins(DefaultPlugins.set(WindowPlugin {
         primary_window: Some(Window {
             title: "superui test — UI mode".to_string(),
@@ -70,10 +73,6 @@ pub fn run(cfg: &TestConfig, project: &HostProject, specs: &[PathBuf]) {
         ..default()
     }));
     app.add_plugins(EguiPlugin::default());
-
-    // Register the project's assets + wire superui so the under-test UI can
-    // mount into this same world.
-    let ui_js_path = host::register_project_assets(&mut app, project);
     app.add_plugins(superui::prelude::SuperUiPlugin);
     app.insert_resource(host::HostAssetPaths { js: ui_js_path });
 
