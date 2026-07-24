@@ -117,19 +117,31 @@ body:has(.superui-landing) #content main {
 .status-note { max-width: 720px; margin: 0 auto 64px; padding: 14px 18px; text-align: center;
                background: #2f2a4a; border: 1px solid #3a3a52; border-radius: 8px; color: #d8d2ff; }
 
-/* --- examples gallery cards --- */
-.gallery-cat h2 { margin: 28px 0 12px; font-size: 15px; text-transform: uppercase;
-                  letter-spacing: .08em; color: #9a9ab0; border-bottom: 1px solid #3a3a52;
-                  padding-bottom: 6px; }
+/* ============ examples gallery ============ */
+.gallery-cat h2 {
+  font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--su-muted); border: none; margin: 34px 0 14px; }
 .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
-.card { display: block; text-decoration: none; color: inherit; background: #262633;
-        border: 1px solid #3a3a52; border-radius: 10px; padding: 18px; transition: border-color .15s; }
-.card:hover { border-color: #7c6cff; }
-/* Match the original <h3>/<p> card look (bold accent title + muted description). */
-.card .card-title { margin: 0 0 6px; font-size: 18px; font-weight: 700; color: #a99bff; }
-.card .card-desc { margin: 0; color: #9a9ab0; font-size: 14px; line-height: 1.45; }
-.badges { margin-top: 10px; display: flex; gap: 6px; flex-wrap: wrap; }
-.badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #3a3358; color: #d8d2ff; }
+.card {
+  position: relative; display: block; text-decoration: none; color: inherit;
+  background: var(--su-panel); border: 1px solid rgba(52,230,214,0.16);
+  border-radius: 10px; padding: 22px 20px; overflow: hidden;
+  transition: border-color .15s, transform .15s, box-shadow .15s; }
+.card:hover { border-color: rgba(52,230,214,0.5); transform: translateY(-2px);
+  box-shadow: 0 14px 34px rgba(0,0,0,0.4); }
+/* corner brackets */
+.card::before, .card::after {
+  content: ""; position: absolute; width: 14px; height: 14px; pointer-events: none; }
+.card::before { top: -1px; left: -1px;
+  border-top: 2px solid var(--su-teal); border-left: 2px solid var(--su-teal); }
+.card::after { bottom: -1px; right: -1px;
+  border-bottom: 2px solid var(--su-teal); border-right: 2px solid var(--su-teal); }
+.card .card-title { margin: 0 0 8px; font-family: var(--font-display); font-weight: 600;
+  font-size: 19px; color: var(--su-teal-light); }
+.card .card-desc { margin: 0; color: var(--su-muted); font-size: 14px; line-height: 1.55; }
+.badges { margin-top: 12px; display: flex; gap: 6px; flex-wrap: wrap; }
+.badge { font-family: var(--font-mono); font-size: 11px; padding: 2px 8px; border-radius: 999px;
+  background: rgba(52,230,214,0.10); border: 1px solid rgba(52,230,214,0.3); color: var(--su-teal-light); }
 
 /* ============ header (reskinned mdBook menu-bar) ============ */
 #menu-bar, .menu-bar {
