@@ -34,6 +34,43 @@ use oxc::span::SPAN;
 /// The runtime object holding the `$ss.*` element/attr helpers.
 const RUNTIME: &str = "$ss";
 
+/// Normalize a JSX text child's whitespace the way standard JSX (React/Babel)
+/// does. A naive `.trim()` eats the single spaces that flank an expression on
+/// the same line (`clicked {n} times` → `clicked{n}times`); this preserves
+/// them while still collapsing newline-adjacent indentation between block tags.
+///
+/// Algorithm (Babel's `cleanJSXElementLiteralChild`): split on newlines; on
+/// every line but the first strip leading blanks, on every line but the last
+/// strip trailing blanks (tabs count as blanks), drop lines that become empty,
+/// and join the survivors with a single space. Whitespace-only text (only
+/// newlines/indentation) collapses to `""`, which callers skip.
+fn clean_jsx_text(value: &str) -> String {
+    let normalized = value.replace("\r\n", "\n").replace('\r', "\n");
+    let lines: Vec<&str> = normalized.split('\n').collect();
+    let last_non_empty = lines
+        .iter()
+        .rposition(|l| l.contains(|c: char| c != ' ' && c != '\t'))
+        .unwrap_or(0);
+    let last = lines.len() - 1;
+    let mut out = String::new();
+    for (i, line) in lines.iter().enumerate() {
+        let mut s = line.replace('\t', " ");
+        if i != 0 {
+            s = s.trim_start_matches(' ').to_string();
+        }
+        if i != last {
+            s = s.trim_end_matches(' ').to_string();
+        }
+        if !s.is_empty() {
+            if i != last_non_empty {
+                s.push(' ');
+            }
+            out.push_str(&s);
+        }
+    }
+    out
+}
+
 struct Lower<'a> {
     ast: AstBuilder<'a>,
     next_local: u32,
@@ -375,8 +412,8 @@ impl<'a> Lower<'a> {
             .iter()
             .filter_map(|child| match child {
                 JSXChild::Text(t) => {
-                    let trimmed = t.value.as_str().trim().to_string();
-                    if trimmed.is_empty() { None } else { Some(ChildKind::Text(trimmed)) }
+                    let cleaned = clean_jsx_text(t.value.as_str());
+                    if cleaned.is_empty() { None } else { Some(ChildKind::Text(cleaned)) }
                 }
                 JSXChild::Element(el) => Some(ChildKind::Element(el.as_ref())),
                 JSXChild::ExpressionContainer(container) => {
@@ -469,11 +506,11 @@ impl<'a> Lower<'a> {
     fn lower_child_expr(&mut self, child: &JSXChild<'a>) -> Option<Expression<'a>> {
         match child {
             JSXChild::Text(t) => {
-                let trimmed = t.value.as_str().trim().to_string();
-                if trimmed.is_empty() {
+                let cleaned = clean_jsx_text(t.value.as_str());
+                if cleaned.is_empty() {
                     None
                 } else {
-                    Some(self.txt_call(&trimmed))
+                    Some(self.txt_call(&cleaned))
                 }
             }
             JSXChild::Element(el) => self.lower_jsx_element(el.as_ref()),

@@ -315,6 +315,34 @@ mod tests {
     }
 
     #[test]
+    fn inline_whitespace_around_expression_is_preserved() {
+        // `clicked {count()} times` must render "clicked 0 times", not
+        // "clicked0times" — the single spaces flanking the expression are
+        // meaningful and must survive transpilation (standard JSX behavior).
+        let out = code("const a = <button>\n  clicked {count()} times\n</button>;");
+        assert!(out.contains(r#"$ss.txt("clicked ")"#), "leading text must keep its trailing space:\n{out}");
+        assert!(out.contains(r#"$ss.txt(" times")"#), "trailing text must keep its leading space:\n{out}");
+        assert!(reparses_as_plain_js(&out), "{out}");
+    }
+
+    #[test]
+    fn newline_adjacent_indentation_is_trimmed() {
+        // A text child that is only indentation + a word + trailing newline
+        // collapses to the bare word: newline-adjacent whitespace is dropped.
+        let out = code("const a = <div>\n  hello\n</div>;");
+        assert!(out.contains(r#"$ss.txt("hello")"#), "newline-adjacent indentation must be trimmed:\n{out}");
+        assert!(reparses_as_plain_js(&out), "{out}");
+    }
+
+    #[test]
+    fn space_between_two_expressions_is_preserved() {
+        // `{a} {b}` — the lone space between two holes is meaningful text.
+        let out = code("const a = <div>{a} {b}</div>;");
+        assert!(out.contains(r#"$ss.txt(" ")"#), "single space between expressions must be preserved:\n{out}");
+        assert!(reparses_as_plain_js(&out), "{out}");
+    }
+
+    #[test]
     fn literal_expression_child_becomes_static_text() {
         let out = code("const a = <div>{42}</div>;");
         assert!(out.contains(r#"$ss.txt("42")"#), "literal child stringified to static text:\n{out}");
