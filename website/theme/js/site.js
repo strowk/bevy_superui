@@ -72,9 +72,24 @@
     arming();
   }
 
+  // The landing (site root index.html) is a prefix chapter in SUMMARY.md, so on the
+  // first docs chapter mdBook wires the "previous" arrow back to it. The landing is
+  // a marketing page, not something to page back into — drop those prev arrows.
+  function suppressLandingPrev() {
+    const root = (typeof path_to_root === 'string') ? path_to_root : '';
+    let landing;
+    try { landing = new URL(root + 'index.html', location.href).href; } catch (_) { return; }
+    document.querySelectorAll('.nav-chapters.previous, .mobile-nav-chapters.previous').forEach((a) => {
+      const href = a.getAttribute('href');
+      if (!href) return;
+      try { if (new URL(href, location.href).href === landing) a.remove(); } catch (_) {}
+    });
+  }
+
   function initSuperui() {
     injectBackground();
     enhanceHeader();
+    suppressLandingPrev();
     initLandingCounter();
   }
 
