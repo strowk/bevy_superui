@@ -20,12 +20,12 @@ use superui_bridge::UiRuntime;
 use crate::locator::{resolve_locator, LocatorSpec};
 
 pub fn evaluate(
-    app: &App,
+    world: &World,
     matcher: &str,
     locator: &Option<LocatorSpec>,
     expected: &serde_json::Value,
 ) -> Result<(), String> {
-    let rt = app.world().non_send_resource::<UiRuntime>();
+    let rt = world.non_send_resource::<UiRuntime>();
     let dom = rt.dom.borrow();
     let nodes = match locator {
         Some(spec) => resolve_locator(&dom, spec),

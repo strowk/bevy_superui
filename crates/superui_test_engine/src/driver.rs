@@ -308,7 +308,7 @@ fn run_one(app: &mut App, test: &RegisteredTest, opts: &RunOptions) -> TestResul
                 });
                 continue;
             }
-            match crate::matchers::evaluate(app, &e.matcher, &e.locator, &e.expected) {
+            match crate::matchers::evaluate(app.world(), &e.matcher, &e.locator, &e.expected) {
                 Ok(()) => {
                     with_ctx(app, |ctx| {
                         abi::resolve(ctx, e.id, r#"{"ok":true,"value":null}"#)
