@@ -1,7 +1,7 @@
 <div class="superui-landing"></div>
 <header class="su-lhead">
   <a class="su-brand" href="index.html">
-    <span class="su-badge">SU</span>
+    <img class="su-logo" src="logo.svg" alt="superui">
     <span class="su-word"><b>SUPERUI</b><small>BEVY GAME UI</small></span>
   </a>
   <nav class="su-lnav">

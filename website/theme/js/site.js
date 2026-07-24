@@ -21,7 +21,7 @@
     brand.className = 'su-brand';
     brand.href = root + 'index.html';
     brand.innerHTML =
-      '<span class="su-badge">SU</span>' +
+      '<img class="su-logo" src="' + root + 'logo.svg" alt="superui">' +
       '<span class="su-word"><b>SUPERUI</b><small>BEVY GAME UI</small></span>';
     const left = bar.querySelector('.left-buttons') || bar.firstElementChild;
     left.parentNode.insertBefore(brand, left.nextSibling);
