@@ -5,7 +5,7 @@ use superui_test_engine::transpile::transpile_spec;
 #[test]
 fn records_a_step_per_action() {
     let mut app = build_headless_app(&HostProject {
-        html: r#"<!doctype html><html><body><div id="root"></div></body></html>"#.into(),
+        html: r#"<html><head><link rel="stylesheet" href="style.css"><script type="module" src="app.tsx"></script></head><body><div id="root"></div></body></html>"#.into(),
         css: String::new(),
         js_or_tsx: r#"
             import { render } from "supersolid";

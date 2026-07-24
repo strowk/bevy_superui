@@ -69,7 +69,7 @@ pub fn run(cfg: &TestConfig, project: &HostProject, specs: &[PathBuf]) {
     let mut app = App::new();
     // MUST be before DefaultPlugins (AssetPlugin inside it requires custom
     // asset sources to be registered first).
-    let ui_js_path = host::register_project_assets(&mut app, project);
+    host::register_project_assets(&mut app, project);
     app.add_plugins(
         DefaultPlugins
             .set(WindowPlugin {
@@ -93,7 +93,6 @@ pub fn run(cfg: &TestConfig, project: &HostProject, specs: &[PathBuf]) {
     // can inspect the world (cameras / UI entities / layout) and screenshot it.
     #[cfg(feature = "mcp_debug")]
     app.add_plugins(bevy_brp_extras::BrpExtrasPlugin);
-    app.insert_resource(host::HostAssetPaths { js: ui_js_path });
 
     // Offscreen render target for the under-test UI + capture sink.
     let image = make_target_image(cfg.width, cfg.height);

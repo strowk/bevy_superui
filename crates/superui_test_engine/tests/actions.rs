@@ -4,7 +4,7 @@ use superui_test_engine::transpile::transpile_spec;
 
 fn project() -> HostProject {
     HostProject {
-        html: "<!doctype html><html><body><div id=\"root\"></div></body></html>".into(),
+        html: "<html><head><link rel=\"stylesheet\" href=\"style.css\"><script type=\"module\" src=\"app.tsx\"></script></head><body><div id=\"root\"></div></body></html>".into(),
         css: String::new(),
         js_or_tsx: r#"
             import { createSignal, Show, render } from "supersolid";

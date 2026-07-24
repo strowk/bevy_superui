@@ -62,7 +62,7 @@ pub fn make_target_image(width: u32, height: u32) -> Image {
 /// instead of the hand-picked headless plugin subset.
 pub fn build_render_app(project: &HostProject, width: u32, height: u32) -> App {
     let mut app = App::new();
-    let ui_js_path = host::register_project_assets(&mut app, project);
+    host::register_project_assets(&mut app, project);
 
     // Full default plugins (render + core pipeline + UI) but no window/event
     // loop — we render offscreen into an Image target instead.
@@ -96,7 +96,6 @@ pub fn build_render_app(project: &HostProject, width: u32, height: u32) -> App {
     ));
 
     app.finish();
-    app.insert_resource(host::HostAssetPaths { js: ui_js_path });
     app
 }
 

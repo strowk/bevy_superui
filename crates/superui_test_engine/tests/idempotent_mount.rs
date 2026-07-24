@@ -17,7 +17,7 @@ use superui_test_engine::host::{build_headless_app, install_abi, mount, HostProj
 
 fn minimal_project() -> HostProject {
     HostProject {
-        html: r#"<!doctype html><html><body><div id="root"></div></body></html>"#.into(),
+        html: r#"<html><head><link rel="stylesheet" href="style.css"><script type="module" src="app.tsx"></script></head><body><div id="root"></div></body></html>"#.into(),
         css: String::new(),
         js_or_tsx: r#"
             import { render } from "supersolid";

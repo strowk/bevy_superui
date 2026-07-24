@@ -10,37 +10,61 @@ use bevy::state::app::StatesPlugin;
 use bevy::text::TextPlugin;
 use bevy::ui::UiPlugin;
 use superui::prelude::{SuperUiPlugin, SuperUiRoot};
-use superui::JsSource;
+use superui::HtmlSource;
 use superui_bridge::UiRuntime;
-use superui_css::style::StyleSheet;
 
 #[derive(Clone)]
 pub struct HostProject {
+    /// Full manifest HTML (`index.html` content) — must declare `<link>` and
+    /// `<script>` that reference the CSS and JS registered in memory.
     pub html: String,
+    /// Stylesheet content (registered at `ui/style.css` and `ui/theme.css`).
     pub css: String,
+    /// JS or TSX source content (registered at `ui/app.tsx` or `ui/app.js`).
     pub js_or_tsx: String,
     pub tsx: bool,
 }
 
-/// Register the in-memory asset source for a project and return the js/tsx path
-/// that `mount()` should load. Shared by the headless and render hosts.
-pub(crate) fn register_project_assets(app: &mut App, project: &HostProject) -> String {
+/// Register the in-memory asset source for a project. Registers the manifest
+/// at `ui/index.html`, the CSS at `ui/style.css` + `ui/theme.css`, and the
+/// script at `ui/app.tsx` or `ui/app.js`. For TSX projects, the content is
+/// pre-transpiled and registered at the generated-JS path (`ui/.superui/build/app.js`)
+/// so the non-HMR mount seam (`app.tsx` → `.superui/build/app.js`) can find it.
+/// Shared by headless and render hosts.
+pub(crate) fn register_project_assets(app: &mut App, project: &HostProject) {
     let dir = Dir::new("assets".into());
     dir.insert_asset("ui/index.html".as_ref(), project.html.as_bytes().to_vec());
+    // Register under both common names so both `style.css` and `theme.css`
+    // hrefs in the manifest work without the caller needing to know which name
+    // the manifest uses.
     dir.insert_asset("ui/style.css".as_ref(), project.css.as_bytes().to_vec());
-    let ui_js_path = if project.tsx { "ui/app.tsx" } else { "ui/app.js" };
-    dir.insert_asset(ui_js_path.as_ref(), project.js_or_tsx.as_bytes().to_vec());
+    dir.insert_asset("ui/theme.css".as_ref(), project.css.as_bytes().to_vec());
+    if project.tsx {
+        // Register the raw source at `ui/app.tsx` (live-HMR path).
+        dir.insert_asset("ui/app.tsx".as_ref(), project.js_or_tsx.as_bytes().to_vec());
+        // In non-HMR builds (including all test runs) the mount seam maps
+        // `app.tsx` → `ui/.superui/build/app.js`. Pre-transpile and register
+        // the output there so the JsLoader finds it on that path.
+        let opts = supersolid::TranspileOptions {
+            tsx: true,
+            module_id: Some("ui/app.tsx".to_string()),
+            ..Default::default()
+        };
+        let result = supersolid::transpile(&project.js_or_tsx, &opts);
+        dir.insert_asset("ui/.superui/build/app.js".as_ref(), result.code.as_bytes().to_vec());
+    } else {
+        dir.insert_asset("ui/app.js".as_ref(), project.js_or_tsx.as_bytes().to_vec());
+    }
 
     app.register_asset_source(
         AssetSourceId::Default,
         AssetSource::build().with_reader(move || Box::new(MemoryAssetReader { root: dir.clone() })),
     );
-    ui_js_path.to_string()
 }
 
 pub fn build_headless_app(project: &HostProject) -> App {
     let mut app = App::new();
-    let ui_js_path = register_project_assets(&mut app, project);
+    register_project_assets(&mut app, project);
     app.add_plugins((
         bevy::time::TimePlugin,
         bevy::app::TaskPoolPlugin::default(),
@@ -55,30 +79,15 @@ pub fn build_headless_app(project: &HostProject) -> App {
     app.init_resource::<InputFocus>().init_resource::<InputFocusVisible>();
     app.add_plugins(SuperUiPlugin);
     app.finish();
-
-    // Store the js path so mount() can load the right handle type.
-    app.insert_resource(HostAssetPaths { js: ui_js_path });
     app
 }
 
-#[derive(Resource, Clone)]
-pub(crate) struct HostAssetPaths {
-    pub(crate) js: String,
-}
-
-/// Load the project's html/css/js handles and spawn a single viewport-filling
-/// `SuperUiRoot`. Does NOT pump frames — the caller (or `mount_when_ready`)
-/// drives mounting. Returns the spawned root entity.
+/// Load the entry-HTML handle and spawn a single viewport-filling `SuperUiRoot`.
+/// The mount system discovers the CSS and script from the manifest's `<head>`.
+/// Does NOT pump frames — the caller (or `mount_when_ready`) drives mounting.
+/// Returns the spawned root entity.
 pub fn spawn_root(world: &mut World) -> Entity {
-    let paths = world.resource::<HostAssetPaths>().clone();
-    let (html, css, js) = {
-        let s = world.resource::<AssetServer>().clone();
-        (
-            s.load("ui/index.html"),
-            s.load::<StyleSheet>("ui/style.css"),
-            s.load::<JsSource>(paths.js.clone()),
-        )
-    };
+    let html = world.resource::<AssetServer>().load::<HtmlSource>("ui/index.html");
     // The root MUST fill the viewport: game_menu (and similar UIs) have a
     // `#root`/`.stage` tree with `100%`/`inset:0`/`position:absolute` children
     // that collapse to zero against an auto-sized root, producing BLANK
@@ -90,10 +99,16 @@ pub fn spawn_root(world: &mut World) -> Entity {
                 height: Val::Percent(100.0),
                 ..default()
             },
-            SuperUiRoot { html, css, js },
+            SuperUiRoot { html },
         ))
         .id()
 }
+
+/// Kept for callers that reference it (e.g. `ui_mode.rs`). With the manifest
+/// model the js path is discovered from the entry HTML; this resource is a no-op
+/// placeholder for backward compat until all callers are updated.
+#[derive(Resource, Clone, Default)]
+pub(crate) struct HostAssetPaths;
 
 pub fn mount(app: &mut App) -> Entity {
     // Idempotency guard: if a UiRuntime is already present the UI has already

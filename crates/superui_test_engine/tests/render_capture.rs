@@ -8,7 +8,7 @@ use superui_test_engine::render;
 
 fn fixture() -> HostProject {
     HostProject {
-        html: "<!doctype html><html><body><div id=\"root\"></div></body></html>".into(),
+        html: "<html><head><link rel=\"stylesheet\" href=\"style.css\"><script type=\"module\" src=\"app.tsx\"></script></head><body><div id=\"root\"></div></body></html>".into(),
         css: "#box{width:200px;height:150px;background-color:#ff0000;}".into(),
         js_or_tsx: r#"import { render } from "supersolid";
 render(() => <div id="box"></div>, document.getElementById("root"));"#
