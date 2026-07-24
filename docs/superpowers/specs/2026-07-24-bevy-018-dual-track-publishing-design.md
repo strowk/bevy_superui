@@ -181,6 +181,41 @@ Make every deviation from upstream flair explicit and machine-findable so we can
   binaries; the CLI is tiny (`serde`/`serde_json` only) so source builds are
   fast. Once published, drop the `publish = false` and it installs from crates.io.
 
+### 7a. CLI ↔ project version alignment
+
+The CLI does **not** carry the editor types. `cargo superui install` runs
+`cargo metadata` on the *user's* project, finds the resolved `supersolid` /
+`superui` packages, and copies the `.d.ts` bundled inside **those exact crate
+versions** (`find_module_dts` in `crates/cargo-superui/src/lib.rs`) into
+`superui_modules/`. So the projected types are aligned to whatever superui
+version the project resolves to — a 0.17-track project gets 0.17 types, a
+0.18-track project gets 0.18 types — regardless of which CLI is installed.
+
+**Design invariant (committed):** the CLI stays forward/backward compatible
+across tracks. It keys its output off the project's resolved dependency, and
+tolerates versions that ship a different module set — a missing **optional**
+module is skipped, only a missing **required** module errors (the existing
+`required` flag on `projected_modules()`). Add a test that the CLI installs
+cleanly against a project whose resolved superui version ships no optional
+module. Consequence: **one global `cargo install cargo-superui` serves projects
+on any track**, and per-project pinning is unnecessary for correctness *today*.
+
+**Why we still document pinning:** the "any CLI version works" property is not
+guaranteed for all future versions — CLI logic may eventually have to diverge
+per track. When that day comes, users who juggle projects on different bevy /
+superui versions need a way to lock a matching CLI. Two escape hatches, both
+zero new infra (cargo-superui is workspace-version-locked, so 0.1.x is the
+0.17-track CLI and 0.2.x the 0.18-track CLI):
+
+- **Track-matched global install:** `cargo install cargo-superui@0.1` (or `@0.2`).
+- **Hard per-project pin:** add `[package.metadata.bin] cargo-superui = "0.1.0"`
+  to the project's `Cargo.toml` and run it via `cargo bin cargo-superui install`
+  (the [`cargo-run-bin`](https://crates.io/crates/cargo-run-bin) tool). Pins the
+  CLI byte-for-byte alongside the project's other deps.
+
+Document these in a short "Pinning the CLI" note in the getting-started / CLI
+docs. Default guidance remains the plain global install.
+
 ### 8. Compatibility table (README + website)
 
 Canonical table shape:
