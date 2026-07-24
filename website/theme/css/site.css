@@ -170,10 +170,12 @@ body:has(.superui-landing) #content main {
   font-size: 11px; color: var(--su-muted); white-space: nowrap; margin-right: 4px; }
 .su-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--su-amber);
   box-shadow: 0 0 8px var(--su-amber); animation: su-pulse 2.4s ease-in-out infinite; }
-.su-gh { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.06em;
-  color: var(--su-text); border: 1px solid rgba(205,216,230,0.22); padding: 6px 12px;
+.su-gh { display: inline-flex; align-items: center; gap: 7px;
+  font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.06em;
+  color: var(--su-text) !important; border: 1px solid rgba(205,216,230,0.22); padding: 6px 12px;
   border-radius: 6px; text-decoration: none; white-space: nowrap; }
 .su-gh:hover { border-color: rgba(52,230,214,0.5); color: var(--su-teal-light); }
+.su-gh svg { flex: none; display: block; }
 
 /* ============ footer ============ */
 .su-footer, #content .su-footer { border-top: 1px solid rgba(52,230,214,0.14);
@@ -204,7 +206,10 @@ body:has(.superui-landing) #content main {
    too, so they never overlap the content. 308px = --sidebar-width (300) + padding,
    the offset mdBook gives .page-wrapper when the sidebar is visible. */
 :root { --su-app-max: 1600px; --su-gutter: max(0px, calc((100vw - var(--su-app-max)) / 2)); }
-body:not(:has(.superui-landing)) #sidebar { left: var(--su-gutter); }
+/* Only shift the sidebar by the gutter while it's visible: when collapsed, mdBook
+   slides it off by its own width (-300px), which wouldn't clear the gutter offset,
+   leaving a sliver (and the resize handle) on-screen. Default left:0 when hidden. */
+body:not(:has(.superui-landing)).sidebar-visible #sidebar { left: var(--su-gutter); }
 /* Use the #page-wrapper id: mdBook sets its margin via an id selector that would
    otherwise out-specify a .page-wrapper class rule (leaving the header stranded). */
 body:not(:has(.superui-landing)) #page-wrapper { margin-right: var(--su-gutter); }
