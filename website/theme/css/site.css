@@ -82,17 +82,6 @@ body::before {
   * { animation-duration: 0s !important; animation-iteration-count: 1 !important; }
 }
 
-/* --- superui palette (overrides mdBook 'navy' variables) --- */
-:root, .navy {
-  --bg: #1e1e28;
-  --fg: #e6e6ef;
-  --sidebar-bg: #262633;
-  --sidebar-fg: #e6e6ef;
-  --sidebar-active: #7c6cff;
-  --links: #a99bff;
-  --sidebar-non-existant: #6a6a80;
-}
-
 /* --- chrome-light landing: hide sidebar + top bar on the landing only --- */
 body:has(.superui-landing) #sidebar,
 body:has(.superui-landing) .sidebar,
@@ -141,3 +130,47 @@ body:has(.superui-landing) #content main {
 .card .card-desc { margin: 0; color: #9a9ab0; font-size: 14px; line-height: 1.45; }
 .badges { margin-top: 10px; display: flex; gap: 6px; flex-wrap: wrap; }
 .badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #3a3358; color: #d8d2ff; }
+
+/* ============ header (reskinned mdBook menu-bar) ============ */
+#menu-bar, .menu-bar {
+  background: rgba(8, 11, 18, 0.72);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid rgba(52, 230, 214, 0.18);
+}
+.menu-bar .icon-button { color: var(--su-muted); }
+.menu-bar .icon-button:hover { color: var(--su-teal-light); }
+/* single dark theme: hide the theme picker */
+#theme-toggle, .menu-bar #theme-toggle, #theme-list { display: none !important; }
+/* our brand replaces the book title; our GITHUB link replaces the default git icon */
+#menu-bar .menu-title { display: none; }
+#git-repository-button { display: none !important; }
+
+.su-brand { display: inline-flex; align-items: center; gap: 12px; text-decoration: none;
+  margin: 0 8px 0 6px; }
+.su-badge { width: 30px; height: 30px; display: grid; place-items: center;
+  font-family: var(--font-mono); font-weight: 700; font-size: 13px; color: var(--su-teal-light);
+  background: linear-gradient(135deg, rgba(52,230,214,0.22), rgba(52,230,214,0.04));
+  border: 1px solid rgba(52,230,214,0.55);
+  clip-path: polygon(22% 0, 100% 0, 100% 78%, 78% 100%, 0 100%, 0 22%);
+  box-shadow: 0 0 18px rgba(52,230,214,0.35), inset 0 0 12px rgba(52,230,214,0.15); }
+.su-word { line-height: 1; display: inline-flex; flex-direction: column; }
+.su-word b { font-family: var(--font-display); font-weight: 700; font-size: 17px;
+  letter-spacing: 0.16em; color: var(--su-heading); }
+.su-word small { font-family: var(--font-mono); font-size: 8px; letter-spacing: 0.34em;
+  color: var(--su-muted-dim); margin-top: 3px; }
+
+.su-chip { display: inline-flex; align-items: center; gap: 8px; font-family: var(--font-mono);
+  font-size: 11px; color: var(--su-muted); white-space: nowrap; margin-right: 4px; }
+.su-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--su-amber);
+  box-shadow: 0 0 8px var(--su-amber); animation: su-pulse 2.4s ease-in-out infinite; }
+.su-gh { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.06em;
+  color: var(--su-text); border: 1px solid rgba(205,216,230,0.22); padding: 6px 12px;
+  border-radius: 6px; text-decoration: none; white-space: nowrap; }
+.su-gh:hover { border-color: rgba(52,230,214,0.5); color: var(--su-teal-light); }
+
+/* ============ footer ============ */
+.su-footer, #content .su-footer { border-top: 1px solid rgba(52,230,214,0.14);
+  padding: 22px 26px; display: flex; align-items: center; gap: 14px;
+  font-family: var(--font-mono); font-size: 11px; color: var(--su-muted-dim); }
+.su-footer .su-f-brand { color: var(--su-teal); }
+.su-footer .su-f-right { margin-left: auto; }
