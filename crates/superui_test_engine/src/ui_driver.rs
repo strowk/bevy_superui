@@ -66,6 +66,12 @@ enum Phase {
     Mounting,
     /// Stepping the current test's command loop.
     Running,
+    /// The current test just finished; the UI is still mounted and the offscreen
+    /// camera is rendering its final state. Capture ONE clean frame for this
+    /// test (doing it here, between tests, avoids racing the screenshot matcher
+    /// which often catches a pre-render gray frame mid-run). `waited` counts
+    /// frames polling the capture sink before giving up.
+    CapturingFrame { waited: usize },
     Done,
 }
 
@@ -99,12 +105,11 @@ pub struct RunState {
     current: usize,
     work: Option<TestWork>,
     pub results: Vec<TestResult>,
-    /// Frames since the last live-preview capture kick.
-    preview_cooldown: usize,
-    /// Latest preview frame ready for the egui pane (width, height, rgba).
-    preview: Option<(u32, u32, Vec<u8>)>,
-    /// True while a preview capture is in flight (avoid overlapping requests).
-    preview_inflight: bool,
+    /// Final rendered frame captured at the end of each test (index parallels
+    /// `results`), so the egui pane can show the frame for the SELECTED test
+    /// rather than a single whole-run frame. `None` = capture unavailable
+    /// (headless) or timed out.
+    pub test_frames: Vec<Option<(u32, u32, Vec<u8>)>>,
 }
 
 impl RunState {
@@ -120,6 +125,7 @@ impl RunState {
                 self.current + 1,
                 self.tests.len().max(1)
             ),
+            Phase::CapturingFrame { .. } => "capturing frame\u{2026}".to_string(),
             Phase::Done => format!("done ({} tests)", self.results.len()),
         }
     }
@@ -152,9 +158,7 @@ pub fn start_run(
         current: 0,
         work: None,
         results: Vec::new(),
-        preview_cooldown: 0,
-        preview: None,
-        preview_inflight: false,
+        test_frames: Vec::new(),
     }
 }
 
@@ -163,9 +167,28 @@ pub fn step(world: &mut World, run: &mut RunState) {
     match run.phase {
         Phase::Mounting => step_mounting(world, run),
         Phase::Running => step_running(world, run),
+        Phase::CapturingFrame { .. } => step_capturing_frame(world, run),
         Phase::Done => {}
     }
-    drive_preview(world, run);
+}
+
+/// Poll the capture sink for the just-finished test's clean frame, store it in
+/// `test_frames`, then advance to the next test (or `Done`).
+fn step_capturing_frame(world: &mut World, run: &mut RunState) {
+    let sink = world.resource::<crate::render::CaptureSink>().0.clone();
+    if let Some(img) = sink.lock().unwrap().take() {
+        run.test_frames.push(Some((img.width, img.height, img.rgba)));
+        advance_after_test(world, run);
+        return;
+    }
+    if let Phase::CapturingFrame { waited } = &mut run.phase {
+        *waited += 1;
+        if *waited > SCREENSHOT_CAPTURE_TIMEOUT_FRAMES {
+            // Capture never fired: record no frame for this test and move on.
+            run.test_frames.push(None);
+            advance_after_test(world, run);
+        }
+    }
 }
 
 fn step_mounting(world: &mut World, run: &mut RunState) {
@@ -436,44 +459,6 @@ fn step_running(world: &mut World, run: &mut RunState) {
     }
 }
 
-fn drive_preview(world: &mut World, run: &mut RunState) {
-    // Poll for a completed preview frame first.
-    if run.preview_inflight {
-        let sink = world.resource::<crate::render::CaptureSink>().0.clone();
-        if let Some(img) = sink.lock().unwrap().take() {
-            run.preview = Some((img.width, img.height, img.rgba));
-            run.preview_inflight = false;
-        }
-        return;
-    }
-    // Don't fight a screenshot-matcher capture for the sink.
-    let busy = run
-        .work
-        .as_ref()
-        .map(|w| w.capturing.is_some())
-        .unwrap_or(false);
-    if busy || !run.opts.render {
-        return;
-    }
-    if run.preview_cooldown > 0 {
-        run.preview_cooldown -= 1;
-        return;
-    }
-    let handle = world.resource::<crate::render::RenderTargetHandle>().0.clone();
-    let sink = world.resource::<crate::render::CaptureSink>().0.clone();
-    crate::render::spawn_screenshot(world, handle, sink);
-    run.preview_inflight = true;
-    run.preview_cooldown = 10; // re-capture roughly every ~10 frames
-}
-
-impl RunState {
-    /// Latest live-preview frame, consumed once (the egui pane re-registers a
-    /// texture only when a new frame arrives).
-    pub fn take_preview(&mut self) -> Option<(u32, u32, Vec<u8>)> {
-        self.preview.take()
-    }
-}
-
 enum TestOutcome {
     Passed,
     Error(String),
@@ -487,11 +472,31 @@ fn finish_current_test(world: &mut World, run: &mut RunState, outcome: TestOutco
     };
     run.results.push(TestResult { name: work.name, passed, error, steps: work.steps });
 
+    if run.opts.render {
+        // Capture THIS test's final frame now: the UI is mounted and the
+        // offscreen camera is rendering its end state, and no screenshot matcher
+        // is competing for the sink — so the frame reliably shows the finished UI
+        // (unlike mid-run captures, which race the matcher / catch a pre-render
+        // gray frame). Resolved by `step_capturing_frame`, which then advances.
+        let handle = world.resource::<crate::render::RenderTargetHandle>().0.clone();
+        let sink = world.resource::<crate::render::CaptureSink>().0.clone();
+        crate::render::spawn_screenshot(world, handle, sink);
+        run.phase = Phase::CapturingFrame { waited: 0 };
+    } else {
+        // Headless: no pixels available; keep `test_frames` aligned with `results`.
+        run.test_frames.push(None);
+        advance_after_test(world, run);
+    }
+}
+
+/// Move to the next test (or `Done`) after the current test's frame is recorded.
+fn advance_after_test(world: &mut World, run: &mut RunState) {
     run.current += 1;
     if run.current >= run.tests.len() {
         run.phase = Phase::Done;
     } else {
         begin_test(world, run);
+        run.phase = Phase::Running;
     }
 }
 

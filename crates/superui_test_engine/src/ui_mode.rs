@@ -53,9 +53,12 @@ struct UiState {
     current_spec_name: Option<String>,
     status_line: String,
 
-    frame_texture: Option<egui::TextureId>,
-    frame_handle: Option<Handle<Image>>,
-    frame_size: (u32, u32),
+    /// Per-test rendered frame, registered as an egui texture (index parallels
+    /// `last_results`). `None` = no frame captured for that test. The central
+    /// panel shows the entry for `selected_test`.
+    frame_textures: Vec<Option<(egui::TextureId, (u32, u32))>>,
+    /// Kept alive so egui's referenced image assets aren't dropped.
+    frame_handles: Vec<Handle<Image>>,
 }
 
 /// Entity of the offscreen camera the under-test UI renders into.
@@ -67,16 +70,29 @@ pub fn run(cfg: &TestConfig, project: &HostProject, specs: &[PathBuf]) {
     // MUST be before DefaultPlugins (AssetPlugin inside it requires custom
     // asset sources to be registered first).
     let ui_js_path = host::register_project_assets(&mut app, project);
-    app.add_plugins(DefaultPlugins.set(WindowPlugin {
-        primary_window: Some(Window {
-            title: "superui test — UI mode".to_string(),
-            resolution: (1400u32, 900u32).into(),
-            ..default()
-        }),
-        ..default()
-    }));
+    app.add_plugins(
+        DefaultPlugins
+            .set(WindowPlugin {
+                primary_window: Some(Window {
+                    title: "superui test — UI mode".to_string(),
+                    resolution: (1400u32, 900u32).into(),
+                    ..default()
+                }),
+                ..default()
+            })
+            // The offscreen under-test camera is captured via `Screenshot::image`.
+            // Pipelined rendering runs the render sub-app a frame behind on a
+            // worker thread; the render-to-image + screenshot readback path used
+            // by our headless render host is only exercised without it (see
+            // `render::build_render_app`). Disable it here too for parity.
+            .disable::<bevy::render::pipelined_rendering::PipelinedRenderingPlugin>(),
+    );
     app.add_plugins(EguiPlugin::default());
     app.add_plugins(superui::prelude::SuperUiPlugin);
+    // Opt-in (`--features mcp_debug`): expose the runner over BRP so bevy_brp_mcp
+    // can inspect the world (cameras / UI entities / layout) and screenshot it.
+    #[cfg(feature = "mcp_debug")]
+    app.add_plugins(bevy_brp_extras::BrpExtrasPlugin);
     app.insert_resource(host::HostAssetPaths { js: ui_js_path });
 
     // Offscreen render target for the under-test UI + capture sink.
@@ -101,15 +117,38 @@ pub fn run(cfg: &TestConfig, project: &HostProject, specs: &[PathBuf]) {
         error: None,
         current_spec_name: None,
         status_line: String::new(),
-        frame_texture: None,
-        frame_handle: None,
-        frame_size: (0, 0),
+        frame_textures: Vec::new(),
+        frame_handles: Vec::new(),
     });
 
     app.add_systems(Startup, setup_cameras);
     app.add_systems(EguiPrimaryContextPass, ui_system);
     app.add_systems(Last, run_stepper);
+    // Env-gated headless self-run: `SUPERUI_UI_AUTORUN=1` auto-triggers a Run of
+    // the first spec shortly after launch (useful for smoke tests / driving the
+    // window from a screenshot tool without a manual click).
+    app.init_resource::<AutoRun>();
+    app.add_systems(Update, auto_run_first_spec);
     app.run();
+}
+
+#[derive(Resource, Default)]
+struct AutoRun {
+    frames: u32,
+    triggered: bool,
+}
+
+/// When `SUPERUI_UI_AUTORUN=1`, click "Run" on the first spec after ~90 frames
+/// (enough for the window + assets to settle). No-op otherwise.
+fn auto_run_first_spec(mut auto: ResMut<AutoRun>, mut state: ResMut<UiState>) {
+    if auto.triggered || std::env::var("SUPERUI_UI_AUTORUN").is_err() {
+        return;
+    }
+    auto.frames += 1;
+    if auto.frames >= 90 && !state.specs.is_empty() {
+        state.pending_run = Some(0);
+        auto.triggered = true;
+    }
 }
 
 /// Spawn the egui window camera and the offscreen under-test camera.
@@ -176,20 +215,27 @@ fn run_stepper(world: &mut World) {
         ui_driver::step(world, &mut run);
 
         // Publish progress + results to UiState.
+        let done = run.is_done();
         {
             let mut s = world.resource_mut::<UiState>();
             s.status_line = run.progress_label();
-            if run.is_done() {
+            if done {
                 s.last_results = run.results.clone();
+                // Point the time-travel slider at the LAST step of the first
+                // test (the finished state), not step 0.
+                s.selected_test = 0;
+                s.selected_step = s
+                    .last_results
+                    .first()
+                    .map(|t| t.steps.len().saturating_sub(1))
+                    .unwrap_or(0);
             }
         }
 
-        // Register a fresh preview frame if one arrived.
-        if let Some((w, h, rgba)) = run.take_preview() {
-            register_preview(world, w, h, rgba);
-        }
-
-        if !run.is_done() {
+        if done {
+            // Register each test's captured frame as an egui texture.
+            register_test_frames(world, &run.test_frames);
+        } else {
             world.non_send_resource_mut::<ActiveRun>().0 = Some(run);
         }
     }
@@ -221,36 +267,48 @@ fn start_run_from_spec(
     Ok(ui_driver::start_run(world, Some(cam), js, file.to_string(), opts))
 }
 
-/// Register a captured RGBA frame as an egui texture, releasing the previous one.
+/// Register each test's captured RGBA frame as an egui texture, releasing any
+/// previously registered ones. `frames` is indexed per test (parallel to
+/// `last_results`); a `None` entry becomes a `None` texture slot.
 ///
 /// Uses `EguiUserTextures` (a normal `Resource`) directly rather than driving
 /// `SystemState<EguiContexts>` from an exclusive system, which avoids lifetime
 /// issues with the world borrow.  `EguiContexts::add_image` is just a thin
 /// proxy to `EguiUserTextures::add_image`, so the result is identical.
-fn register_preview(world: &mut World, w: u32, h: u32, rgba: Vec<u8>) {
-    if rgba.is_empty() {
-        return;
-    }
-    // Build the Image asset.
-    let size = Extent3d { width: w, height: h, depth_or_array_layers: 1 };
-    let image = Image::new(size, TextureDimension::D2, rgba, TextureFormat::Rgba8UnormSrgb, RenderAssetUsages::default());
-    let handle = world.resource_mut::<Assets<Image>>().add(image);
-
-    // Release the previous egui texture registration.
-    let old = world.resource_mut::<UiState>().frame_handle.take();
-    if let Some(ref old_handle) = old {
-        world.resource_mut::<EguiUserTextures>().remove_image(old_handle);
+fn register_test_frames(world: &mut World, frames: &[Option<(u32, u32, Vec<u8>)>]) {
+    // Release the previous egui texture registrations.
+    let old_handles = std::mem::take(&mut world.resource_mut::<UiState>().frame_handles);
+    for old in &old_handles {
+        world.resource_mut::<EguiUserTextures>().remove_image(old);
     }
 
-    // Register the new frame with egui directly via EguiUserTextures.
-    let new_tex = world
-        .resource_mut::<EguiUserTextures>()
-        .add_image(EguiTextureHandle::Strong(handle.clone()));
+    let mut textures: Vec<Option<(egui::TextureId, (u32, u32))>> = Vec::with_capacity(frames.len());
+    let mut handles: Vec<Handle<Image>> = Vec::new();
+    for frame in frames {
+        match frame {
+            Some((w, h, rgba)) if !rgba.is_empty() => {
+                let size = Extent3d { width: *w, height: *h, depth_or_array_layers: 1 };
+                let image = Image::new(
+                    size,
+                    TextureDimension::D2,
+                    rgba.clone(),
+                    TextureFormat::Rgba8UnormSrgb,
+                    RenderAssetUsages::default(),
+                );
+                let handle = world.resource_mut::<Assets<Image>>().add(image);
+                let tex = world
+                    .resource_mut::<EguiUserTextures>()
+                    .add_image(EguiTextureHandle::Strong(handle.clone()));
+                handles.push(handle);
+                textures.push(Some((tex, (*w, *h))));
+            }
+            _ => textures.push(None),
+        }
+    }
 
     let mut s = world.resource_mut::<UiState>();
-    s.frame_texture = Some(new_tex);
-    s.frame_handle = Some(handle);
-    s.frame_size = (w, h);
+    s.frame_textures = textures;
+    s.frame_handles = handles;
 }
 
 fn ui_system(mut contexts: EguiContexts, mut state: ResMut<UiState>) -> Result {
@@ -347,8 +405,13 @@ fn ui_system(mut contexts: EguiContexts, mut state: ResMut<UiState>) -> Result {
         });
 
     // ---- CENTRAL: frame image + time-travel + DOM ------------------------
-    let frame_texture = state.frame_texture;
-    let frame_size = state.frame_size;
+    // The rendered frame for the SELECTED test (captured before the closure
+    // borrows `state` mutably; a tab switch this frame applies next frame).
+    let sel_frame = state
+        .frame_textures
+        .get(state.selected_test)
+        .copied()
+        .flatten();
     let current_spec_name = state.current_spec_name.clone();
     let n_tests = state.last_results.len();
 
@@ -375,13 +438,15 @@ fn ui_system(mut contexts: EguiContexts, mut state: ResMut<UiState>) -> Result {
             ui.separator();
         }
 
-        if let Some(tex) = frame_texture {
-            let (w, h) = frame_size;
+        if let Some((tex, (w, h))) = sel_frame {
             let max_w = ui.available_width().min(640.0).max(64.0);
             let scale = if w > 0 { max_w / w as f32 } else { 1.0 };
             let size = egui::vec2(w as f32 * scale, h as f32 * scale);
-            ui.label("Live rendered frame:");
+            ui.label("Rendered frame (selected test):");
             ui.image(egui::load::SizedTexture::new(tex, size));
+            ui.separator();
+        } else if !state.last_results.is_empty() {
+            ui.label("(no rendered frame for this test)");
             ui.separator();
         }
 

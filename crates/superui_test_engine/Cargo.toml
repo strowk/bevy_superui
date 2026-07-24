@@ -4,9 +4,14 @@ version = "0.1.0"
 edition = "2021"
 publish = false
 
+[features]
+# Expose the `--ui` runner over BRP so bevy_brp_mcp can inspect/screenshot it.
+mcp_debug = ["dep:bevy_brp_extras", "bevy/bevy_remote"]
+
 [dependencies]
 bevy = { version = "0.17" }
 bevy_egui = "0.37"
+bevy_brp_extras = { version = "0.17.3", optional = true }
 superui = { path = "../superui" }
 superui_bridge = { path = "../superui_bridge" }
 superui_dom = { path = "../superui_dom" }
