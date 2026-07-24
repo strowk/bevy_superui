@@ -48,6 +48,38 @@ fn with_ctx<R>(app: &mut bevy::prelude::App, f: impl FnOnce(&mut boa_engine::Con
 }
 
 #[test]
+fn teardown_then_remount_produces_fresh_runtime() {
+    use superui_test_engine::host::teardown;
+
+    let mut app = build_headless_app(&minimal_project());
+
+    // First mount.
+    mount(&mut app);
+    assert!(app.world().contains_non_send::<UiRuntime>());
+    assert_eq!(count_super_ui_roots(&mut app), 1);
+
+    // Tear down: no runtime, no roots.
+    teardown(app.world_mut());
+    assert!(
+        !app.world().contains_non_send::<UiRuntime>(),
+        "teardown must remove UiRuntime"
+    );
+    assert_eq!(
+        count_super_ui_roots(&mut app),
+        0,
+        "teardown must despawn the SuperUiRoot"
+    );
+
+    // Remount: a brand-new root + runtime appear.
+    mount(&mut app);
+    assert!(
+        app.world().contains_non_send::<UiRuntime>(),
+        "remount must rebuild UiRuntime"
+    );
+    assert_eq!(count_super_ui_roots(&mut app), 1, "exactly one root after remount");
+}
+
+#[test]
 fn double_mount_does_not_spawn_extra_root() {
     let mut app = build_headless_app(&minimal_project());
 

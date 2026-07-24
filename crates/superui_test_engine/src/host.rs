@@ -66,6 +66,35 @@ pub(crate) struct HostAssetPaths {
     pub(crate) js: String,
 }
 
+/// Load the project's html/css/js handles and spawn a single viewport-filling
+/// `SuperUiRoot`. Does NOT pump frames — the caller (or `mount_when_ready`)
+/// drives mounting. Returns the spawned root entity.
+pub fn spawn_root(world: &mut World) -> Entity {
+    let paths = world.resource::<HostAssetPaths>().clone();
+    let (html, css, js) = {
+        let s = world.resource::<AssetServer>().clone();
+        (
+            s.load("ui/index.html"),
+            s.load::<StyleSheet>("ui/style.css"),
+            s.load::<JsSource>(paths.js.clone()),
+        )
+    };
+    // The root MUST fill the viewport: game_menu (and similar UIs) have a
+    // `#root`/`.stage` tree with `100%`/`inset:0`/`position:absolute` children
+    // that collapse to zero against an auto-sized root, producing BLANK
+    // screenshots. Filling the viewport is harmless for the headless DOM tests.
+    world
+        .spawn((
+            Node {
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                ..default()
+            },
+            SuperUiRoot { html, css, js },
+        ))
+        .id()
+}
+
 pub fn mount(app: &mut App) -> Entity {
     // Idempotency guard: if a UiRuntime is already present the UI has already
     // been mounted.  Return the existing SuperUiRoot entity rather than
@@ -77,35 +106,10 @@ pub fn mount(app: &mut App) -> Entity {
         }
         // Degenerate: runtime exists but root entity is gone/ambiguous.
         // Fall through to the normal spawn path so the caller always gets a
-        // valid entity back (mount_when_ready won't re-init because the
-        // runtime guard in that system returns early when UiRuntime exists).
+        // valid entity back.
     }
 
-    let paths = app.world().resource::<HostAssetPaths>().clone();
-    let (html, css, js) = {
-        let s = app.world().resource::<AssetServer>().clone();
-        (
-            s.load("ui/index.html"),
-            s.load::<StyleSheet>("ui/style.css"),
-            s.load::<JsSource>(paths.js.clone()),
-        )
-    };
-    // The root MUST fill the viewport: game_menu (and similar UIs) have a
-    // `#root`/`.stage` tree with `100%`/`inset:0`/`position:absolute` children
-    // that collapse to zero against an auto-sized root, producing BLANK
-    // screenshots. Filling the viewport is harmless for the headless DOM tests
-    // (they don't inspect layout).
-    let root = app
-        .world_mut()
-        .spawn((
-            Node {
-                width: Val::Percent(100.0),
-                height: Val::Percent(100.0),
-                ..default()
-            },
-            SuperUiRoot { html, css, js },
-        ))
-        .id();
+    let root = spawn_root(app.world_mut());
     for _ in 0..256 {
         app.update();
         if app.world().contains_non_send::<UiRuntime>() {
@@ -113,6 +117,20 @@ pub fn mount(app: &mut App) -> Entity {
         }
     }
     root
+}
+
+/// Reset the mounted UI: despawn every `SuperUiRoot` (and its descendants) and
+/// remove the `UiRuntime`, so the next `mount_when_ready` rebuilds a fresh DOM.
+/// Used by the `--ui` stepper to give each Run isolated state.
+pub fn teardown(world: &mut World) {
+    let roots: Vec<Entity> = {
+        let mut q = world.query::<(Entity, &SuperUiRoot)>();
+        q.iter(world).map(|(e, _)| e).collect()
+    };
+    for root in roots {
+        world.entity_mut(root).despawn();
+    }
+    world.remove_non_send_resource::<UiRuntime>();
 }
 
 pub fn tick(app: &mut App, n: usize) {
