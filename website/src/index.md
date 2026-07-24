@@ -1,5 +1,4 @@
 <div class="superui-landing"></div>
-
 <header class="su-lhead">
   <a class="su-brand" href="index.html">
     <span class="su-badge">SU</span>
@@ -15,7 +14,6 @@
     <a class="su-gh" href="https://github.com/strowk/bevy_superui" target="_blank" rel="noopener">GITHUB ↗</a>
   </div>
 </header>
-
 <main class="su-landing-main">
   <div class="su-hero">
     <div class="su-hero-text">
@@ -28,7 +26,6 @@
         <a class="su-btn su-btn-ghost" href="examples/">SEE EXAMPLES</a>
       </div>
     </div>
-
     <div class="su-card su-code-card">
       <div class="su-card-bar">
         <span class="su-tl su-tl-r"></span><span class="su-tl su-tl-a"></span><span class="su-tl su-tl-t"></span>
@@ -54,7 +51,6 @@
       </div>
     </div>
   </div>
-
   <div class="su-features">
     <div class="su-feature"><div class="su-f-tag">01 // DOM</div><h3>Web stack</h3>
       <p>Author UI in plain HTML, CSS and JavaScript, running natively on bevy_ui.</p></div>
@@ -65,14 +61,12 @@
     <div class="su-feature"><div class="su-f-tag">04 // API</div><h3>Familiar APIs</h3>
       <p>A browser-like DOM/CSS surface. Reuse the web knowledge you already have.</p></div>
   </div>
-
   <div class="su-banner">
     <span class="su-banner-chip">⚠ EARLY BUILD</span>
     <p>superui is in very early development and largely AI-generated; APIs are in flux.
        Explore the working <a href="examples/">examples</a>.</p>
   </div>
 </main>
-
 <footer class="su-footer su-lfoot">
   <span class="su-f-brand">SUPERUI</span><span>// build a12f · 2026</span>
   <span class="su-f-right">MIT / APACHE-2.0 · MADE FOR BEVY</span>
