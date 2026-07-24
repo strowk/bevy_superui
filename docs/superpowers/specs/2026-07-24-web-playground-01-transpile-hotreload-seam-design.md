@@ -52,9 +52,12 @@ Ordering: **boilerplate Model 2 → A → B → C.**
   `game_menu`, `citadel`, `horde`). The one classic HTML/JS demo (`todomvc`) gets the
   **same example page**, minus the Run button — a static build, exactly like today. (The
   page shell in B is universal; only the editable/Run wiring is capability-gated.)
-- **Apply edits via state-preserving HMR**, reusing the native hot-reload seam (not a full
-  remount). This is the whole point — the web playground and native `--features hmr` must
-  exercise the same rehydration path so they cannot drift.
+- **All three authored file kinds are live-editable**, each reusing the native seam's
+  existing branch: `.tsx` → **state-preserving** reactive reload; `.css` → **live restyle**
+  (flair re-cascade); `index.html` → **full remount** (state lost — Model 2's deliberate,
+  rare-case behavior). The `.tsx` state-preserving path is the whole point — the web
+  playground and native `--features hmr` must exercise the same rehydration path so they
+  cannot drift.
 - **Run button applies edits; first load auto-runs.** A playground build loads its
   `app.tsx` **live** — the initial mount transpiles it in-browser via `TsxLoader` (the same
   `.tsx` the editor shows and the user edits), so there is a single source of truth and no
@@ -70,10 +73,6 @@ Ordering: **boilerplate Model 2 → A → B → C.**
 ## Non-goals
 
 - The real playground UI (file tree / editor / console / tabs / expand) — that is **B**.
-- **CSS/HTML live-edit wiring.** The same seam covers them (a `.css` edit restyles via
-  flair's `StyleSheet` asset watching; an `index.html` edit rides Model 2's full remount),
-  but CSS needs parsing edited text into a flair `StyleSheet` (not a raw-string swap), and
-  neither is needed to prove the reactive-TSX path. Wired in a later slice.
 - Multi-demo rollout, per-demo source bundling, CI changes — that is **C**.
 - Module resolution / multi-file imports, `console.log` streaming, multiple stylesheets.
 
@@ -143,7 +142,8 @@ watch-item for the larger demos in **C**.
 A small wasm-only crate — the "browser watcher." Isolated in its own crate so it is pulled
 in **only** for website playground builds; a normal demo build never sees it (and never
 sees oxc). Depends on `superui` (features `transpiler`, `hmr`), `supersolid` (for the
-transpile call), `bevy`, `wasm-bindgen`.
+transpile call), `superui_css` (for flair's `InlineCssStyleSheetParser`, to parse edited
+CSS text into a `StyleSheet`), `bevy`, `wasm-bindgen`.
 
 ### Exported (wasm-bindgen) JS API — the contract handed to B
 
@@ -161,23 +161,40 @@ poll_diagnostics() -> String
 
 `apply_source` classifies by extension:
 
-- `.tsx` / `.ts` → `supersolid::transpile(src, opts)`; return `{ok, diagnostics}` now;
-  enqueue `Edit::Js(transpiled_code)`.
-- `.css` → enqueue `Edit::Css(src)` *(wiring deferred — see Non-goals)*.
-- the entry `.html` → enqueue `Edit::Html(src)` *(wiring deferred — rides Model 2 remount)*.
+- `.tsx` / `.ts` → `supersolid::transpile(src, opts)` (needs no `World`, so it runs *in the
+  export*); return `{ok, diagnostics}` **now**; enqueue `Edit::Js(transpiled_code)`.
+- `.css` → enqueue `Edit::Css(src)`. Parsing needs flair registries (a `SystemParam`), so
+  it happens in the drain system next frame; CSS **parse diagnostics** therefore arrive via
+  `poll_diagnostics`, not synchronously. `apply_source` returns `{ok: true}` (queued).
+- the entry `.html` → enqueue `Edit::Html(src)`; returns `{ok: true}` (queued). Applying it
+  is a **full remount** (state lost) — Model 2's deliberate behavior for HTML edits.
+
+So `apply_source`'s synchronous return carries TSX transpile diagnostics; CSS parse errors
+and JS runtime errors both flow through `poll_diagnostics`.
 
 ### Internals
 
-- `thread_local! { static QUEUE: RefCell<Vec<Edit>> }`. wasm is single-threaded, so the
+- `thread_local! { static QUEUE: RefCell<Vec<Edit>> }` where
+  `enum Edit { Js(String), Css(String), Html(String) }`. wasm is single-threaded, so the
   wasm-bindgen exports and the Bevy systems run on the same thread; a `RefCell` queue is
   safe (no `Mutex`, no reentrancy). `apply_source` pushes; a system drains.
-- A matching `thread_local` error sink holds JS runtime errors for `poll_diagnostics`.
+- A matching `thread_local` **diagnostics sink** holds JS runtime errors *and* CSS parse
+  errors for `poll_diagnostics`.
 - `PlaygroundBridgePlugin` adds `drain_playground_edits`, an exclusive system ordered
-  **before** `detect_hot_reload` in `Update`. For each queued edit it resolves the mounted
-  `SuperUiRoot` + `SuperUiSubresources`, then for a `Js` edit does
-  `Assets::<JsSource>::get_mut(subresources.js).0 = code`. `get_mut` auto-emits
-  `AssetEvent::Modified`, which the **existing** `detect_hot_reload` → `apply_hot_reload`
-  seam turns into a state-preserving `run_script` re-exec. **No new reload logic.**
+  **before** `detect_hot_reload` in `Update`. It resolves the mounted `SuperUiRoot` +
+  `SuperUiSubresources`, then for each queued edit overwrites the matching asset via
+  `get_mut` (which auto-emits `AssetEvent::Modified`), and the **existing**
+  `detect_hot_reload` → `apply_hot_reload` seam does the rest. **No new reload logic:**
+  - `Edit::Js(code)` → `Assets::<JsSource>::get_mut(subresources.js).0 = code`
+    → seam's `js` branch → state-preserving `run_script` re-exec (`$ss` rehydration).
+  - `Edit::Css(text)` → `InlineCssStyleSheetParser::load_stylesheet(text)`; on `Ok`,
+    `*Assets::<StyleSheet>::get_mut(subresources.css) = sheet`; on `Err`, push the parse
+    error to the diagnostics sink → seam's `css` branch sets `dirty = true` → flair
+    re-cascade (state preserved). Because `load_stylesheet` is a `SystemParam`,
+    `drain_playground_edits` takes it as a param (works fine in an exclusive system via
+    `SystemState`, or make the system non-exclusive with the needed params).
+  - `Edit::Html(text)` → `Assets::<HtmlSource>::get_mut(root.html).0 = text`
+    → seam's `html` branch → Model 2 full remount (state lost, rare).
 
 ## `superui_bridge` change: surface JS runtime errors
 
@@ -211,30 +228,43 @@ half of the chosen "diagnostics + JS errors" console.
 ## Data flow (the vertical slice A proves)
 
 ```
-textarea edit
-  → JS apply_source("app.tsx", src)
+TSX edit (state-preserving):
+  apply_source("app.tsx", src)
     → supersolid::transpile  (diagnostics returned to JS now)
     → QUEUE.push(Edit::Js(jsCode))
   → next frame: drain_playground_edits
     → Assets<JsSource>::get_mut(subresources.js).0 = jsCode   // emits AssetEvent::Modified
   → detect_hot_reload sets HotReloadFlags.js
-  → apply_hot_reload re-execs rt.run_script(js) with HMR on
-    → $ss signal-cell rehydration
-  → reconcile_system
-  → counter UI updates, count preserved
-uncaught throw → runtime error sink → poll_diagnostics() → console
+  → apply_hot_reload re-execs rt.run_script(js) with HMR on → $ss rehydration
+  → reconcile_system → counter UI updates, count preserved
+
+CSS edit (live restyle, state-preserving):
+  apply_source("style.css", css) → QUEUE.push(Edit::Css(css))
+  → next frame: drain_playground_edits
+    → InlineCssStyleSheetParser::load_stylesheet(css)
+      Ok  → *Assets<StyleSheet>::get_mut(subresources.css) = sheet   // emits Modified
+      Err → diagnostics sink (→ poll_diagnostics)
+  → detect_hot_reload sets HotReloadFlags.css
+  → apply_hot_reload sets dirty → reconcile → flair re-cascade, state preserved
+
+HTML edit (full remount, state lost — rare):
+  apply_source("index.html", html) → QUEUE.push(Edit::Html(html))
+  → drain overwrites Assets<HtmlSource> → seam html branch → Model 2 remount
+
+uncaught JS throw → UiRuntime error sink → diagnostics sink → poll_diagnostics() → console
 ```
 
 ## Proof harness (A's deliverable, not the real UI)
 
 A minimal static HTML page hosting the `counter` playground wasm plus:
 
-- a `<textarea>` prefilled with `app.tsx`,
-- a **Run** button calling `apply_source("app.tsx", textarea.value)`,
+- two `<textarea>`s prefilled with `app.tsx` and `style.css`,
+- a **Run** button calling `apply_source` for each changed file,
 - a `<pre>` showing returned diagnostics and the result of polling `poll_diagnostics()`.
 
 Served locally (standalone or via `mdbook serve website` once staged). Its only job is to
-prove the seam end-to-end and serve as A's manual verification. The mockup's real UI is B.
+prove the seam end-to-end — edit the `.tsx` (count preserved) and the `.css` (restyle) —
+and serve as A's manual verification. The mockup's real UI is B.
 
 ## Testing
 
@@ -243,14 +273,19 @@ prove the seam end-to-end and serve as A's manual verification. The mockup's rea
   `Assets<JsSource>` for the mounted subresource, and assert `AssetEvent::Modified` fires,
   `apply_hot_reload` re-execs, the new script ran, **and** a signal cell was preserved
   across the swap.
+- **CSS restyle integration:** enqueue a `.css` edit → `load_stylesheet` → overwrite
+  `Assets<StyleSheet>` → `Modified` → `apply_hot_reload` sets `dirty` → assert the sheet
+  changed and a signal cell was **preserved** (restyle is state-preserving); a malformed
+  `.css` pushes a parse error to the diagnostics sink without panicking.
 - **Transpile-diagnostics passthrough:** broken `.tsx` → `apply_source` returns
   `{ok:false, diagnostics:[…]}`, no panic; the harness stays alive.
 - **Runtime-error capture:** a script that throws → surfaced via `take_errors` /
   `poll_diagnostics`.
-- **wasm smoke (manual):** build the `counter` playground for wasm, serve, edit the source,
-  Run → the count is preserved in a real browser. Per the Windows-main-thread-stack finding
-  (`/STACK:8MB`), green tests run on big-stack worker threads and do **not** prove a
-  windowed/wasm app launches — this manual check is required.
+- **wasm smoke (manual):** build the `counter` playground for wasm, serve, and in a real
+  browser edit the `.tsx` (Run → count preserved) and the `.css` (Run → restyle, count
+  preserved). Per the Windows-main-thread-stack finding (`/STACK:8MB`), green tests run on
+  big-stack worker threads and do **not** prove a windowed/wasm app launches — this manual
+  check is required.
 - **No regression:** native `counter --features hmr` still hot-reloads live `.tsx`.
 
 ## Main risk
