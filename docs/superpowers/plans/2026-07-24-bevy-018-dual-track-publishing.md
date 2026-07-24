@@ -733,6 +733,27 @@ git commit -m "docs: confirm 0.2.x/bevy-0.18 as current track"
 
 **Interfaces:** none.
 
+> **Name availability (checked 2026-07-24):** all 14 crate names — `superui`,
+> `supersolid`, `cargo-superui`, `superui_dom`, `superui_html`, `superui_js`,
+> `superui_api`, `superui_css`, `superui_bridge`, `supersolid_runtime`,
+> `superui_test_engine`, `superui_flair_core`, `superui_flair_style`,
+> `superui_flair_css_parser` — were **free** on crates.io (404). The short names
+> `superui`/`supersolid` are squattable; publish promptly once the tree builds.
+
+- [ ] **Step 0: Preflight**
+
+Re-verify names are still free (they can be claimed by anyone before you publish):
+```bash
+for n in superui supersolid cargo-superui superui_dom superui_html superui_js \
+         superui_api superui_css superui_bridge supersolid_runtime \
+         superui_test_engine superui_flair_core superui_flair_style superui_flair_css_parser; do
+  printf '%s ' "$n"; curl -s -o /dev/null -w '%{http_code}\n' "https://crates.io/api/v1/crates/$n"
+done   # 404 = free, 200 = taken
+```
+Confirm you are logged in: `cargo login` (needs a crates.io API token). Any `200`
+means the name was claimed — stop and resolve (rename or contact the owner)
+before proceeding.
+
 - [ ] **Step 1: Final dry run on each branch**
 
 On `main`: `cargo run -p xtask -- publish` (expect green). On `release/bevy-0.17`: `git checkout release/bevy-0.17 && cargo run -p xtask -- publish` (expect green), then `git checkout main`.
