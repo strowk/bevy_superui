@@ -105,6 +105,10 @@ jobs:
         with:
           name: example-${{ matrix.slug }}
           path: stage/${{ matrix.slug }}
+          # The pre-transpiled JS lives at assets/ui/<slug>/.superui/build/app.js.
+          # upload-artifact@v4 excludes dot-prefixed (hidden) paths by default, which
+          # would drop the whole .superui/ tree and 404 the demo. Keep them.
+          include-hidden-files: true
 
   assemble-and-deploy:
     needs: [discover, build]
