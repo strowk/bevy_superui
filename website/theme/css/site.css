@@ -102,22 +102,9 @@ body:has(.superui-landing) #content main {
   padding: 0;
 }
 
-/* --- landing hero --- */
+/* Landing marker: hides mdBook chrome (rules above) and never renders itself.
+   The redesigned landing (index.md + landing.css) uses su-* classes. */
 .superui-landing { display: none; }
-.hero { text-align: center; padding: 72px 24px 32px; }
-.hero h1 { font-size: 56px; margin: 0 0 12px; }
-.hero .tagline { color: var(--muted, #9a9ab0); font-size: 20px; max-width: 640px; margin: 0 auto 24px; }
-.cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
-.btn { display: inline-block; text-decoration: none; padding: 10px 18px; border-radius: 8px;
-       border: 1px solid #3a3a52; color: var(--fg); font-size: 15px; }
-.btn-primary { background: #7c6cff; border-color: #7c6cff; color: #fff; }
-.features { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 16px; max-width: 900px; margin: 40px auto; padding: 0 24px; }
-.feature { background: #262633; border: 1px solid #3a3a52; border-radius: 10px; padding: 18px; }
-.feature h3 { margin: 0 0 6px; }
-.feature p { margin: 0; color: #9a9ab0; }
-.status-note { max-width: 720px; margin: 0 auto 64px; padding: 14px 18px; text-align: center;
-               background: #2f2a4a; border: 1px solid #3a3a52; border-radius: 8px; color: #d8d2ff; }
 
 /* ============ examples gallery ============ */
 .gallery-cat h2 {
