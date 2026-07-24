@@ -11,4 +11,5 @@ pub mod report;
 pub mod snapshot;
 pub mod trace;
 pub mod transpile;
+pub mod ui_driver;
 pub mod ui_mode;

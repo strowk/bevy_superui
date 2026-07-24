@@ -148,3 +148,12 @@ pub fn install_abi(app: &mut App) {
     crate::abi::install(rt.engine.context_mut());
     app.world_mut().insert_non_send_resource(rt);
 }
+
+/// World-based variant of [`install_abi`] for the in-world stepper.
+pub fn install_abi_world(world: &mut World) {
+    let mut rt = world
+        .remove_non_send_resource::<UiRuntime>()
+        .expect("mounted");
+    crate::abi::install(rt.engine.context_mut());
+    world.insert_non_send_resource(rt);
+}
