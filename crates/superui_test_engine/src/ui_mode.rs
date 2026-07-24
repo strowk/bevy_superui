@@ -35,7 +35,10 @@ use crate::ui_driver::{self, ActiveRun};
 struct UiState {
     specs: Vec<PathBuf>,
     spec_dir: PathBuf,
+    // Retained for future use (e.g. dynamic resize); currently sized at setup only.
+    #[allow(dead_code)]
     width: u32,
+    #[allow(dead_code)]
     height: u32,
     max_diff_ratio: f64,
 
@@ -133,17 +136,14 @@ fn run_stepper(world: &mut World) {
     // Start a new run if one was requested this frame.
     let pending = world.resource_mut::<UiState>().pending_run.take();
     if let Some(i) = pending {
-        let (spec, spec_dir, width, height, max_diff) = {
+        let (spec, spec_dir, max_diff) = {
             let s = world.resource::<UiState>();
             (
                 s.specs[i].clone(),
                 s.spec_dir.clone(),
-                s.width,
-                s.height,
                 s.max_diff_ratio,
             )
         };
-        let _ = (width, height);
         let file = spec
             .file_name()
             .map(|n| n.to_string_lossy().to_string())

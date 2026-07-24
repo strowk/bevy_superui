@@ -26,6 +26,8 @@ const ACTION_TIMEOUT_ITERS: usize = 120;
 /// Safety cap: if a single test cannot finish within this many stepper frames
 /// it is recorded as a timeout (mirrors driver::MAX_ITERS_PER_TEST).
 const MAX_ITERS_PER_TEST: usize = 2000;
+/// Frames to wait for a screenshot capture before giving up and failing the expect.
+const SCREENSHOT_CAPTURE_TIMEOUT_FRAMES: usize = 64;
 
 /// Non-send holder for the in-progress run (or `None` when idle). Stored via
 /// `insert_non_send_resource` because `RunState` holds Boa `JsValue`s which
@@ -85,8 +87,7 @@ struct TestWork {
     expects: Vec<ExpectInFlight>,
     pending_actions: Vec<ActionInFlight>,
     iter: usize,
-    /// Active screenshot-matcher capture, if any: (expect id, baseline name,
-    /// action label, frames waited).
+    /// Active screenshot-matcher capture, if any.
     capturing: Option<ScreenshotCapture>,
 }
 
@@ -336,7 +337,7 @@ fn step_running(world: &mut World, run: &mut RunState) {
                 work.steps.push(Step { index: work.steps.len(), action: cap.action, status, dom_after: dom, screenshot: None });
             } else {
                 cap.frames_waited += 1;
-                if cap.frames_waited > 64 {
+                if cap.frames_waited > SCREENSHOT_CAPTURE_TIMEOUT_FRAMES {
                     // Give up: capture never fired.
                     let msg = "screenshot capture failed".to_string();
                     let payload = serde_json::json!({"ok": false, "error": msg}).to_string();

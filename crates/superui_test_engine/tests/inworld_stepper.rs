@@ -2,7 +2,7 @@
 //! `ui_driver` state machine frame-by-frame against a `build_headless_app`
 //! world, proving a spec runs to completion without a second render app.
 
-use superui_test_engine::driver::RunOptions;
+use superui_test_engine::driver::{self, RunOptions};
 use superui_test_engine::host::build_headless_app;
 use superui_test_engine::host::HostProject;
 use superui_test_engine::transpile::transpile_spec;
@@ -67,6 +67,75 @@ fn stepper_runs_spec_to_completion() {
         "spec must pass, error: {:?}",
         run.results[0].error
     );
+}
+
+/// Both drivers (blocking and stepper) must produce the same pass/fail shape
+/// for a spec containing one passing test and one deliberately failing test.
+/// This guards against divergence between the two execution paths.
+#[test]
+fn stepper_matches_blocking_driver_on_pass_and_fail() {
+    // Spec: test 1 passes (panel is absent initially), test 2 fails
+    // (expects panel count 1 when it is still 0).
+    let spec = r##"
+        import { test, expect } from "superui/test";
+        test("panel hidden initially (pass)", async ({ page }) => {
+            await expect(page.locator("#panel")).toHaveCount(0);
+        });
+        test("panel visible (fail)", async ({ page }) => {
+            await expect(page.locator("#panel")).toHaveCount(1);
+        });
+    "##;
+    let js = transpile_spec(spec, "t.spec.ts").unwrap();
+
+    // --- Blocking driver ---
+    let mut blocking_app = build_headless_app(&project());
+    let blocking_opts = RunOptions { snapshot: None, spec_file: "t.spec.ts".into(), render: false };
+    let blocking_results = driver::run_spec_with(&mut blocking_app, &js, &blocking_opts);
+
+    // --- Stepper ---
+    let mut stepper_app = build_headless_app(&project());
+    let mut run = start_run(stepper_app.world_mut(), None, js.clone(), "t.spec.ts".into(), opts());
+    for _ in 0..4000 {
+        stepper_app.update();
+        step(stepper_app.world_mut(), &mut run);
+        if run.is_done() {
+            break;
+        }
+    }
+    assert!(run.is_done(), "stepper must finish within the frame budget");
+    let stepper_results = run.results;
+
+    // --- Parity assertions ---
+    assert_eq!(
+        blocking_results.len(),
+        stepper_results.len(),
+        "both drivers must produce the same number of test results"
+    );
+    for (i, (b, s)) in blocking_results.iter().zip(stepper_results.iter()).enumerate() {
+        assert_eq!(
+            b.name, s.name,
+            "test {} name must match: blocking={:?} stepper={:?}", i, b.name, s.name
+        );
+        assert_eq!(
+            b.passed, s.passed,
+            "test {} pass/fail must match (name={:?}): blocking={} stepper={}",
+            i, b.name, b.passed, s.passed
+        );
+        // Both must agree on whether an error is present.
+        assert_eq!(
+            b.error.is_some(),
+            s.error.is_some(),
+            "test {} error presence must match (name={:?})",
+            i, b.name
+        );
+    }
+    // Verify the expected shape: test 1 passes, test 2 fails, with an error.
+    assert!(blocking_results[0].passed, "test 1 must pass in blocking driver");
+    assert!(!blocking_results[1].passed, "test 2 must fail in blocking driver");
+    assert!(blocking_results[1].error.is_some(), "failing test must carry an error in blocking driver");
+    assert!(stepper_results[0].passed, "test 1 must pass in stepper");
+    assert!(!stepper_results[1].passed, "test 2 must fail in stepper");
+    assert!(stepper_results[1].error.is_some(), "failing test must carry an error in stepper");
 }
 
 /// Re-running reuses the same world with a fresh DOM (no double-mount panic,
