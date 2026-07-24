@@ -42,10 +42,40 @@
     right.appendChild(gh);
   }
 
+  function initLandingCounter() {
+    const frame = document.getElementById('su-counter-frame');
+    if (!frame) return; // not the landing page
+    const label = document.getElementById('su-live-label');
+    const overlay = document.getElementById('su-live-overlay');
+    const reset = document.getElementById('su-reset');
+
+    function arming() {
+      if (label) label.textContent = '// LIVE PREVIEW · booting runtime…';
+      if (overlay) overlay.classList.remove('su-hidden');
+    }
+    function ready() {
+      if (label) label.textContent = '// LIVE PREVIEW';
+      if (overlay) overlay.classList.add('su-hidden');
+    }
+
+    window.addEventListener('message', (e) => {
+      if (e.source === frame.contentWindow && e.data === 'superui:ready') ready();
+    });
+    // Fallback: if the message is missed, reveal after the frame's load event + a grace delay.
+    frame.addEventListener('load', () => setTimeout(ready, 4000));
+
+    if (reset) reset.addEventListener('click', () => {
+      arming();
+      frame.contentWindow.location.reload();
+    });
+
+    arming();
+  }
+
   function initSuperui() {
     injectBackground();
     enhanceHeader();
-    // Task 7 adds: initLandingCounter();
+    initLandingCounter();
   }
 
   if (document.readyState === 'loading') {
