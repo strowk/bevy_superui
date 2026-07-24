@@ -10,7 +10,7 @@
   }
 
   function enhanceHeader() {
-    const bar = document.getElementById('menu-bar');
+    const bar = document.getElementById('mdbook-menu-bar') || document.getElementById('menu-bar');
     if (!bar || bar.querySelector('.su-brand')) return; // idempotent
 
     // mdBook sets a global `var path_to_root` (e.g. "../") on every page.

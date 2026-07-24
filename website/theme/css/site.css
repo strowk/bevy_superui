@@ -60,11 +60,11 @@ body::before {
     linear-gradient(#06080d, #080b12);
 }
 /* mdBook content must sit above the background layers. */
-.page-wrapper, #menu-bar, .menu-bar { position: relative; z-index: 1; }
+.page-wrapper, .menu-bar { position: relative; z-index: 1; }
 /* ...but the wrappers must be transparent, or their opaque background covers the
    fixed grid/aurora only as far as the (short) content reaches, leaving a seam
    where the background suddenly shows through below. Let body::before be the base. */
-#page-wrapper, .page-wrapper, .page, #content { background: transparent; }
+#page-wrapper, .page-wrapper, .page, .content { background: transparent; }
 
 @keyframes su-aurora {
   0%,100% { transform: translate3d(0,0,0) scale(1); }
@@ -87,7 +87,7 @@ body::before {
 }
 
 /* --- chrome-light landing: hide sidebar + top bar on the landing only --- */
-body:has(.superui-landing) #sidebar,
+body:has(.superui-landing) .sidebar,
 body:has(.superui-landing) .sidebar,
 body:has(.superui-landing) #menu-bar,
 body:has(.superui-landing) .menu-bar,
@@ -101,12 +101,13 @@ body:has(.superui-landing) .mobile-nav-chapters {
    GitHub, sidebar toggle) and the landing nav. Our menu-bar is position:relative
    (not sticky), so the placeholder's hover-to-reveal purpose is void — disable
    its pointer events everywhere so clicks pass through to the bar beneath. */
-#menu-bar-hover-placeholder { pointer-events: none; }
+#mdbook-menu-bar-hover-placeholder, #menu-bar-hover-placeholder { pointer-events: none; }
 body:has(.superui-landing) .page-wrapper {
   margin-left: 0 !important;
+  margin-inline-start: 0 !important;
   left: 0 !important;
 }
-body:has(.superui-landing) #content main {
+body:has(.superui-landing) .content main {
   max-width: none;
   margin: 0;
   padding: 0;
@@ -143,18 +144,19 @@ body:has(.superui-landing) #content main {
   background: rgba(52,230,214,0.10); border: 1px solid rgba(52,230,214,0.3); color: var(--su-teal-light); }
 
 /* ============ header (reskinned mdBook menu-bar) ============ */
-#menu-bar, .menu-bar {
+.menu-bar {
   background: rgba(8, 11, 18, 0.72);
   backdrop-filter: blur(8px);
   border-bottom: 1px solid rgba(52, 230, 214, 0.18);
 }
 .menu-bar .icon-button { color: var(--su-muted); }
 .menu-bar .icon-button:hover { color: var(--su-teal-light); }
-/* single dark theme: hide the theme picker */
-#theme-toggle, .menu-bar #theme-toggle, #theme-list { display: none !important; }
+/* single dark theme: hide the theme picker (mdBook 0.5 ids are mdbook-*) */
+#mdbook-theme-toggle, #mdbook-theme-list,
+#theme-toggle, #theme-list { display: none !important; }
 /* our brand replaces the book title; our GITHUB link replaces the default git icon */
-#menu-bar .menu-title { display: none; }
-#git-repository-button { display: none !important; }
+.menu-bar .menu-title { display: none; }
+.right-buttons a[title="Git repository"], #git-repository-button { display: none !important; }
 
 .su-brand { display: inline-flex; align-items: center; gap: 12px; text-decoration: none;
   margin: 0 8px 0 6px; }
@@ -178,14 +180,14 @@ body:has(.superui-landing) #content main {
 .su-gh svg { flex: none; display: block; }
 
 /* ============ footer ============ */
-.su-footer, #content .su-footer { border-top: 1px solid rgba(52,230,214,0.14);
+.su-footer, .content .su-footer { border-top: 1px solid rgba(52,230,214,0.14);
   padding: 22px 26px; display: flex; align-items: center; gap: 14px;
   font-family: var(--font-mono); font-size: 11px; color: var(--su-muted-dim); }
 .su-footer .su-f-brand { color: var(--su-teal); }
 .su-footer .su-f-right { margin-left: auto; }
 
 /* ============ sidebar → "MODULE INDEX" ============ */
-#sidebar, .sidebar { background: #0b0f17; border-right: 1px solid rgba(52,230,214,0.12); }
+.sidebar, .sidebar { background: #0b0f17; border-right: 1px solid rgba(52,230,214,0.12); }
 .sidebar .sidebar-scrollbox { padding: 14px 12px; }
 .chapter li.part-title {
   font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.14em;
@@ -198,44 +200,54 @@ body:has(.superui-landing) #content main {
   border-left-color: var(--su-teal); }
 
 /* ============ content ============ */
-#content main { color: var(--su-text); }
+.content main { color: var(--su-text); }
 /* Wide screens: center the WHOLE app (sidebar + book content + header) within a
    max-width, instead of pinning the sidebar to the far-left edge with the content
    drifting away from it. The gutter is 0 below the cap, so narrower screens keep
    mdBook's normal layout untouched. The fixed prev/next arrows move to the gutters
-   too, so they never overlap the content. 308px = --sidebar-width (300) + padding,
-   the offset mdBook gives .page-wrapper when the sidebar is visible. */
-:root { --su-app-max: 1600px; --su-gutter: max(0px, calc((100vw - var(--su-app-max)) / 2)); }
+   too, so they never overlap the content. --su-pw-offset is the inline-start margin
+   mdBook gives .page-wrapper when the sidebar is visible (sidebar width + padding).
+   NB mdBook 0.5: the `sidebar-visible` class is on <html>, ids are `mdbook-*`, and
+   the layout uses logical margins (margin-inline-*). */
+:root {
+  --su-app-max: 1600px;
+  --su-gutter: max(0px, calc((100vw - var(--su-app-max)) / 2));
+  --su-pw-offset: calc(var(--sidebar-width, 300px) + 8px);
+}
 /* Only shift the sidebar by the gutter while it's visible: when collapsed, mdBook
-   slides it off by its own width (-300px), which wouldn't clear the gutter offset,
-   leaving a sliver (and the resize handle) on-screen. Default left:0 when hidden. */
-body:not(:has(.superui-landing)).sidebar-visible #sidebar { left: var(--su-gutter); }
-/* Use the #page-wrapper id: mdBook sets its margin via an id selector that would
-   otherwise out-specify a .page-wrapper class rule (leaving the header stranded). */
-body:not(:has(.superui-landing)) #page-wrapper { margin-right: var(--su-gutter); }
-body:not(:has(.superui-landing)).sidebar-visible #page-wrapper { margin-left: calc(var(--su-gutter) + 308px); }
-body:not(:has(.superui-landing)):not(.sidebar-visible) #page-wrapper { margin-left: var(--su-gutter); }
+   slides it off by its own width, which wouldn't clear the gutter offset, leaving
+   a sliver (and the resize handle) on-screen. Default left:0 when hidden. */
+html.sidebar-visible body:not(:has(.superui-landing)) .sidebar { left: var(--su-gutter); }
+body:not(:has(.superui-landing)) .page-wrapper { margin-inline-end: var(--su-gutter); }
+/* Target the #mdbook-page-wrapper id: mdBook 0.5 sets its inline-start margin via
+   an id selector that out-specifies a .page-wrapper class rule. */
+html.sidebar-visible body:not(:has(.superui-landing)) #mdbook-page-wrapper {
+  margin-inline-start: calc(var(--su-gutter) + var(--su-pw-offset)); }
+html:not(.sidebar-visible) body:not(:has(.superui-landing)) #mdbook-page-wrapper {
+  margin-inline-start: var(--su-gutter); }
 /* The prev arrow must clear the (shifted) sidebar: place it just right of it when
    the sidebar is visible, else at the content-area's left edge. The next arrow
    sits at the content-area's right edge in both states. */
-body:not(:has(.superui-landing)).sidebar-visible .nav-chapters.previous { left: calc(var(--su-gutter) + 308px); }
-body:not(:has(.superui-landing)):not(.sidebar-visible) .nav-chapters.previous { left: var(--su-gutter); }
+html.sidebar-visible body:not(:has(.superui-landing)) .nav-chapters.previous {
+  left: calc(var(--su-gutter) + var(--su-pw-offset)); }
+html:not(.sidebar-visible) body:not(:has(.superui-landing)) .nav-chapters.previous {
+  left: var(--su-gutter); }
 body:not(:has(.superui-landing)) .nav-chapters.next { right: var(--su-gutter); }
-#content h1, #content h2, #content h3, #content h4 {
+.content h1, .content h2, .content h3, .content h4 {
   font-family: var(--font-display); color: var(--su-heading); font-weight: 700; }
-#content h1 { font-size: clamp(34px, 5vw, 48px); letter-spacing: -0.01em; }
-#content h2 { border: none; margin-top: 2em; }
+.content h1 { font-size: clamp(34px, 5vw, 48px); letter-spacing: -0.01em; }
+.content h2 { border: none; margin-top: 2em; }
 /* Docs link color — scoped off the landing so its buttons/nav/banner keep their
-   own colors (this rule's #content specificity would otherwise override them). */
-body:not(:has(.superui-landing)) #content a:not(.header) { color: var(--su-teal-light); }
-#content p, #content li { color: var(--su-text); }
+   own colors (this rule's .content specificity would otherwise override them). */
+body:not(:has(.superui-landing)) .content a:not(.header) { color: var(--su-teal-light); }
+.content p, .content li { color: var(--su-text); }
 
 /* code blocks */
-#content pre {
+.content pre {
   background: rgba(9,13,20,0.85); border: 1px solid rgba(52,230,214,0.16);
   border-radius: 10px; }
-#content pre > code { font-family: var(--font-mono); font-size: 13px; line-height: 1.6; }
-#content code:not(pre code) {
+.content pre > code { font-family: var(--font-mono); font-size: 13px; line-height: 1.6; }
+.content code:not(pre code) {
   font-family: var(--font-mono); color: var(--su-teal-light);
   background: rgba(52,230,214,0.08); border-radius: 4px; padding: 1px 5px; }
 /* mdBook's hover clipboard button = our "COPY" control */
@@ -243,7 +255,7 @@ body:not(:has(.superui-landing)) #content a:not(.header) { color: var(--su-teal-
 .buttons .clip-button:hover { color: var(--su-teal-light); }
 
 /* blockquote → TIP callout */
-#content blockquote {
+.content blockquote {
   border: 1px solid rgba(52,230,214,0.2); border-left: 3px solid var(--su-teal);
   background: rgba(52,230,214,0.06); color: var(--su-text);
   border-radius: 8px; padding: 14px 18px; }
@@ -254,32 +266,32 @@ body:not(:has(.superui-landing)) #content a:not(.header) { color: var(--su-teal-
 .mobile-nav-chapters { color: var(--su-teal-light); }
 
 /* ============ "// MODULE INDEX" eyebrow atop the docs sidebar ============ */
-#sidebar .sidebar-scrollbox::before {
+.sidebar .sidebar-scrollbox::before {
   content: "// MODULE INDEX"; display: block;
   font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.22em;
   color: var(--su-muted-dim); padding: 0 6px; margin: 2px 0 16px;
 }
 
 /* ============ search box + results ============ */
-#searchbar {
+#mdbook-searchbar {
   background: rgba(9, 13, 20, 0.92); color: var(--su-text);
   font-family: var(--font-mono); font-size: 14px;
   border: 1px solid var(--su-border-strong); border-radius: 8px;
   padding: 10px 14px; margin-top: 8px;
 }
-#searchbar:focus { outline: none; border-color: var(--su-teal);
+#mdbook-searchbar:focus { outline: none; border-color: var(--su-teal);
   box-shadow: 0 0 0 2px rgba(52, 230, 214, 0.18); }
-#searchbar::placeholder { color: var(--su-muted-dim); }
+#mdbook-searchbar::placeholder { color: var(--su-muted-dim); }
 .searchresults-header {
   font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.16em;
   text-transform: uppercase; color: var(--su-muted); margin-top: 12px;
 }
-#searchresults { border-top: 1px solid var(--su-border); }
-#searchresults li { list-style: none; padding: 8px 4px;
+#mdbook-searchresults { border-top: 1px solid var(--su-border); }
+#mdbook-searchresults li { list-style: none; padding: 8px 4px;
   border-bottom: 1px solid rgba(52, 230, 214, 0.08); }
-#searchresults a { color: var(--su-teal-light); text-decoration: none; }
-#searchresults a:hover { text-decoration: underline; }
-#searchresults span.teaser { color: var(--su-muted); font-size: 13px; }
-#searchresults mark, .content mark {
+#mdbook-searchresults a { color: var(--su-teal-light); text-decoration: none; }
+#mdbook-searchresults a:hover { text-decoration: underline; }
+#mdbook-searchresults span.teaser { color: var(--su-muted); font-size: 13px; }
+#mdbook-searchresults mark, .content mark {
   background: rgba(255, 180, 84, 0.22); color: var(--su-amber-light);
   border-radius: 2px; padding: 0 2px; }
