@@ -782,29 +782,55 @@ Suggested wording for Claude's final message:
 > These are the irreversible publish steps. They require *your* `cargo login`
 > token and crates.io ownership. Claude will not and must not run them.
 
-**H0. Preflight** — re-verify names are still free (anyone can claim them before you publish):
+Run every block below from the repo root (`C:\work\bevy_superui`). Each block is
+copy-pasteable as-is; they are meant to be run in order.
+
+**H0. Log in + preflight.** Authenticate to crates.io and re-verify names are
+still free (anyone can claim them before you publish):
 ```bash
+cargo login                 # paste your crates.io API token from https://crates.io/settings/tokens
+git status                  # confirm a clean working tree before releasing
 for n in superui supersolid cargo-superui superui_dom superui_html superui_js \
          superui_api superui_css superui_bridge supersolid_runtime \
          superui_test_engine superui_flair_core superui_flair_style superui_flair_css_parser; do
   printf '%s ' "$n"; curl -s -o /dev/null -w '%{http_code}\n' "https://crates.io/api/v1/crates/$n"
 done   # 404 = free, 200 = taken
 ```
-Confirm you're logged in: `cargo login` (crates.io API token). Any `200` = name taken → stop and resolve (rename or contact owner) first.
+Any `200` = name already taken → stop and resolve (rename the crate or contact the owner) before continuing.
 
-**H1. Publish the 0.17 track** — from `release/bevy-0.17`:
+**H1. Publish the 0.17 track (versions `0.1.0`).** Switch to the maintenance
+branch, dry-run once more, then publish:
 ```bash
-cargo run -p xtask -- publish --execute
+git checkout release/bevy-0.17
+git pull --ff-only                       # make sure it's up to date
+cargo run -p xtask -- publish            # dry run (cargo package, no upload) — expect green
+cargo run -p xtask -- publish --execute  # THE REAL PUBLISH — irreversible
 ```
-Publishes `0.1.0` for every crate in dependency order. If a crate fails because a just-published dependency isn't indexed yet, wait ~30s and re-run (already-published versions error harmlessly; re-running resumes from the failure point).
+Publishes `0.1.0` for all 14 crates in dependency order. If one fails because a just-published dependency isn't indexed on crates.io yet, wait ~30s and re-run the `--execute` line — already-published versions error harmlessly, so it resumes from the failure point.
 
-**H2. Publish the 0.18 track** — from `main`:
+**H2. Publish the 0.18 track (versions `0.2.0`).** Switch back to `main` and do
+the same:
 ```bash
-cargo run -p xtask -- publish --execute
+git checkout main
+git pull --ff-only
+cargo run -p xtask -- publish            # dry run — expect green
+cargo run -p xtask -- publish --execute  # THE REAL PUBLISH — irreversible
 ```
-Publishes `0.2.0` for every crate.
+Publishes `0.2.0` for all 14 crates.
 
-**H3. Verify on crates.io** — confirm `superui`, `cargo-superui`, `superui_flair_*`, and the rest show both `0.1.0` and `0.2.0`; confirm `cargo install cargo-superui` (latest = 0.2.x) and `cargo install cargo-superui@0.1` both resolve.
+**H3. Tag the releases (optional but recommended):**
+```bash
+git checkout release/bevy-0.17 && git tag v0.1.0 && git push origin v0.1.0
+git checkout main            && git tag v0.2.0 && git push origin v0.2.0
+```
+
+**H4. Verify on crates.io.** Confirm `superui`, `cargo-superui`,
+`superui_flair_*`, and the rest each show both `0.1.0` and `0.2.0`, and that the
+CLI installs both tracks:
+```bash
+cargo install cargo-superui         # latest = 0.2.x
+cargo install cargo-superui@0.1     # explicit 0.17-track pin
+```
 
 ---
 
