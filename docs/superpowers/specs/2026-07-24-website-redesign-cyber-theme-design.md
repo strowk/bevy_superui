@@ -32,7 +32,8 @@ three designed screens (`screenshot.jpeg` = landing, `redesign_docs.jpeg`,
 
 ## Decisions (locked)
 
-1. **Scope:** whole site — landing + docs pages + examples gallery.
+1. **Scope:** whole site — landing + docs pages + examples gallery. `counter`
+   becomes both a gallery example (its own page + card) and the landing live embed.
 2. **Counter embed:** `<iframe>` embedding a minimal counter host page; **Reset
    reloads the iframe** (true full Bevy restart, wasm from HTTP cache, no re-download).
 3. **Fonts:** Google Fonts CDN (`<link>`), not self-hosted.
@@ -74,8 +75,10 @@ All via mdBook extension points; **no template fork**.
 | Site JS | `website/theme/js/site.js` (new, `additional-js`) | On every page: inject the 3 fixed bg layers; enhance `.menu-bar` (SU badge + wordmark + version chip + GitHub). On landing: manage counter iframe loading label + Reset. |
 | `book.toml` | `website/book.toml` | Add `landing.css` to `additional-css`; add `additional-js = ["theme/js/site.js"]`. |
 | Landing content | `website/src/index.md` (rewrite) | Full redesign markup. |
-| Counter embed host | `website/src/examples/counter/index.html` (built) | Minimal canvas-only host page + `postMessage('superui:ready')`. |
-| Demo build | `tools/build-demos.sh` | Add `counter` to the slug list; use the minimal embed host page (not `xtask host-page`). |
+| Counter gallery entry | `examples/gallery.json` | Add a `counter` example so it gets a normal gallery page + a card in the Examples grid. |
+| Counter gallery page | `website/src/examples/counter/index.html` (built) | Standard `xtask host-page` output (code viewer + banner), like other examples. |
+| Counter embed host | `website/src/examples/counter/embed.html` (built) | Minimal canvas-only host page + `postMessage('superui:ready')`, used by the landing iframe. |
+| Demo build | `tools/build-demos.sh` | Add `counter` to the slug list; after `xtask host-page`, also drop the hand-written `embed.html` into the output dir. |
 
 ### Component notes
 
@@ -111,24 +114,28 @@ live-preview region → 4-up features grid → early-build banner → footer.
 
 ### Live counter + Reset
 
-- **Build:** add `counter` to `tools/build-demos.sh` (`BUILD_ARGS[counter]=""`,
-  default features). Run `cargo build -p counter --release --target wasm32-…` →
-  `wasm-bindgen --target web` into `website/src/examples/counter/`, copy
-  `examples/counter/assets`. **Do not** use `xtask host-page`; instead ship a
-  hand-written minimal embed `index.html` (canvas-only).
-- **Embed host page** (`website/src/examples/counter/index.html`): a `<canvas
+- **Gallery entry:** add `counter` to `examples/gallery.json` (default features,
+  no `build_args`) so it appears as an Examples card and gets its own page. Placed
+  first as the smallest intro example (final category/order decided in the plan).
+- **Build:** add `counter` to `tools/build-demos.sh` (`BUILD_ARGS[counter]=""`).
+  Run `cargo build -p counter --release --target wasm32-…` → `wasm-bindgen
+  --target web` into `website/src/examples/counter/`, run `xtask host-page` (the
+  normal gallery page, like other examples), copy `examples/counter/assets`, then
+  **also** drop the hand-written `embed.html` into the output dir.
+- **Embed host page** (`website/src/examples/counter/embed.html`): a `<canvas
   id="superui-canvas">` filling the frame on a dark (`#0b1220`) background, an
   optional loading overlay, `import init from './counter.js'` (ignore winit's
   "Using exceptions for control flow" throw), and after `init()` settles,
-  `window.parent.postMessage('superui:ready', '*')`.
+  `window.parent.postMessage('superui:ready', '*')`. Shares `counter.js` + wasm
+  with the gallery `index.html` (browser caches it).
 - **Landing wiring** (`site.js`): the live-preview region contains
-  `<iframe src="examples/counter/">` + a `Reset` button. Until a `superui:ready`
+  `<iframe src="examples/counter/embed.html">` + a `Reset` button. Until a `superui:ready`
   message arrives from the iframe, the `// LIVE PREVIEW` eyebrow reads
   **`// LIVE PREVIEW · booting runtime…`** and a subtle overlay covers the frame;
   on ready it flips to **`// LIVE PREVIEW`** and reveals the canvas. Reset =
   `iframe.contentWindow.location.reload()` and re-arms the loading state.
 - Path note: the landing is at site root, so the iframe `src` is relative
-  `examples/counter/` (works under the `/bevy_superui/` site-url base).
+  `examples/counter/embed.html` (works under the `/bevy_superui/` site-url base).
 
 ### Deploy implication
 
@@ -150,7 +157,5 @@ the deploy workflow.
 
 ## Out of scope / deferred
 
-- Adding `counter` as its own gallery entry in `examples/gallery.json` (the mockup's
-  Examples screen shows a Counter card, but that's separate from the landing embed).
 - Numbered section counters and per-code-block filename captions (optional polish).
 - Self-hosting fonts (chose CDN).
