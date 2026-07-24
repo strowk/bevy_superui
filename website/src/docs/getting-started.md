@@ -7,8 +7,8 @@ step by step — the smallest complete superui app.
 
 ## Prerequisites: a Bevy app
 
-superui is a Bevy plugin, so you need a working Bevy application first. This guide
-does **not** re-teach Bevy — if you have never set one up, follow Bevy's own
+superui is a Bevy plugin, so you need a working Bevy application first. 
+If you have not yet setup Bevy app firstly check Bevy's own
 [Getting Started](https://bevyengine.org/learn/quick-start/getting-started/)
 guide and come back once `cargo run` opens a window.
 
@@ -36,7 +36,15 @@ and not think about it again.
 
 ## Set up editor support
 
-For autocomplete, hover docs, and type-checking in your `.tsx`, run:
+For autocomplete, hover docs, and type-checking in your `.tsx` files you will need type definitions setup.
+
+This can be installed automatically with cargo-superui, which you need to install first:
+
+```bash
+cargo install cargo-superui # this only needs to be done once per machine
+```
+
+Then run the install command in your project:
 
 ```sh
 cargo superui install
@@ -114,6 +122,8 @@ for what's supported):
 > into a single module and strips imports between your own files. Keep every
 > component for one UI in the one `app.tsx` — the only import you keep is
 > `from "supersolid"`. See [Components & JSX](concepts/components.md).
+> This might be changed in the future, but for now this limitation would not allow 
+> you to `import {MyComponent} from "./my_component.tsx"`.
 
 ## Mount it
 
