@@ -247,3 +247,34 @@ body:not(:has(.superui-landing)) #content a:not(.header) { color: var(--su-teal-
 .nav-chapters { color: var(--su-muted); font-family: var(--font-mono); }
 .nav-chapters:hover { color: var(--su-teal-light); }
 .mobile-nav-chapters { color: var(--su-teal-light); }
+
+/* ============ "// MODULE INDEX" eyebrow atop the docs sidebar ============ */
+#sidebar .sidebar-scrollbox::before {
+  content: "// MODULE INDEX"; display: block;
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.22em;
+  color: var(--su-muted-dim); padding: 0 6px; margin: 2px 0 16px;
+}
+
+/* ============ search box + results ============ */
+#searchbar {
+  background: rgba(9, 13, 20, 0.92); color: var(--su-text);
+  font-family: var(--font-mono); font-size: 14px;
+  border: 1px solid var(--su-border-strong); border-radius: 8px;
+  padding: 10px 14px; margin-top: 8px;
+}
+#searchbar:focus { outline: none; border-color: var(--su-teal);
+  box-shadow: 0 0 0 2px rgba(52, 230, 214, 0.18); }
+#searchbar::placeholder { color: var(--su-muted-dim); }
+.searchresults-header {
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--su-muted); margin-top: 12px;
+}
+#searchresults { border-top: 1px solid var(--su-border); }
+#searchresults li { list-style: none; padding: 8px 4px;
+  border-bottom: 1px solid rgba(52, 230, 214, 0.08); }
+#searchresults a { color: var(--su-teal-light); text-decoration: none; }
+#searchresults a:hover { text-decoration: underline; }
+#searchresults span.teaser { color: var(--su-muted); font-size: 13px; }
+#searchresults mark, .content mark {
+  background: rgba(255, 180, 84, 0.22); color: var(--su-amber-light);
+  border-radius: 2px; padding: 0 2px; }
