@@ -197,12 +197,21 @@ body:has(.superui-landing) #content main {
 
 /* ============ content ============ */
 #content main { color: var(--su-text); }
-/* On wide screens mdBook centers the ~750px content in a huge area, drifting far
-   from the fixed left sidebar. Cap it and left-align so the content stays next to
-   the nav (whitespace collects on the right instead of between nav and content). */
-body:not(:has(.superui-landing)) #content main {
-  max-width: 980px; margin-left: 0; margin-right: auto;
-}
+/* Wide screens: center the WHOLE app (sidebar + book content + header) within a
+   max-width, instead of pinning the sidebar to the far-left edge with the content
+   drifting away from it. The gutter is 0 below the cap, so narrower screens keep
+   mdBook's normal layout untouched. The fixed prev/next arrows move to the gutters
+   too, so they never overlap the content. 308px = --sidebar-width (300) + padding,
+   the offset mdBook gives .page-wrapper when the sidebar is visible. */
+:root { --su-app-max: 1600px; --su-gutter: max(0px, calc((100vw - var(--su-app-max)) / 2)); }
+body:not(:has(.superui-landing)) #sidebar { left: var(--su-gutter); }
+/* Use the #page-wrapper id: mdBook sets its margin via an id selector that would
+   otherwise out-specify a .page-wrapper class rule (leaving the header stranded). */
+body:not(:has(.superui-landing)) #page-wrapper { margin-right: var(--su-gutter); }
+body:not(:has(.superui-landing)).sidebar-visible #page-wrapper { margin-left: calc(var(--su-gutter) + 308px); }
+body:not(:has(.superui-landing)):not(.sidebar-visible) #page-wrapper { margin-left: var(--su-gutter); }
+body:not(:has(.superui-landing)) .nav-chapters.previous { left: var(--su-gutter); }
+body:not(:has(.superui-landing)) .nav-chapters.next { right: var(--su-gutter); }
 #content h1, #content h2, #content h3, #content h4 {
   font-family: var(--font-display); color: var(--su-heading); font-weight: 700; }
 #content h1 { font-size: clamp(34px, 5vw, 48px); letter-spacing: -0.01em; }
