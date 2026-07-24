@@ -96,4 +96,15 @@
 .su-banner p { margin: 0; font-size: 14px; line-height: 1.55; color: #d8c9a8; }
 .su-banner a { color: var(--su-amber-light); }
 
+/* mdBook chrome.css `.content a:link` (specificity 0,2,1) recolors every content
+   link to --links (teal). These landing links are <a> elements inside #content,
+   so restore their intended colors at matching specificity (landing.css loads
+   after chrome.css, so an equal-specificity rule wins). */
+body:has(.superui-landing) .su-btn-primary { color: #04120f; }
+body:has(.superui-landing) .su-btn-ghost { color: var(--su-text); }
+body:has(.superui-landing) .su-lnav a { color: var(--su-muted); }
+body:has(.superui-landing) .su-lnav a.su-nav-active { color: #04120f; }
+body:has(.superui-landing) .su-gh { color: var(--su-text); }
+body:has(.superui-landing) .su-banner a { color: var(--su-amber-light); }
+
 @media (max-width: 640px) { .su-lnav { order: 3; width: 100%; } }

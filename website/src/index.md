@@ -14,7 +14,7 @@
     <a class="su-gh" href="https://github.com/strowk/bevy_superui" target="_blank" rel="noopener">GITHUB ↗</a>
   </div>
 </header>
-<main class="su-landing-main">
+<div class="su-landing-main">
   <div class="su-hero">
     <div class="su-hero-text">
       <div class="su-eyebrow"><span class="su-eyebrow-dot"></span>SYSTEM ONLINE // UI RUNTIME</div>
@@ -66,7 +66,7 @@
     <p>superui is in very early development and largely AI-generated; APIs are in flux.
        Explore the working <a href="examples/">examples</a>.</p>
   </div>
-</main>
+</div>
 <footer class="su-footer su-lfoot">
   <span class="su-f-brand">SUPERUI</span><span>// build a12f · 2026</span>
   <span class="su-f-right">MIT / APACHE-2.0 · MADE FOR BEVY</span>

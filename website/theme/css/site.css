@@ -92,6 +92,12 @@ body:has(.superui-landing) .nav-chapters,
 body:has(.superui-landing) .mobile-nav-chapters {
   display: none !important;
 }
+/* mdBook's sticky hover-placeholder sits over the top 50px (z-index 101) and
+   would intercept clicks on our landing header nav. Keep it in flow (hiding it
+   shifts the page up and pushes our header off-screen) but let clicks pass. */
+body:has(.superui-landing) #menu-bar-hover-placeholder {
+  pointer-events: none;
+}
 body:has(.superui-landing) .page-wrapper {
   margin-left: 0 !important;
   left: 0 !important;
@@ -195,7 +201,9 @@ body:has(.superui-landing) #content main {
   font-family: var(--font-display); color: var(--su-heading); font-weight: 700; }
 #content h1 { font-size: clamp(34px, 5vw, 48px); letter-spacing: -0.01em; }
 #content h2 { border: none; margin-top: 2em; }
-#content a:not(.header) { color: var(--su-teal-light); }
+/* Docs link color — scoped off the landing so its buttons/nav/banner keep their
+   own colors (this rule's #content specificity would otherwise override them). */
+body:not(:has(.superui-landing)) #content a:not(.header) { color: var(--su-teal-light); }
 #content p, #content li { color: var(--su-text); }
 
 /* code blocks */
