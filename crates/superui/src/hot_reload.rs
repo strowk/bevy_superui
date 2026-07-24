@@ -64,9 +64,11 @@ pub fn detect_hot_reload(
 /// runtime + `SuperUiSubresources` so `mount_when_ready` re-reads the manifest and
 /// re-discovers subresources. JS/CSS change → mutate the live runtime in place.
 ///
-/// Runs inside the chained bridge set gated by `runtime_exists`; removing the
-/// runtime here makes the remaining chained systems skip (their inherited
-/// `runtime_exists` condition re-evaluates to false), so the teardown is safe.
+/// Runs as a standalone exclusive system scheduled AFTER `detect_hot_reload` and
+/// BEFORE the chained bridge set (which is gated by `runtime_exists`). An HTML
+/// teardown removes the runtime, so the subsequent bridge chain skips that frame;
+/// this ordering is critical because `keyboard_events_system` takes
+/// `NonSendMut<UiRuntime>` (not `Option`) and would panic if it ran after removal.
 pub fn apply_hot_reload(world: &mut World) {
     let (html_changed, js_changed, _css_changed) = {
         let mut flags = world.resource_mut::<HotReloadFlags>();
