@@ -1,3 +1,87 @@
+/* ============ superui redesign theme ============ */
+:root, .navy, .light, .rust, .coal, .ayu {
+  --su-teal: #34e6d6;
+  --su-teal-bright: #4ff0e0;
+  --su-teal-deep: #2bd0c0;
+  --su-teal-light: #7ff3e9;
+  --su-amber: #ffb454;
+  --su-amber-light: #ffce8a;
+  --su-bg: #080b12;
+  --su-panel: rgba(13, 19, 28, 0.7);
+  --su-panel-solid: #0d131c;
+  --su-border: rgba(52, 230, 214, 0.16);
+  --su-border-strong: rgba(52, 230, 214, 0.35);
+  --su-text: #cdd8e6;
+  --su-heading: #f2f8f7;
+  --su-muted: #8a97a8;
+  --su-muted-dim: #5f7085;
+  --font-display: "Chakra Petch", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Code", Consolas, monospace;
+  --font-body: "Space Grotesk", system-ui, sans-serif;
+
+  /* Override mdBook navy variables so built-in chrome matches. */
+  --bg: var(--su-bg);
+  --fg: var(--su-text);
+  --sidebar-bg: #0b0f17;
+  --sidebar-fg: var(--su-text);
+  --sidebar-active: var(--su-teal);
+  --links: var(--su-teal-light);
+}
+
+html, body { background: var(--su-bg); color: var(--su-text); font-family: var(--font-body); }
+
+/* Layered fixed background (divs injected by site.js). */
+.su-bg { position: fixed; inset: 0; pointer-events: none; }
+.su-bg--aurora {
+  inset: -20%; z-index: 0; filter: blur(30px); opacity: 0.8;
+  background:
+    radial-gradient(600px 500px at 30% 40%, rgba(52,230,214,0.14), transparent 60%),
+    radial-gradient(560px 480px at 70% 60%, rgba(255,180,84,0.09), transparent 60%);
+  animation: su-aurora 24s ease-in-out infinite;
+}
+.su-bg--grid {
+  z-index: 0; opacity: 0.6;
+  background-image:
+    linear-gradient(rgba(52,230,214,0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(52,230,214,0.05) 1px, transparent 1px);
+  background-size: 40px 40px;
+  animation: su-drift 18s linear infinite;
+}
+.su-bg--scan {
+  z-index: 0; opacity: 0.35; mix-blend-mode: overlay;
+  background: repeating-linear-gradient(transparent 0 2px, rgba(0,0,0,0.35) 2px 3px);
+}
+/* Base page gradient behind the layers. */
+body::before {
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(1200px 600px at 80% -10%, rgba(52,230,214,0.10), transparent 60%),
+    radial-gradient(900px 500px at 0% 110%, rgba(255,180,84,0.06), transparent 55%),
+    linear-gradient(#06080d, #080b12);
+}
+/* mdBook content must sit above the background layers. */
+.page-wrapper, #menu-bar, .menu-bar { position: relative; z-index: 1; }
+
+@keyframes su-aurora {
+  0%,100% { transform: translate3d(0,0,0) scale(1); }
+  50% { transform: translate3d(5%,4%,0) scale(1.12); }
+}
+@keyframes su-drift { 0% { background-position: 0 0; } 100% { background-position: 40px 40px; } }
+@keyframes su-pulse {
+  0%,100% { opacity: 1; box-shadow: 0 0 0 0 rgba(52,230,214,0.55); }
+  50% { opacity: 0.55; box-shadow: 0 0 0 4px rgba(52,230,214,0); }
+}
+@keyframes su-flicker { 0%,100%,48%,52% { opacity: 0.9; } 50% { opacity: 0.6; } }
+@keyframes su-glow {
+  0%,100% { box-shadow: 0 24px 60px rgba(0,0,0,0.5), inset 0 0 30px rgba(52,230,214,0.05); }
+  50% { box-shadow: 0 24px 70px rgba(0,0,0,0.5), inset 0 0 42px rgba(52,230,214,0.10), 0 0 26px rgba(52,230,214,0.18); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .su-bg--aurora, .su-bg--grid { animation: none; }
+  * { animation-duration: 0s !important; animation-iteration-count: 1 !important; }
+}
+
 /* --- superui palette (overrides mdBook 'navy' variables) --- */
 :root, .navy {
   --bg: #1e1e28;
