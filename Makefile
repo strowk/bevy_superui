@@ -13,3 +13,4 @@ install-types:
 	cargo run -p cargo-superui -- install --path examples/game_menu
 	cargo run -p cargo-superui -- install --path examples/horde
 	cargo run -p cargo-superui -- install --path examples/todomvc_supersolid
+	cargo run -p cargo-superui -- install --path examples/counter

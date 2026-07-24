@@ -1,0 +1,34 @@
+/* Button styled to match the "clicked X times" LIVE PREVIEW button on the
+   SuperUI landing page, within superui/flair 0.6 limits:
+   dropped `cursor` and the `filter:brightness` :hover (both unsupported here);
+   `border: none` → `border-width: 0`,
+   no `font-family` (only actually-loaded fonts are valid — even `monospace`
+   fails the whole sheet, so we use the default font), and a softer glow.
+   The wasm build renders only this button for the landing embed. */
+
+#root {
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background-color: #0b1220;
+}
+
+.counter {
+  font-size: 14px;
+  color: #04120f;
+  background-image: linear-gradient(135deg, #4ff0e0, #2bd0c0);
+  border-width: 0;
+  padding: 12px 20px;
+  border-radius: 7px;
+  box-shadow: 0 0 10px rgba(52, 230, 214, 0.22);
+}
+
+/* `filter:brightness` is unsupported, so brighten the button on hover with a
+   lighter gradient + stronger glow instead — :hover fires now (nodes spawn
+   with a `Hovered` component). */
+.counter:hover {
+  background-image: linear-gradient(135deg, #7ff8ec, #45e0d0);
+  box-shadow: 0 0 16px rgba(52, 230, 214, 0.4);
+}
