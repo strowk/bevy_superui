@@ -96,12 +96,12 @@ body:has(.superui-landing) .nav-chapters,
 body:has(.superui-landing) .mobile-nav-chapters {
   display: none !important;
 }
-/* mdBook's sticky hover-placeholder sits over the top 50px (z-index 101) and
-   would intercept clicks on our landing header nav. Keep it in flow (hiding it
-   shifts the page up and pushes our header off-screen) but let clicks pass. */
-body:has(.superui-landing) #menu-bar-hover-placeholder {
-  pointer-events: none;
-}
+/* mdBook's hover-placeholder sits over the top 50px at z-index 101, above our
+   menu-bar (z-index 1), so it intercepts every header-button click (search,
+   GitHub, sidebar toggle) and the landing nav. Our menu-bar is position:relative
+   (not sticky), so the placeholder's hover-to-reveal purpose is void — disable
+   its pointer events everywhere so clicks pass through to the bar beneath. */
+#menu-bar-hover-placeholder { pointer-events: none; }
 body:has(.superui-landing) .page-wrapper {
   margin-left: 0 !important;
   left: 0 !important;
