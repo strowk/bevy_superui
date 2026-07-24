@@ -1,5 +1,8 @@
 {
   "examples": [
+    { "slug": "counter", "package": "counter", "category": "Apps",
+      "title": "Counter",
+      "description": "The smallest Supersolid app — a single reactive button, in Solid-style .tsx." },
     { "slug": "todomvc", "package": "todomvc", "category": "Apps",
       "title": "TodoMVC (HTML/CSS/JS)",
       "description": "The classic TodoMVC authored in plain HTML/CSS/JS on superui." },

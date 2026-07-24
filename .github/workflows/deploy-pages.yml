@@ -97,6 +97,10 @@ jobs:
       - name: Copy app assets (after build so app.generated.js exists)
         run: cp -r "examples/${{ matrix.slug }}/assets" "stage/${{ matrix.slug }}/assets"
 
+      - name: Add landing embed page (counter only)
+        if: ${{ matrix.slug == 'counter' }}
+        run: cp "examples/counter/web-embed.html" "stage/${{ matrix.slug }}/embed.html"
+
       - uses: actions/upload-artifact@v4
         with:
           name: example-${{ matrix.slug }}

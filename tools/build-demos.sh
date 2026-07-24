@@ -27,6 +27,7 @@ OUT_ROOT=website/src/examples
 # ("build_args"). The stress tests drop default features (bevy_dev_tools' FPS
 # overlay needs GPU vertex-storage that WebGL2 lacks).
 declare -A BUILD_ARGS=(
+  [counter]=""
   [todomvc]=""
   [todomvc_supersolid]=""
   [game_menu]=""
@@ -38,7 +39,7 @@ declare -A BUILD_ARGS=(
 if [ "$#" -gt 0 ]; then
   slugs=("$@")
 else
-  slugs=(todomvc todomvc_supersolid game_menu citadel horde)
+  slugs=(counter todomvc todomvc_supersolid game_menu citadel horde)
 fi
 
 echo "==> ensuring the wasm target is installed"
@@ -84,6 +85,10 @@ for slug in "${slugs[@]}"; do
   cargo run -q -p xtask -- host-page --slug "$slug" --out "$out"
   rm -rf "$out/assets"
   cp -r "examples/$slug/assets" "$out/assets"
+  # The landing page embeds counter via a canvas-only host page (no code viewer).
+  if [ "$slug" = "counter" ]; then
+    cp "examples/counter/web-embed.html" "$out/embed.html"
+  fi
   echo "    -> $out"
 done
 

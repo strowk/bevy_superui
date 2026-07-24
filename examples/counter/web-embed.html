@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<base href="./">
+<title>counter — live embed</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #0b1220; overflow: hidden; }
+  #superui-canvas { width: 100%; height: 100%; display: block; }
+</style>
+</head>
+<body>
+  <canvas id="superui-canvas"></canvas>
+  <script type="module">
+    import init from './counter.js';
+    init().catch((e) => {
+      // winit throws to yield to the browser event loop; ignore that one.
+      if (!(e instanceof Error) || !String(e.message).includes('Using exceptions for control flow')) {
+        console.error(e);
+      }
+    }).finally(() => {
+      // Tell the landing page the runtime has booted.
+      try { window.parent.postMessage('superui:ready', '*'); } catch (_) {}
+    });
+  </script>
+</body>
+</html>
