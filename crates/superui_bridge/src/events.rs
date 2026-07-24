@@ -64,9 +64,17 @@ pub fn on_pointer_click(
     mut ev: On<Pointer<Click>>,
     nodes: Query<&DomNode>,
     parents: Query<&ChildOf>,
-    mut dom: NonSendMut<UiRuntime>,
+    dom: Option<NonSendMut<UiRuntime>>,
     mut pending: ResMut<PendingDomEvents>,
 ) {
+    // No UI is mounted when `UiRuntime` is absent — e.g. the `superui_test --ui`
+    // shell (which runs `SuperUiPlugin` in the same world as its egui runner)
+    // before the first Run mounts a spec, or between runs while the DOM is torn
+    // down. A click then has no DOM to dispatch to, so skip rather than fail
+    // param validation on the missing non-send resource (which panics the app).
+    let Some(mut dom) = dom else {
+        return;
+    };
     // `Pointer<Click>` bubbles up the entity hierarchy, firing this observer once
     // per ancestor. We only want to act on the actual (deepest) target — otherwise
     // focus would be overwritten by each ancestor up to `<body>`. Stop propagation
