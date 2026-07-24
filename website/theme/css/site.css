@@ -26,6 +26,9 @@
   --sidebar-fg: var(--su-text);
   --sidebar-active: var(--su-teal);
   --links: var(--su-teal-light);
+  /* The 4px rule beside a page's headers in the nav — navy's default is an
+     off-palette blue (#3473ad); bring it onto the teal palette. */
+  --sidebar-header-border-color: rgba(52, 230, 214, 0.35);
 }
 
 html, body { background: var(--su-bg); color: var(--su-text); font-family: var(--font-body); }
@@ -189,6 +192,25 @@ body:has(.superui-landing) .content main {
 /* ============ sidebar → "MODULE INDEX" ============ */
 .sidebar, .sidebar { background: #0b0f17; border-right: 1px solid rgba(52,230,214,0.12); }
 .sidebar .sidebar-scrollbox { padding: 14px 12px; }
+/* Themed scrollbar for the nav panel when it overflows (teal, translucent,
+   track-transparent so it blends into the sidebar). Firefox uses the two
+   scrollbar-* properties; WebKit/Blink use the ::-webkit-scrollbar pseudos. */
+.sidebar-scrollbox {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(52, 230, 214, 0.28) transparent;
+}
+.sidebar-scrollbox::-webkit-scrollbar { width: 10px; }
+.sidebar-scrollbox::-webkit-scrollbar-track { background: transparent; }
+.sidebar-scrollbox::-webkit-scrollbar-thumb {
+  background-color: rgba(52, 230, 214, 0.24);
+  border-radius: 999px;
+  border: 2px solid transparent;   /* inset the thumb so it reads as a pill */
+  background-clip: padding-box;
+}
+.sidebar-scrollbox::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(52, 230, 214, 0.5);
+  background-clip: padding-box;
+}
 .chapter li.part-title {
   font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.14em;
   text-transform: uppercase; color: var(--su-teal); margin: 18px 0 8px; padding: 0 6px;
@@ -241,12 +263,36 @@ body:not(:has(.superui-landing)) .nav-chapters.next { right: var(--su-gutter); }
    own colors (this rule's .content specificity would otherwise override them). */
 body:not(:has(.superui-landing)) .content a:not(.header) { color: var(--su-teal-light); }
 .content p, .content li { color: var(--su-text); }
+/* Larger, more readable body text. Headings (incl. h1) keep their own sizes. */
+.content p, .content li, .content td, .content th,
+.content dd, .content dt, .content blockquote {
+  font-size: 1.75rem;
+  line-height: 1.72;
+}
 
 /* code blocks */
 .content pre {
   background: rgba(9,13,20,0.85); border: 1px solid rgba(52,230,214,0.16);
   border-radius: 10px; }
-.content pre > code { font-family: var(--font-mono); font-size: 13px; line-height: 1.6; }
+.content pre > code { font-family: var(--font-mono); font-size: 14.5px; line-height: 1.6; }
+/* Themed horizontal scrollbar on long code blocks — matches the nav panel.
+   The scrolling element is `pre > code` (highlight.js sets overflow-x: auto). */
+.content pre > code {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(52, 230, 214, 0.28) transparent;
+}
+.content pre > code::-webkit-scrollbar { width: 10px; height: 10px; }
+.content pre > code::-webkit-scrollbar-track { background: transparent; }
+.content pre > code::-webkit-scrollbar-thumb {
+  background-color: rgba(52, 230, 214, 0.24);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.content pre > code::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(52, 230, 214, 0.5);
+  background-clip: padding-box;
+}
 .content code:not(pre code) {
   font-family: var(--font-mono); color: var(--su-teal-light);
   background: rgba(52,230,214,0.08); border-radius: 4px; padding: 1px 5px; }
