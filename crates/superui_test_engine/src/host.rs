@@ -104,12 +104,6 @@ pub fn spawn_root(world: &mut World) -> Entity {
         .id()
 }
 
-/// Kept for callers that reference it (e.g. `ui_mode.rs`). With the manifest
-/// model the js path is discovered from the entry HTML; this resource is a no-op
-/// placeholder for backward compat until all callers are updated.
-#[derive(Resource, Clone, Default)]
-pub(crate) struct HostAssetPaths;
-
 pub fn mount(app: &mut App) -> Entity {
     // Idempotency guard: if a UiRuntime is already present the UI has already
     // been mounted.  Return the existing SuperUiRoot entity rather than

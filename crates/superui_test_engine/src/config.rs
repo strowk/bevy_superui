@@ -61,9 +61,9 @@ pub fn discover_specs(spec_dir: &Path) -> Vec<PathBuf> {
 /// Read a project directory into a [`crate::host::HostProject`].
 ///
 /// Accepts `app.tsx` (preferred, signals to the transpiler that TS stripping is
-/// needed) or `app.generated.js` (pre-transpiled output).  CSS falls back from
-/// `style.css` to `theme.css`; missing CSS is silently ignored (defaults to
-/// empty string).
+/// needed) or `.superui/build/app.js` (pre-transpiled build output).  CSS falls
+/// back from `style.css` to `theme.css`; missing CSS is silently ignored
+/// (defaults to empty string).
 pub fn load_project(project_dir: &Path) -> Result<crate::host::HostProject, String> {
     let read =
         |name: &str| std::fs::read_to_string(project_dir.join(name)).map_err(|e| format!("{name}: {e}"));
@@ -71,7 +71,7 @@ pub fn load_project(project_dir: &Path) -> Result<crate::host::HostProject, Stri
     let (js, tsx) = if project_dir.join("app.tsx").exists() {
         (read("app.tsx")?, true)
     } else {
-        (read("app.generated.js")?, false)
+        (read(".superui/build/app.js")?, false)
     };
 
     Ok(crate::host::HostProject {

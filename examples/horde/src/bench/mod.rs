@@ -58,9 +58,10 @@ const HTML: &str = include_str!("../../assets/ui/horde/index.html");
 const CSS: &str = include_str!("../../assets/ui/horde/theme.css");
 const TSX: &str = include_str!("../../assets/ui/horde/app.tsx");
 // The bench builds WITHOUT the `hmr` feature, so SupersolidUiPlugin loads the
-// pre-transpiled `app.generated.js` (not `app.tsx`). It MUST be in the memory
-// asset dir or the runtime never mounts and the supersolid UI is silently empty.
-const JS: &str = include_str!("../../assets/ui/horde/app.generated.js");
+// pre-transpiled JS from `.superui/build/app.js` (not `app.tsx`). It MUST be in
+// the memory asset dir or the runtime never mounts and the supersolid UI is
+// silently empty. The path matches `superui_paths::generated_js`.
+const JS: &str = include_str!("../../assets/ui/horde/.superui/build/app.js");
 
 /// Deterministic scripted player: frame-indexed movement/aim/fire + periodic
 /// weapon-switch and inventory-toggle. No wall-clock, no randomness of its own.
@@ -141,7 +142,7 @@ fn memory_asset_dir() -> Dir {
     dir.insert_asset("ui/horde/index.html".as_ref(), HTML.as_bytes());
     dir.insert_asset("ui/horde/theme.css".as_ref(), CSS.as_bytes());
     dir.insert_asset("ui/horde/app.tsx".as_ref(), TSX.as_bytes());
-    dir.insert_asset("ui/horde/app.generated.js".as_ref(), JS.as_bytes());
+    dir.insert_asset("ui/horde/.superui/build/app.js".as_ref(), JS.as_bytes());
     dir
 }
 

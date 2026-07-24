@@ -1,7 +1,9 @@
 //! Headless mount smoke-test: mount the REAL authored Supersolid assets
-//! (index.html + theme.css + app.generated.js) through the real `superui`
-//! runtime, run the deterministic sim a few frames, push the `frame` event, and
-//! assert the reconciled entity tree is large (many `TypeName`-carrying nodes).
+//! (index.html + theme.css + `.superui/build/app.js`, the pre-transpiled output
+//! declared in `index.html` as `<script src="app.tsx">` and resolved by the
+//! non-HMR seam to `.superui/build/app.js`) through the real `superui` runtime,
+//! run the deterministic sim a few frames, push the `frame` event, and assert
+//! the reconciled entity tree is large (many `TypeName`-carrying nodes).
 //!
 //! Mirrors `examples/horde/tests/support/mod.rs` — memory asset source, no
 //! winit/GPU. This proves the dense HUD actually produces the static-heavy tree

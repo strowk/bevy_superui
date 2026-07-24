@@ -26,7 +26,7 @@ use crate::ui::supersolid::bridge::build_frame;
 const HTML: &str = include_str!("../../assets/ui/citadel/index.html");
 const CSS: &str = include_str!("../../assets/ui/citadel/theme.css");
 const TSX: &str = include_str!("../../assets/ui/citadel/app.tsx");
-const JS: &str = include_str!("../../assets/ui/citadel/app.generated.js");
+const JS: &str = include_str!("../../assets/ui/citadel/.superui/build/app.js");
 
 // ── Backend enum ──────────────────────────────────────────────────────────────
 
@@ -60,7 +60,7 @@ fn memory_asset_dir() -> Dir {
     dir.insert_asset("ui/citadel/index.html".as_ref(), HTML.as_bytes());
     dir.insert_asset("ui/citadel/theme.css".as_ref(), CSS.as_bytes());
     dir.insert_asset("ui/citadel/app.tsx".as_ref(), TSX.as_bytes());
-    dir.insert_asset("ui/citadel/app.generated.js".as_ref(), JS.as_bytes());
+    dir.insert_asset("ui/citadel/.superui/build/app.js".as_ref(), JS.as_bytes());
     dir
 }
 
