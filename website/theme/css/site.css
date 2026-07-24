@@ -174,7 +174,7 @@ body:has(.superui-landing) #content main {
   font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.06em;
   color: var(--su-text) !important; border: 1px solid rgba(205,216,230,0.22); padding: 6px 12px;
   border-radius: 6px; text-decoration: none; white-space: nowrap; }
-.su-gh:hover { border-color: rgba(52,230,214,0.5); color: var(--su-teal-light); }
+.su-gh:hover { border-color: rgba(52,230,214,0.5); color: var(--su-teal-light); color: var(--links) !important; }
 .su-gh svg { flex: none; display: block; }
 
 /* ============ footer ============ */
