@@ -87,7 +87,9 @@ body:has(.superui-landing) #sidebar,
 body:has(.superui-landing) .sidebar,
 body:has(.superui-landing) #menu-bar,
 body:has(.superui-landing) .menu-bar,
-body:has(.superui-landing) .sidebar-resize-handle {
+body:has(.superui-landing) .sidebar-resize-handle,
+body:has(.superui-landing) .nav-chapters,
+body:has(.superui-landing) .mobile-nav-chapters {
   display: none !important;
 }
 body:has(.superui-landing) .page-wrapper {
