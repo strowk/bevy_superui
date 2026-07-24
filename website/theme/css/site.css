@@ -193,8 +193,8 @@ body:has(.superui-landing) #content main {
 #content h1, #content h2, #content h3, #content h4 {
   font-family: var(--font-display); color: var(--su-heading); font-weight: 700; }
 #content h1 { font-size: clamp(34px, 5vw, 48px); letter-spacing: -0.01em; }
-#content h2 { color: var(--su-heading); border: none; margin-top: 2em; }
-#content a { color: var(--su-teal-light); }
+#content h2 { border: none; margin-top: 2em; }
+#content a:not(.header) { color: var(--su-teal-light); }
 #content p, #content li { color: var(--su-text); }
 
 /* code blocks */
