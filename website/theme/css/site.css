@@ -61,6 +61,10 @@ body::before {
 }
 /* mdBook content must sit above the background layers. */
 .page-wrapper, #menu-bar, .menu-bar { position: relative; z-index: 1; }
+/* ...but the wrappers must be transparent, or their opaque background covers the
+   fixed grid/aurora only as far as the (short) content reaches, leaving a seam
+   where the background suddenly shows through below. Let body::before be the base. */
+#page-wrapper, .page-wrapper, .page, #content { background: transparent; }
 
 @keyframes su-aurora {
   0%,100% { transform: translate3d(0,0,0) scale(1); }
