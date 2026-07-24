@@ -14,22 +14,25 @@ use bevy::prelude::*;
 use bevy::text::TextPlugin;
 use bevy::ui::UiPlugin;
 use superui::prelude::{SuperUiPlugin, SuperUiRoot};
-use superui::JsSource;
+use superui::HtmlSource;
 use superui_bridge::{PendingDomEvent, PendingDomEvents, UiRuntime};
-use superui_css::style::StyleSheet;
 use superui_dom::NodeId;
 
 pub const HTML: &str = include_str!("../../assets/ui/todomvc_supersolid/index.html");
 pub const CSS: &str = include_str!("../../assets/ui/todomvc_supersolid/style.css");
 pub const TSX: &str = include_str!("../../assets/ui/todomvc_supersolid/app.tsx");
+// Pre-transpiled JS: the non-HMR mount seam resolves `app.tsx` →
+// `.superui/build/app.js` (see `superui_paths::generated_js`).
+pub const JS: &str = include_str!("../../assets/ui/todomvc_supersolid/.superui/build/app.js");
 
 /// A headless app with the full SuperUi stack and an in-memory asset source
-/// holding the authored files (the `.tsx` is transpiled by the native TsxLoader).
+/// holding the authored files.
 pub fn app() -> App {
     let dir = Dir::new("assets".into());
     dir.insert_asset("ui/todomvc_supersolid/index.html".as_ref(), HTML.as_bytes());
     dir.insert_asset("ui/todomvc_supersolid/style.css".as_ref(), CSS.as_bytes());
     dir.insert_asset("ui/todomvc_supersolid/app.tsx".as_ref(), TSX.as_bytes());
+    dir.insert_asset("ui/todomvc_supersolid/.superui/build/app.js".as_ref(), JS.as_bytes());
 
     let mut app = App::new();
     app.register_asset_source(
@@ -53,19 +56,12 @@ pub fn app() -> App {
     app
 }
 
-/// Spawn the `SuperUiRoot` (loading the `.tsx` as JsSource) and tick until mounted.
+/// Spawn the `SuperUiRoot` and tick until mounted.
 pub fn mount(app: &mut App) -> Entity {
-    let (html, css, js) = {
-        let server = app.world().resource::<AssetServer>().clone();
-        (
-            server.load("ui/todomvc_supersolid/index.html"),
-            server.load::<StyleSheet>("ui/todomvc_supersolid/style.css"),
-            server.load::<JsSource>("ui/todomvc_supersolid/app.tsx"),
-        )
-    };
+    let html = app.world().resource::<AssetServer>().load::<HtmlSource>("ui/todomvc_supersolid/index.html");
     let root = app
         .world_mut()
-        .spawn((Node::default(), SuperUiRoot { html, css, js }))
+        .spawn((Node::default(), SuperUiRoot { html }))
         .id();
     for _ in 0..256 {
         app.update();

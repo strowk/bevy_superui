@@ -20,10 +20,9 @@ use bevy::text::TextPlugin;
 use bevy::ui::UiPlugin;
 
 use superui::prelude::{SuperUiPlugin, SuperUiRoot};
-use superui::JsSource;
+use superui::HtmlSource;
 use superui_bridge::UiRuntime;
 use superui_css::prelude::TypeName;
-use superui_css::style::StyleSheet;
 
 use citadel::sim::snapshot::UiSnapshot;
 use citadel::sim::SimPlugin;
@@ -31,13 +30,17 @@ use citadel::ui::supersolid::bridge::{build_frame, register_bridge};
 
 const HTML: &str = include_str!("../assets/ui/citadel/index.html");
 const CSS: &str = include_str!("../assets/ui/citadel/theme.css");
-const JS: &str = include_str!("../assets/ui/citadel/app.generated.js");
+const TSX: &str = include_str!("../assets/ui/citadel/app.tsx");
+// Pre-transpiled JS: the non-HMR mount seam resolves `app.tsx` →
+// `.superui/build/app.js` (see `superui_paths::generated_js`).
+const JS: &str = include_str!("../assets/ui/citadel/.superui/build/app.js");
 
 fn app() -> App {
     let dir = Dir::new("assets".into());
     dir.insert_asset("ui/citadel/index.html".as_ref(), HTML.as_bytes());
     dir.insert_asset("ui/citadel/theme.css".as_ref(), CSS.as_bytes());
-    dir.insert_asset("ui/citadel/app.generated.js".as_ref(), JS.as_bytes());
+    dir.insert_asset("ui/citadel/app.tsx".as_ref(), TSX.as_bytes());
+    dir.insert_asset("ui/citadel/.superui/build/app.js".as_ref(), JS.as_bytes());
 
     let mut app = App::new();
     app.register_asset_source(
@@ -72,17 +75,10 @@ fn emit_frame(snap: Res<UiSnapshot>, mut commands: Commands) {
 }
 
 fn mount(app: &mut App) -> Entity {
-    let (html, css, js) = {
-        let s = app.world().resource::<AssetServer>().clone();
-        (
-            s.load("ui/citadel/index.html"),
-            s.load::<StyleSheet>("ui/citadel/theme.css"),
-            s.load::<JsSource>("ui/citadel/app.generated.js"),
-        )
-    };
+    let html = app.world().resource::<AssetServer>().load::<HtmlSource>("ui/citadel/index.html");
     let root = app
         .world_mut()
-        .spawn((Node::default(), SuperUiRoot { html, css, js }))
+        .spawn((Node::default(), SuperUiRoot { html }))
         .id();
     for _ in 0..256 {
         app.update();

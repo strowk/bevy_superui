@@ -17,10 +17,7 @@ fn web_window(window: bevy::window::Window) -> bevy::window::Window {
 
 fn main() {
     let mut app = App::new();
-    app.add_plugins(DefaultPlugins.set(AssetPlugin {
-        watch_for_changes_override: Some(cfg!(not(target_arch = "wasm32"))),
-        ..default()
-    }).set(WindowPlugin {
+    app.add_plugins(DefaultPlugins.set(WindowPlugin {
         primary_window: Some(web_window(Window::default())),
         ..default()
     }))

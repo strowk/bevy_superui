@@ -13,8 +13,8 @@ use bevy::prelude::*;
 use bevy::text::TextPlugin;
 use bevy::ui::UiPlugin;
 use superui::prelude::{SuperUiPlugin, SuperUiRoot};
+use superui::HtmlSource;
 use superui_bridge::{PendingDomEvent, PendingDomEvents, UiRuntime};
-use superui_css::style::StyleSheet;
 use superui_dom::NodeId;
 
 /// The real authored files — compiled into the test so the test exercises
@@ -55,17 +55,10 @@ pub fn app() -> App {
 
 /// Spawn the `SuperUiRoot` and tick until the runtime is mounted.
 pub fn mount_todomvc(app: &mut App) -> Entity {
-    let (html, css, js) = {
-        let server = app.world().resource::<AssetServer>().clone();
-        (
-            server.load("ui/todomvc/index.html"),
-            server.load::<StyleSheet>("ui/todomvc/style.css"),
-            server.load("ui/todomvc/app.js"),
-        )
-    };
+    let html = app.world().resource::<AssetServer>().load::<HtmlSource>("ui/todomvc/index.html");
     let root = app
         .world_mut()
-        .spawn((Node::default(), SuperUiRoot { html, css, js }))
+        .spawn((Node::default(), SuperUiRoot { html }))
         .id();
     for _ in 0..128 {
         app.update();

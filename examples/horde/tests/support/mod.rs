@@ -15,9 +15,8 @@ use bevy::state::app::StatesPlugin;
 use bevy::text::TextPlugin;
 use bevy::ui::UiPlugin;
 use superui::prelude::{SuperUiPlugin, SuperUiRoot};
-use superui::JsSource;
+use superui::HtmlSource;
 use superui_bridge::{PendingDomEvent, PendingDomEvents, UiRuntime};
-use superui_css::style::StyleSheet;
 use superui_dom::NodeId;
 
 use horde::game_state::GameState;
@@ -27,12 +26,16 @@ use horde::ui::supersolid::bridge::register_bridge;
 pub const HTML: &str = include_str!("../../assets/ui/horde/index.html");
 pub const CSS: &str = include_str!("../../assets/ui/horde/theme.css");
 pub const TSX: &str = include_str!("../../assets/ui/horde/app.tsx");
+// Pre-transpiled JS: the non-HMR mount seam resolves `app.tsx` →
+// `.superui/build/app.js` (see `superui_paths::generated_js`).
+pub const JS: &str = include_str!("../../assets/ui/horde/.superui/build/app.js");
 
 pub fn app() -> App {
     let dir = Dir::new("assets".into());
     dir.insert_asset("ui/horde/index.html".as_ref(), HTML.as_bytes());
     dir.insert_asset("ui/horde/theme.css".as_ref(), CSS.as_bytes());
     dir.insert_asset("ui/horde/app.tsx".as_ref(), TSX.as_bytes());
+    dir.insert_asset("ui/horde/.superui/build/app.js".as_ref(), JS.as_bytes());
 
     let mut app = App::new();
     app.register_asset_source(
@@ -75,13 +78,8 @@ fn emit_frame(
 }
 
 pub fn mount(app: &mut App) -> Entity {
-    let (html, css, js) = {
-        let s = app.world().resource::<AssetServer>().clone();
-        (s.load("ui/horde/index.html"),
-         s.load::<StyleSheet>("ui/horde/theme.css"),
-         s.load::<JsSource>("ui/horde/app.tsx"))
-    };
-    let root = app.world_mut().spawn((Node::default(), SuperUiRoot { html, css, js })).id();
+    let html = app.world().resource::<AssetServer>().load::<HtmlSource>("ui/horde/index.html");
+    let root = app.world_mut().spawn((Node::default(), SuperUiRoot { html })).id();
     for _ in 0..256 {
         app.update();
         if app.world().contains_non_send::<UiRuntime>() { break; }
