@@ -734,12 +734,12 @@ git commit -m "docs: confirm 0.2.x/bevy-0.18 as current track"
 **Interfaces:** none.
 
 > **⚠️ Execution rule:** When Claude executes this plan, Task 13 is a **handoff,
-> not an action**. Claude performs Steps 0–1 (preflight + dry runs only — these
-> are safe, network-read-only) and then **stops and prints the maintainer the
-> exact `--execute` commands below (Steps 2–4) for them to run themselves**.
-> Claude must NEVER run `cargo publish` or `xtask publish --execute`. The plan is
-> "complete" for Claude once the dry runs are green and the handoff instructions
-> have been delivered.
+> not an action**. Claude does ONLY its two checkboxes (a safe dry run, then
+> printing the handoff text) and then stops. Claude must NEVER run `cargo publish`
+> or `xtask publish --execute`, and must NOT run anything in the "MAINTAINER
+> HANDOFF" block — that block is text Claude hands to the maintainer, who runs it
+> themselves. The plan is "complete" for Claude once the dry runs are green and
+> the handoff has been delivered.
 
 > **Name availability (checked 2026-07-24):** all 14 crate names — `superui`,
 > `supersolid`, `cargo-superui`, `superui_dom`, `superui_html`, `superui_js`,
@@ -748,9 +748,29 @@ git commit -m "docs: confirm 0.2.x/bevy-0.18 as current track"
 > `superui_flair_css_parser` — were **free** on crates.io (404). The short names
 > `superui`/`supersolid` are squattable; publish promptly once the tree builds.
 
-- [ ] **Step 0: Preflight**
+**Claude's only actions for this task are the two checkboxes below — both are
+safe (network-read-only dry runs / printing text). Everything under "MAINTAINER
+HANDOFF" is NOT a Claude step: Claude copies that block into its final message
+and stops.**
 
-Re-verify names are still free (they can be claimed by anyone before you publish):
+- [ ] **Step 1 (Claude): Final dry run on each branch**
+
+On `main`: `cargo run -p xtask -- publish` (expect green — this is `cargo package`, no upload). On `release/bevy-0.17`: `git checkout release/bevy-0.17 && cargo run -p xtask -- publish` (expect green), then `git checkout main`.
+
+- [ ] **Step 2 (Claude): Deliver the handoff and stop**
+
+Print the "MAINTAINER HANDOFF" block below verbatim to the maintainer as the
+final message, noting the dry runs are green. Do **not** run any command from it.
+This completes Claude's involvement in the plan.
+
+---
+
+#### MAINTAINER HANDOFF — run these yourself (not Claude)
+
+> These are the irreversible publish steps. They require *your* `cargo login`
+> token and crates.io ownership. Claude will not and must not run them.
+
+**H0. Preflight** — re-verify names are still free (anyone can claim them before you publish):
 ```bash
 for n in superui supersolid cargo-superui superui_dom superui_html superui_js \
          superui_api superui_css superui_bridge supersolid_runtime \
@@ -758,37 +778,25 @@ for n in superui supersolid cargo-superui superui_dom superui_html superui_js \
   printf '%s ' "$n"; curl -s -o /dev/null -w '%{http_code}\n' "https://crates.io/api/v1/crates/$n"
 done   # 404 = free, 200 = taken
 ```
-Confirm you are logged in: `cargo login` (needs a crates.io API token). Any `200`
-means the name was claimed — stop and resolve (rename or contact the owner)
-before proceeding.
+Confirm you're logged in: `cargo login` (crates.io API token). Any `200` = name taken → stop and resolve (rename or contact owner) first.
 
-- [ ] **Step 1: Final dry run on each branch**
-
-On `main`: `cargo run -p xtask -- publish` (expect green). On `release/bevy-0.17`: `git checkout release/bevy-0.17 && cargo run -p xtask -- publish` (expect green), then `git checkout main`.
-
-- [ ] **Step 2: Publish the 0.17 track (irreversible — maintainer runs)**
-
-⚠️ Requires `cargo login` + crates.io ownership. From `release/bevy-0.17`:
+**H1. Publish the 0.17 track** — from `release/bevy-0.17`:
 ```bash
 cargo run -p xtask -- publish --execute
 ```
-Publishes `0.1.0` for every crate in dependency order. If a crate fails because a just-published dependency isn't indexed yet, wait and re-run (`cargo publish` is idempotent per version — already-published crates error harmlessly and are skipped by re-running from the failure point).
+Publishes `0.1.0` for every crate in dependency order. If a crate fails because a just-published dependency isn't indexed yet, wait ~30s and re-run (already-published versions error harmlessly; re-running resumes from the failure point).
 
-- [ ] **Step 3: Publish the 0.18 track**
-
-From `main`:
+**H2. Publish the 0.18 track** — from `main`:
 ```bash
 cargo run -p xtask -- publish --execute
 ```
 Publishes `0.2.0` for every crate.
 
-- [ ] **Step 4: Verify on crates.io**
-
-Confirm `superui`, `cargo-superui`, `superui_flair_*`, and the rest show both `0.1.0` and `0.2.0`. Confirm `cargo install cargo-superui` (latest = 0.2.x) and `cargo install cargo-superui@0.1` both resolve.
+**H3. Verify on crates.io** — confirm `superui`, `cargo-superui`, `superui_flair_*`, and the rest show both `0.1.0` and `0.2.0`; confirm `cargo install cargo-superui` (latest = 0.2.x) and `cargo install cargo-superui@0.1` both resolve.
 
 ---
 
 ## Self-Review — spec coverage
 
-- Spec §1 workspace knob → Task 1. §2 fork rename → Task 2. §3 patch registry/markers/drift check → Tasks 3–4. §4 0.18 upgrade (vendor upstream flair + reapply + fix breakage) → Tasks 10–11. §5 versioning (0.1.x/0.2.x) → Tasks 1 (0.1.0), 11 (0.2.0). §6 branching → Task 9. §7 publishing (metadata, drop publish=false, topological driver, dry-run gate) → Tasks 5–6, 13. §7 CLI distribution/`cargo install` → Task 5 (publishable) + Task 13 Step 4. §7a CLI forward-compat invariant + test + pinning docs → Task 7 (test) + Task 9 CONTRIBUTING / compatibility pointer. §8 compat table README + website → Task 8.
+- Spec §1 workspace knob → Task 1. §2 fork rename → Task 2. §3 patch registry/markers/drift check → Tasks 3–4. §4 0.18 upgrade (vendor upstream flair + reapply + fix breakage) → Tasks 10–11. §5 versioning (0.1.x/0.2.x) → Tasks 1 (0.1.0), 11 (0.2.0). §6 branching → Task 9. §7 publishing (metadata, drop publish=false, topological driver, dry-run gate) → Tasks 5–6, 13. §7 CLI distribution/`cargo install` → Task 5 (publishable) + Task 13 handoff H3. §7a CLI forward-compat invariant + test + pinning docs → Task 7 (test) + Task 9 CONTRIBUTING / compatibility pointer. §8 compat table README + website → Task 8.
 - Every `publish = false` dropped (Task 5). `superui_test_engine` source untouched (constraint honored). No auto-publish (Task 13 manual). Marker grammar identical across Tasks 3/4/10. `publish_order` (Task 6) matches the topological table.
