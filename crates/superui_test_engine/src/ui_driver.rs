@@ -28,6 +28,12 @@ const ACTION_TIMEOUT_ITERS: usize = 120;
 const MAX_ITERS_PER_TEST: usize = 2000;
 /// Frames to wait for a screenshot capture before giving up and failing the expect.
 const SCREENSHOT_CAPTURE_TIMEOUT_FRAMES: usize = 64;
+/// Frames of DOM-settled (non-dirty) rendering to let elapse before capturing a
+/// screenshot. flair applies styles/layout reactively over several frames after
+/// mount, and the offscreen render must catch up — capturing too early yields a
+/// partial/blurry frame (unlike the headless CLI, which reaches the screenshot
+/// step far more settled). This gives the render pipeline time to stabilize.
+const SCREENSHOT_SETTLE_FRAMES: usize = 30;
 
 /// Non-send holder for the in-progress run (or `None` when idle). Stored via
 /// `insert_non_send_resource` because `RunState` holds Boa `JsValue`s which
@@ -80,6 +86,11 @@ struct ScreenshotCapture {
     id: u64,
     name: String,
     action: String,
+    /// Frames of settling left before the screenshot is actually spawned.
+    settle: usize,
+    /// Whether `spawn_screenshot` has been issued yet (after settling).
+    spawned: bool,
+    /// Frames spent polling the sink after spawning.
     frames_waited: usize,
 }
 
@@ -340,35 +351,55 @@ fn step_running(world: &mut World, run: &mut RunState) {
         }
         work.pending_actions = still_actions;
 
-        // 3b-pre. Drive an in-flight screenshot capture (Task 5).
+        // 3b-pre. Drive an in-flight screenshot capture: settle, then capture.
         if let Some(mut cap) = work.capturing.take() {
-            let sink = world.resource::<crate::render::CaptureSink>().0.clone();
-            let ready = sink.lock().unwrap().take();
-            if let Some(img) = ready {
-                let result = match &run.opts.snapshot {
-                    Some(cfg) => snapshot::match_screenshot(
-                        cfg, &run.opts.spec_file, &cap.name, img.width, img.height, &img.rgba,
-                    ),
-                    None => Ok(()),
-                };
-                let (status, payload) = match &result {
-                    Ok(()) => (StepStatus::Ok, r#"{"ok":true,"value":null}"#.to_string()),
-                    Err(msg) => (StepStatus::Failed(msg.clone()), serde_json::json!({"ok": false, "error": msg}).to_string()),
-                };
-                with_ctx(world, |ctx| abi::resolve(ctx, cap.id, &payload));
-                let dom = snapshot_body(world);
-                work.steps.push(Step { index: work.steps.len(), action: cap.action, status, dom_after: dom, screenshot: None });
+            if !cap.spawned {
+                // Settle phase: let flair styling + layout + the offscreen render
+                // stabilize before we snapshot. Only count down while the DOM is
+                // quiescent (`!dirty`), so a still-reconciling tree doesn't get
+                // captured half-rendered (which yields a partial/blurry frame).
+                let dirty = world.non_send_resource::<UiRuntime>().dirty;
+                if cap.settle > 0 {
+                    if !dirty {
+                        cap.settle -= 1;
+                    }
+                } else {
+                    let handle = world.resource::<crate::render::RenderTargetHandle>().0.clone();
+                    let sink = world.resource::<crate::render::CaptureSink>().0.clone();
+                    crate::render::spawn_screenshot(world, handle, sink);
+                    cap.spawned = true;
+                }
+                work.capturing = Some(cap);
             } else {
-                cap.frames_waited += 1;
-                if cap.frames_waited > SCREENSHOT_CAPTURE_TIMEOUT_FRAMES {
-                    // Give up: capture never fired.
-                    let msg = "screenshot capture failed".to_string();
-                    let payload = serde_json::json!({"ok": false, "error": msg}).to_string();
+                // Poll phase: wait for the readback to land in the sink.
+                let sink = world.resource::<crate::render::CaptureSink>().0.clone();
+                let ready = sink.lock().unwrap().take();
+                if let Some(img) = ready {
+                    let result = match &run.opts.snapshot {
+                        Some(cfg) => snapshot::match_screenshot(
+                            cfg, &run.opts.spec_file, &cap.name, img.width, img.height, &img.rgba,
+                        ),
+                        None => Ok(()),
+                    };
+                    let (status, payload) = match &result {
+                        Ok(()) => (StepStatus::Ok, r#"{"ok":true,"value":null}"#.to_string()),
+                        Err(msg) => (StepStatus::Failed(msg.clone()), serde_json::json!({"ok": false, "error": msg}).to_string()),
+                    };
                     with_ctx(world, |ctx| abi::resolve(ctx, cap.id, &payload));
                     let dom = snapshot_body(world);
-                    work.steps.push(Step { index: work.steps.len(), action: cap.action, status: StepStatus::Failed(msg), dom_after: dom, screenshot: None });
+                    work.steps.push(Step { index: work.steps.len(), action: cap.action, status, dom_after: dom, screenshot: None });
                 } else {
-                    work.capturing = Some(cap);
+                    cap.frames_waited += 1;
+                    if cap.frames_waited > SCREENSHOT_CAPTURE_TIMEOUT_FRAMES {
+                        // Give up: capture never fired.
+                        let msg = "screenshot capture failed".to_string();
+                        let payload = serde_json::json!({"ok": false, "error": msg}).to_string();
+                        with_ctx(world, |ctx| abi::resolve(ctx, cap.id, &payload));
+                        let dom = snapshot_body(world);
+                        work.steps.push(Step { index: work.steps.len(), action: cap.action, status: StepStatus::Failed(msg), dom_after: dom, screenshot: None });
+                    } else {
+                        work.capturing = Some(cap);
+                    }
                 }
             }
         }
@@ -379,11 +410,16 @@ fn step_running(world: &mut World, run: &mut RunState) {
             if e.matcher == "screenshot" {
                 let name = e.expected.as_str().unwrap_or("screenshot").to_string();
                 if opts_render && work.capturing.is_none() {
-                    // Kick an async capture; resolved by the sub-state above.
-                    let handle = world.resource::<crate::render::RenderTargetHandle>().0.clone();
-                    let sink = world.resource::<crate::render::CaptureSink>().0.clone();
-                    crate::render::spawn_screenshot(world, handle, sink);
-                    work.capturing = Some(ScreenshotCapture { id: e.id, name, action: e.action, frames_waited: 0 });
+                    // Park a capture; the 3b-pre drive block settles the UI, then
+                    // spawns the screenshot and resolves this expect.
+                    work.capturing = Some(ScreenshotCapture {
+                        id: e.id,
+                        name,
+                        action: e.action,
+                        settle: SCREENSHOT_SETTLE_FRAMES,
+                        spawned: false,
+                        frames_waited: 0,
+                    });
                 } else if !opts_render {
                     // Headless: no pixels; pass immediately.
                     with_ctx(world, |ctx| abi::resolve(ctx, e.id, r#"{"ok":true,"value":null}"#));
