@@ -210,7 +210,11 @@ body:not(:has(.superui-landing)) #sidebar { left: var(--su-gutter); }
 body:not(:has(.superui-landing)) #page-wrapper { margin-right: var(--su-gutter); }
 body:not(:has(.superui-landing)).sidebar-visible #page-wrapper { margin-left: calc(var(--su-gutter) + 308px); }
 body:not(:has(.superui-landing)):not(.sidebar-visible) #page-wrapper { margin-left: var(--su-gutter); }
-body:not(:has(.superui-landing)) .nav-chapters.previous { left: var(--su-gutter); }
+/* The prev arrow must clear the (shifted) sidebar: place it just right of it when
+   the sidebar is visible, else at the content-area's left edge. The next arrow
+   sits at the content-area's right edge in both states. */
+body:not(:has(.superui-landing)).sidebar-visible .nav-chapters.previous { left: calc(var(--su-gutter) + 308px); }
+body:not(:has(.superui-landing)):not(.sidebar-visible) .nav-chapters.previous { left: var(--su-gutter); }
 body:not(:has(.superui-landing)) .nav-chapters.next { right: var(--su-gutter); }
 #content h1, #content h2, #content h3, #content h4 {
   font-family: var(--font-display); color: var(--su-heading); font-weight: 700; }
