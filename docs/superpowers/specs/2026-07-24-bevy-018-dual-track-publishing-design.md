@@ -176,6 +176,10 @@ Make every deviation from upstream flair explicit and machine-findable so we can
 - Gate with `cargo package` / `--dry-run` before the real publish.
 - Ensure each published crate has the required metadata (`description`,
   `license` (present via workspace), `repository`, `readme`, `keywords`).
+- **CLI distribution:** `cargo-superui` is a cargo subcommand, distributed via
+  `cargo install cargo-superui` (invoked as `cargo superui …`). No prebuilt
+  binaries; the CLI is tiny (`serde`/`serde_json` only) so source builds are
+  fast. Once published, drop the `publish = false` and it installs from crates.io.
 
 ### 8. Compatibility table (README + website)
 
