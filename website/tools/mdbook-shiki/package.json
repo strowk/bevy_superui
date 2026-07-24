@@ -1,0 +1,11 @@
+{
+  "name": "mdbook-shiki",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "mdBook preprocessor: build-time syntax highlighting via Shiki, themed to the superui palette.",
+  "bin": { "mdbook-shiki": "index.mjs" },
+  "dependencies": {
+    "shiki": "^3.0.0"
+  }
+}

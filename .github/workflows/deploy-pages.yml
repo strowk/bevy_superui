@@ -123,6 +123,17 @@ jobs:
         with:
           tool: mdbook
 
+      # The Shiki mdBook preprocessor (tools/mdbook-shiki) highlights code blocks
+      # at build time, so `mdbook build` needs Node + the preprocessor's deps.
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Shiki preprocessor deps
+        run: npm ci
+        working-directory: website/tools/mdbook-shiki
+
       - name: Build the site (landing + docs + gallery index)
         run: mdbook build website --dest-dir "$GITHUB_WORKSPACE/dist"
 

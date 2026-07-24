@@ -17,3 +17,10 @@ no-section-label = true
 [preprocessor.gallery]
 command = "cargo run -q -p mdbook-gallery --"
 manifest = "../examples/gallery.json"
+
+# Build-time syntax highlighting via Shiki (real .tsx/JSX grammar), themed to the
+# superui palette. Emits <pre class="shiki"> markup; theme/highlight.js neutralizes
+# mdBook's client-side highlighter so it doesn't re-process it. Needs Node.
+[preprocessor.shiki]
+command = "node tools/mdbook-shiki/index.mjs"
+after = ["gallery"]
