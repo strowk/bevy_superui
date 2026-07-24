@@ -174,3 +174,48 @@ body:has(.superui-landing) #content main {
   font-family: var(--font-mono); font-size: 11px; color: var(--su-muted-dim); }
 .su-footer .su-f-brand { color: var(--su-teal); }
 .su-footer .su-f-right { margin-left: auto; }
+
+/* ============ sidebar → "MODULE INDEX" ============ */
+#sidebar, .sidebar { background: #0b0f17; border-right: 1px solid rgba(52,230,214,0.12); }
+.sidebar .sidebar-scrollbox { padding: 14px 12px; }
+.chapter li.part-title {
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--su-teal); margin: 18px 0 8px; padding: 0 6px;
+}
+.chapter li a { font-family: var(--font-body); font-size: 14px; color: var(--su-muted);
+  border-radius: 6px; border-left: 2px solid transparent; padding: 7px 10px; }
+.chapter li a:hover { color: var(--su-text); background: rgba(52,230,214,0.06); }
+.chapter li a.active { color: var(--su-teal-light); background: rgba(52,230,214,0.10);
+  border-left-color: var(--su-teal); }
+
+/* ============ content ============ */
+#content main { color: var(--su-text); }
+#content h1, #content h2, #content h3, #content h4 {
+  font-family: var(--font-display); color: var(--su-heading); font-weight: 700; }
+#content h1 { font-size: clamp(34px, 5vw, 48px); letter-spacing: -0.01em; }
+#content h2 { color: var(--su-heading); border: none; margin-top: 2em; }
+#content a { color: var(--su-teal-light); }
+#content p, #content li { color: var(--su-text); }
+
+/* code blocks */
+#content pre {
+  background: rgba(9,13,20,0.85); border: 1px solid rgba(52,230,214,0.16);
+  border-radius: 10px; }
+#content pre > code { font-family: var(--font-mono); font-size: 13px; line-height: 1.6; }
+#content code:not(pre code) {
+  font-family: var(--font-mono); color: var(--su-teal-light);
+  background: rgba(52,230,214,0.08); border-radius: 4px; padding: 1px 5px; }
+/* mdBook's hover clipboard button = our "COPY" control */
+.buttons .clip-button, pre .buttons { color: var(--su-muted); }
+.buttons .clip-button:hover { color: var(--su-teal-light); }
+
+/* blockquote → TIP callout */
+#content blockquote {
+  border: 1px solid rgba(52,230,214,0.2); border-left: 3px solid var(--su-teal);
+  background: rgba(52,230,214,0.06); color: var(--su-text);
+  border-radius: 8px; padding: 14px 18px; }
+
+/* prev/next */
+.nav-chapters { color: var(--su-muted); font-family: var(--font-mono); }
+.nav-chapters:hover { color: var(--su-teal-light); }
+.mobile-nav-chapters { color: var(--su-teal-light); }
