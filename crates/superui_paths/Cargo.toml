@@ -3,5 +3,9 @@ name = "superui_paths"
 edition.workspace = true
 version.workspace = true
 license.workspace = true
+description = "Zero-dependency asset-path helpers shared by superui (runtime) and supersolid (build-time)"
+repository.workspace = true
+keywords = ["bevy", "superui", "paths", "assets"]
+categories = ["game-development"]
 
 [dependencies]
