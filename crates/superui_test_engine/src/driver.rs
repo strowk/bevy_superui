@@ -381,10 +381,10 @@ fn run_one(app: &mut App, test: &RegisteredTest, opts: &RunOptions) -> TestResul
 fn with_ctx<R>(app: &mut App, f: impl FnOnce(&mut boa_engine::Context) -> R) -> R {
     let mut rt = app
         .world_mut()
-        .remove_non_send_resource::<UiRuntime>()
+        .remove_non_send::<UiRuntime>()
         .expect("runtime");
     let r = f(rt.engine.context_mut());
-    app.world_mut().insert_non_send_resource(rt);
+    app.world_mut().insert_non_send(rt);
     r
 }
 

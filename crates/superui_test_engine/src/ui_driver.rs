@@ -539,9 +539,9 @@ fn advance_after_test(world: &mut World, run: &mut RunState) {
 // ---- World-based leaf helpers (duplicated from driver.rs, per plan) --------
 
 fn with_ctx<R>(world: &mut World, f: impl FnOnce(&mut boa_engine::Context) -> R) -> R {
-    let mut rt = world.remove_non_send_resource::<UiRuntime>().expect("runtime");
+    let mut rt = world.remove_non_send::<UiRuntime>().expect("runtime");
     let r = f(rt.engine.context_mut());
-    world.insert_non_send_resource(rt);
+    world.insert_non_send(rt);
     r
 }
 

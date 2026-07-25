@@ -40,10 +40,10 @@ fn count_super_ui_roots(app: &mut bevy::prelude::App) -> usize {
 fn with_ctx<R>(app: &mut bevy::prelude::App, f: impl FnOnce(&mut boa_engine::Context) -> R) -> R {
     let mut rt = app
         .world_mut()
-        .remove_non_send_resource::<UiRuntime>()
+        .remove_non_send::<UiRuntime>()
         .expect("UiRuntime must be present");
     let r = f(rt.engine.context_mut());
-    app.world_mut().insert_non_send_resource(rt);
+    app.world_mut().insert_non_send(rt);
     r
 }
 

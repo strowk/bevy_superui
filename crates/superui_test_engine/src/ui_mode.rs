@@ -100,7 +100,7 @@ pub fn run(cfg: &TestConfig, project: &HostProject, specs: &[PathBuf]) {
     app.insert_resource(RenderTargetHandle(handle.clone()));
     app.insert_resource(CaptureSink::default());
     // ActiveRun holds Boa !Send values — must be a non-send resource.
-    app.init_non_send_resource::<ActiveRun>();
+    app.init_non_send::<ActiveRun>();
 
     app.insert_resource(UiState {
         specs: specs.to_vec(),
@@ -309,13 +309,19 @@ fn register_test_frames(world: &mut World, frames: &[Option<(u32, u32, Vec<u8>)>
 
 fn ui_system(mut contexts: EguiContexts, mut state: ResMut<UiState>) -> Result {
     let ctx = contexts.ctx_mut()?.clone();
-    let ctx = &ctx;
+    let mut viewport_ui = egui::Ui::new(
+        ctx.clone(),
+        "viewport".into(),
+        egui::UiBuilder::new()
+            .layer_id(egui::LayerId::background())
+            .max_rect(ctx.viewport_rect()),
+    );
 
     // ---- LEFT: spec list -------------------------------------------------
-    egui::SidePanel::left("spec_list")
+    egui::Panel::left("spec_list")
         .resizable(true)
-        .default_width(280.0)
-        .show(ctx, |ui| {
+        .default_size(280.0)
+        .show(&mut viewport_ui, |ui| {
             ui.heading("Specs");
             ui.separator();
             if state.specs.is_empty() {
@@ -350,10 +356,10 @@ fn ui_system(mut contexts: EguiContexts, mut state: ResMut<UiState>) -> Result {
         });
 
     // ---- RIGHT: status / error of selected step --------------------------
-    egui::SidePanel::right("status_panel")
+    egui::Panel::right("status_panel")
         .resizable(true)
-        .default_width(320.0)
-        .show(ctx, |ui| {
+        .default_size(320.0)
+        .show(&mut viewport_ui, |ui| {
             ui.heading("Status");
             ui.separator();
             if let Some(err) = &state.error {
@@ -411,7 +417,7 @@ fn ui_system(mut contexts: EguiContexts, mut state: ResMut<UiState>) -> Result {
     let current_spec_name = state.current_spec_name.clone();
     let n_tests = state.last_results.len();
 
-    egui::CentralPanel::default().show(ctx, |ui| {
+    egui::CentralPanel::default().show(&mut viewport_ui, |ui| {
         if let Some(name) = &current_spec_name {
             ui.heading(format!("Run: {name}"));
         } else {
