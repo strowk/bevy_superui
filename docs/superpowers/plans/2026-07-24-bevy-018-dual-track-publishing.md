@@ -699,9 +699,9 @@ Expected: both point at the same commit (the CONTRIBUTING commit).
 - Consumes: fork-patch markers/registry (Tasks 3–4).
 - Produces: forks whose upstream base is the bevy-0.18-compatible flair release, with all registry patches reapplied.
 
-- [ ] **Step 1: Identify the upstream flair release that targets bevy 0.18**
+- [ ] **Step 1: Confirm the upstream flair release that targets bevy 0.18**
 
-Check crates.io / the upstream repo (`https://github.com/eckz/bevy_flair`) for the release whose `bevy_*` deps are `0.18`. Record its version (e.g. `0.7.x`) — you will use it as the new vendored base and note it in `docs/fork-patches.md`.
+Already resolved during pre-flight: **`bevy_flair 0.7.0`** is the release whose `bevy_*` deps are `^0.18` (verified via crates.io; `0.6.0`=bevy 0.17, `0.7.0`=bevy 0.18, `0.8.0`=bevy 0.19). Use `0.7.0` as the new vendored base and record it in `docs/fork-patches.md`. Re-confirm with `curl -s https://crates.io/api/v1/crates/bevy_flair/0.7.0/dependencies` if desired.
 
 - [ ] **Step 2: Re-vendor the three crates' `src/` from that release**
 
