@@ -10,7 +10,7 @@
 //! the benchmark relies on.
 
 use bevy::asset::io::memory::{Dir, MemoryAssetReader};
-use bevy::asset::io::{AssetSource, AssetSourceId};
+use bevy::asset::io::{AssetSourceBuilder, AssetSourceId};
 use bevy::asset::AssetPlugin;
 use bevy::image::TextureAtlasPlugin;
 use bevy::input::InputPlugin;
@@ -47,7 +47,7 @@ fn app() -> App {
     let mut app = App::new();
     app.register_asset_source(
         AssetSourceId::Default,
-        AssetSource::build().with_reader(move || Box::new(MemoryAssetReader { root: dir.clone() })),
+        AssetSourceBuilder::new(move || Box::new(MemoryAssetReader { root: dir.clone() })),
     );
     app.add_plugins((
         bevy::time::TimePlugin,

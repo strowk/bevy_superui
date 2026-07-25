@@ -6,7 +6,7 @@ pub mod profile;
 use std::time::{Duration, Instant};
 
 use bevy::asset::io::memory::{Dir, MemoryAssetReader};
-use bevy::asset::io::{AssetSource, AssetSourceId};
+use bevy::asset::io::{AssetSourceBuilder, AssetSourceId};
 use bevy::asset::AssetPlugin;
 use bevy::image::TextureAtlasPlugin;
 use bevy::input::InputPlugin;
@@ -74,7 +74,7 @@ pub fn build_bench_app(backend: Backend, cfg: CitadelConfig) -> App {
     let dir = memory_asset_dir();
     app.register_asset_source(
         AssetSourceId::Default,
-        AssetSource::build().with_reader(move || Box::new(MemoryAssetReader { root: dir.clone() })),
+        AssetSourceBuilder::new(move || Box::new(MemoryAssetReader { root: dir.clone() })),
     );
 
     // Identical base plugin recipe for every backend.

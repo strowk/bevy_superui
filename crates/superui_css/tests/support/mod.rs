@@ -3,7 +3,7 @@
 #![allow(dead_code)]
 
 use bevy::asset::io::memory::{Dir, MemoryAssetReader};
-use bevy::asset::io::{AssetSource, AssetSourceId};
+use bevy::asset::io::{AssetSourceBuilder, AssetSourceId};
 use bevy::asset::{AssetApp, AssetPlugin, AssetServer, Handle};
 use bevy::image::{ImagePlugin, TextureAtlasPlugin};
 use bevy::input::InputPlugin;
@@ -65,7 +65,7 @@ pub fn test_app() -> App {
 
     app.register_asset_source(
         AssetSourceId::Default,
-        AssetSource::build().with_reader(move || {
+        AssetSourceBuilder::new(move || {
             Box::new(MemoryAssetReader { root: ASSETS_DIR.clone() })
         }),
     );

@@ -9,9 +9,9 @@ keywords = ["bevy", "ui", "css", "style", "gamedev"]
 categories = ["game-development"]
 
 [dependencies]
-superui_flair_core = { path = "../superui_flair_core", version = "0.1.0" }
-superui_flair_style = { path = "../superui_flair_style", version = "0.1.0" }
-superui_flair_css_parser = { path = "../superui_flair_css_parser", version = "0.1.0" }
+superui_flair_core = { path = "../superui_flair_core", version = "0.2.0" }
+superui_flair_style = { path = "../superui_flair_style", version = "0.2.0" }
+superui_flair_css_parser = { path = "../superui_flair_css_parser", version = "0.2.0" }
 bevy_app = { workspace = true }
 
 # Bevy pulls getrandom 0.3, which needs the JS backend on wasm. Scope the direct
@@ -31,6 +31,6 @@ bevy = { workspace = true, default-features = false, features = [
     "bevy_text",
     "bevy_picking",
     "bevy_input_focus",
-    "bevy_ui_picking_backend",
+    "ui_picking",
     "default_font",
 ] }

@@ -410,7 +410,7 @@ impl UiRuntime {
         let mut attrs = AttributeList::new();
         for (k, v) in dom.attributes(node) {
             if k != "id" && k != "class" && k != "style" {
-                attrs.set_attribute(k.as_str(), v.as_str());
+                attrs.set_attribute(k.to_string(), v.to_string());
             }
         }
         if ec.get::<AttributeList>() != Some(&attrs) {

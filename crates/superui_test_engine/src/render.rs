@@ -89,10 +89,7 @@ pub fn build_render_app(project: &HostProject, width: u32, height: u32) -> App {
     // nodes attach to the single default camera, so they render here.
     app.world_mut().spawn((
         Camera2d,
-        Camera {
-            target: bevy::camera::RenderTarget::from(handle),
-            ..default()
-        },
+        bevy::camera::RenderTarget::from(handle),
     ));
 
     app.finish();

@@ -158,11 +158,8 @@ fn setup_cameras(mut commands: Commands, target: Res<RenderTargetHandle>) {
     let cam = commands
         .spawn((
             Camera2d,
-            Camera {
-                target: bevy::camera::RenderTarget::from(target.0.clone()),
-                order: -1,
-                ..default()
-            },
+            Camera { order: -1, ..default() },
+            bevy::camera::RenderTarget::from(target.0.clone()),
         ))
         .id();
     commands.insert_resource(UnderTestCamera(cam));

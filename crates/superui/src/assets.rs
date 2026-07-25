@@ -15,9 +15,9 @@ pub struct HtmlSource(pub String);
 #[derive(Asset, TypePath, Debug, Clone)]
 pub struct JsSource(pub String);
 
-#[derive(Default)]
+#[derive(Default, TypePath)]
 pub struct HtmlLoader;
-#[derive(Default)]
+#[derive(Default, TypePath)]
 pub struct JsLoader;
 
 async fn read_to_string(reader: &mut dyn Reader) -> Result<String, std::io::Error> {
@@ -68,7 +68,7 @@ impl AssetLoader for JsLoader {
 /// (so mount/hot-reload treat it identically to hand-written `.js`). Native-only:
 /// `oxc` must not enter the wasm binary (direction spec §11.3).
 #[cfg(not(target_arch = "wasm32"))]
-#[derive(Default)]
+#[derive(Default, TypePath)]
 pub struct TsxLoader;
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -84,8 +84,8 @@ impl AssetLoader for TsxLoader {
         lc: &mut LoadContext<'_>,
     ) -> Result<JsSource, std::io::Error> {
         let src = read_to_string(reader).await?;
-        let tsx = lc.path().extension().and_then(|e| e.to_str()) != Some("ts");
-        let module_id = Some(lc.path().to_string_lossy().into_owned());
+        let tsx = lc.path().path().extension().and_then(|e| e.to_str()) != Some("ts");
+        let module_id = Some(lc.path().path().to_string_lossy().into_owned());
         let opts = supersolid::TranspileOptions { tsx, module_id, ..Default::default() };
         let result = supersolid::transpile(&src, &opts);
         for d in &result.diagnostics {
@@ -105,7 +105,7 @@ impl AssetLoader for TsxLoader {
 mod tests {
     use super::*;
     use bevy::asset::io::memory::{Dir, MemoryAssetReader};
-    use bevy::asset::io::{AssetSource, AssetSourceId};
+    use bevy::asset::io::{AssetSourceBuilder, AssetSourceId};
     use bevy::asset::{AssetApp, AssetPlugin, AssetServer, LoadState};
 
     #[test]
@@ -117,8 +117,7 @@ mod tests {
         let mut app = App::new();
         app.register_asset_source(
             AssetSourceId::Default,
-            AssetSource::build()
-                .with_reader(move || Box::new(MemoryAssetReader { root: dir.clone() })),
+            AssetSourceBuilder::new(move || Box::new(MemoryAssetReader { root: dir.clone() })),
         );
         app.add_plugins((
             bevy::app::TaskPoolPlugin::default(),
@@ -164,7 +163,7 @@ mod tests {
         let mut app = App::new();
         app.register_asset_source(
             AssetSourceId::Default,
-            AssetSource::build().with_reader(move || Box::new(MemoryAssetReader { root: dir.clone() })),
+            AssetSourceBuilder::new(move || Box::new(MemoryAssetReader { root: dir.clone() })),
         );
         app.add_plugins((bevy::app::TaskPoolPlugin::default(), AssetPlugin::default()));
         app.init_asset::<JsSource>().register_asset_loader(TsxLoader);
@@ -203,7 +202,7 @@ mod tests {
         let mut app = App::new();
         app.register_asset_source(
             AssetSourceId::Default,
-            AssetSource::build().with_reader(move || Box::new(MemoryAssetReader { root: dir.clone() })),
+            AssetSourceBuilder::new(move || Box::new(MemoryAssetReader { root: dir.clone() })),
         );
         app.add_plugins((bevy::app::TaskPoolPlugin::default(), AssetPlugin::default()));
         app.init_asset::<JsSource>().register_asset_loader(TsxLoader);
