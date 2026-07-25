@@ -25,6 +25,6 @@ Upstream bases:
 
 ### boa-icu-2x
 - **Crate/file:** `superui_boa_engine` — `Cargo.toml` (`icu_normalizer` dep); `superui_boa_parser` — `Cargo.toml` (`icu_properties` dep).
-- **What:** Relax `icu_normalizer` and `icu_properties` version constraints from upstream `~2.0.0` (tilde = `>=2.0.0, <2.1`) to `>=2.0.0, <3` (accept the full icu 2.x family including 2.1).
-- **Why:** Bevy 0.19's Parley text backend requires `icu_normalizer ^2.1.1`; boa 0.21.1 pins `~2.0.0`, producing an unresolvable conflict. Boa's `main` branch has already relaxed this, but no 0.22 release exists yet.
-- **Upstream status:** local; drop when boa publishes an icu-2.1-compatible release (0.22+).
+- **What:** (a) Relax `icu_normalizer` and `icu_properties` version constraints from upstream `~2.0.0` (tilde = `>=2.0.0, <2.1`) to `>=2.0.0, <3` (accept the full icu 2.x family including 2.1). (b) Because boa's *optional* icu deps (behind `intl`/`intl_bundled`/`temporal`) still pin `~2.0.0` and drag the icu family back to 2.0, remove those optional icu deps and stub `intl`/`intl_bundled` as empty features; `temporal` likewise loses its `icu_calendar` dep. These features become non-functional in the fork.
+- **Why:** Bevy 0.19's Parley text backend requires `icu_normalizer ^2.1.1`; boa 0.21.1 pins `~2.0.0`, producing an unresolvable conflict. Boa's `main` branch has already relaxed this, but no 0.22 release exists yet. No workspace consumer enables `intl`/`intl_bundled`/`temporal`/`experimental`, so stubbing them is behavior-neutral for superui (verified: no `Intl.` usage anywhere in the JS/TSX/runtime).
+- **Upstream status:** local; drop the whole fork (restore upstream boa + full intl/temporal) when boa publishes an icu-2.1-compatible release (0.22+).

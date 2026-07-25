@@ -51,9 +51,11 @@ fuzz = [
     "boa_ast/arbitrary",
     "boa_interner/arbitrary",
 ]
-# intl and intl_bundled are defined for API compatibility but are not
-# functional in this fork; the icu ~2.0.x optional deps were removed to
-# unblock icu 2.1 resolution (see docs/fork-patches.md#boa-icu-2x).
+# intl and intl_bundled are defined for API compatibility but are NON-FUNCTIONAL
+# in this fork: their optional icu ~2.0.x deps were removed to unblock icu 2.1
+# resolution (see docs/fork-patches.md#boa-icu-2x). The `temporal` feature below
+# is likewise degraded — its `dep:icu_calendar` (~2.0) was removed, so calendar
+# support is non-functional. No workspace consumer enables intl/temporal.
 intl = []
 intl_bundled = []
 js = [
@@ -80,6 +82,7 @@ crate-type = [
     "lib",
 ]
 path = "src/lib.rs"
+bench = false
 
 [[test]]
 name = "gcd"
