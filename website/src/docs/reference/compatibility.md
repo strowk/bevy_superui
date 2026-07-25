@@ -16,9 +16,11 @@ one Bevy minor version**, and superui bumps its minor in lockstep with Bevy.
 Match superui to the Bevy version already in your `Cargo.toml`. For example, on
 Bevy 0.17:
 
-    [dependencies]
-    bevy = "0.17"
-    superui = "0.1"
+```toml
+[dependencies]
+bevy = "0.17"
+superui = "0.1"
+```
 
 Mixing a superui version with a different Bevy minor is not supported — Cargo will
 usually fail to resolve, and even when it links, the ECS/UI types won't match.

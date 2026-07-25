@@ -16,19 +16,25 @@ From here on we assume you have a binary crate that builds and runs a Bevy app.
 
 ## Add the dependencies
 
-superui is not yet published to crates.io, so add it to your existing Bevy
-project as a git dependency (your `bevy` dependency is already in place from the
-prerequisite step):
+superui is on crates.io. Add it to your existing Bevy project (your `bevy`
+dependency is already in place from the prerequisite step):
 
 ```toml
 [dependencies]
-superui = { git = "https://github.com/strowk/bevy_superui" }
-superui_css = { git = "https://github.com/strowk/bevy_superui" }
+superui = "0.2"
+superui_css = "0.2"
 
 # Pre-transpiles your .tsx to JS at build time (needed for release / web builds).
 [build-dependencies]
-supersolid = { git = "https://github.com/strowk/bevy_superui" }
+supersolid = "0.2"
 ```
+
+Pick the superui version that matches your Bevy version:
+
+| superui | bevy |
+|---|---|
+| `0.2` | `0.18` |
+| `0.1` | `0.17` |
 
 The `supersolid` build dependency is explained in
 [Project Structure & Build](project-structure.md#build-modes); you can add it now

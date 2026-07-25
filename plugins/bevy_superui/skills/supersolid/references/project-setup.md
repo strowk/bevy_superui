@@ -4,17 +4,20 @@
 
 ## Dependencies
 
-superui is not on crates.io yet — add it as a git dependency (you already have `bevy`):
+superui is on crates.io — add it (you already have `bevy`):
 
 ```toml
 [dependencies]
-superui = { git = "https://github.com/strowk/bevy_superui" }
-superui_css = { git = "https://github.com/strowk/bevy_superui" }
+superui = "0.2"
+superui_css = "0.2"
 
 # Pre-transpiles .tsx → JS at build time (needed for release / web builds).
 [build-dependencies]
-supersolid = { git = "https://github.com/strowk/bevy_superui" }
+supersolid = "0.2"
 ```
+
+Match the superui version to your Bevy version: superui `0.2` = bevy `0.18`,
+superui `0.1` = bevy `0.17`.
 
 ## UI directory layout
 
@@ -101,7 +104,7 @@ superui_modules/
 ```toml
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.3", features = ["wasm_js"] }
-bevy = { version = "0.17", features = ["webgl2"] }
+bevy = { version = "0.18", features = ["webgl2"] }
 ```
 
 Set the canvas selector on the primary window when targeting wasm (see the counter
