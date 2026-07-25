@@ -168,7 +168,7 @@ impl AssetLoader for CssStyleSheetLoader {
 /// # use bevy_ecs::change_detection::ResMut;
 /// # use bevy_ecs::system::Commands;
 /// # use bevy_ui::widget::Button;
-/// # use bevy_flair_css_parser::InlineCssStyleSheetParser;
+/// # use superui_flair_css_parser::InlineCssStyleSheetParser;
 /// # use superui_flair_style::components::NodeStyleSheet;
 /// # use superui_flair_style::StyleSheet;
 ///

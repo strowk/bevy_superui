@@ -30,7 +30,7 @@ impl InlineStyle {
     ///
     /// # Example
     /// ```
-    /// # use bevy_flair_css_parser::InlineStyle;
+    /// # use superui_flair_css_parser::InlineStyle;
     /// let style = InlineStyle::new("color: red; font-size: 12px;");
     /// ```
     pub fn new(style: &str) -> Self {
@@ -41,7 +41,7 @@ impl InlineStyle {
     ///
     /// # Example
     /// ```
-    /// # use bevy_flair_css_parser::InlineStyle;
+    /// # use superui_flair_css_parser::InlineStyle;
     /// let mut style = InlineStyle::new("left: 10px; top: 20px");
     /// let left = style.get("left");
     /// # assert_eq!(left, Some("10px"))
@@ -55,7 +55,7 @@ impl InlineStyle {
     ///
     /// # Example
     /// ```
-    /// # use bevy_flair_css_parser::InlineStyle;
+    /// # use superui_flair_css_parser::InlineStyle;
     /// let mut style = InlineStyle::new("left: 10px");
     /// style.set("left", "20px");
     /// style.set("--my-var", "50px");
@@ -69,7 +69,7 @@ impl InlineStyle {
     ///
     /// # Example
     /// ```
-    /// # use bevy_flair_css_parser::InlineStyle;
+    /// # use superui_flair_css_parser::InlineStyle;
     /// let mut style = InlineStyle::new("margin: 10px; padding: 10px");
     /// style.remove("margin");
     /// # assert_eq!(style, InlineStyle::new("padding: 10px"))

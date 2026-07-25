@@ -179,7 +179,7 @@ enum InternalCanonicalName {
 /// The canonical name is made of the component type path and the property path inside the component.
 /// # Example
 /// ```
-/// # use bevy_flair_core::PropertyCanonicalName;
+/// # use superui_flair_core::PropertyCanonicalName;
 /// let canonical_name = PropertyCanonicalName::new("my_crate::MyComponent", ".my_field");
 /// assert_eq!(canonical_name.component(), "my_crate::MyComponent");
 /// assert_eq!(canonical_name.path(), ".my_field");
@@ -290,7 +290,7 @@ impl Ord for PropertyCanonicalName {
 /// # use bevy_ecs::prelude::*;
 /// # use bevy_reflect::{ParsedPath, Typed};
 /// # use bevy_reflect::prelude::*;
-/// # use bevy_flair_core::*;
+/// # use superui_flair_core::*;
 ///
 /// #[derive(Default, Component, Reflect)]
 /// struct MyComponent {

@@ -27,7 +27,7 @@ use tracing::warn;
 /// ```
 /// # use superui_flair_core::ReflectValue;
 /// # use bevy_ui::Val;
-/// # use bevy_flair_style::animations::{EasingFunction, AnimationPropertyKeyframe};
+/// # use superui_flair_style::animations::{EasingFunction, AnimationPropertyKeyframe};
 /// let property_keyframe = AnimationPropertyKeyframe {
 ///     time: 1.0,
 ///     value: ReflectValue::Val(Val::Px(350.0)),

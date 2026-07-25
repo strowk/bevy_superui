@@ -57,8 +57,8 @@ impl InterpolateValue for Rot2 {
 /// # use bevy_reflect::FromType;
 /// # use bevy_ui::Val;
 /// # use superui_flair_core::*;
-/// # use bevy_flair_style::*;
-/// # use bevy_flair_style::animations::ReflectAnimatable;
+/// # use superui_flair_style::*;
+/// # use superui_flair_style::animations::ReflectAnimatable;
 ///
 /// let reflect_animatable = <ReflectAnimatable as FromType<Val>>::from_type();
 ///

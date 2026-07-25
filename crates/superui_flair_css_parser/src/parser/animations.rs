@@ -230,7 +230,7 @@ pub(crate) mod easing {
 /// ```
 /// # use std::time::Duration;
 /// # use cssparser::{Parser, ParserInput};
-/// # use bevy_flair_css_parser::parse_duration;
+/// # use superui_flair_css_parser::parse_duration;
 ///
 /// let mut input = ParserInput::new("3.0s");
 /// let mut parser = Parser::new(&mut input);

@@ -75,7 +75,7 @@ pub(crate) fn parse_rect(parser: &mut Parser) -> Result<Rect, CssError> {
 /// ```
 /// # use bevy_ui::Val;
 /// # use cssparser::{Parser, ParserInput};
-/// # use bevy_flair_css_parser::parse_val;
+/// # use superui_flair_css_parser::parse_val;
 ///
 /// let mut input = ParserInput::new("50%");
 /// let mut parser = Parser::new(&mut input);

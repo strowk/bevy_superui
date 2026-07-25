@@ -319,7 +319,7 @@ fn parse_calc_or_value<T>(
 /// ```
 /// # use bevy_ui::Val;
 /// # use cssparser::Parser;
-/// # use bevy_flair_css_parser::{parse_calc_value, parse_val};
+/// # use superui_flair_css_parser::{parse_calc_value, parse_val};
 ///
 /// let mut input = cssparser::ParserInput::new("calc(2px + 3px)");
 /// let mut parser = Parser::new(&mut input);

@@ -341,7 +341,7 @@ impl NodeStyleData {
 /// # use bevy_ecs::prelude::*;
 /// # use bevy_asset::prelude::*;
 /// # use bevy_ui::Node;
-/// # use bevy_flair_style::components::NodeStyleSheet;
+/// # use superui_flair_style::components::NodeStyleSheet;
 ///
 /// fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 ///     commands.spawn((
@@ -1370,7 +1370,7 @@ impl ClassList {
     /// Creates a new [`ClassList`] from a whitespace separated list of classes
     /// # Example
     /// ```
-    /// # use bevy_flair_style::components::ClassList;
+    /// # use superui_flair_style::components::ClassList;
     /// let parsed = ClassList::new("class1 class2");
     /// let mut custom = ClassList::empty();
     /// custom.add("class1");
@@ -1386,7 +1386,7 @@ impl ClassList {
     ///
     /// # Example
     /// ```
-    /// # use bevy_flair_style::components::ClassList;
+    /// # use superui_flair_style::components::ClassList;
     /// let class_list = ClassList::new_with_classes(["my-class1", "my-class2"]);
     /// ```
     pub fn new_with_classes<I, T>(classes: I) -> Self
@@ -1411,7 +1411,7 @@ impl ClassList {
     ///
     /// # Example
     /// ```
-    /// # use bevy_flair_style::components::ClassList;
+    /// # use superui_flair_style::components::ClassList;
     /// let mut class_list = ClassList::new("class1 class2");
     /// class_list.toggle("class2");
     /// assert!(!class_list.contains("class2"));
@@ -1439,7 +1439,7 @@ impl ClassList {
     ///
     /// # Example
     /// ```
-    /// # use bevy_flair_style::components::ClassList;
+    /// # use superui_flair_style::components::ClassList;
     /// let mut class_list = ClassList::new("class1 class2");
     /// assert!(class_list.contains("class1"));
     /// class_list.remove("class1");

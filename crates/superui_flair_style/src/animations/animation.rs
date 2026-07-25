@@ -255,7 +255,7 @@ impl Animation {
     /// # use std::sync::Arc;
     /// # use std::time::Duration;
     /// # use superui_flair_core::ReflectValue;
-    /// # use bevy_flair_style::{animations::*, };
+    /// # use superui_flair_style::{animations::*, };
     ///
     ///  let reflect_animatable_f32 = <ReflectAnimatable as FromType<f32>>::from_type();
     ///  let keyframes = &[

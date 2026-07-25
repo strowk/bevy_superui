@@ -176,7 +176,7 @@ impl FromParsedColor for ParsedColor {
 /// ```
 /// # use bevy_color::Color;
 /// # use cssparser::{Parser, ParserInput};
-/// # use bevy_flair_css_parser::parse_color;
+/// # use superui_flair_css_parser::parse_color;
 ///
 /// let mut input = ParserInput::new("rgb(255, 0, 0)");
 /// let mut parser = Parser::new(&mut input);

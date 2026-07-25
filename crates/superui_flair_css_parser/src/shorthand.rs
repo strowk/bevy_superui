@@ -109,7 +109,7 @@ impl ShorthandProperty {
     ///
     /// # Example
     /// ```
-    /// # use bevy_flair_css_parser::ShorthandProperty;
+    /// # use superui_flair_css_parser::ShorthandProperty;
     /// let shorthand_property = ShorthandProperty::new("margin", [ "margin-left", "margin-right" ], |parser| {
     ///     todo!("parse_fn")
     /// });

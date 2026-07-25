@@ -189,7 +189,7 @@ pub struct CanonicalNameNotFoundError(String);
 /// It stores all registered properties and allows to resolve them by their css name or canonical name.
 /// ```
 /// # use bevy_ui::Node;
-/// # use bevy_flair_core::*;
+/// # use superui_flair_core::*;
 /// let mut property_registry = PropertyRegistry::default();
 /// property_registry.register::<Node>();
 /// let property_id = property_registry.resolve(Node::property_ref("width")).unwrap();

@@ -224,7 +224,7 @@ impl<P> AnimationProperty<P> {
     ///
     /// ```rust
     /// # use std::sync::Arc;
-    /// # use bevy_flair_style::animations::{AnimationProperty, AnimationPropertyId, AnimationSpecificValue};
+    /// # use superui_flair_style::animations::{AnimationProperty, AnimationPropertyId, AnimationSpecificValue};
     /// let prop = AnimationProperty::new_specific_property(
     ///     AnimationPropertyId::Duration,
     ///     [std::time::Duration::from_secs(1)],
@@ -245,7 +245,7 @@ impl<P> AnimationProperty<P> {
     /// e.g:  `animation: anim-1 1s, anim-2`
     /// ```
     /// # use std::sync::Arc;
-    /// # use bevy_flair_style::animations::{AnimationProperty, AnimationPropertyId, AnimationSpecificValue};
+    /// # use superui_flair_style::animations::{AnimationProperty, AnimationPropertyId, AnimationSpecificValue};
     ///
     /// let shorthand = AnimationProperty::new_shorthand_specific([
     ///     vec![

@@ -37,7 +37,7 @@ pub(crate) fn parse_property_global_keyword<T>(
 /// ```
 /// # use cssparser::{Parser, ParserInput};
 /// # use superui_flair_core::PropertyValue;
-/// # use bevy_flair_css_parser::{parse_property_value_with, parse_val};
+/// # use superui_flair_css_parser::{parse_property_value_with, parse_val};
 ///
 /// let mut input = ParserInput::new("inherit");
 /// let mut parser = Parser::new(&mut input);
