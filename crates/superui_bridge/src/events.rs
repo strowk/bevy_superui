@@ -296,7 +296,7 @@ pub fn drain_dom_events_system(world: &mut World) {
     if queued.is_empty() {
         return;
     }
-    let Some(mut rt) = world.remove_non_send_resource::<UiRuntime>() else {
+    let Some(mut rt) = world.remove_non_send::<UiRuntime>() else {
         return;
     };
     for e in queued {
@@ -305,5 +305,5 @@ pub fn drain_dom_events_system(world: &mut World) {
             .dispatch_event(e.target, &e.type_, None, e.bubbles, e.cancelable);
     }
     rt.dirty = true;
-    world.insert_non_send_resource(rt);
+    world.insert_non_send(rt);
 }

@@ -8,9 +8,10 @@ use std::collections::HashSet;
 use bevy::picking::hover::Hovered;
 use bevy::picking::Pickable;
 use bevy::prelude::*;
+use bevy::text::FontSize;
 use bevy::ui::{Checked, ComputedNode};
 use superui_css::html_type_name;
-use superui_css::prelude::{AttributeList, ClassList, InlineStyle, NodeStyleSheet, TypeName};
+use superui_css::prelude::{AttributeList, ClassList, InlineStyle, Styled, TypeName};
 use superui_dom::{NodeId, NodeKind};
 
 use crate::runtime::{DomNode, InputValueText, UiRuntime};
@@ -18,14 +19,14 @@ use crate::runtime::{DomNode, InputValueText, UiRuntime};
 /// Exclusive system: reconcile when dirty. Pulls the NonSend runtime out, syncs,
 /// re-inserts (the NonSend resource has no `resource_scope`, so move it out/in).
 pub fn reconcile_system(world: &mut World) {
-    let Some(mut rt) = world.remove_non_send_resource::<UiRuntime>() else {
+    let Some(mut rt) = world.remove_non_send::<UiRuntime>() else {
         return;
     };
     if rt.dirty {
         rt.reconcile(world);
         rt.dirty = false;
     }
-    world.insert_non_send_resource(rt);
+    world.insert_non_send(rt);
 }
 
 impl UiRuntime {
@@ -44,7 +45,7 @@ impl UiRuntime {
         // Ensure the root carries the stylesheet so descendants inherit it.
         world
             .entity_mut(self.root)
-            .insert((DomNode(body), NodeStyleSheet::new(self.stylesheet.clone())));
+            .insert((DomNode(body), Styled::new(self.stylesheet.clone())));
 
         // FIX 1: Give the body/root entity a TypeName and sync its identity
         // (id/class/attrs/inline-style), but only when body is actually an
@@ -301,9 +302,14 @@ impl UiRuntime {
         // scrolling horizontally to keep the caret in view) instead of wrapping
         // and growing taller. Width comes from last frame's ComputedNode.
         let content = {
+            // `FontSize` is now an enum (Px/Vw/Vh/Rem). For the rough estimate we
+            // only care about the pixel case; everything else falls back to 16 px.
             let font_size = world
                 .get::<TextFont>(input_entity)
-                .map(|f| f.font_size)
+                .map(|f| match f.font_size {
+                    FontSize::Px(px) => px,
+                    _ => 16.0,
+                })
                 .unwrap_or(16.0);
             let avail = world
                 .get::<ComputedNode>(input_entity)
@@ -363,7 +369,7 @@ impl UiRuntime {
         // tail truncation above and `overflow: hidden` on the input).
         world
             .entity_mut(child)
-            .insert(TextLayout::new_with_no_wrap());
+            .insert(TextLayout::no_wrap());
         // Re-parent under the input (replace_children cleared it this pass).
         world.entity_mut(input_entity).add_child(child);
     }

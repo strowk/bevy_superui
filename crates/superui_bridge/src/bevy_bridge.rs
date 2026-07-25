@@ -185,14 +185,14 @@ pub fn emit_bevy_inbox_system(world: &mut World) {
     if items.is_empty() {
         return;
     }
-    let Some(mut rt) = world.remove_non_send_resource::<UiRuntime>() else {
+    let Some(mut rt) = world.remove_non_send::<UiRuntime>() else {
         return;
     };
     for (name, json) in items {
         emit_one(&mut rt.engine, &name, &json);
     }
     rt.dirty = true; // a bevy.on callback may have mutated the DOM
-    world.insert_non_send_resource(rt);
+    world.insert_non_send(rt);
 }
 
 /// Call JS `globalThis.bevy._emit(name, payload)`.
