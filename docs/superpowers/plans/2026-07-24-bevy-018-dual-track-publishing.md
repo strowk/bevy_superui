@@ -749,7 +749,7 @@ Then bump the **internal path-dep version requirements** from `0.1.0` to `0.2.0`
 
 - [ ] **Step 2: Bump ecosystem deps that track bevy**
 
-In `crates/superui_test_engine/Cargo.toml`, change `bevy_egui = "0.37"` to the release compatible with bevy 0.18 (check the `bevy_egui` crates.io compatibility table). Check `examples/*/Cargo.toml` for any other bevy-ecosystem crates and bump likewise.
+In `crates/superui_test_engine/Cargo.toml`, change `bevy_egui = "0.37"` to **`"0.39"`** (pre-resolved: bevy_egui 0.39.x targets bevy ^0.18; 0.38=bevy0.17, 0.40=bevy0.19). Check `examples/*/Cargo.toml` for any other bevy-ecosystem crates and bump likewise (none found at plan time, but re-check).
 
 - [ ] **Step 3: Compile and fix breakage iteratively**
 
