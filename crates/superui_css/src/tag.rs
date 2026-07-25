@@ -1,10 +1,10 @@
-//! HTML tag-name interning: turn a runtime tag `&str` into the `&'static str`
+﻿//! HTML tag-name interning: turn a runtime tag `&str` into the `&'static str`
 //! flair's `TypeName` component requires, so element selectors work for any tag.
 
 use std::collections::HashSet;
 use std::sync::{Mutex, OnceLock};
 
-use bevy_flair_style::components::TypeName;
+use superui_flair_style::components::TypeName;
 
 fn interner() -> &'static Mutex<HashSet<&'static str>> {
     static INTERNER: OnceLock<Mutex<HashSet<&'static str>>> = OnceLock::new();
@@ -61,7 +61,7 @@ mod tests {
         let tn = html_type_name("Input"); // mixed case in → lowercased
         assert_eq!(tn.0, "input");
         // Confirm the interner and TypeName wiring only (no ECS world needed).
-        let _ = bevy_flair_style::components::NodeStyleData::default();
+        let _ = superui_flair_style::components::NodeStyleData::default();
         assert!(html_type_name("input").0 == "input");
     }
 }

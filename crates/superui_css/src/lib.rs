@@ -1,4 +1,4 @@
-//! `superui_css` — the bevy_superui CSS layer: an in-tree fork of `bevy_flair`
+﻿//! `superui_css` — the bevy_superui CSS layer: an in-tree fork of `bevy_flair`
 //! 0.6 (Bevy 0.17) re-exported behind an HTML-shaped surface.
 //!
 //! The fork already matches real HTML element/attribute/class/id and
@@ -6,9 +6,9 @@
 //! plugin and adds an HTML tag-name interner (see [`html_type_name`]). Only
 //! Bevy-facing crates depend on this one (design §4).
 
-pub use bevy_flair_core as core;
-pub use bevy_flair_css_parser as parser;
-pub use bevy_flair_style as style;
+pub use superui_flair_core as core;
+pub use superui_flair_css_parser as parser;
+pub use superui_flair_style as style;
 
 mod tag;
 pub use tag::{html_type_name, intern_tag};
@@ -19,11 +19,11 @@ bevy_app::plugin_group! {
     /// the `.css` asset loader. Mirrors upstream `bevy_flair::FlairPlugin`.
     #[derive(Clone, Debug)]
     pub struct SuperUiCssPlugin {
-        bevy_flair_core:::PropertyRegistryPlugin,
-        bevy_flair_core:::ImplComponentPropertiesPlugin,
-        bevy_flair_style:::FlairStylePlugin,
-        bevy_flair_style:::FlairDefaultStyleAnimationsPlugin,
-        bevy_flair_css_parser:::FlairCssParserPlugin,
+        superui_flair_core:::PropertyRegistryPlugin,
+        superui_flair_core:::ImplComponentPropertiesPlugin,
+        superui_flair_style:::FlairStylePlugin,
+        superui_flair_style:::FlairDefaultStyleAnimationsPlugin,
+        superui_flair_css_parser:::FlairCssParserPlugin,
     }
 }
 
@@ -31,11 +31,11 @@ bevy_app::plugin_group! {
 pub mod prelude {
     pub use crate::SuperUiCssPlugin;
     pub use crate::{html_type_name, intern_tag};
-    pub use bevy_flair_css_parser::InlineStyle;
-    pub use bevy_flair_style::components::{
+    pub use superui_flair_css_parser::InlineStyle;
+    pub use superui_flair_style::components::{
         AttributeList, ClassList, NodeStyleData, NodeStyleSheet, TypeName,
     };
-    pub use bevy_flair_style::{NodePseudoState, StyleSheet};
+    pub use superui_flair_style::{NodePseudoState, StyleSheet};
 }
 
 #[cfg(test)]
