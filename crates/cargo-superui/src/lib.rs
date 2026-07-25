@@ -218,4 +218,22 @@ mod tests {
         let json = r#"{ "packages": [ { "name": "bevy", "manifest_path": "/x/Cargo.toml" } ] }"#;
         assert!(find_module_dts(json, "superui", "superui-test.d.ts").is_none());
     }
+
+    #[test]
+    fn optional_module_absent_is_skip_not_error() {
+        // A project whose resolved deps include supersolid (required) but NOT
+        // superui (optional superui/test types) must still resolve cleanly.
+        let json = r#"{ "packages": [
+            { "name": "supersolid", "manifest_path": "/w/crates/supersolid/Cargo.toml" }
+        ] }"#;
+        for m in projected_modules() {
+            let found = find_module_dts(json, m.package, m.dts_filename);
+            if m.required {
+                assert!(found.is_some(), "required module {} must resolve", m.specifier);
+            } else {
+                // optional module simply resolves to None -> caller skips it
+                assert!(found.is_none(), "optional module {} absent -> None", m.specifier);
+            }
+        }
+    }
 }
