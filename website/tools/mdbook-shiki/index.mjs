@@ -32,6 +32,20 @@ const escapeHtml = (s) =>
 // Fenced code blocks at line start: ```lang\n…\n```
 const FENCE = /(^|\n)```([^\n`]*)\n([\s\S]*?)\n```/g;
 
+// Indented fences (```lang inside a list item) can't be turned into a highlighted
+// <pre> without either breaking the list nesting or corrupting copy-paste, so we
+// only handle column-0 fences. Warn if the source has an indented one so it gets
+// restructured rather than silently rendering unhighlighted.
+const INDENTED_FENCE = /^[ \t]+```[^\n`]/m;
+
+function warnIfIndentedFence(md, chapter) {
+  if (INDENTED_FENCE.test(md)) {
+    process.stderr.write(
+      `mdbook-shiki: warning: indented code fence in "${chapter}" won't be ` +
+      `highlighted — move it to column 0 (out of the list item).\n`);
+  }
+}
+
 function highlightMarkdown(md, hl) {
   return md.replace(FENCE, (_m, lead, info, code) => {
     const tag = (info.trim().split(/\s+/)[0] || "").toLowerCase();
@@ -53,6 +67,7 @@ function highlightMarkdown(md, hl) {
 function walkSections(items, hl) {
   for (const item of items) {
     if (item && item.Chapter) {
+      warnIfIndentedFence(item.Chapter.content, item.Chapter.name || "?");
       item.Chapter.content = highlightMarkdown(item.Chapter.content, hl);
       if (item.Chapter.sub_items) walkSections(item.Chapter.sub_items, hl);
     }

@@ -31,39 +31,42 @@ scope, and falls back to the context's default when none has been provided.
 ## Sharing state today
 
 Because a superui UI compiles to a [single module](components.md#one-module-no-cross-file-imports),
-the practical ways to share state across components are straightforward:
+there are two straightforward ways to share state across components.
 
-- **Lift state to a common ancestor and pass it down as props.** This is the
-  default approach and keeps data flow explicit:
+### Lift state to a common ancestor
 
-  ```typescript
-  function App() {
-    const [todos, setTodos] = createSignal([]);
-    return (
-      <div>
-        <List todos={todos()} />
-        <Footer remaining={todos().filter((t) => !t.done).length} />
-      </div>
-    );
-  }
-  ```
+Hold the state where the components that need it share a parent, and pass it down
+as props. This is the default approach and keeps data flow explicit:
 
-- **Hold shared signals at module scope.** Since everything lives in one module,
-  a signal declared at the top of the file is reachable from any component in that
-  UI — a simple global store:
+```typescript
+function App() {
+  const [todos, setTodos] = createSignal([]);
+  return (
+    <div>
+      <List todos={todos()} />
+      <Footer remaining={todos().filter((t) => !t.done).length} />
+    </div>
+  );
+}
+```
 
-  ```typescript
-  const [volume, setVolume] = createSignal(0.8);
+### Hold shared signals at module scope
 
-  function Slider() {
-    return <input value={volume()} onInput={(e) => setVolume(+e.target.value)} />;
-  }
-  function VolumeReadout() {
-    return <span>{Math.round(volume() * 100)}%</span>; // reacts to the same signal
-  }
-  ```
+Since everything lives in one module, a signal declared at the top of the file is
+reachable from any component in that UI — a simple global store:
 
-  Both components read the same signal, so they stay in sync automatically.
+```typescript
+const [volume, setVolume] = createSignal(0.8);
+
+function Slider() {
+  return <input value={volume()} onInput={(e) => setVolume(+e.target.value)} />;
+}
+function VolumeReadout() {
+  return <span>{Math.round(volume() * 100)}%</span>; // reacts to the same signal
+}
+```
+
+Both components read the same signal, so they stay in sync automatically.
 
 ## Next
 
