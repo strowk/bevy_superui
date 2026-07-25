@@ -194,6 +194,46 @@ everything to dry-run-green and **stops**; the maintainer runs
 `cargo run -p xtask -- publish --execute` from `main` (0.3.0) themselves. Claude
 must never run `cargo publish` or `xtask publish --execute`.
 
+## Dependency blocker discovered during implementation: boa ↔ icu (RESOLVED via boa fork)
+
+Bevy 0.19 replaced its text backend with **Parley**, which pulls the `icu` 2.1
+family. `boa_engine` (superui's JS engine) is at its newest published version
+**0.21.1**, which hard-pins `icu_normalizer ~2.0.0`; `boa_parser` pins
+`icu_properties ~2.0.0`. Those are the same major (2) as Parley's `^2.1`
+requirement but non-overlapping sub-ranges, so Cargo cannot unify them and the
+whole workspace fails to *resolve* on bevy 0.19 (a resolution failure, not a
+data-flow/type conflict — boa and Parley never exchange icu values). No boa
+release fixes this yet (boa `main` relaxed the pins but is unpublished).
+
+A workspace-local `[patch.crates-io]`/`vendor/` override unblocks local builds
+but is **stripped on publish**, so a published 0.3.0 would be unresolvable for any
+downstream user on bevy 0.19 (and `cargo publish` verification of the umbrella
+crate would fail). The fix must reach crates.io.
+
+**Decision (user):** fork boa the same way as flair — vendor `boa_engine` +
+`boa_parser`, publish them under our namespace, and depend on those.
+
+- **Minimal surface:** only `boa_engine` and `boa_parser` carry conflicting icu
+  pins (`boa_gc`'s icu dep is optional and non-conflicting → stays upstream).
+- **Package rename, lib-name kept:** package → `superui_boa_engine` /
+  `superui_boa_parser`; `[lib] name` stays `boa_engine` / `boa_parser`. boa keeps
+  `extern crate self as boa_engine`, so no internal path rewriting is needed
+  (unlike the flair rename). Consumers keep `use boa_engine::…` because the fork
+  is wired through a `package =` rename on the single `[workspace.dependencies]`
+  `boa_engine` key — no change to the 7 consumer crates' source or manifests.
+- **icu relaxation:** widen the two forks' conflicting icu pins to accept the 2.1
+  family, wrapped in `SUPERUI-FORK-PATCH` markers (Cargo.toml `#`-comment form)
+  and registered in `docs/fork-patches.md` (new base: boa 0.21.1). icu 2.0→2.1 is
+  a SemVer-compatible minor bump (boa `main` did the same), so this is a
+  version-pin change, not an API port — but if boa 0.21 source fails to compile
+  against icu 2.1, backport boa `main`'s icu-compat changes (discovered at build).
+- **Fork versions** follow our track (0.3.0), same rule as the flair forks.
+- **Publish impact:** two NEW crate names (`superui_boa_engine`,
+  `superui_boa_parser`, both free on crates.io) → 17 publishable crates total (was
+  15); these two are first-publishes, the rest remain versions-only.
+- **Upstream exit:** when boa publishes an icu-2.1-compatible release, drop the
+  forks and depend on upstream boa again.
+
 ## Out of scope
 
 - `xtask publish` resume/429 improvement (explicitly dropped).
