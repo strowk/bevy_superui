@@ -197,31 +197,8 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 inclusion in the work by you, as defined in the Apache-2.0 license, shall be
 dual-licensed as above, without any additional terms or conditions.
 
-## Deploying docs (for maintainers)
+## Contributing
 
-To add an example: create the crate under `examples/<slug>/` (wasm-buildable, with
-a `web_window` canvas hook), then append one object to `examples/gallery.json`. The
-slug becomes its permanent URL — don't rename a published slug. The full site
-(landing, docs, and gallery) is deployed to GitHub Pages by the `Deploy Pages`
-workflow.
-
-### Documentation
-
-The [documentation site](https://strowk.github.io/bevy_superui/) covers a
-TSX-first guide (setup, project structure, hot reload) and a full concepts section
-(components & JSX, signals, effects, control flow, lifecycle, context, and the
-Bevy bridge), plus reference ledgers for the supported CSS, HTML, and JS/DOM
-surface.
-
-The site is a single mdBook project under `website/`. Run it locally:
-
-```bash
-cargo install mdbook        # once
-mdbook serve website        # live-reload at http://localhost:3000
-```
-
-The gallery index is generated from `examples/gallery.json` by the
-`mdbook-gallery` preprocessor, and code blocks are highlighted at build time by a
-Shiki preprocessor (`website/tools/mdbook-shiki`, needs Node). Per-example wasm
-demos are built only in CI, so the `/examples/<slug>/` links 404 under local
-`mdbook serve` — that's expected.
+At the current moment this project is almost entirely AI coded and I would like to not take PRs at this time.
+If you noticed bugs or have suggestions, please open an issue and I will run it by the AI after reviewing.
+You can provide PR to illustrate your suggestions, but chances are, they will not be merged as is.

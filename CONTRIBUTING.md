@@ -23,3 +23,32 @@ When Bevy 0.19 lands: cut `release/bevy-0.18` from `main`, then bump `main` to
 `cargo run -p xtask -- publish` dry-runs the whole workspace in dependency order.
 Add `--execute` to publish for real (irreversible). See `docs/fork-patches.md`
 before vendoring a new flair release.
+
+## Deploying docs (for maintainers)
+
+To add an example: create the crate under `examples/<slug>/` (wasm-buildable, with
+a `web_window` canvas hook), then append one object to `examples/gallery.json`. The
+slug becomes its permanent URL — don't rename a published slug. The full site
+(landing, docs, and gallery) is deployed to GitHub Pages by the `Deploy Pages`
+workflow.
+
+### Documentation
+
+The [documentation site](https://strowk.github.io/bevy_superui/) covers a
+TSX-first guide (setup, project structure, hot reload) and a full concepts section
+(components & JSX, signals, effects, control flow, lifecycle, context, and the
+Bevy bridge), plus reference ledgers for the supported CSS, HTML, and JS/DOM
+surface.
+
+The site is a single mdBook project under `website/`. Run it locally:
+
+```bash
+cargo install mdbook        # once
+mdbook serve website        # live-reload at http://localhost:3000
+```
+
+The gallery index is generated from `examples/gallery.json` by the
+`mdbook-gallery` preprocessor, and code blocks are highlighted at build time by a
+Shiki preprocessor (`website/tools/mdbook-shiki`, needs Node). Per-example wasm
+demos are built only in CI, so the `/examples/<slug>/` links 404 under local
+`mdbook serve` — that's expected.
