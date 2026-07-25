@@ -1,13 +1,16 @@
+use crate::helper_components::TextDecoration;
 use crate::{
     CssPropertyRegistry, PropertyRegistry, PropertyValue, RegisterComponentPropertiesExt as _,
 };
-use crate::{impl_component_properties, impl_extract_component_properties};
+
 use bevy_app::{App, Plugin};
 use bevy_asset::Handle;
+use bevy_camera::visibility::Visibility;
 use bevy_color::Color;
+use bevy_flair_core_macros::{impl_component_properties, impl_extract_component_properties};
 use bevy_math::{Rect, Rot2, Vec2};
 use bevy_text::prelude::*;
-use bevy_text::{FontSmoothing, LineHeight};
+use bevy_text::{FontFeatures, FontSmoothing, FontVariations, LetterSpacing, LineHeight};
 use bevy_ui::prelude::*;
 
 impl_extract_component_properties! {
@@ -32,6 +35,10 @@ impl_extract_component_properties! {
         pub bottom_right: Val,
         pub bottom_left: Val,
     }
+}
+
+impl_component_properties! {
+    pub struct Visibility;
 }
 
 impl_component_properties! {
@@ -60,6 +67,7 @@ impl_component_properties! {
         pub justify_self: JustifySelf,
         pub align_content: AlignContent,
         pub justify_content: JustifyContent,
+        pub direction: InlineDirection,
         #[nested]
         pub margin: UiRect,
         #[nested]
@@ -86,8 +94,7 @@ impl_component_properties! {
 }
 
 impl_component_properties! {
-    @tuple
-    pub struct BackgroundColor{ "0": Color }
+    pub struct BackgroundColor(Color);
 }
 
 impl_component_properties! {
@@ -100,7 +107,7 @@ impl_component_properties! {
 }
 
 impl_component_properties! {
-    #[component(auto_insert_remove)]
+    #[properties(auto_insert_remove)]
     pub struct Outline {
         pub width: Val,
         pub offset: Val,
@@ -109,14 +116,12 @@ impl_component_properties! {
 }
 
 impl_component_properties! {
-    @self
-    #[component(auto_insert_remove)]
-    pub struct BoxShadow
+    #[properties(auto_insert_remove)]
+    pub struct BoxShadow;
 }
 
 impl_component_properties! {
-    @self
-    pub struct ZIndex
+    pub struct ZIndex;
 }
 
 impl_component_properties! {
@@ -128,19 +133,17 @@ impl_component_properties! {
 }
 
 impl_component_properties! {
-    @self
-    #[component(auto_insert_remove)]
-    pub struct BackgroundGradient
+    #[properties(auto_insert_remove)]
+    pub struct BackgroundGradient;
 }
 
 impl_component_properties! {
-    @self
-    #[component(auto_insert_remove)]
-    pub struct BorderGradient
+    #[properties(auto_insert_remove)]
+    pub struct BorderGradient;
 }
 
 impl_component_properties! {
-    #[component(auto_insert_remove)]
+    #[properties(auto_insert_remove)]
     pub struct ImageNode {
         pub color: Color,
         pub image: Handle<bevy_image::Image>,
@@ -153,20 +156,27 @@ impl_component_properties! {
 }
 
 impl_component_properties! {
-    @tuple
-    pub struct TextColor{ "0": Color }
+    pub struct TextColor(Color);
 }
 
 impl_component_properties! {
-    @self
-    pub struct LineHeight
+    pub struct LineHeight;
+}
+
+impl_component_properties! {
+    pub struct LetterSpacing;
 }
 
 impl_component_properties! {
     pub struct TextFont {
-        pub font: Handle<Font>,
-        pub font_size: f32,
+        pub font: FontSource,
+        pub font_size: FontSize,
+        pub weight: FontWeight,
+        pub width: FontWidth,
+        pub style: FontStyle,
         pub font_smoothing: FontSmoothing,
+        pub font_features: FontFeatures,
+        pub font_variations: FontVariations,
     }
 }
 
@@ -178,14 +188,12 @@ impl_component_properties! {
 }
 
 impl_component_properties! {
-    @tuple
-    pub struct TextSpan{ "0": String }
+    pub struct TextSpan(String);
 }
 
 impl_component_properties! {
-    @self
-    #[component(auto_insert_remove)]
-    pub struct TextShadow
+    #[properties(auto_insert_remove)]
+    pub struct TextShadow;
 }
 
 macro_rules! register_component_properties {
@@ -220,7 +228,10 @@ macro_rules! set_css_properties {
         let css_registry = $app.world_mut().resource_mut::<CssPropertyRegistry>();
 
         $({
-            let canonical_name = $crate::PropertyCanonicalName::from_component::<$ty>($path);
+            let canonical_name = $crate::PropertyCanonicalName::new(
+                <$ty as bevy_reflect::TypePath>::type_path(),
+                $crate::PropertyPath::parse($path)
+            );
             css_registry.register_property($css, canonical_name);
         })*
     }}
@@ -233,6 +244,7 @@ pub struct ImplComponentPropertiesPlugin;
 impl Plugin for ImplComponentPropertiesPlugin {
     fn build(&self, app: &mut App) {
         register_component_properties!(app => {
+            Visibility,
             Node,
             BackgroundColor,
             Outline,
@@ -245,15 +257,27 @@ impl Plugin for ImplComponentPropertiesPlugin {
             ImageNode,
             TextColor,
             LineHeight,
+            LetterSpacing,
             TextFont,
             TextLayout,
             TextShadow,
             TextSpan,
+            // Custom components
+            TextDecoration,
         });
 
-        set_inherited_properties!(app => { TextColor, TextFont, TextLayout, LineHeight, });
+        set_inherited_properties!(app => {
+            TextColor,
+            TextFont,
+            TextLayout,
+            LineHeight,
+            LetterSpacing,
+            TextDecoration,
+        });
 
         set_css_properties!(app => {
+            "visibility" => Visibility[""],
+
             "display" => Node[".display"],
             "box-sizing" => Node[".box_sizing"],
             "position" => Node[".position_type"],
@@ -279,6 +303,7 @@ impl Plugin for ImplComponentPropertiesPlugin {
             "justify-self" => Node[".justify_self"],
             "align-content" => Node[".align_content"],
             "justify-content" => Node[".justify_content"],
+            "direction" => Node[".direction"],
 
             "margin-top" => Node[".margin.top"],
             "margin-right" => Node[".margin.right"],
@@ -299,7 +324,6 @@ impl Plugin for ImplComponentPropertiesPlugin {
             "flex-grow" => Node[".flex_grow"],
             "flex-shrink" => Node[".flex_shrink"],
             "flex-basis" => Node[".flex_basis"],
-
 
             "row-gap" => Node[".row_gap"],
             "column-gap" => Node[".column_gap"],
@@ -349,13 +373,22 @@ impl Plugin for ImplComponentPropertiesPlugin {
             "color" => TextColor[".0"],
             "font-family" => TextFont[".font"],
             "font-size" => TextFont[".font_size"],
-            "line-height" => LineHeight[""],
-
+            "font-weight" => TextFont[".weight"],
+            "font-width" => TextFont[".width"],
+            "font-style" => TextFont[".style"],
+            "font-feature-settings" => TextFont[".font_features"],
+            "font-variation-settings" => TextFont[".font_variations"],
             // font-smooth is not css standard
             "-bevy-font-smooth" => TextFont[".font_smoothing"],
+
+            "line-height" => LineHeight[""],
+            "letter-spacing" => LetterSpacing[""],
             "text-align" => TextLayout[".justify"],
             // There is no equivalent in css for bevy LineBreak
             "-bevy-line-break" => TextLayout[".linebreak"],
+
+            "text-decoration-line" => TextDecoration[".line"],
+            "text-decoration-color" => TextDecoration[".color"],
 
             // Text span
             "content" => TextSpan[".0"],

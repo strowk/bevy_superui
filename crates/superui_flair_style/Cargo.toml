@@ -37,7 +37,8 @@ repository = "https://github.com/eckz/bevy_flair"
 resolver = "2"
 
 [features]
-experimental_ghost_nodes = ["bevy_ui/ghost_nodes"]
+detailed_trace = []
+ghost_nodes = ["bevy_ui/ghost_nodes"]
 
 [lib]
 name = "superui_flair_style"
@@ -97,7 +98,7 @@ workspace = true
 version = "2.8"
 
 [dependencies.cssparser]
-version = "0.35"
+version = "0.37"
 
 [dependencies.derive_more]
 version = "2.0"
@@ -108,7 +109,7 @@ features = [
 ]
 
 [dependencies.itertools]
-version = "0.14"
+version = "0.15"
 
 [dependencies.precomputed-hash]
 version = "0.1"
@@ -117,13 +118,10 @@ version = "0.1"
 version = "2.1"
 
 [dependencies.selectors]
-version = "0.32"
-
-[dependencies.serde]
-version = "1.0"
+version = "0.38"
 
 [dependencies.smallvec]
-version = "1.14"
+version = "1.15"
 
 [dependencies.smol_str]
 version = "0.2"
@@ -134,15 +132,8 @@ version = "2.0"
 [dependencies.tracing]
 version = "0.1"
 
-[dev-dependencies.bevy_scene]
-workspace = true
-
 [dev-dependencies.ego-tree]
-version = "0.10"
-
-[dev-dependencies.insta]
-version = "1.42"
-features = ["ron"]
+version = "0.11"
 
 [lints.clippy]
 dbg_macro = "warn"

@@ -1,19 +1,24 @@
 use crate::parser::{
-    CssRuleset, CssRulesetProperty, CssStyleSheetItem, ParserAnimationKeyFrame, parse_css,
+    CssDeclaration, CssRuleset, CssStyleSheetItem, ParserAnimationKeyFrame, parse_css,
 };
 use crate::utils::ImportantLevel;
 use crate::{
     CssStyleLoaderError, CssStyleLoaderErrorMode, ErrorReportGenerator, ShorthandPropertyRegistry,
 };
-use std::sync::LazyLock;
-
+use bevy_asset::{AssetId, Handle};
 use superui_flair_core::{CssPropertyRegistry, PropertyRegistry};
 use superui_flair_style::animations::{AnimationKeyframes, AnimationProperty, AnimationPropertyId};
 use superui_flair_style::css_selector::CssSelector;
-use superui_flair_style::{RulesetBuilder, StyleBuilderProperty, StyleSheet, StyleSheetBuilder};
+use superui_flair_style::{
+    BlockBuilder, StyleBlock, StyleBuilderProperty, StyleSheet, StyleSheetBuilder,
+};
 use bevy_reflect::TypeRegistry;
 use rustc_hash::FxHashMap;
+use std::sync::LazyLock;
 use tracing::{error, info, warn};
+
+pub(crate) type ImportMapping = FxHashMap<AssetId<StyleBlock>, Handle<StyleBlock>>;
+pub(crate) type Imports = FxHashMap<String, (StyleSheet, ImportMapping)>;
 
 pub(crate) struct InternalStylesheetLoader<'a> {
     pub(crate) type_registry: &'a TypeRegistry,
@@ -21,14 +26,13 @@ pub(crate) struct InternalStylesheetLoader<'a> {
     pub(crate) css_property_registry: &'a CssPropertyRegistry,
     pub(crate) shorthand_property_registry: &'a ShorthandPropertyRegistry,
     pub(crate) error_mode: CssStyleLoaderErrorMode,
-    pub(crate) imports: &'a FxHashMap<String, StyleSheet>,
+    pub(crate) imports: &'a Imports,
 }
 
 // This is temporal until https://github.com/tokio-rs/tracing/issues/3378 is fixed
 const NO_COLOR_REPORT_CONFIG: ariadne::Config = ariadne::Config::new().with_color(false);
 
-static EMPTY_PROPERTY_REGISTRY: LazyLock<PropertyRegistry> =
-    LazyLock::new(PropertyRegistry::default);
+static EMPTY_PROPERTY_REGISTRY: LazyLock<PropertyRegistry> = LazyLock::new(PropertyRegistry::new);
 
 fn report_important_level(report_generator: &mut ErrorReportGenerator, level: ImportantLevel) {
     if let ImportantLevel::Important(location) = level {
@@ -40,17 +44,17 @@ fn report_important_level(report_generator: &mut ErrorReportGenerator, level: Im
     }
 }
 
-pub fn process_ruleset_property<B: RulesetBuilder>(
-    property: CssRulesetProperty,
+pub fn process_ruleset_property<B: BlockBuilder>(
+    property: CssDeclaration,
     ruleset_builder: &mut B,
     report_generator: &mut ErrorReportGenerator,
 ) {
     match property {
-        CssRulesetProperty::SingleProperty(id, value, important_level) => {
+        CssDeclaration::SingleProperty(id, value, important_level) => {
             ruleset_builder.add_property(StyleBuilderProperty::new(id, value));
             report_important_level(report_generator, important_level);
         }
-        CssRulesetProperty::MultipleProperties(properties, important_level) => {
+        CssDeclaration::MultipleProperties(properties, important_level) => {
             ruleset_builder.add_properties(
                 properties
                     .into_iter()
@@ -58,7 +62,7 @@ pub fn process_ruleset_property<B: RulesetBuilder>(
             );
             report_important_level(report_generator, important_level);
         }
-        CssRulesetProperty::DynamicProperty(css_name, parser, tokens, important_level) => {
+        CssDeclaration::DynamicProperty(css_name, parser, tokens, important_level) => {
             ruleset_builder.add_property(StyleBuilderProperty::Dynamic {
                 css_name,
                 parser,
@@ -66,19 +70,19 @@ pub fn process_ruleset_property<B: RulesetBuilder>(
             });
             report_important_level(report_generator, important_level);
         }
-        CssRulesetProperty::AnimationProperty(property) => {
+        CssDeclaration::AnimationProperty(property) => {
             ruleset_builder.add_animation_property(property);
         }
-        CssRulesetProperty::TransitionProperty(property) => {
+        CssDeclaration::TransitionProperty(property) => {
             ruleset_builder.add_transition_property(property);
         }
-        CssRulesetProperty::Var(var_name, tokens) => {
+        CssDeclaration::Var(var_name, tokens) => {
             ruleset_builder.add_var(var_name, tokens);
         }
-        CssRulesetProperty::NestedRuleset(_) => {
+        CssDeclaration::NestedRuleset(_) => {
             unreachable!("`process_property` shouldn't be called with `NestedRuleset`");
         }
-        CssRulesetProperty::Error(error) => {
+        CssDeclaration::Error(error) => {
             report_generator.add_error(error);
         }
     }
@@ -95,18 +99,21 @@ impl InternalStylesheetLoader<'_> {
             ErrorReportGenerator::new_with_config(path_name, contents, NO_COLOR_REPORT_CONFIG);
 
         fn report_property_errors_recursively(
-            properties: Vec<CssRulesetProperty>,
+            properties: Vec<CssDeclaration>,
             report_generator: &mut ErrorReportGenerator,
         ) {
             for property in properties {
                 match property {
-                    CssRulesetProperty::NestedRuleset(nested) => {
+                    CssDeclaration::NestedRuleset(nested) => {
                         if let Err(selectors_error) = nested.selectors {
                             report_generator.add_error(selectors_error);
                         }
-                        report_property_errors_recursively(nested.properties, report_generator);
+                        report_property_errors_recursively(
+                            nested.declaration_block,
+                            report_generator,
+                        );
                     }
-                    CssRulesetProperty::Error(error) => {
+                    CssDeclaration::Error(error) => {
                         report_generator.add_error(error);
                     }
                     _ => {}
@@ -137,9 +144,9 @@ impl InternalStylesheetLoader<'_> {
                         ruleset_builder.add_css_selector(selector);
                     }
 
-                    for property in ruleset.properties {
+                    for property in ruleset.declaration_block {
                         match property {
-                            CssRulesetProperty::NestedRuleset(nested_ruleset) => {
+                            CssDeclaration::NestedRuleset(nested_ruleset) => {
                                 process_ruleset_recursively(
                                     nested_ruleset,
                                     Some(&selectors),
@@ -164,7 +171,7 @@ impl InternalStylesheetLoader<'_> {
                 Err(selectors_error) => {
                     report_generator.add_error(selectors_error);
                     // We just try to find the error properties to report them too
-                    report_property_errors_recursively(ruleset.properties, report_generator);
+                    report_property_errors_recursively(ruleset.declaration_block, report_generator);
                 }
             }
         }
@@ -175,8 +182,8 @@ impl InternalStylesheetLoader<'_> {
             report_generator: &mut ErrorReportGenerator,
         ) {
             match item {
-                CssStyleSheetItem::EmbedStylesheet(style_sheet, layer) => {
-                    builder.embed_style_sheet(style_sheet, layer);
+                CssStyleSheetItem::EmbedStylesheet(style_sheet, mapping, layer) => {
+                    builder.embed_style_sheet(style_sheet, &mapping, layer);
                 }
                 CssStyleSheetItem::Inner(items) => {
                     for item in items {
@@ -193,7 +200,7 @@ impl InternalStylesheetLoader<'_> {
                     for error in font_face.errors {
                         report_generator.add_error(error);
                     }
-                    builder.register_font_face(font_face.family_name, font_face.source);
+                    builder.register_font_face(font_face.family_name, font_face.source.into());
                 }
                 CssStyleSheetItem::AnimationKeyFrames(keyframes) => {
                     let mut keyframes_builder = AnimationKeyframes::builder(keyframes.name);
@@ -203,7 +210,7 @@ impl InternalStylesheetLoader<'_> {
                             ParserAnimationKeyFrame::Valid { times, properties } => {
                                 for property in properties {
                                     match property {
-                                        CssRulesetProperty::SingleProperty(
+                                        CssDeclaration::SingleProperty(
                                             property_id,
                                             property_value,
                                             _,
@@ -217,7 +224,7 @@ impl InternalStylesheetLoader<'_> {
                                                     )]);
                                             }
                                         }
-                                        CssRulesetProperty::MultipleProperties(properties, _) => {
+                                        CssDeclaration::MultipleProperties(properties, _) => {
                                             for &time in &times {
                                                 keyframes_builder
                                                     .add_keyframe(time)
@@ -231,7 +238,7 @@ impl InternalStylesheetLoader<'_> {
                                                     ));
                                             }
                                         }
-                                        CssRulesetProperty::DynamicProperty(
+                                        CssDeclaration::DynamicProperty(
                                             css_name,
                                             parser,
                                             tokens,
@@ -248,7 +255,7 @@ impl InternalStylesheetLoader<'_> {
                                                     .with_properties([property.clone()]);
                                             }
                                         }
-                                        CssRulesetProperty::AnimationProperty(s) => {
+                                        CssDeclaration::AnimationProperty(s) => {
                                             let AnimationProperty::SingleProperty {
                                                 property_id: AnimationPropertyId::TimingFunction,
                                                 values,
@@ -264,7 +271,7 @@ impl InternalStylesheetLoader<'_> {
                                                     .with_animation_timing_function(values.clone());
                                             }
                                         }
-                                        CssRulesetProperty::Error(error) => {
+                                        CssDeclaration::Error(error) => {
                                             report_generator.add_error(error);
                                         }
                                         other => {
@@ -322,7 +329,7 @@ impl InternalStylesheetLoader<'_> {
             info!("\n{}", report_generator.into_message());
         }
 
-        builder.remove_all_empty_rulesets();
+        builder.remove_all_empty_blocks();
         Ok(builder)
     }
 }

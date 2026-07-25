@@ -41,12 +41,15 @@ name = "superui_flair_css_parser"
 path = "src/lib.rs"
 
 [dependencies.ariadne]
-version = "0.5"
+version = "0.6"
 
 [dependencies.bevy_app]
 workspace = true
 
 [dependencies.bevy_asset]
+workspace = true
+
+[dependencies.bevy_camera]
 workspace = true
 
 [dependencies.bevy_color]
@@ -80,10 +83,10 @@ workspace = true
 features = ["bevy_picking"]
 
 [dependencies.cssparser]
-version = "0.35"
+version = "0.37"
 
 [dependencies.cssparser-color]
-version = "0.3"
+version = "0.5"
 
 [dependencies.derive_more]
 version = "2.0"
@@ -99,14 +102,14 @@ version = "0.5"
 version = "2.1"
 
 [dependencies.selectors]
-version = "0.32"
+version = "0.38"
 
 [dependencies.serde]
 version = "1.0"
 features = ["derive"]
 
 [dependencies.smallvec]
-version = "1.13"
+version = "1.15"
 
 [dependencies.smol_str]
 version = "0.2"
@@ -118,7 +121,7 @@ version = "2.0"
 version = "0.1"
 
 [dependencies.variadics_please]
-version = "1.1"
+version = "2.0"
 
 [dev-dependencies.approx]
 version = "0.5"

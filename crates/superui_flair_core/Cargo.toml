@@ -46,11 +46,17 @@ workspace = true
 [dependencies.bevy_asset]
 workspace = true
 
+[dependencies.bevy_camera]
+workspace = true
+
 [dependencies.bevy_color]
 workspace = true
 
 [dependencies.bevy_ecs]
 workspace = true
+
+[dependencies.bevy_flair_core_macros]
+version = "0.8.0"
 
 [dependencies.bevy_image]
 workspace = true
@@ -73,6 +79,10 @@ version = "2.1"
 
 [dependencies.serde]
 version = "1.0"
+
+[dependencies.smallvec]
+version = "1.15"
+features = ["const_new"]
 
 [dependencies.thiserror]
 version = "2.0"

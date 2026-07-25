@@ -1,13 +1,14 @@
 mod assets;
 mod color;
 mod enums;
+mod font;
 mod gradient;
 mod grid;
 mod image;
 mod text;
 mod ui;
 
-pub(crate) use enums::parse_enum_as_property_value;
+pub(crate) use enums::{parse_enum_as_property_value, parse_enum_value};
 pub(crate) use gradient::parse_gradient;
 pub(crate) use grid::{parse_grid_track_vec, parse_repeated_grid_track_vec};
 pub(crate) use ui::{parse_calc_angle, parse_calc_f32, parse_calc_val};
@@ -18,10 +19,15 @@ pub use ui::parse_val;
 
 use crate::error::CssError;
 use bevy_app::{App, Plugin};
+use bevy_camera::visibility::Visibility;
+use superui_flair_core::helper_components::TextDecorationLine;
 use superui_flair_core::{ComponentPropertyId, ComponentPropertyRef, PropertyValue};
 use superui_flair_style::{DynamicParseVarTokens, ToCss};
 use bevy_math::{Rect, Rot2, Vec2};
-use bevy_text::{FontSmoothing, Justify, LineBreak, LineHeight};
+use bevy_text::{
+    FontFeatures, FontSize, FontSmoothing, FontSource, FontStyle, FontVariations, FontWeight,
+    FontWidth, Justify, LetterSpacing, LineBreak, LineHeight,
+};
 use bevy_ui::widget::NodeImageMode;
 
 /// A function that parses a CSS type.
@@ -116,12 +122,12 @@ impl Plugin for ReflectParsePlugin {
                 Rot2,
                 Rect,
                 bevy_color::Color,
+                Option<bevy_color::Color>,
                 OverflowClipMargin,
                 Option<f32>,
                 Option<Rect>,
                 ZIndex,
                 bevy_asset::Handle<bevy_image::Image>,
-                bevy_asset::Handle<bevy_text::Font>,
                 Vec<RepeatedGridTrack>,
                 Vec<GridTrack>,
                 GridPlacement,
@@ -130,7 +136,15 @@ impl Plugin for ReflectParsePlugin {
                 BackgroundGradient,
                 BorderGradient,
                 LineHeight,
+                LetterSpacing,
                 TextShadow,
+                FontSource,
+                FontSize,
+                FontWeight,
+                FontWidth,
+                FontStyle,
+                FontFeatures,
+                FontVariations,
             )
         );
 
@@ -138,6 +152,7 @@ impl Plugin for ReflectParsePlugin {
             app,
             ReflectParseCssEnum,
             (
+                Visibility,
                 Display,
                 BoxSizing,
                 PositionType,
@@ -148,12 +163,14 @@ impl Plugin for ReflectParsePlugin {
                 JustifySelf,
                 AlignContent,
                 JustifyContent,
+                InlineDirection,
                 FlexDirection,
                 FlexWrap,
                 GridAutoFlow,
                 FontSmoothing,
                 Justify,
                 LineBreak,
+                TextDecorationLine,
             )
         );
     }
@@ -166,7 +183,7 @@ pub(crate) mod reflect_test_utils {
     use crate::{PropertyValueParseFn, ReflectParseCss};
     use bevy_app::App;
     use bevy_ecs::reflect::AppTypeRegistry;
-    use superui_flair_core::{PropertyValue, ReflectValue};
+    use superui_flair_core::{PropertyValue, PropertyValueComputeContext, ReflectValue};
     use bevy_reflect::FromReflect;
     use std::any::TypeId;
 
@@ -222,11 +239,16 @@ pub(crate) mod reflect_test_utils {
     {
         let property_value = parse_property_content_with(contents, parse_fn);
 
-        let computed_value =
-            property_value.compute_as_root(&PropertyValue::None, &ReflectValue::Usize(0));
+        let context = PropertyValueComputeContext {
+            unset: &PropertyValue::None,
+            initial: &ReflectValue::Usize(0),
+            ancestors: &|| [],
+        };
+
+        let computed_value = property_value.compute(context);
         computed_value
-            .expect("Invalid value generated")
+            .expect("ComputedValue::None generated")
             .downcast_value()
-            .expect("Invalid value generated")
+            .expect("Invalid type value generated")
     }
 }

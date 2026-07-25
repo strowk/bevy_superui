@@ -2,12 +2,12 @@ use crate::animations::{
     AnimationSpecificValue, AnimationValues, EasingFunction, ReflectAnimatable,
 };
 use crate::components::{PropertyIdDebugHelper, StaticPropertyMaps};
-use crate::style_sheet::RulesetProperty;
 use crate::{StyleBuilderProperty, VarResolver};
 use superui_flair_core::*;
 use rustc_hash::FxHashSet;
 use std::borrow::Cow;
 
+use crate::style_block::StyleProperty;
 use bevy_math::{Curve, FloatExt};
 use bevy_reflect::TypeRegistry;
 use std::sync::Arc;
@@ -90,7 +90,7 @@ pub(crate) struct AnimationKeyframe {
     /// Time of the keyframe. It's a value between 0.0 and 1.0, 1.0 being 100%.
     pub time: f32,
     /// All properties defined in this keyframe
-    properties: Vec<RulesetProperty>,
+    properties: Vec<StyleProperty>,
     /// Optional animation timing function
     animation_timing_function: Option<AnimationValues<AnimationSpecificValue>>,
 }
@@ -214,7 +214,7 @@ impl KeyframesResolver<'_> {
             ));
         }
 
-        // Resolve
+        // Resolves
         //  - `PropertyValue` into `ComputedValue`
         //  - `Option<AnimationValues<AnimationSpecificValue>>` into EasingFunction
         let mut tmp_resolved_keyframes = tmp_keyframes
@@ -225,8 +225,12 @@ impl KeyframesResolver<'_> {
                     .map(|(k, v)| {
                         (
                             k,
-                            /* compute_with_parent would resolve inherit, but it's not supported yet */
-                            v.compute_as_root(&self.static_property_maps.unset[k], &self.static_property_maps.initial[k]),
+                            // TODO: We could provide ancestors to add `inherit` support in keyframes
+                            v.compute(PropertyValueComputeContext {
+                                unset: &self.static_property_maps.unset[k],
+                                initial: &self.static_property_maps.initial[k],
+                                ancestors: &|| []
+                            })
                         )
                     })
                     .collect::<PropertiesHashMap<_>>();
@@ -527,7 +531,7 @@ mod tests {
     use std::mem;
     use std::sync::LazyLock;
 
-    #[derive(Component, Reflect)]
+    #[derive(Component, ComponentProperties, Reflect)]
     struct AnimatableComponent {
         left: f32,
         right: f32,
@@ -542,18 +546,11 @@ mod tests {
         }
     }
 
-    impl_component_properties! {
-        pub struct AnimatableComponent {
-            left: f32,
-            right: f32,
-        }
-    }
-
     const LEFT: PropertyCanonicalName =
-        PropertyCanonicalName::from_component::<AnimatableComponent>(".left");
+        PropertyCanonicalName::from_component_field::<AnimatableComponent>("left");
 
     const RIGHT: PropertyCanonicalName =
-        PropertyCanonicalName::from_component::<AnimatableComponent>(".right");
+        PropertyCanonicalName::from_component_field::<AnimatableComponent>("right");
 
     static TYPE_REGISTRY: LazyLock<TypeRegistry> = LazyLock::new(|| {
         let mut registry = TypeRegistry::new();
@@ -563,7 +560,7 @@ mod tests {
     });
 
     static PROPERTY_REGISTRY: LazyLock<PropertyRegistry> = LazyLock::new(|| {
-        let mut registry = PropertyRegistry::default();
+        let mut registry = PropertyRegistry::new();
         registry.register::<AnimatableComponent>();
         registry
     });
@@ -591,11 +588,12 @@ mod tests {
     }
 
     #[track_caller]
-    fn resolve_keyframes<'a>(
+    fn resolve_keyframes(
         keyframes: &AnimationKeyframes,
-        property_ref: impl Into<ComponentPropertyRef<'a>>,
+        property_ref: impl Into<ComponentPropertyRef>,
         computed_values: &PropertyMap<ComputedValue>,
     ) -> Option<Vec<AnimationPropertyKeyframe>> {
+        let property_ref = property_ref.into();
         let property_id = PROPERTY_REGISTRY
             .resolve(property_ref)
             .expect("Invalid property_ref");

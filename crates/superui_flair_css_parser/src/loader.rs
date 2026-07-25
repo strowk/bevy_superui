@@ -3,17 +3,20 @@ use crate::ShorthandPropertyRegistry;
 use crate::imports_parser::extract_imports;
 use crate::internal_loader::InternalStylesheetLoader;
 use bevy_asset::io::Reader;
-use bevy_asset::{AssetLoader, AssetServer, AsyncReadExt, LoadContext, LoadDirectError};
+use bevy_asset::{
+    AssetLoader, AssetServer, AsyncReadExt, LoadContext, LoadDirectError, VisitAssetDependencies,
+};
 use bevy_ecs::change_detection::{MaybeLocation, Res};
 use bevy_ecs::prelude::AppTypeRegistry;
 use bevy_ecs::system::SystemParam;
 use superui_flair_core::{CssPropertyRegistry, PropertyRegistry};
-use superui_flair_style::placeholder::PlaceholderAssetLoader;
-use superui_flair_style::{StyleSheet, StyleSheetBuilderError};
+use superui_flair_style::asset_loader::StyleAssetLoader;
+use superui_flair_style::{StyleBlock, StyleSheet, StyleSheetBuilderError};
 use bevy_reflect::{TypePath, TypeRegistryArc};
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use tracing::debug;
 
 /// Errors that can occur while loading a CSS stylesheet using [`CssStyleSheetLoader`] or
 /// [`InlineCssStyleSheetParser`].
@@ -122,12 +125,40 @@ impl AssetLoader for CssStyleSheetLoader {
         let mut imports = FxHashMap::default();
 
         for import_path in import_paths {
+            // The issue here is that by using `load_value`,
+            // `StyleBlock` do not get added to the `Assets<StyleBlock>` resource, and they are never 'Loaded'.
+            // So we need to extract and map them from the loaded value into new `StyleBlock`.
             let loaded_asset = load_context
-                .loader()
-                .immediate()
-                .load::<StyleSheet>(&import_path)
+                .load_builder()
+                .load_value::<StyleSheet>(&import_path)
                 .await?;
-            imports.insert(import_path, loaded_asset.take());
+
+            let mut old_index_to_handle = FxHashMap::default();
+
+            let mut dependencies = Vec::new();
+            loaded_asset.get().visit_dependencies(&mut |asset_id| {
+                dependencies.push(asset_id.typed_debug_checked::<StyleBlock>());
+            });
+
+            for (index, id) in dependencies.into_iter().enumerate() {
+                let erased_style_block = loaded_asset.get_labeled_by_id(id).unwrap();
+                debug_assert_eq!(erased_style_block.iter_labels().count(), 0);
+                let style_block = erased_style_block.get::<StyleBlock>().unwrap();
+
+                let style_block_handle = load_context
+                    .add_labeled_asset(format!("{import_path}/{index}"), style_block.clone());
+
+                debug!(
+                    "{path}: Remapping for {import_path} {id:?} -> {new_id:?}",
+                    path = load_context.path(),
+                    new_id = style_block_handle.id()
+                );
+                old_index_to_handle.insert(id, style_block_handle);
+            }
+
+            let style_sheet = loaded_asset.take();
+
+            imports.insert(import_path, (style_sheet, old_index_to_handle));
         }
 
         let file_name = load_context.path().to_string();
@@ -146,7 +177,7 @@ impl AssetLoader for CssStyleSheetLoader {
         Ok(builder.build(
             &type_registry,
             &self.property_registry,
-            PlaceholderAssetLoader::from_load_context(load_context),
+            StyleAssetLoader::from_load_context(load_context),
         )?)
     }
 
@@ -169,7 +200,7 @@ impl AssetLoader for CssStyleSheetLoader {
 /// # use bevy_ecs::system::Commands;
 /// # use bevy_ui::widget::Button;
 /// # use superui_flair_css_parser::InlineCssStyleSheetParser;
-/// # use superui_flair_style::components::NodeStyleSheet;
+/// # use superui_flair_style::components::Styled;
 /// # use superui_flair_style::StyleSheet;
 ///
 /// fn setup(mut commands: Commands, loader: InlineCssStyleSheetParser, mut assets: ResMut<Assets<StyleSheet>>,) {
@@ -183,7 +214,7 @@ impl AssetLoader for CssStyleSheetLoader {
 ///     let handle_id = assets.add(stylesheet);
 ///     commands.spawn((
 ///         Button,
-///         NodeStyleSheet::new(handle_id),
+///         Styled::new(handle_id),
 ///     ));
 /// }
 /// ```
@@ -230,7 +261,7 @@ impl<'w> InlineCssStyleSheetParser<'w> {
         Ok(builder.build(
             &type_registry,
             &self.property_registry,
-            PlaceholderAssetLoader::from_asset_server(&self.asset_server),
+            StyleAssetLoader::from_asset_server(&self.asset_server),
         )?)
     }
 }

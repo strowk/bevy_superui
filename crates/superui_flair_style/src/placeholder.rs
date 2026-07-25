@@ -3,114 +3,39 @@
 //! For example, a string path representing an image asset or a font-family name
 //! used instead of a direct `Handle<Font>`.
 
+use crate::asset_loader::StyleAssetLoader;
 use bevy_app::{App, Plugin};
-use bevy_asset::{Asset, AssetPath, AssetServer, Handle, LoadContext, ParseAssetPathError};
+use bevy_asset::{Asset, AssetPath, Handle, ParseAssetPathError};
+use bevy_ecs::entity::Entity;
 use bevy_ecs::error::BevyError;
+use bevy_ecs::world::World;
 use superui_flair_core::ReflectValue;
 use bevy_reflect::{FromReflect, FromType, Reflect, TypePath, TypeRegistry};
-use bevy_text::Font;
+use bevy_text::FontSource;
 use rustc_hash::FxHashMap;
 use std::marker::PhantomData;
 use thiserror::Error;
-
-#[cfg(test)]
-trait CustomLoader {
-    fn load(&self, type_id: std::any::TypeId, path: AssetPath<'_>) -> bevy_asset::UntypedHandle;
-}
-
-#[cfg(test)]
-impl<F> CustomLoader for F
-where
-    F: Fn(std::any::TypeId, AssetPath<'_>) -> bevy_asset::UntypedHandle,
-{
-    fn load(&self, type_id: std::any::TypeId, path: AssetPath<'_>) -> bevy_asset::UntypedHandle {
-        self(type_id, path)
-    }
-}
-
-enum InnerAssetLoader<'a, 'c> {
-    AssetServer(&'a AssetServer),
-    LoadContext(&'a mut LoadContext<'c>),
-    NoLoader,
-    #[cfg(test)]
-    Custom(&'a dyn CustomLoader),
-}
-
-/// Wrapper that abstracts over available asset loading backends while resolving
-/// placeholders.
-///
-/// Depending on the runtime context, placeholder resolution might use the
-/// `AssetServer` (when resolving at runtime) or a `LoadContext` (when resolving
-/// during asset loading). This type hides those differences and exposes a
-/// uniform `load_asset` method.
-pub struct PlaceholderAssetLoader<'a, 'c>(InnerAssetLoader<'a, 'c>);
-
-impl<'a> PlaceholderAssetLoader<'a, '_> {
-    /// Create a loader that uses the given `AssetServer` to load assets.
-    pub fn from_asset_server(asset_server: &'a AssetServer) -> Self {
-        Self(InnerAssetLoader::AssetServer(asset_server))
-    }
-
-    /// Create a loader that will panic if an attempt to load assets is made.
-    ///
-    /// Useful for contexts where asset loading is not available or expected, like unit testing.
-    pub fn no_loader() -> Self {
-        Self(InnerAssetLoader::NoLoader)
-    }
-
-    #[cfg(test)]
-    fn custom<C: CustomLoader>(custom_loader: &'a C) -> Self {
-        Self(InnerAssetLoader::Custom(custom_loader))
-    }
-}
-
-impl<'a, 'c> PlaceholderAssetLoader<'a, 'c> {
-    /// Create a loader that uses the provided `LoadContext` to load assets.
-    ///
-    /// This is typically used when resolving placeholders as part of an asset
-    /// import/processing pipeline.
-    pub fn from_load_context(load_context: &'a mut LoadContext<'c>) -> Self {
-        Self(InnerAssetLoader::LoadContext(load_context))
-    }
-}
-
-impl PlaceholderAssetLoader<'_, '_> {
-    /// Load an asset of type `A` from the provided path using the underlying
-    /// loader implementation.
-    pub fn load_asset<'a, A: Asset>(&mut self, path: impl Into<AssetPath<'a>>) -> Handle<A> {
-        match &mut self.0 {
-            InnerAssetLoader::AssetServer(asset_server) => asset_server.load(path),
-            InnerAssetLoader::LoadContext(load_context) => load_context.load(path),
-            InnerAssetLoader::NoLoader => {
-                let path = path.into();
-                panic!("Tried to load '{path}' when no loader has been configured");
-            }
-            #[cfg(test)]
-            InnerAssetLoader::Custom(custom_loader) => {
-                let path = path.into();
-                let handle = custom_loader.load(std::any::TypeId::of::<A>(), path);
-                handle.typed()
-            }
-        }
-    }
-}
 
 /// Context passed to placeholder resolvers.
 ///
 /// Contains an asset loader to resolve asset path placeholders and a mapping of
 /// font-family names to `Handle<Font>` for resolving font placeholders.
 pub struct ResolvePlaceholderContext<'a, 'b, 'c> {
+    /// Entity for which the placeholder is being resolved, if any.
+    pub entity: Option<Entity>,
+    /// World access
+    pub world: Option<&'b World>,
     /// Asset loader used to resolve asset path placeholders.
-    pub asset_loader: PlaceholderAssetLoader<'a, 'c>,
+    pub asset_loader: &'b mut StyleAssetLoader<'a, 'c>,
     /// Mapping of font-family names to registered `Handle<Font>`.
-    pub font_faces: &'b FxHashMap<String, Handle<Font>>,
+    pub font_faces: &'b FxHashMap<String, FontSource>,
 }
 
 /// Trait implemented by types that can be used as placeholders
 /// and resolved into concrete values by using the `ResolvePlaceholderContext`.
 pub trait Placeholder: Sized {
     /// Error type returned when resolution fails.
-    type Error: std::error::Error + Send + Sync + 'static;
+    type Error;
 
     /// The concrete value type that this placeholder resolves to.
     type ResolvedValue;
@@ -118,16 +43,17 @@ pub trait Placeholder: Sized {
     /// Resolve this placeholder into a concrete value using the
     /// provided `ResolvePlaceholderContext`.
     /// For example, a concrete `Handle<Image>` can be returned.
+    /// If the placeholder cannot be resolved yet, `Ok(None)` should be returned.
     fn resolve_placeholder(
         &self,
         context: &mut ResolvePlaceholderContext,
-    ) -> Result<Self::ResolvedValue, Self::Error>;
+    ) -> Result<Option<Self::ResolvedValue>, Self::Error>;
 }
 
 type ResolvePlaceholderFn = fn(
     value: &ReflectValue,
     context: &mut ResolvePlaceholderContext,
-) -> Result<ReflectValue, BevyError>;
+) -> Result<Option<ReflectValue>, BevyError>;
 
 /// A type-erased resolver for [`Placeholder`] values stored in the [`TypeRegistry`].
 #[derive(Clone)]
@@ -139,7 +65,7 @@ impl ReflectPlaceholder {
         &self,
         value: &ReflectValue,
         context: &mut ResolvePlaceholderContext,
-    ) -> Result<ReflectValue, BevyError> {
+    ) -> Result<Option<ReflectValue>, BevyError> {
         self.0(value, context)
     }
 }
@@ -148,7 +74,7 @@ impl<T> FromType<T> for ReflectPlaceholder
 where
     T: Placeholder + FromReflect + TypePath,
     T::ResolvedValue: FromReflect,
-    T::Error: std::error::Error + Send + Sync + 'static,
+    BevyError: From<T::Error>,
 {
     fn from_type() -> Self {
         ReflectPlaceholder(|value, context| {
@@ -159,7 +85,7 @@ where
                         received_type_path = value.value_type_info().type_path()
                 )
             })?;
-            Ok(value.resolve_placeholder(context).map(ReflectValue::new)?)
+            Ok(value.resolve_placeholder(context)?.map(ReflectValue::new))
         })
     }
 }
@@ -214,10 +140,10 @@ impl<A: Asset> Placeholder for AssetPathPlaceholder<A> {
     fn resolve_placeholder(
         &self,
         context: &mut ResolvePlaceholderContext,
-    ) -> Result<Handle<A>, ParseAssetPathError> {
+    ) -> Result<Option<Handle<A>>, ParseAssetPathError> {
         let path = AssetPath::try_parse(&self.path)?;
         let handle = context.asset_loader.load_asset::<A>(path);
-        Ok(handle)
+        Ok(Some(handle))
     }
 }
 
@@ -226,36 +152,43 @@ impl<A: Asset> Placeholder for AssetPathPlaceholder<A> {
 #[error("Font family '{0}' doesn't exist")]
 pub struct FontFamilyNotFound(String);
 
-/// When a struct contains a `Handle<Font>`, instead of referring to the url of the asset,
-/// it is expected to refer to a defined `@font-face`. This represents the name of such font-face.
+/// Placeholder wrapper for font sources that can be resolved from a named font
+/// family.
+///
+/// In styles and reflected values we sometimes need to refer to fonts
+/// indirectly. Instead of embedding a raw asset URL or handle, a value can
+/// refer to a named `@font-face` declared elsewhere (for example, loaded via
+/// CSS or an asset manifest). This enum represents that indirection.
 #[derive(Clone, PartialEq, Debug, Reflect)]
 #[reflect(Debug, PartialEq, Clone, Placeholder)]
-pub struct FontTypePlaceholder {
-    font_family: String,
+pub enum FontSourcePlaceholder {
+    /// Contains a concrete [`FontSource`] (for example a `FontSource::Serif`).
+    /// Use this when the source is already known and should be used as-is.
+    FontSource(FontSource),
+    /// Refers to a registered font face by name. During
+    /// placeholder resolution the `ResolvePlaceholderContext`'s `@font-face` registered sources
+    /// are consulted to look up the corresponding [`FontSource`].
+    FontFaceReference(String),
 }
 
-impl FontTypePlaceholder {
-    /// Create a new [`FontTypePlaceholder`].
-    pub fn new(font_family: impl Into<String>) -> Self {
-        Self {
-            font_family: font_family.into(),
-        }
-    }
-}
-
-impl Placeholder for FontTypePlaceholder {
+impl Placeholder for FontSourcePlaceholder {
     type Error = FontFamilyNotFound;
 
-    type ResolvedValue = Handle<Font>;
+    type ResolvedValue = FontSource;
 
     fn resolve_placeholder(
         &self,
         context: &mut ResolvePlaceholderContext,
-    ) -> Result<Handle<Font>, FontFamilyNotFound> {
-        let Some(font_handle) = context.font_faces.get(&self.font_family) else {
-            return Err(FontFamilyNotFound(self.font_family.clone()));
-        };
-        Ok(font_handle.clone())
+    ) -> Result<Option<FontSource>, FontFamilyNotFound> {
+        match self {
+            FontSourcePlaceholder::FontSource(source) => Ok(Some(source.clone())),
+            FontSourcePlaceholder::FontFaceReference(family_name) => {
+                let Some(font_source) = context.font_faces.get(family_name) else {
+                    return Err(FontFamilyNotFound(family_name.clone()));
+                };
+                Ok(Some(font_source.clone()))
+            }
+        }
     }
 }
 
@@ -274,10 +207,14 @@ pub fn try_resolve_placeholder(
     else {
         return Ok(None);
     };
+    reflect_placeholder.resolve_placeholder(value, context)
+}
 
-    Ok(Some(
-        reflect_placeholder.resolve_placeholder(value, context)?,
-    ))
+/// Returns `true` if the given `ReflectValue` represents a placeholder type.
+pub fn is_placeholder_value(value: &ReflectValue, type_registry: &TypeRegistry) -> bool {
+    type_registry
+        .get_type_data::<ReflectPlaceholder>(value.value_type_info().type_id())
+        .is_some()
 }
 
 /// Plugin that registers placeholder-related reflected types so placeholder replacement works by default.
@@ -286,29 +223,32 @@ pub struct PlaceholderResolvePlugin;
 impl Plugin for PlaceholderResolvePlugin {
     fn build(&self, app: &mut App) {
         app.register_type::<AssetPathPlaceholder<bevy_image::Image>>();
-        app.register_type::<FontTypePlaceholder>();
+        app.register_type::<FontSourcePlaceholder>();
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        AssetPathPlaceholder, FontFamilyNotFound, FontTypePlaceholder, PlaceholderAssetLoader,
-        ResolvePlaceholderContext, try_resolve_placeholder,
+        AssetPathPlaceholder, FontFamilyNotFound, FontSourcePlaceholder, ResolvePlaceholderContext,
+        try_resolve_placeholder,
     };
 
-    use bevy_asset::{AssetPath, Handle, ParseAssetPathError, uuid_handle};
+    use crate::StyleBlock;
+    use crate::asset_loader::{CustomLoader, StyleAssetLoader};
+    use bevy_asset::{AssetPath, Handle, ParseAssetPathError, UntypedHandle, uuid_handle};
     use superui_flair_core::ReflectValue;
     use bevy_image::Image;
     use bevy_reflect::TypeRegistry;
-    use bevy_text::Font;
+    use bevy_text::{Font, FontSource};
     use rustc_hash::FxHashMap;
     use std::any::TypeId;
+    use std::sync::Arc;
 
     fn test_type_registry() -> TypeRegistry {
         let mut type_registry = TypeRegistry::new();
         type_registry.register::<AssetPathPlaceholder<Image>>();
-        type_registry.register::<FontTypePlaceholder>();
+        type_registry.register::<FontSourcePlaceholder>();
         type_registry
     }
 
@@ -320,21 +260,37 @@ mod tests {
     fn test_resolve_placeholder() {
         let type_registry = test_type_registry();
 
-        let font_faces = FxHashMap::from_iter([("Comic Sans".into(), COMIC_SANS_FONT)]);
+        let font_faces =
+            FxHashMap::from_iter([("Comic Sans".into(), FontSource::Handle(COMIC_SANS_FONT))]);
 
-        let custom_loader = |type_id: TypeId, path: AssetPath<'_>| {
-            if type_id != TypeId::of::<Image>() {
-                panic!("Unexpected type {:?}", type_id);
+        struct TestLoader;
+
+        impl CustomLoader for TestLoader {
+            fn load(&self, type_id: TypeId, path: AssetPath<'_>) -> UntypedHandle {
+                if type_id != TypeId::of::<Image>() {
+                    panic!("Unexpected type {:?}", type_id);
+                }
+                let path = path.to_string();
+                match path.as_str() {
+                    "duck.png" => DUCK_IMAGE.untyped(),
+                    _ => INVALID_HANDLE.untyped(),
+                }
             }
-            let path = path.to_string();
-            match path.as_str() {
-                "duck.png" => DUCK_IMAGE.untyped(),
-                _ => INVALID_HANDLE.untyped(),
+
+            fn add_style_block(
+                &mut self,
+                _label: Arc<str>,
+                _style_block: StyleBlock,
+            ) -> Handle<StyleBlock> {
+                panic!("Cannot add style block");
             }
-        };
+        }
+        let mut test_loader = TestLoader;
 
         let mut context = ResolvePlaceholderContext {
-            asset_loader: PlaceholderAssetLoader::custom(&custom_loader),
+            entity: None,
+            world: None,
+            asset_loader: &mut StyleAssetLoader::custom(&mut test_loader),
             font_faces: &font_faces,
         };
 
@@ -359,13 +315,17 @@ mod tests {
         let parse_asset_path_error = resolve_error.downcast_ref::<ParseAssetPathError>().unwrap();
         assert_eq!(parse_asset_path_error, &ParseAssetPathError::MissingLabel);
 
-        let font_placeholder = ReflectValue::new(FontTypePlaceholder::new("Comic Sans"));
+        let font_placeholder = ReflectValue::new(FontSourcePlaceholder::FontFaceReference(
+            "Comic Sans".to_string(),
+        ));
         assert_eq!(
             try_resolve_placeholder(&font_placeholder, &mut context, &type_registry).unwrap(),
-            Some(ReflectValue::new(COMIC_SANS_FONT))
+            Some(ReflectValue::new(FontSource::Handle(COMIC_SANS_FONT)))
         );
 
-        let invalid_font_placeholder = ReflectValue::new(FontTypePlaceholder::new("Invalid Font"));
+        let invalid_font_placeholder = ReflectValue::new(FontSourcePlaceholder::FontFaceReference(
+            "Invalid Font".to_string(),
+        ));
         let resolve_error =
             try_resolve_placeholder(&invalid_font_placeholder, &mut context, &type_registry)
                 .unwrap_err();
