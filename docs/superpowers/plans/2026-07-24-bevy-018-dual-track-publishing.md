@@ -24,14 +24,18 @@
 ## Publish dependency order (topological — referenced by Tasks 6 & 13)
 
 ```
-superui_dom          supersolid          superui_flair_core
-superui_html         superui_js          superui_flair_style        (← flair_core)
-superui_api          supersolid_runtime  superui_flair_css_parser   (← flair_core, flair_style)
+superui_dom   supersolid_runtime  superui_flair_core   superui_paths (leaf, no deps)
+superui_html  superui_js          superui_flair_style        (← flair_core)
+superui_api   superui_flair_css_parser                       (← flair_core, flair_style)
+supersolid           (← superui_paths)
 superui_css          (← 3 forks)
 superui_bridge       (← dom, js, api, css, supersolid_runtime)
-superui              (← dom, html, js, api, css, bridge, supersolid)
+superui              (← dom, html, js, api, css, bridge, supersolid, superui_paths)
 cargo-superui        superui_test_engine (← superui, bridge, dom, css, supersolid, js)
 ```
+
+**15 publishable crates total** (includes `superui_paths`, a zero-dep leaf added
+after this plan was first drafted; it must precede `supersolid` and `superui`).
 
 ---
 
@@ -408,12 +412,15 @@ fn order_is_topological() {
     assert!(pos("superui_css") < pos("superui_bridge"));
     assert!(pos("superui_bridge") < pos("superui"));
     assert!(pos("superui") < pos("superui_test_engine"));
-    // all 14 publishable crates present, each once
-    assert_eq!(order.len(), 14);
+    // superui_paths (leaf) must precede its dependents
+    assert!(pos("superui_paths") < pos("supersolid"));
+    assert!(pos("superui_paths") < pos("superui"));
+    // all 15 publishable crates present, each once
+    assert_eq!(order.len(), 15);
     let mut sorted = order.clone();
     sorted.sort_unstable();
     sorted.dedup();
-    assert_eq!(sorted.len(), 14, "publish_order has duplicates");
+    assert_eq!(sorted.len(), 15, "publish_order has duplicates");
 }
 ```
 
@@ -428,13 +435,15 @@ Add to `xtask/src/lib.rs`:
 ```rust
 pub fn publish_order() -> Vec<&'static str> {
     vec![
-        "superui_dom", "supersolid", "superui_flair_core",
+        "superui_dom", "superui_paths", "superui_flair_core",
         "superui_html", "superui_js", "superui_api", "supersolid_runtime", "superui_flair_style",
         "superui_flair_css_parser", "superui_css",
+        "supersolid",            // ← superui_paths
         "superui_bridge",
         "superui",
         "cargo-superui", "superui_test_engine",
-        // Exactly 14 publishable crates — must match publish_order test's len assert.
+        // Exactly 15 publishable crates — must match publish_order test's len assert.
+        // superui_paths is a zero-dep leaf; supersolid depends on it, so paths precedes supersolid.
     ]
 }
 
@@ -801,12 +810,13 @@ git commit -m "docs: confirm 0.2.x/bevy-0.18 as current track"
 > themselves. The plan is "complete" for Claude once the dry runs are green and
 > the handoff has been delivered.
 
-> **Name availability (checked 2026-07-24):** all 14 crate names — `superui`,
+> **Name availability (checked 2026-07-24):** all 15 crate names — `superui`,
 > `supersolid`, `cargo-superui`, `superui_dom`, `superui_html`, `superui_js`,
 > `superui_api`, `superui_css`, `superui_bridge`, `supersolid_runtime`,
-> `superui_test_engine`, `superui_flair_core`, `superui_flair_style`,
-> `superui_flair_css_parser` — were **free** on crates.io (404). The short names
-> `superui`/`supersolid` are squattable; publish promptly once the tree builds.
+> `superui_paths`, `superui_test_engine`, `superui_flair_core`,
+> `superui_flair_style`, `superui_flair_css_parser` — were **free** on crates.io
+> (404). The short names `superui`/`supersolid` are squattable; publish promptly
+> once the tree builds.
 
 **Claude's only actions for this task are the two checkboxes below — both are
 safe (network-read-only dry runs / printing text). Everything under "MAINTAINER
@@ -851,7 +861,7 @@ still free (anyone can claim them before you publish):
 cargo login                 # paste your crates.io API token from https://crates.io/settings/tokens
 git status                  # confirm a clean working tree before releasing
 for n in superui supersolid cargo-superui superui_dom superui_html superui_js \
-         superui_api superui_css superui_bridge supersolid_runtime \
+         superui_api superui_css superui_bridge supersolid_runtime superui_paths \
          superui_test_engine superui_flair_core superui_flair_style superui_flair_css_parser; do
   printf '%s ' "$n"; curl -s -o /dev/null -w '%{http_code}\n' "https://crates.io/api/v1/crates/$n"
 done   # 404 = free, 200 = taken
