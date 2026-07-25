@@ -23,10 +23,28 @@ function Label() {
 `useContext` looks up the nearest value provided for that context in the current
 scope, and falls back to the context's default when none has been provided.
 
-> **Providing values is still evolving.** A declarative provider component for
-> overriding a context's value for a subtree is on the roadmap. Today `useContext`
-> resolves to the context's **default value**, which makes context useful right
-> now for app-wide constants and defaults.
+## Providing a value
+
+Each context handle carries a `Provider` component. Wrapping a subtree in
+`<ThemeContext.Provider value={…}>` overrides the value for every `useContext`
+call inside it, just like Solid:
+
+```typescript
+const ThemeContext = createContext("dark");
+
+function App() {
+  return (
+    <ThemeContext.Provider value="light">
+      <Label /> {/* useContext(ThemeContext) === "light" here */}
+    </ThemeContext.Provider>
+  );
+}
+```
+
+The override applies to the whole subtree, including components rendered deep
+inside it, and nests — an inner provider shadows an outer one for its children.
+Outside the provider, `useContext` resolves to the context's default value, which
+also makes context handy for app-wide constants without any provider at all.
 
 ## Sharing state today
 

@@ -74,6 +74,11 @@ declare module "supersolid" {
   export interface Context<T> {
     readonly id: number;
     readonly defaultValue: T;
+    /**
+     * Provider component. Wrapping a subtree in `<Ctx.Provider value={…}>`
+     * overrides the value returned by {@link useContext} for its `children`.
+     */
+    readonly Provider: (props: { value: T; children: unknown }) => unknown;
   }
   /**
    * Create a context carrying `defaultValue` for descendants to read via

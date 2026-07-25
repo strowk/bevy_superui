@@ -136,6 +136,64 @@ mod tests {
     }
 
     #[test]
+    fn create_context_provider_scopes_value_to_children() {
+        // `createContext(default).Provider` is a component: rendering
+        // `<Ctx.Provider value={v}>{children}</Ctx.Provider>` (which the transpiler
+        // lowers to `$ss.cmp(Ctx.Provider, { value, get children(){...} })`) must
+        // make `useContext(Ctx)` resolve to `v` inside the children, and fall back
+        // to the default outside.
+        let mut e = engine();
+        e.eval(
+            r#"
+            var Ctx = createContext("default");
+            globalThis.inside = null;
+            $ss.cmp(Ctx.Provider, {
+                value: "light",
+                get children() { globalThis.inside = useContext(Ctx); return null; }
+            });
+            globalThis.outside = useContext(Ctx);   // "default" (provide scope closed)
+            "#,
+        )
+        .unwrap();
+        assert_eq!(text(&mut e, "globalThis.inside"), "light");
+        assert_eq!(text(&mut e, "globalThis.outside"), "default");
+    }
+
+    #[test]
+    fn context_provider_reaches_components_through_control_flow() {
+        // Horde-shaped: Provider -> Show(when) -> Child component. The child is
+        // instantiated during the Show memo's (deferred) recompute inside an insert
+        // effect, NOT synchronously under the provider call. It must still read the
+        // provided value, not the default — otherwise moving prop-drilling to context
+        // in control-flow-heavy apps would silently regress to defaults.
+        let mut e = engine();
+        e.eval(
+            r#"
+            var Ctx = createContext("default");
+            globalThis.seen = "unset";
+            function Child() { globalThis.seen = useContext(Ctx); return null; }
+            createRoot(function () {
+                var m = $ss.cmp(Ctx.Provider, {
+                    value: "light",
+                    get children() {
+                        return $ss.cmp(Show, {
+                            get when() { return true; },
+                            get children() { return $ss.cmp(Child, {}); }
+                        });
+                    }
+                });
+                // Provider hands back the Show memo (created under the provide scope).
+                // As insert() would, run it later — Child is instantiated here, well
+                // after the synchronous provideContext call has restored the owner.
+                m();
+            });
+            "#,
+        )
+        .unwrap();
+        assert_eq!(text(&mut e, "globalThis.seen"), "light");
+    }
+
+    #[test]
     fn effect_runs_on_creation_and_reruns_on_dependency_change() {
         let mut e = engine();
         e.eval(

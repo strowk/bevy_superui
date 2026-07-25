@@ -223,6 +223,17 @@ mod tests {
     }
 
     #[test]
+    fn member_expression_tag_lowers_to_component() {
+        // `<Ctx.Provider value={v}>{kid}</Ctx.Provider>` — a member-expression tag
+        // is a component; its callee is the member expression `Ctx.Provider`.
+        let out = code("const a = <Ctx.Provider value={v}>{kid}</Ctx.Provider>;");
+        assert!(out.contains("$ss.cmp(Ctx.Provider"), "member-expr tag is a component:\n{out}");
+        assert!(out.contains("get value()"), "dynamic prop is a getter:\n{out}");
+        assert!(out.contains("get children()"), "children passed as getter:\n{out}");
+        assert!(reparses_as_plain_js(&out), "not valid plain JS / JSX left:\n{out}");
+    }
+
+    #[test]
     fn fragment_lowers_to_frag_array() {
         let out = code("const a = <><A/><B/></>;");
         assert!(out.contains("$ss.frag(["), "{out}");

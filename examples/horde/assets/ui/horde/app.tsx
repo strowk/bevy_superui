@@ -1,4 +1,4 @@
-import { createSignal, createMemo, For, Keyed, Index, Show, Switch, Match, render, Accessor } from "supersolid";
+import { createSignal, createMemo, createContext, useContext, For, Keyed, Index, Show, Switch, Match, render, Accessor } from "supersolid";
 
 // --- Frame model: mirrors the serde DTOs in src/ui/supersolid/bridge.rs ---
 // Hand-authored for now; this is the exact JSON shape bevy.on("frame") delivers.
@@ -35,6 +35,12 @@ const EMPTY: Frame = {
   inventory: [], enemies: [], damage_numbers: [], blips: [], log: [],
 };
 
+// The per-frame snapshot flows to every HUD widget through context instead of
+// being drilled as an `f` prop. App provides the live `frame` accessor; each
+// widget reads it with `useContext(FrameCtx)`. Default is an accessor to EMPTY so
+// a widget rendered outside the provider still type-checks and reads sane values.
+const FrameCtx = createContext<Accessor<Frame>>(() => EMPTY);
+
 function intent(kind: string, index?: number) {
   bevy.send("HordeIntent", { kind, index: index || 0 });
 }
@@ -51,8 +57,8 @@ function mmss(sec) {
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
-function PlayerStatus(props: { f: Accessor<Frame> }) {
-  const f = props.f;
+function PlayerStatus() {
+  const f = useContext(FrameCtx);
   const hpFrac = () => f().player_hp / f().player_max_hp;
   const xpFrac = () => (f().xp % 100) / 100;
   return (
@@ -72,8 +78,8 @@ function PlayerStatus(props: { f: Accessor<Frame> }) {
   );
 }
 
-function Meters(props: { f: Accessor<Frame> }) {
-  const f = props.f;
+function Meters() {
+  const f = useContext(FrameCtx);
   return (
     <div class="panel" id="meters">
       <span>{`Wave ${f().wave}   Kills ${f().kills}   DPS ${Math.round(f().dps)}   ${mmss(f().elapsed)}`}</span>
@@ -81,20 +87,22 @@ function Meters(props: { f: Accessor<Frame> }) {
   );
 }
 
-function CombatLog(props: { f: Accessor<Frame> }) {
+function CombatLog() {
+  const f = useContext(FrameCtx);
   return (
     <div class="panel" id="combat-log">
-      {<For each={props.f().log}>
+      {<For each={f().log}>
         {(line) => <span class="log-line" style={`color: rgba(237, 245, 255, ${line.alpha})`}>{line.text}</span>}
       </For>}
     </div>
   );
 }
 
-function WeaponBar(props: { f: Accessor<Frame> }) {
+function WeaponBar() {
+  const f = useContext(FrameCtx);
   return (
     <div id="weapon-bar">
-      {<For each={props.f().inventory}>
+      {<For each={f().inventory}>
         {(slot) => (
           <button class={slot.active ? "slot active" : "slot"} data-index={slot.index}
                   onClick={() => intent("SwitchWeapon", slot.index)}>
@@ -112,10 +120,11 @@ function WeaponBar(props: { f: Accessor<Frame> }) {
 // so a moving enemy re-runs only its own position binding (its unchanged health/
 // id bindings stay put) and there is no per-frame whole-list reconcile. `e` is the
 // row proxy: `e.sx` is a fine-grained reactive read.
-function Minimap(props: { f: Accessor<Frame> }) {
+function Minimap() {
+  const f = useContext(FrameCtx);
   return (
     <div class="panel" id="minimap">
-      {<Keyed each={props.f().blips} by="id">
+      {<Keyed each={f().blips} by="id">
         {(b) => (
           <div class={"blip " + b.kind}
                style={`left: ${Math.round(b.mx * 100)}%; top: ${Math.round(b.my * 100)}%`}></div>
@@ -125,10 +134,11 @@ function Minimap(props: { f: Accessor<Frame> }) {
   );
 }
 
-function Nameplates(props: { f: Accessor<Frame> }) {
+function Nameplates() {
+  const f = useContext(FrameCtx);
   return (
     <div class="overlay" id="nameplates">
-      {<Keyed each={props.f().enemies} by="id">
+      {<Keyed each={f().enemies} by="id">
         {(e) => (
           <div class="nameplate" data-id={e.id}
                style={`left: ${Math.round(e.sx - 22)}px; top: ${Math.round(e.sy - 30)}px`}>
@@ -141,10 +151,11 @@ function Nameplates(props: { f: Accessor<Frame> }) {
   );
 }
 
-function DamageNumbers(props: { f: Accessor<Frame> }) {
+function DamageNumbers() {
+  const f = useContext(FrameCtx);
   return (
     <div class="overlay" id="damage-numbers">
-      {<Keyed each={props.f().damage_numbers} by="id">
+      {<Keyed each={f().damage_numbers} by="id">
         {(d) => (
           <span class={d.crit ? "dmg crit" : "dmg"} data-id={d.id}
                 style={`left: ${Math.round(d.sx)}px; top: ${Math.round(d.sy)}px; color: rgba(${d.crit ? "255, 199, 71" : "237, 245, 255"}, ${d.alpha})`}>
@@ -156,26 +167,27 @@ function DamageNumbers(props: { f: Accessor<Frame> }) {
   );
 }
 
-function Hud(props: { f: Accessor<Frame> }) {
+function Hud() {
   return (
     <div id="playing">
-      <PlayerStatus f={props.f} />
-      <Meters f={props.f} />
-      <CombatLog f={props.f} />
-      <WeaponBar f={props.f} />
-      <Minimap f={props.f} />
-      <Nameplates f={props.f} />
-      <DamageNumbers f={props.f} />
+      <PlayerStatus />
+      <Meters />
+      <CombatLog />
+      <WeaponBar />
+      <Minimap />
+      <Nameplates />
+      <DamageNumbers />
     </div>
   );
 }
 
-function Inventory(props: { f: Accessor<Frame>; onClose: () => void }) {
+function Inventory(props: { onClose: () => void }) {
+  const f = useContext(FrameCtx);
   return (
     <div class="modal dim" id="inventory">
       <h2 class="screen-title">Inventory (I to close)</h2>
       <div class="inv-grid">
-        {<For each={props.f().inventory}>
+        {<For each={f().inventory}>
           {(w) => (
             <div class={w.active ? "inv-card active" : "inv-card"}>
               <span class="inv-name">{w.name}</span>
@@ -234,8 +246,8 @@ function Pause() {
   );
 }
 
-function GameOver(props: { f: Accessor<Frame> }) {
-  const f = props.f;
+function GameOver() {
+  const f = useContext(FrameCtx);
   return (
     <div class="screen dim" id="game-over">
       <h2 class="screen-title danger">You Died</h2>
@@ -260,19 +272,21 @@ function App() {
 
   return (
     <div id="hud">
-      {<Switch>
-        <Match when={state() === "MainMenu"}><MainMenu /></Match>
-        <Match when={state() === "Playing"}>
-          <div id="playing-root">
-            <Hud f={frame} />
-            {<Show when={invOpen()}>
-              <Inventory f={frame} onClose={() => setInvOpen(false)} />
-            </Show>}
-          </div>
-        </Match>
-        <Match when={state() === "Paused"}><Pause /></Match>
-        <Match when={state() === "GameOver"}><GameOver f={frame} /></Match>
-      </Switch>}
+      <FrameCtx.Provider value={frame}>
+        {<Switch>
+          <Match when={state() === "MainMenu"}><MainMenu /></Match>
+          <Match when={state() === "Playing"}>
+            <div id="playing-root">
+              <Hud />
+              {<Show when={invOpen()}>
+                <Inventory onClose={() => setInvOpen(false)} />
+              </Show>}
+            </div>
+          </Match>
+          <Match when={state() === "Paused"}><Pause /></Match>
+          <Match when={state() === "GameOver"}><GameOver /></Match>
+        </Switch>}
+      </FrameCtx.Provider>
     </div>
   );
 }

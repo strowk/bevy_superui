@@ -257,7 +257,14 @@
   }
 
   function createContext(defaultValue) {
-    return { id: nextContextId++, defaultValue: defaultValue };
+    var context = { id: nextContextId++, defaultValue: defaultValue };
+    // Solid-compatible declarative provider: `<Ctx.Provider value={v}>...</Ctx.Provider>`
+    // lowers to `$ss.cmp(Ctx.Provider, { value, get children(){...} })`. Running under
+    // provideContext scopes `useContext(context)` to `value` for the children subtree.
+    context.Provider = function (props) {
+      return provideContext(context, props.value, function () { return props.children; });
+    };
+    return context;
   }
 
   function useContext(context) {

@@ -24,7 +24,8 @@ use oxc::allocator::CloneIn;
 use oxc::ast::ast::{
     ArrayExpressionElement, Argument, Expression, FormalParameterKind, FunctionType,
     JSXAttributeItem, JSXAttributeName, JSXAttributeValue, JSXChild, JSXElement, JSXElementName,
-    JSXExpression, JSXFragment, ObjectPropertyKind, Program, PropertyKind, Statement,
+    JSXExpression, JSXFragment, JSXMemberExpression, JSXMemberExpressionObject, ObjectPropertyKind,
+    Program, PropertyKind, Statement,
     VariableDeclarationKind,
 };
 use oxc::ast::{AstBuilder, NONE};
@@ -301,11 +302,25 @@ impl<'a> Lower<'a> {
         self.ast.expression_object(SPAN, properties)
     }
 
-    /// `$ss.cmp(<Comp ident>, <props object>)`.
-    fn cmp_call(&self, comp: &str, props: Expression<'a>) -> Expression<'a> {
+    /// `$ss.cmp(<Comp callee>, <props object>)`. The callee is an identifier for a
+    /// plain component tag (`<Counter/>`) or a member expression for a member tag
+    /// (`<Ctx.Provider/>` → `Ctx.Provider`).
+    fn cmp_call(&self, comp: Expression<'a>, props: Expression<'a>) -> Expression<'a> {
         let callee = self.runtime_member("cmp");
-        let comp_ident = self.ast.expression_identifier(SPAN, self.atom(comp));
-        self.call(callee, vec![comp_ident, props])
+        self.call(callee, vec![comp, props])
+    }
+
+    /// Build the JS callee expression for a member-expression tag: `<A.B.C>` → `A.B.C`.
+    fn jsx_member_to_expr(&self, m: &JSXMemberExpression<'a>) -> Expression<'a> {
+        let object = match &m.object {
+            JSXMemberExpressionObject::IdentifierReference(id) => {
+                self.ast.expression_identifier(SPAN, self.atom(id.name.as_str()))
+            }
+            JSXMemberExpressionObject::MemberExpression(inner) => self.jsx_member_to_expr(inner),
+            JSXMemberExpressionObject::ThisExpression(_) => self.ast.expression_this(SPAN),
+        };
+        let property = self.ast.identifier_name(SPAN, self.atom(m.property.name.as_str()));
+        Expression::from(self.ast.member_expression_static(SPAN, object, property, false))
     }
 
     /// `$ss.frag([ <exprs> ])`.
@@ -539,8 +554,9 @@ impl<'a> Lower<'a> {
         }
     }
 
-    /// Lower a component tag `<Comp .../>` to `$ss.cmp(Comp, { ...props... })`.
-    fn lower_component(&mut self, comp: &str, element: &JSXElement<'a>) -> Expression<'a> {
+    /// Lower a component tag `<Comp .../>` to `$ss.cmp(<comp>, { ...props... })`.
+    /// `comp` is the already-built callee expression (identifier or member).
+    fn lower_component(&mut self, comp: Expression<'a>, element: &JSXElement<'a>) -> Expression<'a> {
         // Component prop kinds:
         //   - Static(name, value)   → plain init prop `name: <value>`
         //                             covers: string literals, numeric literals, and
@@ -608,6 +624,11 @@ impl<'a> Lower<'a> {
         self.cmp_call(comp, props_obj)
     }
 
+    /// Build a component callee identifier expression from a tag name.
+    fn component_ident(&self, name: &str) -> Expression<'a> {
+        self.ast.expression_identifier(SPAN, self.atom(name))
+    }
+
     /// Lower a `JSXFragment` `<>...</>` to `$ss.frag([ <child exprs> ])`.
     fn lower_fragment(&mut self, fragment: &JSXFragment<'a>) -> Expression<'a> {
         let exprs: Vec<Expression<'a>> =
@@ -626,18 +647,24 @@ impl<'a> Lower<'a> {
             // intrinsic tag (`<div/>`) is a plain `Identifier`.  So an
             // `IdentifierReference` IS the component case.
             JSXElementName::IdentifierReference(id) => {
-                let name = id.name.as_str().to_string();
-                Some(self.lower_component(&name, element))
+                let comp = self.component_ident(id.name.as_str());
+                Some(self.lower_component(comp, element))
             }
             // A plain `Identifier` starting uppercase would also be a component
             // (defensive; the parser normally uses IdentifierReference here).
             JSXElementName::Identifier(id)
                 if id.name.as_str().chars().next().is_some_and(|c| c.is_uppercase()) =>
             {
-                let name = id.name.as_str().to_string();
-                Some(self.lower_component(&name, element))
+                let comp = self.component_ident(id.name.as_str());
+                Some(self.lower_component(comp, element))
             }
-            // Lowercase intrinsic element (Task 2-5) or non-identifier tag.
+            // Member-expression tag (`<Ctx.Provider/>`) → component with a member
+            // callee. Lets `createContext(...).Provider` be used declaratively.
+            JSXElementName::MemberExpression(m) => {
+                let comp = self.jsx_member_to_expr(m);
+                Some(self.lower_component(comp, element))
+            }
+            // Lowercase intrinsic element (Task 2-5) or namespaced tag.
             _ => self.lower_element(element),
         }
     }
@@ -678,6 +705,7 @@ fn is_component_tag(element: &JSXElement<'_>) -> bool {
     match &element.opening_element.name {
         JSXElementName::IdentifierReference(_) => true,
         JSXElementName::Identifier(id) => starts_uppercase(id.name.as_str()),
+        JSXElementName::MemberExpression(_) => true,
         _ => false,
     }
 }
