@@ -528,25 +528,85 @@ git commit -m "test(cli): lock forward-compat invariant (absent optional module 
 
 **Interfaces:** none (docs).
 
-- [ ] **Step 1: Add the README section**
+Both the README and the website must **explain** superui↔bevy compatibility —
+the version-mapping table plus prose on how to pick a version and how the tracks
+are supported — not just drop a bare table.
+
+- [ ] **Step 1: Add the README `## Compatibility` section**
 
 Insert after the `## Status` section in `README.md`:
 ```markdown
 ## Compatibility
+
+Each superui release targets one Bevy release. Bevy makes breaking changes every
+minor version, so superui bumps its own **minor** version in lockstep. Pick the
+superui version that matches the Bevy version your project uses:
 
 | superui | bevy | branch | status |
 | --- | --- | --- | --- |
 | 0.2.x | 0.18 | `main` | current |
 | 0.1.x | 0.17 | `release/bevy-0.17` | maintained |
 
-`main` tracks the newest Bevy release; older Bevy versions are kept on a
-long-lived `release/bevy-<ver>` branch. Fixes land on `main` and are backported
-when they apply.
+`main` always tracks the **newest** supported Bevy; older Bevy versions live on
+long-lived `release/bevy-<ver>` branches. New features land on `main`; fixes are
+backported to the maintenance branch when they apply and shipped as patch
+releases (e.g. `0.1.1`).
+
+The `cargo-superui` CLI is versioned alongside the libraries, so
+`cargo install cargo-superui` matches the current track and
+`cargo install cargo-superui@0.1` pins the 0.17 track.
+
+> The full mapping and version policy also live on the docs site under
+> [Reference → Compatibility](https://strowk.github.io/bevy_superui/docs/reference/compatibility.html).
 ```
 
-- [ ] **Step 2: Create the website page**
+- [ ] **Step 2: Create the website Compatibility page**
 
-Create `website/src/docs/reference/compatibility.md` with the same heading + table + paragraph as Step 1.
+Create `website/src/docs/reference/compatibility.md` with the table above plus
+fuller prose (the site is the canonical, more detailed home):
+```markdown
+# Compatibility
+
+superui is built on `bevy_ui`, and Bevy makes breaking API changes each minor
+release. To keep things predictable, **each superui minor version targets exactly
+one Bevy minor version**, and superui bumps its minor in lockstep with Bevy.
+
+## Version matrix
+
+| superui | bevy | branch | status |
+| --- | --- | --- | --- |
+| 0.2.x | 0.18 | `main` | current |
+| 0.1.x | 0.17 | `release/bevy-0.17` | maintained |
+
+## Choosing a version
+
+Match superui to the Bevy version already in your `Cargo.toml`. For example, on
+Bevy 0.17:
+
+    [dependencies]
+    bevy = "0.17"
+    superui = "0.1"
+
+Mixing a superui version with a different Bevy minor is not supported — Cargo will
+usually fail to resolve, and even when it links, the ECS/UI types won't match.
+
+## Support policy
+
+- `main` tracks the **newest** Bevy release and receives new features.
+- Older Bevy versions are kept on long-lived `release/bevy-<ver>` branches.
+- Bug fixes land on `main` first and are **backported** to the maintenance branch
+  when they apply, shipped as patch releases (`0.1.1`, `0.1.2`, …).
+- When a new Bevy version ships, superui cuts a maintenance branch for the
+  outgoing Bevy and bumps `main` to the new Bevy (next superui minor).
+
+## The `cargo-superui` CLI
+
+The CLI is versioned with the libraries and reads your project's resolved superui
+version, so a single global `cargo install cargo-superui` works across projects.
+If you need a specific track: `cargo install cargo-superui@0.1` (0.17) or
+`cargo install cargo-superui@0.2` (0.18). See
+[Getting Started](../getting-started.md) for per-project pinning.
+```
 
 - [ ] **Step 3: Add it to the book summary**
 
@@ -564,7 +624,7 @@ Expected: builds with no "file not found in SUMMARY" error; `compatibility.html`
 
 ```bash
 git add README.md website/src/docs/reference/compatibility.md website/src/SUMMARY.md
-git commit -m "docs: add bevy/superui compatibility table (README + website)"
+git commit -m "docs: document bevy/superui compatibility + version policy (README + website)"
 ```
 
 ---
