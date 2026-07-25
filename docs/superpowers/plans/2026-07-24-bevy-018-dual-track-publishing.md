@@ -745,6 +745,8 @@ git commit -m "feat(flair): rebase forks onto upstream bevy-0.18 release; reappl
 
 In root `Cargo.toml`: change every `bevy`/`bevy_*` entry under `[workspace.dependencies]` from `"0.17"` to `"0.18"`, and `[workspace.package] version` from `0.1.0` to `0.2.0`.
 
+Then bump the **internal path-dep version requirements** from `0.1.0` to `0.2.0`. Task 5 pinned every normal intra-workspace path dep as `{ path = "...", version = "0.1.0" }` (and the flair forks use table-form `version = "0.6.0"` → these become the fork's own new version). Because all crates share one workspace version, the simplest reliable way is `cargo install cargo-edit` then `cargo set-version --workspace 0.2.0`, which rewrites BOTH `[workspace.package] version` AND every intra-workspace dependency `version` req in lockstep. If doing it by hand instead, grep for `version = "0.1.0"` across `crates/*/Cargo.toml` and bump each intra-workspace dep (leave third-party deps alone). Verify afterward: `grep -rn 'version = "0.1.0"' crates/` returns nothing for intra-workspace deps.
+
 - [ ] **Step 2: Bump ecosystem deps that track bevy**
 
 In `crates/superui_test_engine/Cargo.toml`, change `bevy_egui = "0.37"` to the release compatible with bevy 0.18 (check the `bevy_egui` crates.io compatibility table). Check `examples/*/Cargo.toml` for any other bevy-ecosystem crates and bump likewise.
