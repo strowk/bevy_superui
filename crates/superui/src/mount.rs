@@ -302,7 +302,7 @@ pub fn mount_when_ready(world: &mut World) {
     let dom = Rc::new(RefCell::new(superui_html::parse_document(&html_src)));
     let mut rt = UiRuntime::new(dom, entity, css_handle.unwrap_or_default(), hmr);
     rt.run_script(&js_src);
-    world.insert_non_send_resource(rt);
+    world.insert_non_send(rt);
 }
 
 #[cfg(test)]

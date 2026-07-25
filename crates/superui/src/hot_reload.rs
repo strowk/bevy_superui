@@ -93,7 +93,7 @@ pub fn apply_hot_reload(world: &mut World) {
 
     if html_changed {
         // Full remount: despawn the reconciled subtree, drop the runtime + marker.
-        if let Some(rt) = world.remove_non_send_resource::<UiRuntime>() {
+        if let Some(rt) = world.remove_non_send::<UiRuntime>() {
             for e in rt.bound_non_root_entities() {
                 if let Ok(ec) = world.get_entity_mut(e) {
                     ec.despawn();
@@ -105,7 +105,7 @@ pub fn apply_hot_reload(world: &mut World) {
     }
 
     // JS/CSS change: keep state, re-exec / restyle against the current DOM.
-    let Some(mut rt) = world.remove_non_send_resource::<UiRuntime>() else {
+    let Some(mut rt) = world.remove_non_send::<UiRuntime>() else {
         return;
     };
     if js_changed {
@@ -118,5 +118,5 @@ pub fn apply_hot_reload(world: &mut World) {
         }
     }
     rt.dirty = true; // CSS-only change still needs a reconcile pass.
-    world.insert_non_send_resource(rt);
+    world.insert_non_send(rt);
 }
