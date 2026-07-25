@@ -1,16 +1,18 @@
-# Vendored bevy_flair fork — patch registry
+# Vendored fork patch registry
 
-Every deviation of `crates/superui_flair_*` from upstream bevy_flair is wrapped
+Every deviation of a `crates/superui_*` fork from its upstream is wrapped
 in paired source markers and listed here. Markers let us (a) upstream a patch and
-(b) reapply patches when vendoring a newer flair release.
+(b) reapply patches when vendoring a newer upstream release.
 
-Marker grammar (both lines required):
+Marker grammar (both lines required; use `//` in `.rs` files, `#` in `Cargo.toml`):
 
     // >>> SUPERUI-FORK-PATCH: <id>  (docs/fork-patches.md#<id>)
     ...our code...
     // <<< SUPERUI-FORK-PATCH: <id>
 
-Upstream base: bevy_flair 0.8.0 (bevy 0.19) (https://github.com/eckz/bevy_flair).
+Upstream bases:
+- bevy_flair 0.8.0 (bevy 0.19) (https://github.com/eckz/bevy_flair)
+- boa_engine / boa_parser 0.21.1 (https://github.com/boa-dev/boa)
 
 ## Patches
 
@@ -20,3 +22,9 @@ Upstream base: bevy_flair 0.8.0 (bevy 0.19) (https://github.com/eckz/bevy_flair)
 - **What:** Replace the `unwrap_or_else(panic)` with a `let-else` returning an empty end-of-input span, so a trailing block-less malformed rule degrades instead of crashing the asset loader.
 - **Why:** Graceful degradation of malformed CSS (design §1). Regression test: `malformed_trailing_rule_degrades_without_panic` in `crates/superui_css/tests/selectors.rs`.
 - **Upstream status:** local (not yet submitted).
+
+### boa-icu-2x
+- **Crate/file:** `superui_boa_engine` — `Cargo.toml` (`icu_normalizer` dep); `superui_boa_parser` — `Cargo.toml` (`icu_properties` dep).
+- **What:** Relax `icu_normalizer` and `icu_properties` version constraints from upstream `~2.0.0` (tilde = `>=2.0.0, <2.1`) to `>=2.0.0, <3` (accept the full icu 2.x family including 2.1).
+- **Why:** Bevy 0.19's Parley text backend requires `icu_normalizer ^2.1.1`; boa 0.21.1 pins `~2.0.0`, producing an unresolvable conflict. Boa's `main` branch has already relaxed this, but no 0.22 release exists yet.
+- **Upstream status:** local; drop when boa publishes an icu-2.1-compatible release (0.22+).

@@ -11,7 +11,7 @@ repository = "https://github.com/strowk/bevy_superui"
 [workspace.dependencies]
 slotmap = "1.0"
 html5ever = "0.39"
-boa_engine = "0.21"
+boa_engine = { package = "superui_boa_engine", version = "0.3.0", path = "crates/superui_boa_engine" }
 boa_gc = "0.21"
 oxc = { version = "0.140", features = ["semantic", "transformer", "codegen", "ast_visit"] }
 bevy = { version = "0.19", default-features = false }
@@ -30,11 +30,3 @@ bevy_time = "0.19"
 bevy_ui = "0.19"
 bevy_utils = "0.19"
 bevy_window = "0.19"
-
-# boa_engine 0.21.x pins icu_normalizer = "~2.0.0" unconditionally, which
-# conflicts with bevy 0.19's parley 0.9.0 that requires icu_normalizer ^2.1.1.
-# Boa's main branch already relaxed this to "~2.2.0". Until 0.22 is released,
-# we vendor 0.21.1 with the constraint widened to ">=2.0.0, <3".
-[patch.crates-io]
-boa_engine = { path = "vendor/boa_engine" }
-boa_parser = { path = "vendor/boa_parser" }
