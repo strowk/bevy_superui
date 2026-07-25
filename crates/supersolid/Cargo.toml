@@ -3,6 +3,10 @@ name = "supersolid"
 edition.workspace = true
 version.workspace = true
 license.workspace = true
+description = "Solid-style TSX transpiler for bevy_superui (TypeScript + JSX → JS)"
+repository.workspace = true
+keywords = ["bevy", "ui", "tsx", "transpiler", "gamedev"]
+categories = ["game-development"]
 
 [dependencies]
 oxc.workspace = true

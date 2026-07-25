@@ -3,6 +3,10 @@ name = "supersolid_runtime"
 edition.workspace = true
 version.workspace = true
 license.workspace = true
+description = "Solid-like reactive runtime (signals/effects/context) for bevy_superui"
+repository.workspace = true
+keywords = ["bevy", "ui", "reactive", "signals", "gamedev"]
+categories = ["game-development"]
 
 [dependencies]
 superui_js = { path = "../superui_js" }

@@ -3,6 +3,10 @@ name = "superui_js"
 edition.workspace = true
 version.workspace = true
 license.workspace = true
+description = "JS engine boundary and Boa backend for bevy_superui"
+repository.workspace = true
+keywords = ["bevy", "ui", "javascript", "boa", "gamedev"]
+categories = ["game-development"]
 
 [dependencies]
 superui_dom = { path = "../superui_dom" }

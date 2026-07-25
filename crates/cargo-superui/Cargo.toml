@@ -3,7 +3,9 @@ name = "cargo-superui"
 edition.workspace = true
 version.workspace = true
 license.workspace = true
-publish = false
+description = "CLI to scaffold superui editor types & tsconfig into a project"
+repository.workspace = true
+keywords = ["bevy", "superui", "cli", "cargo-subcommand"]
 
 [lib]
 name = "superui_cli"

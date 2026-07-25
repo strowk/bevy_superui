@@ -3,6 +3,10 @@ name = "superui"
 edition.workspace = true
 version.workspace = true
 license.workspace = true
+description = "Browser-like HTML/CSS/JS + Solid-style TSX UI for Bevy"
+repository.workspace = true
+keywords = ["bevy", "ui", "html", "css", "gamedev"]
+categories = ["game-development"]
 
 [dependencies]
 superui_dom = { path = "../superui_dom" }

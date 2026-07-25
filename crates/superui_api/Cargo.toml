@@ -3,6 +3,10 @@ name = "superui_api"
 edition.workspace = true
 version.workspace = true
 license.workspace = true
+description = "Standards-shaped DOM/Web API surface for bevy_superui's JS engine"
+repository.workspace = true
+keywords = ["bevy", "ui", "dom", "javascript", "gamedev"]
+categories = ["game-development"]
 
 [dependencies]
 superui_dom = { path = "../superui_dom" }

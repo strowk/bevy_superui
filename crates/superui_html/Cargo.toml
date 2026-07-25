@@ -3,6 +3,10 @@ name = "superui_html"
 edition.workspace = true
 version.workspace = true
 license.workspace = true
+description = "HTML5 document parser for bevy_superui (html5ever → DOM)"
+repository.workspace = true
+keywords = ["bevy", "ui", "html", "parser", "gamedev"]
+categories = ["game-development"]
 
 [dependencies]
 superui_dom = { path = "../superui_dom" }

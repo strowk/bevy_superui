@@ -3,6 +3,10 @@ name = "superui_dom"
 edition.workspace = true
 version.workspace = true
 license.workspace = true
+description = "Headless arena-backed DOM tree for bevy_superui"
+repository.workspace = true
+keywords = ["bevy", "ui", "dom", "html", "gamedev"]
+categories = ["game-development"]
 
 [dependencies]
 slotmap.workspace = true

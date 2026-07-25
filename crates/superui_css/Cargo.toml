@@ -3,6 +3,10 @@ name = "superui_css"
 edition.workspace = true
 version.workspace = true
 license.workspace = true
+description = "CSS layer for bevy_superui: bevy_flair 0.6 fork with HTML selector support"
+repository.workspace = true
+keywords = ["bevy", "ui", "css", "style", "gamedev"]
+categories = ["game-development"]
 
 [dependencies]
 superui_flair_core = { path = "../superui_flair_core", version = "0.6.0" }
