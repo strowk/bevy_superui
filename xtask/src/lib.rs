@@ -1,6 +1,47 @@
 use std::collections::BTreeSet;
 use std::path::Path;
 
+/// Returns the 15 publishable crates in dependency-topological order.
+pub fn publish_order() -> Vec<&'static str> {
+    vec![
+        "superui_dom",
+        "superui_paths",
+        "superui_flair_core",
+        "superui_html",
+        "superui_js",
+        "superui_api",
+        "supersolid_runtime",
+        "superui_flair_style",
+        "superui_flair_css_parser",
+        "superui_css",
+        "supersolid",
+        "superui_bridge",
+        "superui",
+        "cargo-superui",
+        "superui_test_engine",
+    ]
+}
+
+/// Packages (dry_run=true) or publishes (dry_run=false) each crate in topological order.
+pub fn run_publish(dry_run: bool) -> Result<(), String> {
+    for name in publish_order() {
+        let mut cmd = std::process::Command::new("cargo");
+        if dry_run {
+            cmd.args(["package", "-p", name, "--no-verify"]);
+        } else {
+            cmd.args(["publish", "-p", name]);
+        }
+        let status = cmd.status().map_err(|e| e.to_string())?;
+        if !status.success() {
+            return Err(format!(
+                "`cargo {}` failed for {name}",
+                if dry_run { "package" } else { "publish" }
+            ));
+        }
+    }
+    Ok(())
+}
+
 /// Scan the three fork crates for SUPERUI-FORK-PATCH markers and cross-check
 /// them against docs/fork-patches.md. Returns sorted patch ids on success.
 pub fn check_fork_patches(root: &Path) -> Result<Vec<String>, String> {

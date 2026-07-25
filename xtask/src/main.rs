@@ -35,8 +35,15 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             println!("fork-patches: {} patch(es) consistent", ids.len());
             Ok(())
         }
+        Some("publish") => {
+            let dry_run = !args.iter().any(|a| a == "--execute");
+            if dry_run {
+                println!("publish: DRY RUN (cargo package --no-verify); pass --execute to actually publish");
+            }
+            xtask::run_publish(dry_run).map_err(Into::into)
+        }
         other => Err(format!(
-            "usage: xtask <host-page|fork-patches> (got {other:?})"
+            "usage: xtask <host-page|fork-patches|publish> (got {other:?})"
         )
         .into()),
     }
