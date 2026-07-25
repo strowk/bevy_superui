@@ -1,4 +1,6 @@
-use crate::{PropertyRegistry, PropertyValue, RegisterComponentPropertiesExt as _};
+use crate::{
+    CssPropertyRegistry, PropertyRegistry, PropertyValue, RegisterComponentPropertiesExt as _,
+};
 use crate::{impl_component_properties, impl_extract_component_properties};
 use bevy_app::{App, Plugin};
 use bevy_asset::Handle;
@@ -20,6 +22,15 @@ impl_extract_component_properties! {
     pub struct Overflow {
         pub x: OverflowAxis,
         pub y: OverflowAxis,
+    }
+}
+
+impl_extract_component_properties! {
+    pub struct BorderRadius {
+        pub top_left: Val,
+        pub top_right: Val,
+        pub bottom_right: Val,
+        pub bottom_left: Val,
     }
 }
 
@@ -55,6 +66,8 @@ impl_component_properties! {
         pub padding: UiRect,
         #[nested]
         pub border: UiRect,
+        #[nested]
+        pub border_radius: BorderRadius,
         pub flex_direction: FlexDirection,
         pub flex_wrap: FlexWrap,
         pub flex_grow: f32,
@@ -83,15 +96,6 @@ impl_component_properties! {
         pub right: Color,
         pub bottom: Color,
         pub left: Color,
-    }
-}
-
-impl_component_properties! {
-    pub struct BorderRadius {
-        pub top_left: Val,
-        pub top_right: Val,
-        pub bottom_right: Val,
-        pub bottom_left: Val,
     }
 }
 
@@ -154,10 +158,14 @@ impl_component_properties! {
 }
 
 impl_component_properties! {
+    @self
+    pub struct LineHeight
+}
+
+impl_component_properties! {
     pub struct TextFont {
         pub font: Handle<Font>,
         pub font_size: f32,
-        pub line_height: LineHeight,
         pub font_smoothing: FontSmoothing,
     }
 }
@@ -209,11 +217,11 @@ macro_rules! set_inherited_properties {
 
 macro_rules! set_css_properties {
     ($app:expr => { $($css:literal => $ty:path[$path:literal] ,)* }) => {{
-        let mut properties_registry = $app.world_mut().resource_mut::<PropertyRegistry>();
+        let css_registry = $app.world_mut().resource_mut::<CssPropertyRegistry>();
 
         $({
             let canonical_name = $crate::PropertyCanonicalName::from_component::<$ty>($path);
-            properties_registry.register_css_property($css, canonical_name);
+            css_registry.register_property($css, canonical_name);
         })*
     }}
 }
@@ -229,7 +237,6 @@ impl Plugin for ImplComponentPropertiesPlugin {
             BackgroundColor,
             Outline,
             BorderColor,
-            BorderRadius,
             BoxShadow,
             ZIndex,
             UiTransform,
@@ -237,13 +244,14 @@ impl Plugin for ImplComponentPropertiesPlugin {
             BorderGradient,
             ImageNode,
             TextColor,
+            LineHeight,
             TextFont,
             TextLayout,
             TextShadow,
             TextSpan,
         });
 
-        set_inherited_properties!(app => { TextColor, TextFont, TextLayout, });
+        set_inherited_properties!(app => { TextColor, TextFont, TextLayout, LineHeight, });
 
         set_css_properties!(app => {
             "display" => Node[".display"],
@@ -304,6 +312,12 @@ impl Plugin for ImplComponentPropertiesPlugin {
             "grid-row" => Node[".grid_row"],
             "grid-column" => Node[".grid_column"],
 
+            // We need to manually register all border-radius sub-properties
+            "border-top-left-radius" => Node[".border_radius.top_left"],
+            "border-top-right-radius" => Node[".border_radius.top_right"],
+            "border-bottom-left-radius" => Node[".border_radius.bottom_left"],
+            "border-bottom-right-radius" => Node[".border_radius.bottom_right"],
+
             // Misc components
             "background-color" => BackgroundColor[".0"],
 
@@ -312,12 +326,6 @@ impl Plugin for ImplComponentPropertiesPlugin {
             "border-right-color" => BorderColor[".right"],
             "border-bottom-color" => BorderColor[".bottom"],
             "border-left-color" => BorderColor[".left"],
-
-            // We need to manually register all border-radius sub-properties
-            "border-top-left-radius" => BorderRadius[".top_left"],
-            "border-top-right-radius" => BorderRadius[".top_right"],
-            "border-bottom-left-radius" => BorderRadius[".bottom_left"],
-            "border-bottom-right-radius" => BorderRadius[".bottom_right"],
 
             "outline-width" => Outline[".width"],
             "outline-offset" => Outline[".offset"],
@@ -341,7 +349,8 @@ impl Plugin for ImplComponentPropertiesPlugin {
             "color" => TextColor[".0"],
             "font-family" => TextFont[".font"],
             "font-size" => TextFont[".font_size"],
-            "line-height" => TextFont[".line_height"],
+            "line-height" => LineHeight[""],
+
             // font-smooth is not css standard
             "-bevy-font-smooth" => TextFont[".font_smoothing"],
             "text-align" => TextLayout[".justify"],
@@ -360,7 +369,9 @@ impl Plugin for ImplComponentPropertiesPlugin {
 #[cfg(test)]
 mod tests {
     use super::ImplComponentPropertiesPlugin;
-    use crate::{ComputedValue, PropertyRegistry, PropertyRegistryPlugin, ReflectValue};
+    use crate::{
+        ComputedValue, CssPropertyRegistry, PropertyRegistry, PropertyRegistryPlugin, ReflectValue,
+    };
     use bevy_app::App;
     use bevy_color::Color;
     use bevy_ui::prelude::*;
@@ -373,17 +384,18 @@ mod tests {
         let entity = app.world_mut().spawn(Node::default()).id();
 
         let property_registry = app.world_mut().resource::<PropertyRegistry>().clone();
+        let css_registry = app.world().resource::<CssPropertyRegistry>().clone();
 
         let mut properties = property_registry.create_property_map(ComputedValue::None);
 
-        let display_id = property_registry
-            .get_property_id_by_css_name("display")
+        let display_id = css_registry
+            .resolve_property("display", &property_registry)
             .unwrap();
-        let margin_left_id = property_registry
-            .get_property_id_by_css_name("margin-left")
+        let margin_left_id = css_registry
+            .resolve_property("margin-left", &property_registry)
             .unwrap();
-        let background_color_id = property_registry
-            .get_property_id_by_css_name("background-color")
+        let background_color_id = css_registry
+            .resolve_property("background-color", &property_registry)
             .unwrap();
 
         properties[margin_left_id] = ReflectValue::Val(Val::Px(100.0)).into();

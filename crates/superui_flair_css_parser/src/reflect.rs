@@ -1,4 +1,4 @@
-﻿mod assets;
+mod assets;
 mod color;
 mod enums;
 mod gradient;
@@ -7,12 +7,12 @@ mod image;
 mod text;
 mod ui;
 
-pub(crate) use assets::parse_asset_path;
 pub(crate) use enums::parse_enum_as_property_value;
 pub(crate) use gradient::parse_gradient;
 pub(crate) use grid::{parse_grid_track_vec, parse_repeated_grid_track_vec};
 pub(crate) use ui::{parse_calc_angle, parse_calc_f32, parse_calc_val};
 
+pub use assets::parse_asset_path;
 pub use color::parse_color;
 pub use ui::parse_val;
 
@@ -29,14 +29,14 @@ use bevy_ui::widget::NodeImageMode;
 /// When the function fails, it should return a [`CssError`].
 pub type PropertyValueParseFn = fn(&mut cssparser::Parser) -> Result<PropertyValue, CssError>;
 
-/// [`bevy::reflect::TypeData`] for parsing a CSS type when the type is an enum.
+/// [`bevy_reflect::TypeData`] for parsing a CSS type when the type is an enum.
 /// It's automatically implemented to all [`Enum`] types.
 ///
-/// [`Enum`]: bevy::reflect::Enum
+/// [`Enum`]: bevy_reflect::Enum
 #[derive(Debug, Copy, Clone)]
 pub struct ReflectParseCssEnum(pub PropertyValueParseFn);
 
-/// [`bevy::reflect::TypeData`] for parsing a CSS type.
+/// [`bevy_reflect::TypeData`] for parsing a CSS type.
 ///
 /// It's implemented for the main Bevy UI types.
 #[derive(Debug, Copy, Clone)]
@@ -160,13 +160,13 @@ impl Plugin for ReflectParsePlugin {
 }
 
 #[cfg(test)]
-pub(crate) mod testing {
+pub(crate) mod reflect_test_utils {
     use crate::reflect::{ReflectParseCssEnum, ReflectParsePlugin};
-    use crate::testing::{parse_err_property_content_with, parse_property_content_with};
+    use crate::test_utils::{parse_err_property_content_with, parse_property_content_with};
     use crate::{PropertyValueParseFn, ReflectParseCss};
     use bevy_app::App;
     use bevy_ecs::reflect::AppTypeRegistry;
-    use superui_flair_core::ReflectValue;
+    use superui_flair_core::{PropertyValue, ReflectValue};
     use bevy_reflect::FromReflect;
     use std::any::TypeId;
 
@@ -222,7 +222,8 @@ pub(crate) mod testing {
     {
         let property_value = parse_property_content_with(contents, parse_fn);
 
-        let computed_value = property_value.compute_root_value(&ReflectValue::Usize(0));
+        let computed_value =
+            property_value.compute_as_root(&PropertyValue::None, &ReflectValue::Usize(0));
         computed_value
             .expect("Invalid value generated")
             .downcast_value()

@@ -10,7 +10,7 @@ Marker grammar (both lines required):
     ...our code...
     // <<< SUPERUI-FORK-PATCH: <id>
 
-Upstream base: bevy_flair 0.6.0 (https://github.com/eckz/bevy_flair).
+Upstream base: bevy_flair 0.7.0 (bevy 0.18) (https://github.com/eckz/bevy_flair).
 
 ## Patches
 

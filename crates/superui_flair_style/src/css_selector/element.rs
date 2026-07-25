@@ -7,6 +7,7 @@ use crate::components::{
 use crate::css_selector::{
     CssPseudoElement, CssSelectorImpl, CssString, InternalPseudoStateSelector,
 };
+use crate::custom_iterators::CustomUiChildren;
 use selectors::attr::CaseSensitivity;
 use selectors::context::MatchingContext;
 use selectors::{Element, OpaqueElement, SelectorImpl};
@@ -206,7 +207,7 @@ impl Element for ElementRef<'_> {
         id: &<Self::Impl as SelectorImpl>::Identifier,
         case_sensitivity: CaseSensitivity,
     ) -> bool {
-        if let Some(name) = &self.data.name {
+        if let Some(name) = &self.data.id {
             case_sensitivity.eq(name.as_bytes(), id.as_ref())
         } else {
             false
@@ -287,5 +288,6 @@ impl Element for ElementRef<'_> {
     }
 }
 
-use crate::custom_iterators::CustomUiChildren;
+// Used in testing
+#[allow(unused_imports)]
 pub(crate) use impl_element_commons;

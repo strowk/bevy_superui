@@ -13,7 +13,7 @@
 edition = "2024"
 rust-version = "1.88.0"
 name = "superui_flair_core"
-version = "0.6.0"
+version = "0.1.0"
 build = false
 autolib = false
 autobins = false
@@ -66,7 +66,7 @@ workspace = true
 
 [dependencies.bevy_ui]
 workspace = true
-features = ["bevy_ui_picking_backend"]
+features = ["bevy_picking"]
 
 [dependencies.rustc-hash]
 version = "2.1"

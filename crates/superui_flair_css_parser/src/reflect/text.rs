@@ -1,4 +1,4 @@
-﻿use crate::reflect::parse_color;
+use crate::reflect::parse_color;
 use crate::reflect::ui::parse_calc_f32;
 use crate::utils::{parse_property_value_with, try_parse_none_with_value};
 use crate::{CssError, ParserExt, ReflectParseCss, error_codes};
@@ -17,7 +17,6 @@ const NONE_TEXT_SHADOW: TextShadow = TextShadow {
 
 fn parse_string(parser: &mut Parser) -> Result<String, CssError> {
     let str = parser.expect_string()?;
-
     Ok(str.to_string())
 }
 
@@ -100,7 +99,7 @@ impl FromType<String> for ReflectParseCss {
 
 #[cfg(test)]
 mod tests {
-    use crate::reflect::testing::test_parse_reflect;
+    use crate::reflect::reflect_test_utils::test_parse_reflect;
     use bevy_color::palettes::css;
     use bevy_math::Vec2;
     use bevy_text::LineHeight;

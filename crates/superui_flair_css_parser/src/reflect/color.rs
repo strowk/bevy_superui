@@ -1,4 +1,4 @@
-﻿use crate::ReflectParseCss;
+use crate::ReflectParseCss;
 use crate::error::CssError;
 use crate::error_codes::color as error_codes;
 use crate::utils::parse_property_value_with;
@@ -176,7 +176,7 @@ impl FromParsedColor for ParsedColor {
 /// ```
 /// # use bevy_color::Color;
 /// # use cssparser::{Parser, ParserInput};
-/// # use superui_flair_css_parser::parse_color;
+/// # use bevy_flair_css_parser::parse_color;
 ///
 /// let mut input = ParserInput::new("rgb(255, 0, 0)");
 /// let mut parser = Parser::new(&mut input);
@@ -203,7 +203,7 @@ impl FromType<Color> for ReflectParseCss {
 
 #[cfg(test)]
 mod tests {
-    use crate::reflect::testing::test_parse_reflect;
+    use crate::reflect::reflect_test_utils::test_parse_reflect;
     use bevy_color::Color;
 
     macro_rules! color_approx_eq {

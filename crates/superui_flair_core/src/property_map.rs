@@ -2,6 +2,7 @@
 
 use crate::ComponentPropertyId;
 use bevy_reflect::Reflect;
+use std::fmt::{Debug, Formatter};
 use std::marker::PhantomData;
 use std::mem;
 use std::ops::{Deref, Index, IndexMut, Range};
@@ -107,6 +108,13 @@ impl<T> Index<ComponentPropertyId> for PropertyMap<T> {
     fn index(&self, index: ComponentPropertyId) -> &Self::Output {
         let index: usize = index.into();
         &self.0[index]
+    }
+}
+
+impl<'a, T> Index<&'a ComponentPropertyId> for PropertyMap<T> {
+    type Output = T;
+    fn index(&self, index: &'a ComponentPropertyId) -> &Self::Output {
+        &self[*index]
     }
 }
 
@@ -220,6 +228,12 @@ impl<T> Deref for PropertyMut<'_, T> {
         // SAFETY: pointer always point to a valid reference
         let map = unsafe { self.map.as_ref() };
         &map[self.index]
+    }
+}
+
+impl<T: Debug> Debug for PropertyMut<'_, T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        self.deref().fmt(f)
     }
 }
 

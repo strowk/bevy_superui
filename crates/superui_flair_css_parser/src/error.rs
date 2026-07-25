@@ -1,4 +1,4 @@
-﻿use ariadne::*;
+use ariadne::*;
 
 use crate::Located;
 use superui_flair_style::css_selector::SelectorErrorKind;

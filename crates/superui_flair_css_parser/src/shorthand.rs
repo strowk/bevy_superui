@@ -1,4 +1,4 @@
-﻿use crate::calc::{Calculable, parse_calc_property_value_with};
+use crate::calc::{Calculable, parse_calc_property_value_with};
 use crate::reflect::{
     parse_asset_path, parse_calc_angle, parse_calc_f32, parse_calc_val, parse_color,
     parse_enum_as_property_value, parse_gradient, parse_grid_track_vec,
@@ -6,11 +6,12 @@ use crate::reflect::{
 };
 use crate::utils::{
     CombinedParse, parse_property_global_keyword, parse_property_value_with, try_parse_none,
+    try_parse_none_with_value,
 };
 use crate::{CssError, ParserExt, error_codes};
 use bevy_app::{App, Plugin};
 use bevy_ecs::prelude::Resource;
-use superui_flair_core::{ComponentPropertyRef, PropertyRegistry, PropertyValue, ReflectValue};
+use superui_flair_core::{ComponentPropertyRef, CssPropertyRegistry, PropertyValue, ReflectValue};
 use superui_flair_style::DynamicParseVarTokens;
 use bevy_image::Image;
 use bevy_math::{Rot2, Vec2};
@@ -31,7 +32,7 @@ use std::ops::Deref;
 use std::sync::Arc;
 
 /// Reference to a CSS property name.
-#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
+#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Debug, derive_more::Display)]
 pub struct CssRef(SmolStr);
 
 impl CssRef {
@@ -73,14 +74,16 @@ impl From<String> for CssRef {
 }
 
 impl CssRef {
-    /// Converts this reference into a static lifetime.
-    pub fn resolve(&self, property_registry: &PropertyRegistry) -> ComponentPropertyRef<'static> {
-        let id = property_registry
-            .get_property_id_by_css_name(&self.0)
+    /// Resolves this css name.
+    pub fn resolve(
+        &self,
+        css_property_registry: &CssPropertyRegistry,
+    ) -> ComponentPropertyRef<'static> {
+        css_property_registry
+            .get_property(&self.0)
             .unwrap_or_else(|| {
                 panic!("No property registered with css name '{}'", self.0);
-            });
-        id.into()
+            })
     }
 }
 
@@ -106,7 +109,7 @@ impl ShorthandProperty {
     ///
     /// # Example
     /// ```
-    /// # use superui_flair_css_parser::ShorthandProperty;
+    /// # use bevy_flair_css_parser::ShorthandProperty;
     /// let shorthand_property = ShorthandProperty::new("margin", [ "margin-left", "margin-right" ], |parser| {
     ///     todo!("parse_fn")
     /// });
@@ -140,7 +143,7 @@ impl ShorthandProperty {
     /// This enables parsing runtime CSS variable tokens into the shorthand property.
     pub(crate) fn as_dynamic_parse_var_tokens(
         &self,
-        property_registry: &PropertyRegistry,
+        css_property_registry: &CssPropertyRegistry,
     ) -> DynamicParseVarTokens {
         use crate::error::ErrorReportGenerator;
         use superui_flair_style::ToCss;
@@ -148,7 +151,7 @@ impl ShorthandProperty {
         use std::sync::Arc;
 
         let parse_fn = self.parse_fn;
-        let property_registry = property_registry.clone();
+        let css_property_registry = css_property_registry.clone();
 
         Arc::new(move |tokens| {
             let tokens_as_css = tokens.to_css_string();
@@ -163,7 +166,7 @@ impl ShorthandProperty {
                 .map(|v| {
                     v.into_iter()
                         .map(|(css_ref, property_value)| {
-                            let property_ref = css_ref.resolve(&property_registry);
+                            let property_ref = css_ref.resolve(&css_property_registry);
                             (property_ref, property_value)
                         })
                         .collect()
@@ -431,29 +434,82 @@ fn parse_overflow(parser: &mut Parser) -> ShorthandParseResult {
     )
 }
 
-fn parse_border(parser: &mut Parser) -> ShorthandParseResult {
-    let width = parse_calc_property_value_with(parser, parse_val)?;
+fn parse_border_style(parser: &mut Parser) -> Result<(), CssError> {
+    let ident = parser.expect_ident()?;
+    let _: () = match_ignore_ascii_case! { ident.as_ref(),
+        "dotted" | "dashed" | "solid" | "double" | "groove" | "ridge" | "inset" | "outset"  => (),
+        // This error does not matter much because it will be ignored
+        _ => return Err(CssError::from(parser.new_error_for_next_token::<()>())),
+    };
+    Ok(())
+}
 
-    let mut result = vec![
-        (BORDER_LEFT_WIDTH, width.clone()),
-        (BORDER_RIGHT_WIDTH, width.clone()),
-        (BORDER_BOTTOM_WIDTH, width.clone()),
-        (BORDER_TOP_WIDTH, width),
-    ];
+fn parse_border_inner<I: IntoIterator<Item = CssRef>>(
+    width_ref: I,
+    color_ref: I,
+    parser: &mut Parser,
+) -> ShorthandParseResult {
+    let width = match try_parse_none_with_value(parser, Val::ZERO) {
+        Some(zero_value) => PropertyValue::Value(ReflectValue::Val(zero_value)),
+        None => parse_calc_property_value_with(parser, parse_val)?,
+    };
+
+    let mut result: Vec<_> = width_ref
+        .into_iter()
+        .map(|width_ref| (width_ref, width.clone()))
+        .collect();
+
+    // Border style is being ignored because it's not supported by bevy,
+    // but it's convenient to have for when you copy-paste.
+    // TODO: Ideally we should emit a warning or similar
+    let _ = parser.try_parse_with(parse_border_style);
 
     if let Ok(color) =
         parser.try_parse_with(|parser| parse_property_value_with(parser, parse_color))
     {
         let color = color.map(ReflectValue::Color);
-        result.extend([
-            (BORDER_TOP_COLOR, color.clone()),
-            (BORDER_RIGHT_COLOR, color.clone()),
-            (BORDER_BOTTOM_COLOR, color.clone()),
-            (BORDER_LEFT_COLOR, color.clone()),
-        ]);
+        result.extend(
+            color_ref
+                .into_iter()
+                .map(|color_ref| (color_ref, color.clone())),
+        );
     }
 
     Ok(result)
+}
+
+fn parse_border(parser: &mut Parser) -> ShorthandParseResult {
+    parse_border_inner(
+        [
+            BORDER_LEFT_WIDTH,
+            BORDER_RIGHT_WIDTH,
+            BORDER_BOTTOM_WIDTH,
+            BORDER_TOP_WIDTH,
+        ],
+        [
+            BORDER_TOP_COLOR,
+            BORDER_RIGHT_COLOR,
+            BORDER_BOTTOM_COLOR,
+            BORDER_LEFT_COLOR,
+        ],
+        parser,
+    )
+}
+
+fn parse_border_top(parser: &mut Parser) -> ShorthandParseResult {
+    parse_border_inner([BORDER_TOP_WIDTH], [BORDER_TOP_COLOR], parser)
+}
+
+fn parse_border_right(parser: &mut Parser) -> ShorthandParseResult {
+    parse_border_inner([BORDER_RIGHT_WIDTH], [BORDER_RIGHT_COLOR], parser)
+}
+
+fn parse_border_bottom(parser: &mut Parser) -> ShorthandParseResult {
+    parse_border_inner([BORDER_BOTTOM_WIDTH], [BORDER_BOTTOM_COLOR], parser)
+}
+
+fn parse_border_left(parser: &mut Parser) -> ShorthandParseResult {
+    parse_border_inner([BORDER_LEFT_WIDTH], [BORDER_LEFT_COLOR], parser)
 }
 
 fn parse_border_width(parser: &mut Parser) -> ShorthandParseResult {
@@ -946,6 +1002,26 @@ pub(crate) fn register_default_shorthand_properties(registry: &mut ShorthandProp
         parse_border,
     );
     registry.register_new(
+        "border-top",
+        [BORDER_TOP_WIDTH, BORDER_TOP_COLOR],
+        parse_border_top,
+    );
+    registry.register_new(
+        "border-right",
+        [BORDER_RIGHT_WIDTH, BORDER_RIGHT_COLOR],
+        parse_border_right,
+    );
+    registry.register_new(
+        "border-bottom",
+        [BORDER_BOTTOM_WIDTH, BORDER_BOTTOM_COLOR],
+        parse_border_bottom,
+    );
+    registry.register_new(
+        "border-left",
+        [BORDER_LEFT_WIDTH, BORDER_LEFT_COLOR],
+        parse_border_left,
+    );
+    registry.register_new(
         "border-color",
         [
             BORDER_TOP_COLOR,
@@ -1039,24 +1115,24 @@ impl Plugin for ShorthandPropertiesPlugin {
         register_default_shorthand_properties(registry);
     }
 
-    /// Panics (in debug mode) or Warns (in release mode) about conflicts between the [`PropertyRegistry`] and [`ShorthandPropertyRegistry`].
+    /// Registers all properties in [`ShorthandPropertyRegistry`] into [`CssPropertyRegistry`].
     fn finish(&self, app: &mut App) {
-        let property_registry = app.world().resource::<PropertyRegistry>();
+        let css_property_registry = app.world().resource::<CssPropertyRegistry>();
         let shorthand_registry = app.world().resource::<ShorthandPropertyRegistry>();
 
-        for css_name in shorthand_registry.inner.css_names.keys() {
-            if property_registry
-                .get_property_id_by_css_name(css_name)
-                .is_some()
-            {
-                let msg = format!(
-                    "Shorthand property '{css_name}' is registered both in PropertyRegistry and ShorthandPropertyRegistry"
-                );
-                #[cfg(debug_assertions)]
-                panic!("{msg}");
-                #[cfg(not(debug_assertions))]
-                tracing::warn!("{msg}");
-            }
+        for (css_name, property) in shorthand_registry.inner.css_names.iter() {
+            let subproperties =
+                property
+                    .sub_properties
+                    .iter()
+                    .map(|sub_property_css| {
+                        css_property_registry.get_property(sub_property_css).unwrap_or_else(|| {
+                    panic!("Subproperty '{sub_property_css}' of '{css_name}' does not exist");
+                })
+                    })
+                    .collect::<Vec<_>>();
+
+            css_property_registry.register_shorthand(css_name.clone(), subproperties);
         }
     }
 }
@@ -1067,7 +1143,7 @@ mod tests {
     use bevy_color::palettes::css;
     use bevy_color::{Color, Srgba};
 
-    use superui_flair_style::AssetPathPlaceHolder;
+    use superui_flair_style::placeholder::AssetPathPlaceholder;
     use bevy_ui::{
         ColorStop, Gradient, GridTrack, LinearGradient, RadialGradient, RadialGradientShape,
         RepeatedGridTrack, UiPosition,
@@ -1115,7 +1191,7 @@ mod tests {
         Vec<RepeatedGridTrack>,
         Vec<GridTrack>,
         BackgroundGradient,
-        AssetPathPlaceHolder<Image>
+        AssetPathPlaceholder<Image>
     );
 
     trait IntoPropertyValue {
@@ -1150,7 +1226,7 @@ mod tests {
                 .get_property($property_name)
                 .expect(&format!("Property '{}' not found", $property_name));
 
-            let mut result = crate::testing::parse_property_content_with($contents, |parser| property.parse(parser));
+            let mut result = crate::test_utils::parse_property_content_with($contents, |parser| property.parse(parser));
 
             result.sort_by(|(a, _), (b, _)| a.partial_cmp(&b).unwrap());
 
@@ -1164,7 +1240,7 @@ mod tests {
                 .get_property($property_name)
                 .expect(&format!("Property '{}' not found", $property_name));
 
-            let err = crate::testing::parse_err_property_content_with($contents, |parser| {
+            let err = crate::test_utils::parse_err_property_content_with($contents, |parser| {
                 property.parse(parser)
             });
 
@@ -1197,6 +1273,13 @@ mod tests {
     }
     #[test]
     fn test_border() {
+        test_shorthand_property!("border", "none", {
+            "border-left-width" => Val::Px(0.0),
+            "border-right-width" => Val::Px(0.0),
+            "border-bottom-width" => Val::Px(0.0),
+            "border-top-width" => Val::Px(0.0),
+        });
+
         test_shorthand_property!("border", "3px black", {
             "border-left-width" => Val::Px(3.0),
             "border-right-width" => Val::Px(3.0),
@@ -1206,6 +1289,37 @@ mod tests {
             "border-right-color" => Color::from(css::BLACK),
             "border-bottom-color" => Color::from(css::BLACK),
             "border-left-color" => Color::from(css::BLACK),
+        });
+
+        test_shorthand_property!("border", "5px solid black", {
+            "border-left-width" => Val::Px(5.0),
+            "border-right-width" => Val::Px(5.0),
+            "border-bottom-width" => Val::Px(5.0),
+            "border-top-width" => Val::Px(5.0),
+            "border-top-color" => Color::from(css::BLACK),
+            "border-right-color" => Color::from(css::BLACK),
+            "border-bottom-color" => Color::from(css::BLACK),
+            "border-left-color" => Color::from(css::BLACK),
+        });
+
+        test_shorthand_property!("border-left", "10px solid white", {
+            "border-left-width" => Val::Px(10.0),
+            "border-left-color" => Color::from(css::WHITE),
+        });
+
+        test_shorthand_property!("border-right", "10px solid white", {
+            "border-right-width" => Val::Px(10.0),
+            "border-right-color" => Color::from(css::WHITE),
+        });
+
+        test_shorthand_property!("border-bottom", "10px solid white", {
+            "border-bottom-width" => Val::Px(10.0),
+            "border-bottom-color" => Color::from(css::WHITE),
+        });
+
+        test_shorthand_property!("border-left", "10px solid white", {
+            "border-left-width" => Val::Px(10.0),
+            "border-left-color" => Color::from(css::WHITE),
         });
 
         test_shorthand_property!("border-width", "3px 5%", {
@@ -1229,6 +1343,7 @@ mod tests {
             "border-bottom-right-radius" => Val::Px(10.0),
         });
     }
+
     #[test]
     fn test_outline() {
         test_shorthand_property!("outline", "initial", {
@@ -1321,7 +1436,7 @@ mod tests {
     #[test]
     fn test_background_image() {
         test_shorthand_property!("background-image", "url('image.png')", {
-            "-bevy-image" => AssetPathPlaceHolder::<Image>::new("image.png"),
+            "-bevy-image" => AssetPathPlaceholder::<Image>::new("image.png"),
         });
 
         test_shorthand_property!("background-image", "linear-gradient(to top, blue, red)", {
@@ -1335,7 +1450,7 @@ mod tests {
         });
 
         test_shorthand_property!("background-image", "url('image.png'), linear-gradient(to top, blue, red), radial-gradient(green, white)", {
-            "-bevy-image" => AssetPathPlaceHolder::<Image>::new("image.png"),
+            "-bevy-image" => AssetPathPlaceholder::<Image>::new("image.png"),
             "-bevy-background-gradient" => BackgroundGradient(vec![
                 Gradient::Linear(LinearGradient::new(
                     0.0,
@@ -1359,7 +1474,7 @@ mod tests {
 
         test_shorthand_property!("background", "red url('image.png'), linear-gradient(to top, blue, red), radial-gradient(green, white)", {
             "background-color" => css::RED,
-            "-bevy-image" => AssetPathPlaceHolder::<Image>::new("image.png"),
+            "-bevy-image" => AssetPathPlaceholder::<Image>::new("image.png"),
             "-bevy-background-gradient" => BackgroundGradient(vec![
                 Gradient::Linear(LinearGradient::new(
                     0.0,

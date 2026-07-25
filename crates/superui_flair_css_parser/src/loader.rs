@@ -1,4 +1,4 @@
-﻿use crate::ShorthandPropertyRegistry;
+use crate::ShorthandPropertyRegistry;
 
 use crate::imports_parser::extract_imports;
 use crate::internal_loader::InternalStylesheetLoader;
@@ -7,13 +7,13 @@ use bevy_asset::{AssetLoader, AssetServer, AsyncReadExt, LoadContext, LoadDirect
 use bevy_ecs::change_detection::{MaybeLocation, Res};
 use bevy_ecs::prelude::AppTypeRegistry;
 use bevy_ecs::system::SystemParam;
-use superui_flair_core::PropertyRegistry;
+use superui_flair_core::{CssPropertyRegistry, PropertyRegistry};
+use superui_flair_style::placeholder::PlaceholderAssetLoader;
 use superui_flair_style::{StyleSheet, StyleSheetBuilderError};
-use bevy_reflect::TypeRegistryArc;
+use bevy_reflect::{TypePath, TypeRegistryArc};
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use tracing::error;
 
 /// Errors that can occur while loading a CSS stylesheet using [`CssStyleSheetLoader`] or
 /// [`InlineCssStyleSheetParser`].
@@ -70,9 +70,11 @@ pub struct CssStyleLoaderSetting {
 /// - Loading stylesheets from `.css` files.
 /// - Resolving `@import` rules by recursively loading dependent stylesheets.
 /// - Error reporting and configurable error modes.
+#[derive(TypePath)]
 pub struct CssStyleSheetLoader {
     type_registry_arc: TypeRegistryArc,
     property_registry: PropertyRegistry,
+    css_property_registry: CssPropertyRegistry,
     shorthand_property_registry: ShorthandPropertyRegistry,
 }
 
@@ -84,11 +86,13 @@ impl CssStyleSheetLoader {
     pub fn new(
         type_registry_arc: TypeRegistryArc,
         property_registry: PropertyRegistry,
+        css_property_registry: CssPropertyRegistry,
         shorthand_property_registry: ShorthandPropertyRegistry,
     ) -> Self {
         Self {
             type_registry_arc,
             property_registry,
+            css_property_registry,
             shorthand_property_registry,
         }
     }
@@ -126,19 +130,24 @@ impl AssetLoader for CssStyleSheetLoader {
             imports.insert(import_path, loaded_asset.take());
         }
 
-        let file_name = load_context.path().display().to_string();
+        let file_name = load_context.path().to_string();
         let type_registry = self.type_registry_arc.read();
 
         let internal_loader = InternalStylesheetLoader {
             type_registry: &type_registry,
             property_registry: &self.property_registry,
+            css_property_registry: &self.css_property_registry,
             shorthand_property_registry: &self.shorthand_property_registry,
             error_mode: settings.error_mode,
             imports: &imports,
         };
 
         let builder = internal_loader.load_stylesheet(&file_name, &contents)?;
-        Ok(builder.build_with_load_context(&self.property_registry, load_context)?)
+        Ok(builder.build(
+            &type_registry,
+            &self.property_registry,
+            PlaceholderAssetLoader::from_load_context(load_context),
+        )?)
     }
 
     fn extensions(&self) -> &[&str] {
@@ -159,7 +168,7 @@ impl AssetLoader for CssStyleSheetLoader {
 /// # use bevy_ecs::change_detection::ResMut;
 /// # use bevy_ecs::system::Commands;
 /// # use bevy_ui::widget::Button;
-/// # use superui_flair_css_parser::InlineCssStyleSheetParser;
+/// # use bevy_flair_css_parser::InlineCssStyleSheetParser;
 /// # use superui_flair_style::components::NodeStyleSheet;
 /// # use superui_flair_style::StyleSheet;
 ///
@@ -182,6 +191,7 @@ impl AssetLoader for CssStyleSheetLoader {
 pub struct InlineCssStyleSheetParser<'w> {
     app_type_registry: Res<'w, AppTypeRegistry>,
     property_registry: Res<'w, PropertyRegistry>,
+    css_property_registry: Res<'w, CssPropertyRegistry>,
     shorthand_property_registry: Res<'w, ShorthandPropertyRegistry>,
     asset_server: Res<'w, AssetServer>,
 }
@@ -206,16 +216,21 @@ impl<'w> InlineCssStyleSheetParser<'w> {
         }
 
         let imports = FxHashMap::default();
-        let type_registry = &self.app_type_registry.read();
+        let type_registry = self.app_type_registry.read();
         let internal_loader = InternalStylesheetLoader {
-            type_registry,
+            type_registry: &type_registry,
             property_registry: &self.property_registry,
+            css_property_registry: &self.css_property_registry,
             shorthand_property_registry: &self.shorthand_property_registry,
             error_mode: CssStyleLoaderErrorMode::ReturnError,
             imports: &imports,
         };
 
         let builder = internal_loader.load_stylesheet(&file_name, contents)?;
-        Ok(builder.build_with_asset_server(&self.property_registry, &self.asset_server)?)
+        Ok(builder.build(
+            &type_registry,
+            &self.property_registry,
+            PlaceholderAssetLoader::from_asset_server(&self.asset_server),
+        )?)
     }
 }

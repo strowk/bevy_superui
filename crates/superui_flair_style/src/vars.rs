@@ -1,7 +1,8 @@
-use crate::ToCss;
+use crate::{ToCss, VarResolver};
 
 use std::fmt;
 
+use bevy_reflect::Reflect;
 use derive_more::{Deref, DerefMut};
 use smallvec::SmallVec;
 use smol_str::SmolStr;
@@ -10,7 +11,7 @@ use std::sync::Arc;
 use thiserror::Error;
 
 /// Represents a token used in variable resolution, based on CSS token types.
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Debug, Clone, Reflect)]
 pub enum VarToken {
     /// A [`<ident-token>`](https://drafts.csswg.org/css-syntax/#ident-token-diagram)
     Ident(SmolStr),
@@ -74,7 +75,8 @@ impl ToCss for VarToken {
 }
 
 /// A single item that can either be a resolved token or a reference to a variable.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Reflect)]
+#[reflect(Debug, PartialEq, Clone)]
 pub enum VarOrToken {
     /// References a --var value
     /// TODO: Add support for fallback
@@ -102,7 +104,7 @@ impl ToCss for VarOrToken {
 /// A collection of `VarOrToken` values.
 ///
 /// This is the main type used for processing and resolving variable-based tokens.
-#[derive(PartialEq, Debug, Clone, Default, Deref, DerefMut)]
+#[derive(PartialEq, Debug, Clone, Default, Reflect, Deref, DerefMut)]
 pub struct VarTokens(SmallVec<[VarOrToken; 2]>);
 
 impl VarTokens {
@@ -141,6 +143,18 @@ pub enum ResolveTokensError {
     /// Too many recursive calls during resolution (likely a cyclic reference).
     #[error("Var resolve reached the maximum recursion level, likely a cyclic reference")]
     MaxRecursionReached,
+}
+
+impl ResolveTokensError {
+    pub(crate) fn enhance_error(self, var_resolver: &dyn VarResolver) -> String {
+        let extra_message = if matches!(&self, ResolveTokensError::UnknownVarName(_)) {
+            let all_names = var_resolver.get_all_names();
+            format!("\nAvailable variables are {all_names:#?}",)
+        } else {
+            Default::default()
+        };
+        format!("{self}{extra_message}")
+    }
 }
 
 const MAX_DEFAULT_RECURSION: u32 = 8;

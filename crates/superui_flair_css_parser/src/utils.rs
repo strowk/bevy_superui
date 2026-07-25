@@ -1,4 +1,4 @@
-﻿use crate::{CssError, ParserExt, error_codes::vars as error_codes};
+use crate::{CssError, ParserExt, error_codes::vars as error_codes};
 use superui_flair_core::PropertyValue;
 use cssparser::{Parser, match_ignore_ascii_case, parse_important};
 use std::ops::Range;
@@ -10,6 +10,7 @@ pub(crate) fn parse_property_global_keyword<T>(
     let next = parser.expect_located_ident()?;
 
     Ok(match_ignore_ascii_case! {next.as_ref(),
+        "unset" => PropertyValue::Unset,
         "inherit" => PropertyValue::Inherit,
         "initial" => PropertyValue::Initial,
         _ => {
@@ -21,6 +22,7 @@ pub(crate) fn parse_property_global_keyword<T>(
 /// Parses a CSS property value that may be either a global keyword or a typed value.
 ///
 /// This function first attempts to parse one of the global CSS keywords:
+/// - `unset`
 /// - `inherit`
 /// - `initial`
 ///
@@ -35,7 +37,7 @@ pub(crate) fn parse_property_global_keyword<T>(
 /// ```
 /// # use cssparser::{Parser, ParserInput};
 /// # use superui_flair_core::PropertyValue;
-/// # use superui_flair_css_parser::{parse_property_value_with, parse_val};
+/// # use bevy_flair_css_parser::{parse_property_value_with, parse_val};
 ///
 /// let mut input = ParserInput::new("inherit");
 /// let mut parser = Parser::new(&mut input);

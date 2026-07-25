@@ -1,4 +1,4 @@
-﻿use crate::calc::{parse_calc_property_value_with, parse_calc_value};
+use crate::calc::{parse_calc_property_value_with, parse_calc_value};
 use crate::error::CssError;
 use crate::error_codes::ui as error_codes;
 use crate::reflect::enums::parse_enum_value;
@@ -75,7 +75,7 @@ pub(crate) fn parse_rect(parser: &mut Parser) -> Result<Rect, CssError> {
 /// ```
 /// # use bevy_ui::Val;
 /// # use cssparser::{Parser, ParserInput};
-/// # use superui_flair_css_parser::parse_val;
+/// # use bevy_flair_css_parser::parse_val;
 ///
 /// let mut input = ParserInput::new("50%");
 /// let mut parser = Parser::new(&mut input);
@@ -372,7 +372,7 @@ impl FromType<BoxShadow> for ReflectParseCss {
 
 #[cfg(test)]
 mod tests {
-    use crate::reflect::testing::{test_err_parse_reflect, test_parse_reflect};
+    use crate::reflect::reflect_test_utils::{test_err_parse_reflect, test_parse_reflect};
     use bevy_color::palettes::css;
     use bevy_math::{Rot2, Vec2};
     use bevy_ui::{BoxShadow, OverflowClipBox, OverflowClipMargin, ShadowStyle, Val, Val2, ZIndex};

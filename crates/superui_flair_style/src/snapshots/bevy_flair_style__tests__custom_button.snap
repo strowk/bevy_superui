@@ -1,6 +1,5 @@
 ---
-source: crates/superui_flair_style/src/lib.rs
-assertion_line: 582
+source: crates/bevy_flair_style/src/lib.rs
 expression: scene_serializer
 ---
 Scene(
@@ -8,12 +7,12 @@ Scene(
   entities: {
     4294967294: Entity(
       components: {
-        "superui_flair_style::components::NodeStyleData": NodeStyleData(
+        "bevy_flair_style::components::NodeStyleData": NodeStyleData(
           effective_style_sheet_asset_id: Uuid(
             uuid: "fe981062-17ce-46e4-999a-5a61ea8fe722",
           ),
           is_root: true,
-          name: None,
+          id: None,
           classes: [],
           attributes: {},
           type_name: Some("custom-button"),
@@ -27,8 +26,8 @@ Scene(
           ),
           is_pseudo_element: None,
         ),
-        "superui_flair_style::components::NodeStyleSheet": StyleSheet(Uuid("fe981062-17ce-46e4-999a-5a61ea8fe722")),
-        "superui_flair_style::tests::CustomButton": CustomButton(),
+        "bevy_flair_style::components::NodeStyleSheet": StyleSheet(Uuid("fe981062-17ce-46e4-999a-5a61ea8fe722")),
+        "bevy_flair_style::tests::CustomButton": CustomButton(),
       },
     ),
   },

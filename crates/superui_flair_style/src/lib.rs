@@ -1,4 +1,4 @@
-﻿//! # Bevy Flair Style
+//! # Bevy Flair Style
 //! Bevy Flair Style is a styling system for Bevy UI. It allows you to style your UI using CSS-like syntax.
 //!
 //! This crate contains all the necessary components, systems and plugins to style your UI.
@@ -12,7 +12,6 @@ use superui_flair_core::*;
 use bevy_reflect::prelude::*;
 use bevy_text::TextSpan;
 use bevy_ui::prelude::*;
-use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::fmt::Write;
 use std::marker::PhantomData;
@@ -32,6 +31,7 @@ pub mod css_selector;
 pub(crate) mod custom_iterators;
 mod layers;
 mod media_selector;
+pub mod placeholder;
 mod systems;
 mod to_css;
 mod vars;
@@ -45,17 +45,17 @@ pub use style_sheet::*;
 pub use to_css::*;
 pub use vars::*;
 
-pub(crate) type IdName = smol_str::SmolStr;
-pub(crate) type ClassName = smol_str::SmolStr;
-pub(crate) type AttributeKey = smol_str::SmolStr;
-pub(crate) type AttributeValue = smol_str::SmolStr;
+pub(crate) type IdName = std::borrow::Cow<'static, str>;
+pub(crate) type ClassName = std::borrow::Cow<'static, str>;
+pub(crate) type AttributeKey = std::borrow::Cow<'static, str>;
+pub(crate) type AttributeValue = std::borrow::Cow<'static, str>;
 pub(crate) type VarName = Arc<str>;
 
 // TODO: Add support to CoreWidgets added in bevy 0.17
 
 /// Represents the current pseudo state of an entity.
 /// By default, it supports only the basic pseudo classes like `:hover`, `:active`, and `:focus`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Reflect, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Reflect)]
 pub struct NodePseudoState {
     /// If the entity is pressed
     pub pressed: bool,
@@ -156,12 +156,6 @@ pub(crate) struct GlobalChangeDetection {
     pub any_animation_active: bool,
 }
 
-impl GlobalChangeDetection {
-    pub fn any_property_change(&self) -> bool {
-        self.any_property_value_changed || self.any_animation_active
-    }
-}
-
 /// System sets for the [`FlairStylePlugin`] plugin.
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, SystemSet)]
 pub enum StyleSystems {
@@ -183,11 +177,17 @@ pub enum StyleSystems {
     /// Also sets vars and further marks nodes as changed when a var changes.
     CalculateStyles,
 
-    /// Sets new properties, transitions and animations for nodes that are marked for recalculation.
+    /// Sets the corresponding [`PropertyValue`]'s, depending on the styles calculated in [`StyleSystems::CalculateStyles`].
     SetPropertyValues,
 
-    /// Converts properties set in `CalculateStyle` into computed properties. Also calculates inherited properties.
+    /// Converts properties from [`PropertyValue`] into [`ComputedValue`].
     ComputeProperties,
+
+    /// Resolve pending animations. It needs to happen after [`StyleSystems::ComputeProperties`]
+    ResolveAnimations,
+
+    /// Sets [`ComputedValue`]'s generated from transitions and animations.
+    SetAnimationValues,
 
     /// Emits animation events, like `TransitionEvent`.
     EmitAnimationEvents,
@@ -353,7 +353,7 @@ impl Plugin for FlairStylePlugin {
             .register_required_components_with::<Label, TypeName>(|| {
                 TypeName("label")
             })
-            .add_plugins(ReflectAnimationsPlugin)
+            .add_plugins((ReflectAnimationsPlugin, placeholder::PlaceholderResolvePlugin))
             .add_observer(systems::observe_on_component_auto_inserted)
             .configure_sets(
                 PostUpdate,
@@ -365,18 +365,19 @@ impl Plugin for FlairStylePlugin {
                         StyleSystems::CalculateStyles,
                         StyleSystems::SetPropertyValues,
                         StyleSystems::ComputeProperties,
+                        StyleSystems::ResolveAnimations,
+                        StyleSystems::SetAnimationValues,
                         StyleSystems::ApplyComputedProperties.before(bevy_ui::UiSystems::Content),
                         StyleSystems::EmitRedrawEvent,
                     )
                         .chain(),
                     StyleSystems::TickAnimations.before(StyleSystems::SetPropertyValues),
-                    StyleSystems::EmitAnimationEvents.after(StyleSystems::ComputeProperties),
+                    StyleSystems::EmitAnimationEvents.after(StyleSystems::SetAnimationValues),
                 ),
             )
             .add_systems(PreStartup, |mut commands: Commands| {
-                // These resources are initialized on PreStartup to make sure all properties are registered.
-                commands.init_resource::<EmptyComputedProperties>();
-                commands.init_resource::<InitialPropertyValues>();
+                // This is initialized on PreStartup to make sure all properties are registered.
+                commands.init_resource::<StaticPropertyMaps>();
             })
             .add_systems(
                 PreUpdate,
@@ -394,7 +395,7 @@ impl Plugin for FlairStylePlugin {
                         systems::calculate_effective_style_sheet,
                         systems::compute_window_media_features,
                         (systems::sort_pseudo_elements, systems::sync_siblings_system).chain(),
-                        systems::reset_properties_on_added,
+                        systems::reset_properties,
                     )
                         .in_set(StyleSystems::Prepare),
                     (
@@ -425,14 +426,16 @@ impl Plugin for FlairStylePlugin {
                     (
                         systems::compute_property_values
                             .run_if(systems::compute_property_values_condition),
-                        systems::compute_property_values_just_transitions_and_animations
-                            .run_if(systems::compute_property_values_just_transitions_and_animations_condition)
+                        systems::set_pending_compute_property_values
+                            .run_if(not(systems::compute_property_values_condition))
                     ).in_set(StyleSystems::ComputeProperties),
+                    systems::resolve_animations.in_set(StyleSystems::ResolveAnimations),
+                    systems::set_animation_computed_values.in_set(StyleSystems::SetAnimationValues),
                     systems::emit_animation_events.in_set(StyleSystems::EmitAnimationEvents),
                     systems::emit_redraw_event.in_set(StyleSystems::EmitRedrawEvent),
                     (
-                        systems::apply_computed_properties
-                            .run_if(systems::apply_computed_properties_condition),
+                        systems::resolve_placeholders,
+                        systems::apply_computed_properties,
                         systems::auto_remove_components
                             .run_if(systems::auto_remove_components_condition)
                     )
@@ -440,6 +443,24 @@ impl Plugin for FlairStylePlugin {
                         .in_set(StyleSystems::ApplyComputedProperties),
                 ),
             );
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod test_utils {
+    use crate::{VarResolver, VarTokens};
+    use std::sync::Arc;
+
+    pub(crate) struct NoVarsSupportedResolver;
+
+    impl VarResolver for NoVarsSupportedResolver {
+        fn get_all_names(&self) -> Vec<Arc<str>> {
+            panic!("No vars support on this test")
+        }
+
+        fn get_var_tokens(&self, _var_name: &str) -> Option<&'_ VarTokens> {
+            panic!("No vars support on this test")
+        }
     }
 }
 
@@ -539,6 +560,7 @@ mod tests {
             },
             AssetPlugin::default(),
             PropertyRegistryPlugin,
+            ImplComponentPropertiesPlugin,
             FlairStylePlugin,
         ));
 

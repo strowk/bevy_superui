@@ -1,5 +1,5 @@
-﻿use crate::ComponentPropertyId;
-use bevy_ecs::component::Mutable;
+use crate::ComponentPropertyId;
+use bevy_ecs::component::{ComponentMutability, Mutable};
 use bevy_ecs::prelude::*;
 use bevy_ecs::world::FilteredEntityRef;
 use bevy_reflect::*;
@@ -71,9 +71,7 @@ pub struct ComponentAutoInserted {
     pub type_id: TypeId,
 }
 
-fn contains_component<T: Component<Mutability = Mutable> + Reflect>(
-    entity: FilteredEntityRef<'_, '_>,
-) -> bool {
+fn contains_component<T: Component + Reflect>(entity: FilteredEntityRef<'_, '_>) -> bool {
     entity.contains::<T>()
 }
 
@@ -89,6 +87,15 @@ fn reflect_mut_component<T: Component<Mutability = Mutable> + Reflect>(
 ) -> Option<&mut dyn PartialReflect> {
     let component = entity.into_mut::<T>()?.into_inner();
     Some(component.as_partial_reflect_mut())
+}
+
+fn reflect_mut_component_panic<T: TypePath>(
+    _entity: EntityMut<'_>,
+) -> Option<&mut dyn PartialReflect> {
+    panic!(
+        "Component '{}' is immutable and reflect_mut cannot be called",
+        T::type_path()
+    );
 }
 
 fn insert_component<T: Component + TypePath>(
@@ -116,6 +123,7 @@ fn remove_component<T: Component + TypePath>(mut entity: EntityWorldMut<'_>) {
 /// concrete Bevy component type.
 #[derive(Copy, Clone)]
 pub struct ComponentFns {
+    pub(crate) is_mutable: bool,
     pub(crate) contains: fn(FilteredEntityRef<'_, '_>) -> bool,
     pub(crate) reflect: for<'w> fn(FilteredEntityRef<'w, '_>) -> Option<&'w dyn PartialReflect>,
     pub(crate) reflect_mut: for<'w> fn(EntityMut<'w>) -> Option<&'w mut dyn PartialReflect>,
@@ -125,16 +133,26 @@ pub struct ComponentFns {
 }
 
 impl ComponentFns {
-    /// Create `ComponentFns` for a concrete component type `T`.
-    ///
-    /// The type `T` must implement `Component`, and be [`Reflect`able, `Default` and provide a
-    /// `TypePath`. This constructor wires the function pointers to implementations that
-    /// operate on the concrete `T`.
+    /// Create `ComponentFns` for a mutable component type `T`.
     pub fn new<T: Component<Mutability = Mutable> + Reflect + Default + TypePath>() -> Self {
         Self {
+            is_mutable: <T::Mutability as ComponentMutability>::MUTABLE,
             contains: contains_component::<T>,
             reflect: reflect_component::<T>,
             reflect_mut: reflect_mut_component::<T>,
+            insert: insert_component::<T>,
+            remove: remove_component::<T>,
+            default: || Box::<T>::default(),
+        }
+    }
+
+    /// Create `ComponentFns` for an immutable component type `T`.
+    pub fn new_immutable<T: Component + Reflect + Default + TypePath>() -> Self {
+        Self {
+            is_mutable: <T::Mutability as ComponentMutability>::MUTABLE,
+            contains: contains_component::<T>,
+            reflect: reflect_component::<T>,
+            reflect_mut: reflect_mut_component_panic::<T>,
             insert: insert_component::<T>,
             remove: remove_component::<T>,
             default: || Box::<T>::default(),
@@ -161,7 +179,7 @@ enum InternalCanonicalName {
 /// The canonical name is made of the component type path and the property path inside the component.
 /// # Example
 /// ```
-/// # use superui_flair_core::PropertyCanonicalName;
+/// # use bevy_flair_core::PropertyCanonicalName;
 /// let canonical_name = PropertyCanonicalName::new("my_crate::MyComponent", ".my_field");
 /// assert_eq!(canonical_name.component(), "my_crate::MyComponent");
 /// assert_eq!(canonical_name.path(), ".my_field");
@@ -272,7 +290,7 @@ impl Ord for PropertyCanonicalName {
 /// # use bevy_ecs::prelude::*;
 /// # use bevy_reflect::{ParsedPath, Typed};
 /// # use bevy_reflect::prelude::*;
-/// # use superui_flair_core::*;
+/// # use bevy_flair_core::*;
 ///
 /// #[derive(Default, Component, Reflect)]
 /// struct MyComponent {

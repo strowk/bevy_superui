@@ -1,11 +1,11 @@
-﻿//! # Bevy Flair CSS Parser
+//! # Bevy Flair CSS Parser
 //! Includes a CSS parser and a Bevy plugin for parsing CSS files as assets.
 
 use bevy_app::{App, Plugin, PostUpdate};
 use bevy_asset::AssetApp;
 use bevy_ecs::prelude::AppTypeRegistry;
 use bevy_ecs::schedule::IntoScheduleConfigs;
-use superui_flair_core::PropertyRegistry;
+use superui_flair_core::{CssPropertyRegistry, PropertyRegistry};
 use superui_flair_style::StyleSystems;
 pub use cssparser::{self, BasicParseError, CowRcStr, Parser, Token};
 use derive_more::Deref;
@@ -257,21 +257,64 @@ impl Plugin for FlairCssParserPlugin {
         let world = app.world();
         let type_registry_arc = world.resource::<AppTypeRegistry>().0.clone();
         let property_registry = world.resource::<PropertyRegistry>().clone();
+        let css_property_registry = world.resource::<CssPropertyRegistry>().clone();
         let shorthand_registry = world.resource::<ShorthandPropertyRegistry>().clone();
         app.register_asset_loader(CssStyleSheetLoader::new(
             type_registry_arc,
             property_registry,
+            css_property_registry,
             shorthand_registry,
         ));
     }
 }
 
 #[cfg(test)]
-pub(crate) mod testing {
+pub(crate) mod test_utils {
     use crate::utils::{ImportantLevel, try_parse_important_level};
     use crate::{CssError, ErrorReportGenerator};
+    use superui_flair_style::{VarResolver, VarTokens};
     use cssparser::{ParseError, Parser, ParserInput};
     use std::backtrace::BacktraceStatus;
+    use std::sync::Arc;
+
+    pub(crate) struct NoVarsSupportedResolver;
+
+    impl VarResolver for NoVarsSupportedResolver {
+        fn get_all_names(&self) -> Vec<Arc<str>> {
+            panic!("No vars support on tests")
+        }
+
+        fn get_var_tokens(&self, _var_name: &str) -> Option<&'_ VarTokens> {
+            panic!("No vars support on tests")
+        }
+    }
+
+    pub(crate) trait ExpectExt<E>: IntoIterator<Item = E> + Sized {
+        #[inline(always)]
+        #[track_caller]
+        #[allow(unused)]
+        fn expect_empty(self) {
+            assert_eq!(self.into_iter().count(), 0, "Contents are not empty");
+        }
+
+        #[inline(always)]
+        #[track_caller]
+        fn expect_n<const N: usize>(self) -> [E; N] {
+            let vec: Vec<_> = self.into_iter().collect();
+            vec.try_into().unwrap_or_else(|v: Vec<_>| {
+                panic!("Expected {} items, but {} were found", N, v.len())
+            })
+        }
+
+        #[inline(always)]
+        #[track_caller]
+        fn expect_one(self) -> E {
+            let [one] = self.expect_n();
+            one
+        }
+    }
+
+    impl<T, E> ExpectExt<E> for T where T: IntoIterator<Item = E> + Sized {}
 
     #[inline(always)]
     #[track_caller]

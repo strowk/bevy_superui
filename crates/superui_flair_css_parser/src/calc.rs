@@ -1,4 +1,4 @@
-﻿use crate::{CssError, ParserExt};
+use crate::{CssError, ParserExt};
 use superui_flair_core::{PropertyValue, ReflectValue};
 use bevy_reflect::{FromReflect, TypePath};
 
@@ -319,7 +319,7 @@ fn parse_calc_or_value<T>(
 /// ```
 /// # use bevy_ui::Val;
 /// # use cssparser::Parser;
-/// # use superui_flair_css_parser::{parse_calc_value, parse_val};
+/// # use bevy_flair_css_parser::{parse_calc_value, parse_val};
 ///
 /// let mut input = cssparser::ParserInput::new("calc(2px + 3px)");
 /// let mut parser = Parser::new(&mut input);
@@ -345,7 +345,7 @@ where
 
 /// Parses a CSS property value that may use `calc()` expressions or global keywords.
 ///
-/// If a global keyword (such as `inherit` or `initial`, this
+/// If a global keyword (such as `unset`, `inherit` or `initial`, this
 /// returns the corresponding [`PropertyValue`]. Otherwise, it parses and evaluates
 /// the value as a calculable expression.
 pub fn parse_calc_property_value_with<T>(
@@ -404,13 +404,13 @@ mod tests {
                 }
             };
 
-        match property_value.compute_root_value(&ReflectValue::Usize(0)) {
+        match property_value.compute_as_root(&PropertyValue::None, &ReflectValue::Usize(0)) {
             ComputedValue::None => {
                 panic!("None generated")
             }
-            ComputedValue::Value(value) => {
-                value.downcast_value::<Val>().expect("Downcasting failed")
-            }
+            ComputedValue::Value(value) => *value
+                .downcast_value_ref::<Val>()
+                .expect("Downcasting failed"),
         }
     }
 

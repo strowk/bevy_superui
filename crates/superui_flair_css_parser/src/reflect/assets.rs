@@ -1,27 +1,44 @@
-﻿use crate::error::CssError;
+use crate::error::CssError;
 
 use crate::ReflectParseCss;
 use crate::utils::parse_property_value_with;
-use bevy_asset::Handle;
+use bevy_asset::{Asset, Handle};
 use superui_flair_core::ReflectValue;
-use superui_flair_style::{AssetPathPlaceHolder, FontTypePlaceholder};
+use superui_flair_style::placeholder::{AssetPathPlaceholder, FontTypePlaceholder};
 use bevy_image::Image;
 use bevy_reflect::{FromType, TypePath};
 use bevy_text::Font;
 use cssparser::Parser;
 
-pub(crate) fn parse_asset_path<A: TypePath>(parser: &mut Parser) -> Result<ReflectValue, CssError> {
+/// Parses an asset path for the given asset type `A`.
+/// This function expects either a `url("path")` or a string `"path"` in the CSS.
+/// The returned value is an `AssetPathPlaceholder<A>` which needs to converted to a `Handle<A>` later.
+///
+/// Make sure you register the placeholder replacement by calling
+/// ```
+/// # use bevy_app::App;
+/// # use bevy_asset::Asset;
+/// # use bevy_reflect::TypePath;
+/// # use superui_flair_style::placeholder::{AssetPathPlaceholder, ReflectPlaceholder};
+/// # let mut app = App::new();
+/// # #[derive(Asset, Debug, Clone, TypePath)]
+/// # pub struct MyAsset;
+/// app.register_type::<AssetPathPlaceholder<MyAsset>>();
+/// // Or, alternatively
+/// app.register_type_data::<AssetPathPlaceholder<MyAsset>, ReflectPlaceholder>();
+/// ```
+pub fn parse_asset_path<A: Asset + TypePath>(
+    parser: &mut Parser,
+) -> Result<ReflectValue, CssError> {
     let path = parser.expect_url_or_string()?;
-    Ok(ReflectValue::new(AssetPathPlaceHolder::<A>::new(
+    Ok(ReflectValue::new(AssetPathPlaceholder::<A>::new(
         path.as_ref(),
     )))
 }
 
 fn parse_font(parser: &mut Parser) -> Result<ReflectValue, CssError> {
     let path = parser.expect_ident_or_string()?;
-    Ok(ReflectValue::new(FontTypePlaceholder(
-        path.as_ref().to_owned(),
-    )))
+    Ok(ReflectValue::new(FontTypePlaceholder::new(path.as_ref())))
 }
 
 impl FromType<Handle<Image>> for ReflectParseCss {
@@ -38,9 +55,9 @@ impl FromType<Handle<Font>> for ReflectParseCss {
 
 #[cfg(test)]
 mod tests {
-    use crate::reflect::testing::test_parse_reflect_from_to;
+    use crate::reflect::reflect_test_utils::test_parse_reflect_from_to;
     use bevy_asset::Handle;
-    use superui_flair_style::{AssetPathPlaceHolder, FontTypePlaceholder};
+    use superui_flair_style::placeholder::{AssetPathPlaceholder, FontTypePlaceholder};
     use bevy_image::Image;
     use bevy_text::Font;
 
@@ -48,27 +65,27 @@ mod tests {
     fn test_font() {
         assert_eq!(
             test_parse_reflect_from_to::<Handle<Font>, FontTypePlaceholder>("\"some-font\""),
-            FontTypePlaceholder("some-font".into())
+            FontTypePlaceholder::new("some-font")
         );
         assert_eq!(
             test_parse_reflect_from_to::<Handle<Font>, FontTypePlaceholder>("some-font"),
-            FontTypePlaceholder("some-font".into())
+            FontTypePlaceholder::new("some-font")
         );
     }
 
     #[test]
     fn test_asset_path() {
         assert_eq!(
-            test_parse_reflect_from_to::<Handle<Image>, AssetPathPlaceHolder<Image>>(
+            test_parse_reflect_from_to::<Handle<Image>, AssetPathPlaceholder<Image>>(
                 "url(\"some-path\")"
             ),
-            AssetPathPlaceHolder::new("some-path")
+            AssetPathPlaceholder::new("some-path")
         );
         assert_eq!(
-            test_parse_reflect_from_to::<Handle<Image>, AssetPathPlaceHolder<Image>>(
+            test_parse_reflect_from_to::<Handle<Image>, AssetPathPlaceholder<Image>>(
                 "\"some-path\""
             ),
-            AssetPathPlaceHolder::new("some-path")
+            AssetPathPlaceholder::new("some-path")
         );
     }
 }
