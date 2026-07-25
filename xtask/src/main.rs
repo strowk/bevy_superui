@@ -14,12 +14,29 @@ fn main() {
     }
 }
 
+fn repo_root() -> std::path::PathBuf {
+    // The xtask binary lives at <repo>/target/…; CARGO_MANIFEST_DIR is set at
+    // compile time to the xtask/ crate dir, so its parent is the repo root.
+    std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("xtask crate must be inside the repo")
+        .to_path_buf()
+}
+
 fn run() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().collect();
     match args.get(1).map(String::as_str) {
         Some("host-page") => host_page(&args[2..]),
+        Some("fork-patches") => {
+            let ids = xtask::check_fork_patches(&repo_root()).map_err(|e| e)?;
+            for id in &ids {
+                println!("{id}");
+            }
+            println!("fork-patches: {} patch(es) consistent", ids.len());
+            Ok(())
+        }
         other => Err(format!(
-            "usage: xtask host-page --slug S --out DIR (got {other:?})"
+            "usage: xtask <host-page|fork-patches> (got {other:?})"
         )
         .into()),
     }
