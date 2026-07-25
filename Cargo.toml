@@ -8,6 +8,9 @@ version = "0.3.0"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/strowk/bevy_superui"
 
+[patch.crates-io]
+bevy_flair_core_macros = { path = "bevy_flair/crates/bevy_flair_core_macros" }
+
 [workspace.dependencies]
 slotmap = "1.0"
 html5ever = "0.39"

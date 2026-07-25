@@ -6,7 +6,7 @@ use bevy_ecs::prelude::*;
 use bevy_reflect::prelude::*;
 use bevy_reflect::{TypeInfo, Typed};
 
-use superui_flair_core::{ComponentFns, PropertyPath};
+use bevy_flair_core::{ComponentFns, PropertyPath};
 use rustc_hash::FxHashMap;
 use std::any::TypeId;
 use std::borrow::Cow;
