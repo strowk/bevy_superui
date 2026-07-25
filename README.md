@@ -108,7 +108,7 @@ In Claude Code:
 
 ```
 /plugin marketplace add strowk/bevy_superui
-/plugin install bevy_superui@bevy-superui
+/plugin install bevy_superui@bevy_superui
 ```
 
 The skill auto-invokes when you work on `.tsx` UI. Its source lives in
