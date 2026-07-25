@@ -1,5 +1,6 @@
 ---
-source: crates/bevy_flair_style/src/lib.rs
+source: crates/superui_flair_style/src/lib.rs
+assertion_line: 572
 expression: scene_serializer
 ---
 Scene(
@@ -7,7 +8,7 @@ Scene(
   entities: {
     4294967294: Entity(
       components: {
-        "bevy_flair_style::components::NodeStyleData": NodeStyleData(
+        "superui_flair_style::components::NodeStyleData": NodeStyleData(
           effective_style_sheet_asset_id: Uuid(
             uuid: "fe981062-17ce-46e4-999a-5a61ea8fe722",
           ),
@@ -26,8 +27,8 @@ Scene(
           ),
           is_pseudo_element: None,
         ),
-        "bevy_flair_style::components::NodeStyleSheet": StyleSheet(Uuid("fe981062-17ce-46e4-999a-5a61ea8fe722")),
-        "bevy_flair_style::tests::CustomType": CustomType(),
+        "superui_flair_style::components::NodeStyleSheet": StyleSheet(Uuid("fe981062-17ce-46e4-999a-5a61ea8fe722")),
+        "superui_flair_style::tests::CustomType": CustomType(),
       },
     ),
   },
