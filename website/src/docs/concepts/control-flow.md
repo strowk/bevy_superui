@@ -8,7 +8,7 @@ signal and re-render their part of the tree when it changes.
 Import them from `supersolid` alongside everything else:
 
 ```typescript
-import { Show, For, Index, Switch, Match } from "supersolid";
+import { Show, For, Index, Keyed, Switch, Match } from "supersolid";
 ```
 
 You can place them directly as element children — no wrapping expression needed:
@@ -79,10 +79,34 @@ Row 0's node always represents position 0; when the data at that position change
 items are primitives, or when positions are stable slots and only the *values*
 change. Prefer `<For>` when items are objects that reorder.
 
+## `<Keyed>` — high-frequency per-entity lists
+
+`<Keyed>` is built for lists where the *same* identified entities stream new field
+values constantly — enemy nameplates, floating damage numbers, minimap blips. Each
+item is identified by a stable key (`by`), and the child receives a **reactive row
+proxy** whose individual fields update in place:
+
+```typescript
+<Keyed each={frame().enemies} by="id">
+  {(enemy) => (
+    <div class="nameplate" style={`left: ${enemy.sx}px; top: ${enemy.sy}px`}>
+      <div class="hp" style={`width: ${enemy.frac * 100}%`}></div>
+    </div>
+  )}
+</Keyed>
+```
+
+Reading `enemy.sx` subscribes to just that field, so when the next snapshot changes
+only `sx`, only that binding re-runs — the per-frame cost tracks what actually
+changed, not the list size. `<Keyed>` appends new rows and removes vanished ones,
+but does **not** reorder, so it suits data-positioned overlays rather than visibly
+ordered lists. See [Keyed lists & performance](keyed.md) for the full story.
+
 | | keyed by | child receives | best for |
 |---|---|---|---|
 | `<For>` | item identity | `(item, index())` | ordered lists that add/remove/reorder |
 | `<Index>` | position | `(item(), index)` | primitives, fixed slots, value-only changes |
+| `<Keyed>` | a key field (`by`) | reactive per-field row proxy | high-frequency per-entity feeds where fields change every frame |
 
 ## `<Switch>` / `<Match>` — multiple branches
 
@@ -98,14 +122,6 @@ change. Prefer `<For>` when items are objects that reorder.
 
 Only one branch is mounted at a time; switching disposes the previous branch and
 mounts the new one. Use it for state machines and any "one of several" choice.
-
-## `<Keyed>` — high-frequency per-entity lists
-
-For lists where the *same* set of identified entities streams new field values
-every frame — enemy nameplates, damage numbers, minimap blips — there is a
-specialized `<Keyed>` that updates only the fields that actually changed, rather
-than re-diffing the whole list each frame. It's a performance tool for live game
-data; see [Keyed lists & performance](keyed.md) for the full story.
 
 ## Next
 
