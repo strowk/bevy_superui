@@ -151,6 +151,29 @@ reviewed, so it is not guaranteed to be correct or safe — use at your own risk
 APIs are expected to be in flux at this stage, but the surface deliberately mirrors
 familiar web APIs, so most of it should be reasonable to build on.
 
+## Compatibility
+
+Each superui release targets one Bevy release. Bevy makes breaking changes every
+minor version, so superui bumps its own **minor** version in lockstep. Pick the
+superui version that matches the Bevy version your project uses:
+
+| superui | bevy | branch | status |
+| --- | --- | --- | --- |
+| 0.2.x | 0.18 | `main` | current |
+| 0.1.x | 0.17 | `release/bevy-0.17` | maintained |
+
+`main` always tracks the **newest** supported Bevy; older Bevy versions live on
+long-lived `release/bevy-<ver>` branches. New features land on `main`; fixes are
+backported to the maintenance branch when they apply and shipped as patch
+releases (e.g. `0.1.1`).
+
+The `cargo-superui` CLI is versioned alongside the libraries, so
+`cargo install cargo-superui` matches the current track and
+`cargo install cargo-superui@0.1` pins the 0.17 track.
+
+> The full mapping and version policy also live on the docs site under
+> [Reference → Compatibility](https://strowk.github.io/bevy_superui/docs/reference/compatibility.html).
+
 ## License
 
 Bevy SuperUI is dual-licensed under either

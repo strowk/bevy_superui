@@ -26,6 +26,7 @@
 - [HTML](docs/reference/html.md)
 - [JS / DOM](docs/reference/js-dom.md)
 - [Supersolid framework](docs/reference/supersolid.md)
+- [Compatibility](docs/reference/compatibility.md)
 
 # Examples
 
