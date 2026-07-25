@@ -61,7 +61,7 @@ function Hud() {
 Once the payload is in a signal, everything downstream — bindings, memos,
 [control flow](control-flow.md) — updates automatically. A per-entity feed inside
 that payload (enemy nameplates, minimap blips) pairs naturally with
-[`<Keyed>`](../reference/keyed.md).
+[`<Keyed>`](keyed.md).
 
 ## From the game: registering the surface
 
@@ -143,5 +143,5 @@ only knows the names and shapes it registered.
 ## Reference
 
 - [`window.bevy`](../reference/js-dom.md#globals) — the bridge in the JS/DOM ledger.
-- [Keyed lists & performance](../reference/keyed.md) — rendering high-frequency
+- [Keyed lists & performance](keyed.md) — rendering high-frequency
   per-entity data from a frame payload.

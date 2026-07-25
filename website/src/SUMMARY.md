@@ -15,6 +15,7 @@
 - [Effects](docs/concepts/effects.md)
 - [Derived State](docs/concepts/derived-state.md)
 - [Control Flow](docs/concepts/control-flow.md)
+  - [Keyed lists & performance](docs/concepts/keyed.md)
 - [Lifecycle](docs/concepts/lifecycle.md)
 - [Context](docs/concepts/context.md)
 - [The Bevy Bridge](docs/concepts/bevy-bridge.md)
@@ -25,7 +26,6 @@
 - [HTML](docs/reference/html.md)
 - [JS / DOM](docs/reference/js-dom.md)
 - [Supersolid framework](docs/reference/supersolid.md)
-- [Keyed lists & performance](docs/reference/keyed.md)
 
 # Examples
 

@@ -105,9 +105,9 @@ For lists where the *same* set of identified entities streams new field values
 every frame — enemy nameplates, damage numbers, minimap blips — there is a
 specialized `<Keyed>` that updates only the fields that actually changed, rather
 than re-diffing the whole list each frame. It's a performance tool for live game
-data; see [Keyed lists & performance](../reference/keyed.md) for the full story.
+data; see [Keyed lists & performance](keyed.md) for the full story.
 
 ## Next
 
 - [Lifecycle](lifecycle.md) — what runs when branches and rows mount and unmount.
-- [Keyed lists & performance](../reference/keyed.md) — the `<Keyed>` deep dive.
+- [Keyed lists & performance](keyed.md) — the `<Keyed>` deep dive.
