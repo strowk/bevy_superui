@@ -96,6 +96,26 @@ for the full walkthrough, and the
 | **supersolid** | The reactive `.tsx` layer you author components in — signals, effects, control flow, and rendering. |
 | **bevy bridge** | `bevy.send` / `bevy.on`, the JSON channel between your UI and the ECS. |
 
+## Coding with an AI assistant
+
+This repo ships a **skill** that teaches an AI coding assistant to author superui UI
+correctly — the reactivity model, control flow, the Bevy bridge, and (crucially) the
+*subset* of CSS/HTML/JS the engine actually supports, so it stops emitting web code that
+silently no-ops. It follows the cross-tool [agentskills.io](https://agentskills.io)
+standard and is distributed as a Claude Code plugin.
+
+In Claude Code:
+
+```
+/plugin marketplace add strowk/bevy_superui
+/plugin install supersolid@bevy-superui
+```
+
+The skill auto-invokes when you work on `.tsx` UI. Its source lives in
+[`plugins/supersolid/`](plugins/supersolid/) — the `SKILL.md` plus per-topic reference
+files (`css`, `html-dom`, `control-flow`, `bevy-bridge`, …). Other agents that read the
+agentskills.io format can consume the same `SKILL.md` directly.
+
 ## Live examples
 
 Each example is compiled to WebAssembly and published on GitHub Pages, showing the

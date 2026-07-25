@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "supersolid",
+  "displayName": "Supersolid (superui)",
+  "version": "0.1.0",
+  "description": "Author superui game UI in supersolid .tsx — reactivity, control flow, the CSS/HTML/JS support surface, and the Bevy bridge.",
+  "author": {
+    "name": "Timur Sultanaev"
+  },
+  "homepage": "https://github.com/strowk/bevy_superui",
+  "repository": "https://github.com/strowk/bevy_superui",
+  "license": "MIT OR Apache-2.0",
+  "keywords": ["bevy", "superui", "supersolid", "jsx", "signals", "reactive", "game-ui"]
+}
