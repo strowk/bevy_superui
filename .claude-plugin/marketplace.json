@@ -7,8 +7,8 @@
   "description": "Claude Code plugins for the bevy_superui framework.",
   "plugins": [
     {
-      "name": "supersolid",
-      "source": "./plugins/supersolid",
+      "name": "bevy_superui",
+      "source": "./plugins/bevy_superui",
       "description": "Author superui game UI in supersolid .tsx — reactivity, control flow, the CSS/HTML/JS support surface, and the Bevy bridge.",
       "homepage": "https://github.com/strowk/bevy_superui",
       "repository": "https://github.com/strowk/bevy_superui",

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
-  "name": "supersolid",
-  "displayName": "Supersolid (superui)",
+  "name": "bevy_superui",
+  "displayName": "bevy_superui — supersolid UI authoring",
   "version": "0.1.0",
   "description": "Author superui game UI in supersolid .tsx — reactivity, control flow, the CSS/HTML/JS support surface, and the Bevy bridge.",
   "author": {

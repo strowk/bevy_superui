@@ -24,9 +24,9 @@ actually supports, so generated UI renders instead of being silently ignored.
 ```
 .claude-plugin/
   marketplace.json            # exposes the "supersolid" plugin from this repo
-plugins/supersolid/
-  .claude-plugin/plugin.json  # plugin manifest (name, version, description)
-  skills/supersolid/
+plugins/bevy_superui/         # plugin named for the repo/framework
+  .claude-plugin/plugin.json  # plugin manifest (name: bevy_superui, version, description)
+  skills/supersolid/           # skill name stays "supersolid" (the invocation name)
     SKILL.md                  # concise: mental model + top gotchas + pointers
     references/
       authoring.md            # components, signals, effects, memos, context, lifecycle

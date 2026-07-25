@@ -108,11 +108,11 @@ In Claude Code:
 
 ```
 /plugin marketplace add strowk/bevy_superui
-/plugin install supersolid@bevy-superui
+/plugin install bevy_superui@bevy-superui
 ```
 
 The skill auto-invokes when you work on `.tsx` UI. Its source lives in
-[`plugins/supersolid/`](plugins/supersolid/) — the `SKILL.md` plus per-topic reference
+[`plugins/bevy_superui/`](plugins/bevy_superui/) — the `SKILL.md` plus per-topic reference
 files (`css`, `html-dom`, `control-flow`, `bevy-bridge`, …). Other agents that read the
 agentskills.io format can consume the same `SKILL.md` directly.
 
