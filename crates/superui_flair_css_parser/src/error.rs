@@ -97,14 +97,15 @@ impl CssErrorLocation {
                 source_location,
                 len_offset,
             } => {
-                // SUPERUI FORK PATCH (design §1 graceful degradation): a parse
-                // error can carry a SourceLocation one line past EOF (e.g. a
-                // trailing block-less malformed rule). Upstream panicked here;
-                // instead fall back to an empty end-of-input span so the bad
-                // rule is skipped, not fatal.
+                // >>> SUPERUI-FORK-PATCH: css-eof-guard  (docs/fork-patches.md#css-eof-guard)
+                // A parse error can carry a SourceLocation one line past EOF
+                // (e.g. a trailing block-less malformed rule). Upstream panicked
+                // here; instead fall back to an empty end-of-input span so the
+                // bad rule is skipped, not fatal.
                 let Some(line) = contents.lines().nth(source_location.line as usize) else {
                     return contents.len()..contents.len();
                 };
+                // <<< SUPERUI-FORK-PATCH: css-eof-guard
 
                 // The column number within a line starts at 1 for first the character of the line.
                 // Column numbers are counted in UTF-16 code units.
