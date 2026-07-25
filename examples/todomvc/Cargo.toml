@@ -20,13 +20,13 @@ superui_css = { path = "../../crates/superui_css" }
 # its types for the mcp_debug click injector.
 superui_bridge = { path = "../../crates/superui_bridge" }
 # Full Bevy (windowing + rendering) — this is the runnable app, not a headless lib.
-bevy = { version = "0.17" }
+bevy = { workspace = true, default-features = true }
 serde = { version = "1", features = ["derive"] }
 
 # Native only: file watching drives hot reload (design §6). The `notify` crate
 # behind `file_watcher` does not build on wasm — this is why hot reload is native-only.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-bevy = { version = "0.17", features = ["file_watcher"] }
+bevy = { workspace = true, features = ["file_watcher"] }
 
 [dependencies.bevy_brp_extras]
 optional = true
@@ -41,4 +41,4 @@ superui_html = { path = "../../crates/superui_html" }
 # `webgl2` selects the broadly-compatible WebGL2 wgpu backend for the web build.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.3", features = ["wasm_js"] }
-bevy = { version = "0.17", features = ["webgl2"] }
+bevy = { workspace = true, features = ["webgl2"] }

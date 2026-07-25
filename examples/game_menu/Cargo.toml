@@ -16,7 +16,7 @@ mcp_debug = ["dep:bevy_brp_extras", "bevy/bevy_remote"]
 [dependencies]
 superui = { path = "../../crates/superui" }
 superui_css = { path = "../../crates/superui_css" }
-bevy = { version = "0.17" }
+bevy = { workspace = true, default-features = true }
 
 [dependencies.bevy_brp_extras]
 optional = true
@@ -30,4 +30,4 @@ supersolid = { path = "../../crates/supersolid" }
 # WebGL2 wgpu backend for the web build.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.3", features = ["wasm_js"] }
-bevy = { version = "0.17", features = ["webgl2"] }
+bevy = { workspace = true, features = ["webgl2"] }

@@ -41,31 +41,31 @@ name = "bevy_flair_core"
 path = "src/lib.rs"
 
 [dependencies.bevy_app]
-version = "0.17"
+workspace = true
 
 [dependencies.bevy_asset]
-version = "0.17"
+workspace = true
 
 [dependencies.bevy_color]
-version = "0.17"
+workspace = true
 
 [dependencies.bevy_ecs]
-version = "0.17"
+workspace = true
 
 [dependencies.bevy_image]
-version = "0.17"
+workspace = true
 
 [dependencies.bevy_math]
-version = "0.17"
+workspace = true
 
 [dependencies.bevy_reflect]
-version = "0.17"
+workspace = true
 
 [dependencies.bevy_text]
-version = "0.17"
+workspace = true
 
 [dependencies.bevy_ui]
-version = "0.17"
+workspace = true
 features = ["bevy_ui_picking_backend"]
 
 [dependencies.rustc-hash]
@@ -81,7 +81,7 @@ version = "2.0"
 version = "0.1"
 
 [dev-dependencies.bevy_math]
-version = "0.17"
+workspace = true
 
 [lints.clippy]
 dbg_macro = "warn"

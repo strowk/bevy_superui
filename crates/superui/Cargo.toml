@@ -13,7 +13,7 @@ superui_css = { path = "../superui_css" }
 superui_bridge = { path = "../superui_bridge" }
 superui_paths = { path = "../superui_paths" }
 
-bevy = { version = "0.17", default-features = false, features = [
+bevy = { workspace = true, default-features = false, features = [
     "std",
     "bevy_ui",
     "bevy_text",

@@ -9,7 +9,7 @@ publish = false
 mcp_debug = ["dep:bevy_brp_extras", "bevy/bevy_remote"]
 
 [dependencies]
-bevy = { version = "0.17" }
+bevy = { workspace = true, default-features = true }
 bevy_egui = "0.37"
 bevy_brp_extras = { version = "0.17.3", optional = true }
 superui = { path = "../superui" }

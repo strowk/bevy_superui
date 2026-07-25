@@ -19,7 +19,7 @@ superui = { path = "../../crates/superui" }
 superui_css = { path = "../../crates/superui_css" }
 # Pulled transitively via `superui`; named directly for the mcp_debug click injector.
 superui_bridge = { path = "../../crates/superui_bridge" }
-bevy = { version = "0.17" }
+bevy = { workspace = true, default-features = true }
 
 [dependencies.bevy_brp_extras]
 optional = true
@@ -39,4 +39,4 @@ supersolid = { path = "../../crates/supersolid" }
 # Boa (via superui) needs the JS getrandom backend on wasm.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.3", features = ["wasm_js"] }
-bevy = { version = "0.17", features = ["webgl2"] }
+bevy = { workspace = true, features = ["webgl2"] }

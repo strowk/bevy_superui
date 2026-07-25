@@ -8,7 +8,7 @@ license.workspace = true
 bevy_flair_core = { path = "../bevy_flair_core", version = "0.6.0" }
 bevy_flair_style = { path = "../bevy_flair_style", version = "0.6.0" }
 bevy_flair_css_parser = { path = "../bevy_flair_css_parser", version = "0.6.0" }
-bevy_app = "0.17"
+bevy_app = { workspace = true }
 
 # Bevy pulls getrandom 0.3, which needs the JS backend on wasm. Scope the direct
 # dep to the wasm target; pair with the repo-root `.cargo/config.toml` rustflag
@@ -21,7 +21,7 @@ getrandom = { version = "0.3", features = ["wasm_js"] }
 # minimum for AssetPlugin + UiPlugin + picking + input-focus. Adjust the feature
 # list if the compiler reports a missing plugin/type — see Task 6.
 [dev-dependencies]
-bevy = { version = "0.17", default-features = false, features = [
+bevy = { workspace = true, default-features = false, features = [
     "std",
     "bevy_ui",
     "bevy_text",

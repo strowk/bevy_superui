@@ -13,7 +13,7 @@ hmr = ["superui/hmr", "bevy/file_watcher"]
 [dependencies]
 superui = { path = "../../crates/superui" }
 superui_css = { path = "../../crates/superui_css" }
-bevy = { version = "0.17" }
+bevy = { workspace = true, default-features = true }
 
 # Host-only: pre-transpile app.tsx -> app.generated.js for wasm / no-HMR native.
 [build-dependencies]
@@ -22,4 +22,4 @@ supersolid = { path = "../../crates/supersolid" }
 # Boa (via superui) needs the JS getrandom backend on wasm.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.3", features = ["wasm_js"] }
-bevy = { version = "0.17", features = ["webgl2"] }
+bevy = { workspace = true, features = ["webgl2"] }

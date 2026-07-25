@@ -28,7 +28,7 @@ bench = []
 dhat-prof = ["dep:dhat"]
 
 [dependencies]
-bevy = { version = "0.17" }
+bevy = { workspace = true, default-features = true }
 superui = { path = "../../crates/superui" }
 superui_css = { path = "../../crates/superui_css" }
 superui_bridge = { path = "../../crates/superui_bridge" }
@@ -48,8 +48,8 @@ superui_html = { path = "../../crates/superui_html" }
 
 # file_watcher (hot-reload) is native-only; wasm build drops it.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-bevy = { version = "0.17", features = ["file_watcher"] }
+bevy = { workspace = true, features = ["file_watcher"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.3", features = ["wasm_js"] }
-bevy = { version = "0.17", features = ["webgl2"] }
+bevy = { workspace = true, features = ["webgl2"] }

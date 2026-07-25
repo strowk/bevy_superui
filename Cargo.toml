@@ -6,6 +6,7 @@ members = ["crates/*", "examples/*", "xtask", "tools/mdbook-gallery"]
 edition = "2021"
 version = "0.1.0"
 license = "MIT OR Apache-2.0"
+repository = "https://github.com/strowk/bevy_superui"
 
 [workspace.dependencies]
 slotmap = "1.0"
@@ -13,3 +14,20 @@ html5ever = "0.39"
 boa_engine = "0.21"
 boa_gc = "0.21"
 oxc = { version = "0.140", features = ["semantic", "transformer", "codegen", "ast_visit"] }
+bevy = { version = "0.17", default-features = false }
+bevy_app = "0.17"
+bevy_asset = "0.17"
+bevy_camera = "0.17"
+bevy_color = "0.17"
+bevy_ecs = "0.17"
+bevy_image = "0.17"
+bevy_input_focus = "0.17"
+bevy_math = "0.17"
+bevy_picking = "0.17"
+bevy_reflect = "0.17"
+bevy_scene = "0.17"
+bevy_text = "0.17"
+bevy_time = "0.17"
+bevy_ui = "0.17"
+bevy_utils = "0.17"
+bevy_window = "0.17"
