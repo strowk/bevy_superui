@@ -33,7 +33,7 @@ pub mod prelude {
     pub use crate::{html_type_name, intern_tag};
     pub use superui_flair_css_parser::InlineStyle;
     pub use superui_flair_style::components::{
-        AttributeList, ClassList, NodeStyleData, NodeStyleSheet, TypeName,
+        AttributeList, ClassList, StyleData, Styled, TypeName,
     };
     pub use superui_flair_style::{NodePseudoState, StyleSheet};
 }
@@ -51,7 +51,8 @@ mod tests {
         // Name each type/plugin so the test fails to compile if a path is wrong.
         fn _assert_nameable() {
             let _: Option<StyleSheet> = None;
-            let _: Option<NodeStyleSheet> = None;
+            let _: Option<Styled> = None;
+            let _: Option<StyleData> = None;
             let _: Option<ClassList> = None;
             let _: Option<AttributeList> = None;
             let _: Option<TypeName> = None;

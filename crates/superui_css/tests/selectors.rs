@@ -61,7 +61,7 @@ fn matches_html_selectors_end_to_end() {
             Node::default(),
             html_type_name("ul"),
             ClassList::new("todo-list"),
-            NodeStyleSheet::new(handle.clone()),
+            Styled::new(handle.clone()),
         ))
         .id();
 
@@ -125,7 +125,7 @@ fn malformed_trailing_rule_degrades_without_panic() {
         .spawn((
             Node::default(),
             html_type_name("ul"),
-            NodeStyleSheet::new(handle.clone()),
+            Styled::new(handle.clone()),
         ))
         .id();
 

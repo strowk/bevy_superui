@@ -61,7 +61,7 @@ mod tests {
         let tn = html_type_name("Input"); // mixed case in → lowercased
         assert_eq!(tn.0, "input");
         // Confirm the interner and TypeName wiring only (no ECS world needed).
-        let _ = superui_flair_style::components::NodeStyleData::default();
+        let _ = superui_flair_style::components::StyleData::default();
         assert!(html_type_name("input").0 == "input");
     }
 }
