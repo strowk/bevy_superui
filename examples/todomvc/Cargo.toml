@@ -30,7 +30,7 @@ bevy = { workspace = true, features = ["file_watcher"] }
 
 [dependencies.bevy_brp_extras]
 optional = true
-version = "0.17.3"
+version = "0.19"
 
 [dev-dependencies]
 # Headless integration tests reuse the browser stack without a window.
