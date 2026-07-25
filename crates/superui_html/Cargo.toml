@@ -9,5 +9,5 @@ keywords = ["bevy", "ui", "html", "parser", "gamedev"]
 categories = ["game-development"]
 
 [dependencies]
-superui_dom = { path = "../superui_dom" }
+superui_dom = { path = "../superui_dom", version = "0.1.0" }
 html5ever.workspace = true
