@@ -12,7 +12,7 @@
 
 <p align="center">
   <a href="https://strowk.github.io/bevy_superui/"><img alt="Docs & live demos" src="https://img.shields.io/badge/docs%20%26%20live%20demos-strowk.github.io-34e6d6"></a>
-  <a href="https://bevyengine.org/"><img alt="Bevy 0.17" src="https://img.shields.io/badge/bevy-0.17-232326"></a>
+  <a href="https://bevyengine.org/"><img alt="Bevy 0.18" src="https://img.shields.io/badge/bevy-0.18-232326"></a>
   <a href="#license"><img alt="License: MIT or Apache-2.0" src="https://img.shields.io/badge/license-MIT%2FApache--2.0-blue"></a>
 </p>
 
