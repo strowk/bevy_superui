@@ -55,13 +55,13 @@ fn hot_reload_js_re_executes_and_reconciles() {
     };
     {
         let mut assets = app.world_mut().resource_mut::<Assets<superui::JsSource>>();
-        if let Some(js) = assets.get_mut(&js_handle) {
+        if let Some(mut js) = assets.get_mut(&js_handle) {
             js.0 = "var s=document.createElement('span'); s.textContent='v2'; \
                     document.getElementById('host').appendChild(s); \
                     var s2=document.createElement('span'); \
                     document.getElementById('host').appendChild(s2);"
                 .to_string();
-        }
+        };
     }
     // Explicitly fire Modified in case get_mut doesn't emit it in this Bevy version.
     app.world_mut().write_message(bevy::asset::AssetEvent::Modified {
@@ -104,9 +104,9 @@ fn html_hot_reload_despawns_old_entities_no_leak() {
         let mut assets = app
             .world_mut()
             .resource_mut::<Assets<superui::HtmlSource>>();
-        if let Some(h) = assets.get_mut(&html_handle) {
+        if let Some(mut h) = assets.get_mut(&html_handle) {
             h.0 = entry_doc("<ul id='h'></ul>", "leak.css", "leak.js");
-        }
+        };
     }
     // Also mutate JS so re-run produces only 1 li.
     let js_handle = {
@@ -115,11 +115,11 @@ fn html_hot_reload_despawns_old_entities_no_leak() {
     };
     {
         let mut assets = app.world_mut().resource_mut::<Assets<superui::JsSource>>();
-        if let Some(j) = assets.get_mut(&js_handle) {
+        if let Some(mut j) = assets.get_mut(&js_handle) {
             j.0 = "var h=document.getElementById('h'); \
                    var li=document.createElement('li');h.appendChild(li);"
                 .to_string();
-        }
+        };
     }
     // Explicitly fire Modified for the HTML handle to trigger hot reload.
     app.world_mut().write_message(bevy::asset::AssetEvent::Modified {

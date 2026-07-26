@@ -718,7 +718,7 @@ impl CssPropertyRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use superui_flair_core::ComputedValue;
+    use crate::ComputedValue;
 
     #[derive(Component, ComponentProperties, Reflect)]
     pub struct TestComponent {

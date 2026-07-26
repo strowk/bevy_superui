@@ -20,6 +20,7 @@ use tracing::debug;
 ///
 /// # Examples
 /// ```
+/// # extern crate superui_flair_core as bevy_flair_core; // fork: derive macro emits ::bevy_flair_core paths
 /// # use superui_flair_core::ExtractComponentProperties;
 ///
 /// // Defines a single property `.value` with type `f32`
@@ -345,6 +346,7 @@ impl fmt::Debug for ComponentPropertiesRegistration {
 ///
 /// # Examples
 /// ```
+/// # extern crate superui_flair_core as bevy_flair_core; // fork: derive macro emits ::bevy_flair_core paths
 /// # use bevy_ecs::prelude::*;
 /// # use superui_flair_core::*;
 /// # use bevy_ui::prelude::*;

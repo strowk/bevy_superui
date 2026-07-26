@@ -250,16 +250,19 @@ fn click_stops_propagation_and_focuses_the_deepest_dom_node() {
         target: bevy::camera::NormalizedRenderTarget::Window(target),
         position: Vec2::ZERO,
     };
-    app.world_mut().trigger(Pointer {
-        pointer_id: PointerId::Mouse,
-        pointer_location: location,
-        entity: text_child,
-        event: Click {
+    // 0.19: `Pointer` fields (`propagate`) are private — use `Pointer::new`
+    // (id, location, event, entity); `Click` gained a `count` field.
+    app.world_mut().trigger(Pointer::new(
+        PointerId::Mouse,
+        location,
+        Click {
             button: PointerButton::Primary,
             hit: HitData::new(Entity::PLACEHOLDER, 0.0, None, None),
             duration: std::time::Duration::ZERO,
+            count: 1,
         },
-    });
+        text_child,
+    ));
 
     // Handled exactly once (propagation stopped): a single queued click event,
     // targeting the input — not duplicated once per ancestor up to <body>.
