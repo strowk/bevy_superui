@@ -2,28 +2,6 @@
 
 SuperUI is quite a new project, so a certain amount of problems would be documented here until they are fixed.
 
-## `const` at the top level breaks HMR
-
-If you define something like 
-
-```ts
-const CONTROL_ROWS = [
-  { id: "move_up", name: "Move Up", field: "up" },
-  { id: "move_down", name: "Move Down", field: "down" },
-  { id: "move_left", name: "Move Left", field: "left" },
-  { id: "move_right", name: "Move Right", field: "right" },
-];
-```
-
-at the top level of a `.tsx` file, changing this file with HMR on would spawn such error:
-```
-WARN superui_bridge::runtime: superui: JS error: SyntaxError: invalid scope analysis: duplicate lexical declaration at line 1, col 1
-```
-
-and not actually reload anything.
-
-Until this is fixed, you would have to duplicate constants across your file or move them f.e into context.
-
 ## No scrolling
 
 In web we've come to expect that we typically can get to content by scrolling overflowing elements.

@@ -106,8 +106,21 @@ impl UiRuntime {
 
     /// Evaluate an author script against the current DOM. Errors are logged and
     /// swallowed (graceful degradation, design §1). Marks the runtime dirty.
+    ///
+    /// The script is wrapped in an IIFE so its top-level `const`/`let`/`class`
+    /// bindings are function-scoped rather than landing in the global lexical
+    /// environment. That environment persists across `eval` calls on the same
+    /// Context, so an unwrapped re-exec — which is exactly what hot reload does —
+    /// would throw "duplicate lexical declaration" and silently abort. Wrapping
+    /// makes re-execution idempotent; author code shares state across reloads via
+    /// `globalThis` / the runtime, not via top-level lexical names, so nothing is
+    /// lost. Runtime globals (`render`, `$ss`, `createSignal`, …) are installed on
+    /// the global object and stay reachable from inside the IIFE.
     pub fn run_script(&mut self, src: &str) {
-        if let Err(e) = self.engine.eval(src) {
+        // Leading/trailing newlines guard against a `//` line comment or a missing
+        // final semicolon in `src` swallowing or fusing with the wrapper syntax.
+        let wrapped = format!("(function () {{\n{src}\n}})();");
+        if let Err(e) = self.engine.eval(&wrapped) {
             warn!("superui: JS error: {e}");
         }
         self.dirty = true;
@@ -241,5 +254,35 @@ mod tests {
             .as_boolean()
             .unwrap();
         assert!(!on, "hmr=false must leave globalThis.__ssHmr unset");
+    }
+
+    #[test]
+    fn top_level_const_can_be_reexecuted_for_hot_reload() {
+        // Regression: a top-level `const`/`let` lands in the global lexical
+        // environment, which persists across `eval` calls in the same Context.
+        // Re-running the same author script (as hot reload does) must NOT throw
+        // "duplicate lexical declaration" and silently abort the re-exec.
+        let dom = Rc::new(RefCell::new(superui_html::parse_document("<div id='a'></div>")));
+        let mut rt = UiRuntime::new(dom, Entity::PLACEHOLDER, Handle::default(), false);
+        let script = r#"
+            const CONTROL_ROWS = [
+                { id: "move_up", field: "up" },
+                { id: "move_down", field: "down" },
+            ];
+            globalThis.runs = (globalThis.runs || 0) + 1;
+            globalThis.rowCount = CONTROL_ROWS.length;
+        "#;
+
+        rt.run_script(script);
+        rt.run_script(script); // simulate a hot reload re-exec
+
+        let runs = rt
+            .engine
+            .context_mut()
+            .eval(boa_engine::Source::from_bytes("globalThis.runs"))
+            .unwrap()
+            .as_number()
+            .unwrap();
+        assert_eq!(runs, 2.0, "re-exec must run fully, not abort on a duplicate const");
     }
 }
