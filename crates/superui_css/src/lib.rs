@@ -1,5 +1,5 @@
 ﻿//! `superui_css` — the bevy_superui CSS layer: an in-tree fork of `bevy_flair`
-//! 0.7 (Bevy 0.18) re-exported behind an HTML-shaped surface.
+//! 0.8 (Bevy 0.19) re-exported behind an HTML-shaped surface.
 //!
 //! The fork already matches real HTML element/attribute/class/id and
 //! `:hover`/`:focus`/`:checked` selectors; this crate bundles it into one

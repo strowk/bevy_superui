@@ -129,7 +129,7 @@ with the matching build dependency:
 
 ```toml
 [build-dependencies]
-supersolid = "0.2"
+supersolid = "0.3"
 ```
 
 This emits `assets/ui/counter/.superui/build/app.js`, which a plain `cargo run`
@@ -149,7 +149,7 @@ engine pulls in randomness) and a WebGL2 renderer:
 ```toml
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.3", features = ["wasm_js"] }
-bevy = { version = "0.18", features = ["webgl2"] }
+bevy = { version = "0.19", features = ["webgl2"] }
 ```
 
 To bind Bevy's window to a canvas on the host page, set the canvas selector on the

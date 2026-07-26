@@ -21,18 +21,19 @@ dependency is already in place from the prerequisite step):
 
 ```toml
 [dependencies]
-superui = "0.2"
-superui_css = "0.2"
+superui = "0.3"
+superui_css = "0.3"
 
 # Pre-transpiles your .tsx to JS at build time (needed for release / web builds).
 [build-dependencies]
-supersolid = "0.2"
+supersolid = "0.3"
 ```
 
 Pick the superui version that matches your Bevy version:
 
 | superui | bevy |
 |---|---|
+| `0.3` | `0.19` |
 | `0.2` | `0.18` |
 | `0.1` | `0.17` |
 
