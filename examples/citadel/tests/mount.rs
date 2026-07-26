@@ -108,7 +108,7 @@ fn mounts_dense_tree_with_many_nodes() {
     let has_rt = app.world().contains_non_send::<UiRuntime>();
     let dom_nodes = app
         .world()
-        .get_non_send_resource::<UiRuntime>()
+        .get_non_send::<UiRuntime>()
         .map(|rt| {
             let d = rt.dom.borrow();
             d.query_selector_all(d.document(), "*").len()

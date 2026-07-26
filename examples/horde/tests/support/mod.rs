@@ -100,31 +100,31 @@ pub fn edit_snapshot(app: &mut App, f: impl FnOnce(&mut UiSnapshot)) {
 }
 
 pub fn node_by_selector(app: &App, sel: &str) -> NodeId {
-    let rt = app.world().non_send_resource::<UiRuntime>();
+    let rt = app.world().non_send::<UiRuntime>();
     let d = rt.dom.borrow();
     d.query_selector(d.document(), sel).unwrap_or_else(|| panic!("selector matched nothing: {sel}"))
 }
 pub fn maybe_node(app: &App, sel: &str) -> Option<NodeId> {
-    let rt = app.world().non_send_resource::<UiRuntime>();
+    let rt = app.world().non_send::<UiRuntime>();
     let d = rt.dom.borrow();
     d.query_selector(d.document(), sel)
 }
 pub fn nodes_by_selector(app: &App, sel: &str) -> Vec<NodeId> {
-    let rt = app.world().non_send_resource::<UiRuntime>();
+    let rt = app.world().non_send::<UiRuntime>();
     let d = rt.dom.borrow();
     d.query_selector_all(d.document(), sel)
 }
 pub fn text_content(app: &App, node: NodeId) -> String {
-    app.world().non_send_resource::<UiRuntime>().dom.borrow().text_content(node)
+    app.world().non_send::<UiRuntime>().dom.borrow().text_content(node)
 }
 pub fn attr(app: &App, node: NodeId, name: &str) -> String {
-    app.world().non_send_resource::<UiRuntime>().dom.borrow()
+    app.world().non_send::<UiRuntime>().dom.borrow()
         .get_attribute(node, name)
         .map(|s| s.to_string())
         .unwrap_or_default()
 }
 pub fn classes(app: &App, node: NodeId) -> Vec<String> {
-    app.world().non_send_resource::<UiRuntime>().dom.borrow().classes(node)
+    app.world().non_send::<UiRuntime>().dom.borrow().classes(node)
 }
 pub fn click(app: &mut App, node: NodeId) {
     app.world_mut().resource_mut::<PendingDomEvents>().0.push(PendingDomEvent::new(node, "click"));

@@ -25,7 +25,7 @@ pub fn evaluate(
     locator: &Option<LocatorSpec>,
     expected: &serde_json::Value,
 ) -> Result<(), String> {
-    let rt = world.non_send_resource::<UiRuntime>();
+    let rt = world.non_send::<UiRuntime>();
     let dom = rt.dom.borrow();
     let nodes = match locator {
         Some(spec) => resolve_locator(&dom, spec),

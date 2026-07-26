@@ -23,7 +23,7 @@ fn supersolid_click_updates_reconciled_text() {
     // Render a counter with Supersolid. The button's click handler bumps a signal;
     // the label is a reactive text hole.
     app.world_mut()
-        .non_send_resource_mut::<UiRuntime>()
+        .non_send_mut::<UiRuntime>()
         .run_script(
             r#"
             function Counter() {
@@ -50,7 +50,7 @@ fn supersolid_click_updates_reconciled_text() {
 
     // Dispatch a click on the button through the engine (as the input system does).
     {
-        let mut rt = app.world_mut().non_send_resource_mut::<UiRuntime>();
+        let mut rt = app.world_mut().non_send_mut::<UiRuntime>();
         let btn = {
             let d = dom.borrow();
             d.query_selector(d.document(), "button").unwrap()
@@ -90,20 +90,20 @@ fn supersolid_hmr_preserves_counter_across_reexec() {
                document.getElementById("root"));
     "#;
 
-    app.world_mut().non_send_resource_mut::<UiRuntime>().run_script(script);
+    app.world_mut().non_send_mut::<UiRuntime>().run_script(script);
     app.update();
     assert_eq!(current_label_text(&mut app, &dom), "0", "initial reconcile");
 
     // Bump the signal, reconcile.
     app.world_mut()
-        .non_send_resource_mut::<UiRuntime>()
+        .non_send_mut::<UiRuntime>()
         .run_script("globalThis.__c[1](5);");
     app.update();
     assert_eq!(current_label_text(&mut app, &dom), "5", "runtime update reconciles");
 
     // Simulate a hot reload: re-exec the SAME module on the SAME runtime, exactly
     // as apply_hot_reload does for a JsSource Modified event.
-    app.world_mut().non_send_resource_mut::<UiRuntime>().run_script(script);
+    app.world_mut().non_send_mut::<UiRuntime>().run_script(script);
     app.update();
     assert_eq!(
         current_label_text(&mut app, &dom),
@@ -120,7 +120,7 @@ fn current_label_text(app: &mut App, dom: &Rc<RefCell<superui_dom::Dom>>) -> Str
     };
     let span_entity = app
         .world()
-        .non_send_resource::<UiRuntime>()
+        .non_send::<UiRuntime>()
         .entity_for(span)
         .unwrap();
     let text_entity = app.world().get::<Children>(span_entity).unwrap()[0];

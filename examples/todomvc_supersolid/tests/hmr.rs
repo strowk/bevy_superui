@@ -59,7 +59,7 @@ fn mount_hmr(app: &mut App) -> Rc<RefCell<Dom>> {
     let root = app.world_mut().spawn(Node::default()).id();
     let stylesheet: Handle<StyleSheet> = Handle::default();
     let rt = UiRuntime::new(dom.clone(), root, stylesheet, /* hmr */ true);
-    app.world_mut().insert_non_send_resource(rt);
+    app.world_mut().insert_non_send(rt);
     app.add_systems(
         Update,
         (superui_bridge::drain_dom_events_system, reconcile_system).chain(),
@@ -69,7 +69,7 @@ fn mount_hmr(app: &mut App) -> Rc<RefCell<Dom>> {
 
 fn run(app: &mut App, js: &str) {
     app.world_mut()
-        .non_send_resource_mut::<UiRuntime>()
+        .non_send_mut::<UiRuntime>()
         .run_script(js);
 }
 
@@ -99,14 +99,14 @@ fn hot_reload_preserves_todos_filter_and_draft() {
     // Add two todos by driving the real controlled input + Add button.
     let input = node(&dom, "#new-todo");
     dom.borrow_mut().set_value(input, "alpha");
-    app.world_mut().non_send_resource_mut::<UiRuntime>().dirty = true;
+    app.world_mut().non_send_mut::<UiRuntime>().dirty = true;
     push_event(&mut app, input, "input");
     app.update();
     click(&mut app, &dom, "#add");
 
     let input = node(&dom, "#new-todo");
     dom.borrow_mut().set_value(input, "beta");
-    app.world_mut().non_send_resource_mut::<UiRuntime>().dirty = true;
+    app.world_mut().non_send_mut::<UiRuntime>().dirty = true;
     push_event(&mut app, input, "input");
     app.update();
     click(&mut app, &dom, "#add");
@@ -121,7 +121,7 @@ fn hot_reload_preserves_todos_filter_and_draft() {
 
     let input = node(&dom, "#new-todo");
     dom.borrow_mut().set_value(input, "half-typed");
-    app.world_mut().non_send_resource_mut::<UiRuntime>().dirty = true;
+    app.world_mut().non_send_mut::<UiRuntime>().dirty = true;
     push_event(&mut app, input, "input");
     app.update();
 

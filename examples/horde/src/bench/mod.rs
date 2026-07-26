@@ -450,7 +450,7 @@ pub fn count_ui_nodes(backend: Backend, sim: SimConfig, settle: usize) -> UiNode
     }
     let dom_nodes = app
         .world()
-        .get_non_send_resource::<superui_bridge::UiRuntime>()
+        .get_non_send::<superui_bridge::UiRuntime>()
         .map(|rt| {
             let d = rt.dom.borrow();
             d.query_selector_all(d.document(), "*").len()

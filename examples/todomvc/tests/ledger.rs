@@ -12,7 +12,7 @@ fn sampled_supported_dom_apis_have_live_bindings() {
     // Exercise a representative slice of the ✅ js-dom.md surface. If any of
     // these were secretly unimplemented, the eval would throw and `run_script`
     // would warn+swallow — so we assert an observable side effect instead.
-    let mut rt = app.world_mut().non_send_resource_mut::<UiRuntime>();
+    let mut rt = app.world_mut().non_send_mut::<UiRuntime>();
     rt.run_script(
         "var d = document.createElement('div'); \
          d.id = 'ledger-probe'; d.className = 'x'; \
@@ -27,7 +27,7 @@ fn sampled_supported_dom_apis_have_live_bindings() {
     // The probe node materialised with its attributes -> the sampled APIs work.
     let probe = node_by_selector(&app, "#ledger-probe");
     let (has_class, attr, text) = {
-        let rt = app.world().non_send_resource::<UiRuntime>();
+        let rt = app.world().non_send::<UiRuntime>();
         let d = rt.dom.borrow();
         (
             d.classes(probe).iter().any(|c| c == "y"),

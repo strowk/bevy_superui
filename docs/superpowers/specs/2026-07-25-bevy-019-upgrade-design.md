@@ -229,10 +229,25 @@ crate would fail). The fix must reach crates.io.
   against icu 2.1, backport boa `main`'s icu-compat changes (discovered at build).
 - **Fork versions** follow our track (0.3.0), same rule as the flair forks.
 - **Publish impact:** two NEW crate names (`superui_boa_engine`,
-  `superui_boa_parser`, both free on crates.io) → 17 publishable crates total (was
-  15); these two are first-publishes, the rest remain versions-only.
+  `superui_boa_parser`, both free on crates.io); plus a third from the flair-macros
+  fork below → **18 publishable crates total** (was 15); these three are
+  first-publishes, the rest remain versions-only.
 - **Upstream exit:** when boa publishes an icu-2.1-compatible release, drop the
   forks and depend on upstream boa again.
+
+## Second dependency blocker discovered during the port: flair proc-macro (RESOLVED via macros fork)
+
+flair 0.8.0 split out a proc-macro crate `bevy_flair_core_macros` whose derive
+macros emit `bevy_flair_core::` paths (resolved at expansion via `proc-macro-crate`).
+Our fork renamed the core lib to `superui_flair_core`, so those paths fail to
+resolve — every derive in `superui_flair_core` fails to compile. A workspace-local
+`[patch.crates-io]` fixes local builds but (identically to the boa case) is stripped
+on publish. **Fix:** fork the macro crate → `crates/superui_flair_core_macros`
+(package rename, lib name kept `bevy_flair_core_macros`), teaching it to emit the
+`bevy_flair_core` self-alias (which `superui_flair_core` already declares via
+`extern crate self as bevy_flair_core`) when it detects it is being vendored as
+`superui_flair_core`. Registered as fork patch `flair-macros-vendored-name`; only
+`superui_flair_core` depends on it. This is the third first-publish crate.
 
 ## Out of scope
 

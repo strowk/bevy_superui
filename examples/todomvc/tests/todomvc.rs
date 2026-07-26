@@ -17,7 +17,7 @@ fn li_labels(app: &bevy::prelude::App) -> Vec<String> {
         .into_iter()
         .map(|li| {
             let label = {
-                let rt = app.world().non_send_resource::<UiRuntime>();
+                let rt = app.world().non_send::<UiRuntime>();
                 let d = rt.dom.borrow();
                 d.query_selector(li, ".label").unwrap()
             };
@@ -68,7 +68,7 @@ fn toggle_marks_completed_and_updates_count() {
     // The first li carries the `completed` class.
     let first_li = nodes_by_selector(&app, "li")[0];
     let classes = {
-        let rt = app.world().non_send_resource::<UiRuntime>();
+        let rt = app.world().non_send::<UiRuntime>();
         let c = rt.dom.borrow().classes(first_li);
         c
     };

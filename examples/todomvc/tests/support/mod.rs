@@ -77,32 +77,32 @@ pub fn tick(app: &mut App, n: usize) {
 
 /// Resolve a selector against the live DOM.
 pub fn node_by_selector(app: &App, sel: &str) -> NodeId {
-    let rt = app.world().non_send_resource::<UiRuntime>();
+    let rt = app.world().non_send::<UiRuntime>();
     let d = rt.dom.borrow();
     d.query_selector(d.document(), sel)
         .unwrap_or_else(|| panic!("selector matched nothing: {sel}"))
 }
 
 pub fn nodes_by_selector(app: &App, sel: &str) -> Vec<NodeId> {
-    let rt = app.world().non_send_resource::<UiRuntime>();
+    let rt = app.world().non_send::<UiRuntime>();
     let d = rt.dom.borrow();
     d.query_selector_all(d.document(), sel)
 }
 
 pub fn text_content(app: &App, node: NodeId) -> String {
-    let rt = app.world().non_send_resource::<UiRuntime>();
+    let rt = app.world().non_send::<UiRuntime>();
     let t = rt.dom.borrow().text_content(node);
     t
 }
 
 pub fn value_of(app: &App, node: NodeId) -> String {
-    let rt = app.world().non_send_resource::<UiRuntime>();
+    let rt = app.world().non_send::<UiRuntime>();
     let v = rt.dom.borrow().value(node);
     v
 }
 
 pub fn checked_of(app: &App, node: NodeId) -> bool {
-    let rt = app.world().non_send_resource::<UiRuntime>();
+    let rt = app.world().non_send::<UiRuntime>();
     let c = rt.dom.borrow().checked(node);
     c
 }
@@ -119,7 +119,7 @@ pub fn click(app: &mut App, node: NodeId) {
 /// Set an input's DOM value (stands in for typing — the keyboard seam is
 /// unit-tested in `superui_bridge`). Marks the runtime dirty so it reconciles.
 pub fn set_value(app: &mut App, node: NodeId, v: &str) {
-    let mut rt = app.world_mut().non_send_resource_mut::<UiRuntime>();
+    let mut rt = app.world_mut().non_send_mut::<UiRuntime>();
     rt.dom.borrow_mut().set_value(node, v);
     rt.dirty = true;
 }
@@ -128,7 +128,7 @@ pub fn set_value(app: &mut App, node: NodeId, v: &str) {
 /// picking observer performs (flip DOM `checked`), then dispatch `change`.
 pub fn click_checkbox(app: &mut App, node: NodeId) {
     {
-        let rt = app.world_mut().non_send_resource_mut::<UiRuntime>();
+        let rt = app.world_mut().non_send_mut::<UiRuntime>();
         let now = !rt.dom.borrow().checked(node);
         rt.dom.borrow_mut().set_checked(node, now);
     }

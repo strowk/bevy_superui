@@ -219,7 +219,7 @@ fn tick_timers_system(time: Res<Time>, rt: Option<NonSendMut<UiRuntime>>) {
 /// kicks off loads for the declared subresources. Phase 2 waits for subresources,
 /// then builds the runtime, runs the author JS, and inserts the `UiRuntime`.
 ///
-/// Exclusive system (`&mut World`) so we can `insert_non_send_resource` on the
+/// Exclusive system (`&mut World`) so we can `insert_non_send` on the
 /// runtime without requiring `Send` (Boa's `Rc<_>` types are `!Send`).
 pub fn mount_when_ready(world: &mut World) {
     // Guard: one mounted UI at a time.

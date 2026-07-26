@@ -13,7 +13,7 @@ fn fixture() -> HostProject {
 fn mounts_and_renders_fixture_dom() {
     let mut app = build_headless_app(&fixture());
     let _root = mount(&mut app);
-    let rt = app.world().non_send_resource::<superui_bridge::UiRuntime>();
+    let rt = app.world().non_send::<superui_bridge::UiRuntime>();
     let dom = rt.dom.borrow();
     let node = dom.query_selector(dom.document(), "#hello").expect("#hello exists");
     assert_eq!(dom.text_content(node), "Hello");

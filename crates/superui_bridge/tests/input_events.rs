@@ -41,7 +41,7 @@ fn click_runs_js_listener_and_reconciles() {
 
     // Author JS: clicking the button writes into #out.
     app.world_mut()
-        .non_send_resource_mut::<UiRuntime>()
+        .non_send_mut::<UiRuntime>()
         .run_script(
             "document.getElementById('b').addEventListener('click', function() { \
                document.getElementById('out').textContent = 'clicked'; \
@@ -84,7 +84,7 @@ fn typing_into_focused_input_updates_value_and_fires_input() {
     app.add_systems(Update, superui_bridge::keyboard_events_system);
 
     // JS: count input events.
-    app.world_mut().non_send_resource_mut::<UiRuntime>().run_script(
+    app.world_mut().non_send_mut::<UiRuntime>().run_script(
         "globalThis.inputs = 0; \
          document.getElementById('t').addEventListener('input', function(){ globalThis.inputs++; });",
     );
@@ -92,7 +92,7 @@ fn typing_into_focused_input_updates_value_and_fires_input() {
 
     // Focus the input, then type "hi".
     let node = dom.borrow().get_element_by_id("t").unwrap();
-    app.world_mut().non_send_resource_mut::<UiRuntime>().set_focus(Some(node));
+    app.world_mut().non_send_mut::<UiRuntime>().set_focus(Some(node));
 
     for ch in ["h", "i"] {
         app.world_mut().write_message(KeyboardInput {
@@ -136,7 +136,7 @@ fn typing_into_focused_input_updates_value_and_fires_input() {
 
     // Mirror globalThis.inputs into the DOM so Rust can read it back
     // (same pattern as checkbox_click_toggles_checked_and_fires_change).
-    app.world_mut().non_send_resource_mut::<UiRuntime>().run_script(
+    app.world_mut().non_send_mut::<UiRuntime>().run_script(
         "document.getElementById('t').setAttribute('data-inputs', String(globalThis.inputs));",
     );
     let data_inputs = dom.borrow().get_attribute(node, "data-inputs").unwrap_or("").to_string();
@@ -161,7 +161,7 @@ fn checkbox_click_toggles_checked_and_fires_change() {
     mount_with_input(&mut app, dom.clone());
 
     // JS records change events into a global counter.
-    app.world_mut().non_send_resource_mut::<UiRuntime>().run_script(
+    app.world_mut().non_send_mut::<UiRuntime>().run_script(
         "globalThis.changes = 0; \
          document.getElementById('c').addEventListener('change', function(){ globalThis.changes++; });",
     );
@@ -174,7 +174,7 @@ fn checkbox_click_toggles_checked_and_fires_change() {
 
     // Call the observer's core logic directly with world access.
     {
-        let rt = app.world().non_send_resource::<UiRuntime>();
+        let rt = app.world().non_send::<UiRuntime>();
         let mut pending = PendingDomEvents::default();
         click_effect(rt, node, &mut pending);
         // Transfer events into the world resource.
@@ -190,7 +190,7 @@ fn checkbox_click_toggles_checked_and_fires_change() {
 
     // Verify change listener ran: JS wrote the count onto the checkbox's data-changes attr.
     // We use run_script to mirror globalThis.changes into the DOM so Rust can read it back.
-    app.world_mut().non_send_resource_mut::<UiRuntime>().run_script(
+    app.world_mut().non_send_mut::<UiRuntime>().run_script(
         "document.getElementById('c').setAttribute('data-changes', String(globalThis.changes));",
     );
     let data_changes = dom.borrow().get_attribute(node, "data-changes").unwrap_or("").to_string();

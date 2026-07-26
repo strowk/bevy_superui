@@ -36,7 +36,7 @@ const SCREENSHOT_CAPTURE_TIMEOUT_FRAMES: usize = 64;
 const SCREENSHOT_SETTLE_FRAMES: usize = 30;
 
 /// Non-send holder for the in-progress run (or `None` when idle). Stored via
-/// `insert_non_send_resource` because `RunState` holds Boa `JsValue`s which
+/// `insert_non_send` because `RunState` holds Boa `JsValue`s which
 /// are `!Send + !Sync`.
 #[derive(Default)]
 pub struct ActiveRun(pub Option<RunState>);
@@ -316,7 +316,7 @@ fn step_running(world: &mut World, run: &mut RunState) {
         // 2. (The frame's reconcile already ran before this system.)
 
         // 3. Resolve settled in-flight commands.
-        let settled = !world.non_send_resource::<UiRuntime>().dirty;
+        let settled = !world.non_send::<UiRuntime>().dirty;
         if settled {
             let ready: Vec<(u64, String)> = {
                 work.inflight.iter_mut().for_each(|e| e.1 = e.1.saturating_sub(1));
@@ -358,7 +358,7 @@ fn step_running(world: &mut World, run: &mut RunState) {
                 // stabilize before we snapshot. Only count down while the DOM is
                 // quiescent (`!dirty`), so a still-reconciling tree doesn't get
                 // captured half-rendered (which yields a partial/blurry frame).
-                let dirty = world.non_send_resource::<UiRuntime>().dirty;
+                let dirty = world.non_send::<UiRuntime>().dirty;
                 if cap.settle > 0 {
                     if !dirty {
                         cap.settle -= 1;
@@ -546,13 +546,13 @@ fn with_ctx<R>(world: &mut World, f: impl FnOnce(&mut boa_engine::Context) -> R)
 }
 
 fn resolve_nodes(world: &World, spec: &LocatorSpec) -> Vec<NodeId> {
-    let rt = world.non_send_resource::<UiRuntime>();
+    let rt = world.non_send::<UiRuntime>();
     let dom = rt.dom.borrow();
     resolve_locator(&dom, spec)
 }
 
 fn snapshot_body(world: &World) -> String {
-    let rt = world.non_send_resource::<UiRuntime>();
+    let rt = world.non_send::<UiRuntime>();
     crate::trace::serialize_body(&rt.dom.borrow())
 }
 
@@ -592,7 +592,7 @@ fn dispatch(world: &mut World, spec: &LocatorSpec, event: &str) {
 fn fill(world: &mut World, spec: &LocatorSpec, text: &str) {
     if let Some(&node) = resolve_nodes(world, spec).first() {
         {
-            let rt = world.non_send_resource::<UiRuntime>();
+            let rt = world.non_send::<UiRuntime>();
             rt.dom.borrow_mut().set_value(node, text);
         }
         world.resource_mut::<PendingDomEvents>().0.push(PendingDomEvent::new(node, "input"));

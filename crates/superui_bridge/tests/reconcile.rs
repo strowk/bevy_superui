@@ -141,7 +141,7 @@ fn syncs_identity_and_updates_in_place() {
     // Mutate the DOM (as JS would) and re-reconcile: SAME entity, updated state.
     dom.borrow_mut().set_checked(input_node, true);
     dom.borrow_mut().class_add(input_node, "done");
-    app.world_mut().non_send_resource_mut::<superui_bridge::UiRuntime>().dirty = true;
+    app.world_mut().non_send_mut::<superui_bridge::UiRuntime>().dirty = true;
     app.update();
 
     let input_ent2 = {
@@ -195,7 +195,7 @@ fn input_renders_placeholder_then_value_as_text() {
     // Type into the DOM value (as the keyboard seam would) and re-reconcile.
     dom.borrow_mut().set_value(input_node, "Buy milk");
     app.world_mut()
-        .non_send_resource_mut::<UiRuntime>()
+        .non_send_mut::<UiRuntime>()
         .dirty = true;
     app.update();
     assert_eq!(text_of_input(&mut app, input_ent), "Buy milk");
@@ -236,13 +236,13 @@ fn insert_before_reorders_children_on_reconcile() {
     dom.borrow_mut()
         .insert_before(ul, li_two, Some(li_one))
         .unwrap();
-    app.world_mut().non_send_resource_mut::<UiRuntime>().dirty = true;
+    app.world_mut().non_send_mut::<UiRuntime>().dirty = true;
     app.update();
 
     // The <ul> entity's children now read ["two", "one"].
     let ul_entity = app
         .world()
-        .non_send_resource::<UiRuntime>()
+        .non_send::<UiRuntime>()
         .entity_for(ul)
         .unwrap();
     let li_entities = app.world().get::<Children>(ul_entity).unwrap().to_vec();
@@ -277,11 +277,11 @@ fn append_child_reparents_entity_on_reconcile() {
 
     // Move <span> from #a to #b (append reparents an attached node).
     dom.borrow_mut().append_child(b, span).unwrap();
-    app.world_mut().non_send_resource_mut::<UiRuntime>().dirty = true;
+    app.world_mut().non_send_mut::<UiRuntime>().dirty = true;
     app.update();
 
     let (a_entity, b_entity) = {
-        let rt = app.world().non_send_resource::<UiRuntime>();
+        let rt = app.world().non_send::<UiRuntime>();
         (rt.entity_for(a).unwrap(), rt.entity_for(b).unwrap())
     };
     assert_eq!(child_count(&mut app, a_entity), 0);

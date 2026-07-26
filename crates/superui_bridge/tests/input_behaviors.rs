@@ -34,7 +34,7 @@ fn child_text(app: &mut App, element: Entity) -> String {
 }
 
 fn set_dirty(app: &mut App) {
-    app.world_mut().non_send_resource_mut::<UiRuntime>().dirty = true;
+    app.world_mut().non_send_mut::<UiRuntime>().dirty = true;
 }
 
 /// A text input's placeholder renders dimmer (grey) than a typed value (dark),
@@ -106,7 +106,7 @@ fn focused_input_shows_and_blinks_a_caret() {
 
     // Focus it and re-render: caret is on immediately (set by focus).
     app.world_mut()
-        .non_send_resource_mut::<UiRuntime>()
+        .non_send_mut::<UiRuntime>()
         .set_focus(Some(node));
     set_dirty(&mut app);
     app.update();
@@ -120,7 +120,7 @@ fn focused_input_shows_and_blinks_a_caret() {
     // field doesn't jitter. `advance_caret` returns true when the glyph flipped.
     let flipped = app
         .world_mut()
-        .non_send_resource_mut::<UiRuntime>()
+        .non_send_mut::<UiRuntime>()
         .advance_caret(1.0);
     assert!(flipped, "a full second must cross the ~2Hz blink boundary");
     set_dirty(&mut app);
@@ -275,7 +275,7 @@ fn click_stops_propagation_and_focuses_the_deepest_dom_node() {
     );
 
     // Focus landed on the input, never bubbling up to <body>.
-    let focused = app.world().non_send_resource::<UiRuntime>().focused();
+    let focused = app.world().non_send::<UiRuntime>().focused();
     assert_eq!(focused, Some(field_node), "focus is the clicked input");
     assert_ne!(focused, Some(body_node), "focus did not bubble to <body>");
 }

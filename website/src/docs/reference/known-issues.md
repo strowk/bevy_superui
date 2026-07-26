@@ -46,7 +46,7 @@ use superui_bridge::UiRuntime;
 // ...
 
 fn teardown_menu(world: &mut World) {
-    world.remove_non_send_resource::<UiRuntime>();
+    world.remove_non_send::<UiRuntime>();
 
     // then despawn every entity from SuperUiRoot subtree manually here
 }

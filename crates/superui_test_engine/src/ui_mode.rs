@@ -197,7 +197,7 @@ fn run_stepper(world: &mut World) {
 
         match start_run_from_spec(world, &spec, &file, &spec_dir, max_diff) {
             Ok(run) => {
-                world.non_send_resource_mut::<ActiveRun>().0 = Some(run);
+                world.non_send_mut::<ActiveRun>().0 = Some(run);
             }
             Err(e) => {
                 world.resource_mut::<UiState>().error = Some(e);
@@ -206,7 +206,7 @@ fn run_stepper(world: &mut World) {
     }
 
     // Advance the active run.
-    let mut active = world.non_send_resource_mut::<ActiveRun>().0.take();
+    let mut active = world.non_send_mut::<ActiveRun>().0.take();
     if let Some(mut run) = active.take() {
         ui_driver::step(world, &mut run);
 
@@ -232,7 +232,7 @@ fn run_stepper(world: &mut World) {
             // Register each test's captured frame as an egui texture.
             register_test_frames(world, &run.test_frames);
         } else {
-            world.non_send_resource_mut::<ActiveRun>().0 = Some(run);
+            world.non_send_mut::<ActiveRun>().0 = Some(run);
         }
     }
 }

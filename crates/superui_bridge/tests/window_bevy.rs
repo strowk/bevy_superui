@@ -39,7 +39,7 @@ fn js_send_triggers_registered_event() {
     app.add_systems(Update, drain_bevy_outbox_system);
 
     app.world_mut()
-        .non_send_resource_mut::<UiRuntime>()
+        .non_send_mut::<UiRuntime>()
         .run_script("bevy.send('SpawnEnemy', { x: 10, y: 4 });");
     app.update();
 
@@ -57,7 +57,7 @@ fn game_event_reaches_js_on_callback() {
     app.add_superui_event::<ScoreChanged>("ScoreChanged");
     app.add_systems(Update, emit_bevy_inbox_system);
 
-    app.world_mut().non_send_resource_mut::<UiRuntime>().run_script(
+    app.world_mut().non_send_mut::<UiRuntime>().run_script(
         "bevy.on('ScoreChanged', function(e){ \
            document.getElementById('score').textContent = String(e.value); });",
     );

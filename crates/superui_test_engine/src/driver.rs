@@ -103,7 +103,7 @@ pub fn run_spec(app: &mut App, spec_js: &str) -> Vec<TestResult> {
 }
 
 fn snapshot_body(app: &App) -> String {
-    let rt = app.world().non_send_resource::<UiRuntime>();
+    let rt = app.world().non_send::<UiRuntime>();
     crate::trace::serialize_body(&rt.dom.borrow())
 }
 
@@ -200,7 +200,7 @@ fn run_one(app: &mut App, test: &RegisteredTest, opts: &RunOptions) -> TestResul
         app.update();
 
         // 3. Resolve settled in-flight commands.
-        let settled = !app.world().non_send_resource::<UiRuntime>().dirty;
+        let settled = !app.world().non_send::<UiRuntime>().dirty;
         if settled {
             let ready: Vec<(u64, String)> = {
                 inflight.iter_mut().for_each(|e| e.1 = e.1.saturating_sub(1));
@@ -389,7 +389,7 @@ fn with_ctx<R>(app: &mut App, f: impl FnOnce(&mut boa_engine::Context) -> R) -> 
 }
 
 fn resolve_nodes(app: &App, spec: &LocatorSpec) -> Vec<NodeId> {
-    let rt = app.world().non_send_resource::<UiRuntime>();
+    let rt = app.world().non_send::<UiRuntime>();
     let dom = rt.dom.borrow();
     resolve_locator(&dom, spec)
 }
@@ -445,7 +445,7 @@ fn dispatch(app: &mut App, spec: &LocatorSpec, event: &str) {
 fn fill(app: &mut App, spec: &LocatorSpec, text: &str) {
     if let Some(&node) = resolve_nodes(app, spec).first() {
         {
-            let rt = app.world().non_send_resource::<UiRuntime>();
+            let rt = app.world().non_send::<UiRuntime>();
             rt.dom.borrow_mut().set_value(node, text);
         }
         app.world_mut()
