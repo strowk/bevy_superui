@@ -1,11 +1,12 @@
 use std::collections::BTreeSet;
 use std::path::Path;
 
-/// Returns the 17 publishable crates in dependency-topological order.
+/// Returns the 18 publishable crates in dependency-topological order.
 pub fn publish_order() -> Vec<&'static str> {
     vec![
         "superui_dom",
         "superui_paths",
+        "superui_flair_core_macros",
         "superui_flair_core",
         "superui_html",
         "superui_boa_parser",
@@ -49,7 +50,7 @@ pub fn run_publish(dry_run: bool) -> Result<(), String> {
 pub fn check_fork_patches(root: &Path) -> Result<Vec<String>, String> {
     let mut in_source: BTreeSet<String> = BTreeSet::new();
     // Scan .rs source files in flair forks
-    for crate_dir in ["superui_flair_core", "superui_flair_style", "superui_flair_css_parser"] {
+    for crate_dir in ["superui_flair_core_macros", "superui_flair_core", "superui_flair_style", "superui_flair_css_parser"] {
         let src = root.join("crates").join(crate_dir).join("src");
         for entry in walk_rs(&src) {
             let text = std::fs::read_to_string(&entry).map_err(|e| e.to_string())?;

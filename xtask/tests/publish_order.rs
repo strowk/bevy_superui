@@ -4,6 +4,7 @@ fn order_is_topological() {
     let pos = |name: &str| order.iter().position(|c| *c == name)
         .unwrap_or_else(|| panic!("{name} missing from publish_order"));
     // forks before their dependents
+    assert!(pos("superui_flair_core_macros") < pos("superui_flair_core"));
     assert!(pos("superui_flair_core") < pos("superui_flair_style"));
     assert!(pos("superui_flair_style") < pos("superui_flair_css_parser"));
     assert!(pos("superui_flair_css_parser") < pos("superui_css"));
@@ -17,10 +18,10 @@ fn order_is_topological() {
     // boa forks before their dependents
     assert!(pos("superui_boa_parser") < pos("superui_boa_engine"));
     assert!(pos("superui_boa_engine") < pos("superui_js"));
-    // all 17 publishable crates present, each once
-    assert_eq!(order.len(), 17);
+    // all 18 publishable crates present, each once
+    assert_eq!(order.len(), 18);
     let mut sorted = order.clone();
     sorted.sort_unstable();
     sorted.dedup();
-    assert_eq!(sorted.len(), 17, "publish_order has duplicates");
+    assert_eq!(sorted.len(), 18, "publish_order has duplicates");
 }

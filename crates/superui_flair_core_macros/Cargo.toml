@@ -1,0 +1,21 @@
+[package]
+name = "superui_flair_core_macros"
+version.workspace = true
+edition = "2024"
+authors = ["eckz"]
+description = "Fork of bevy_flair_core_macros that resolves the core-crate path when vendored as superui_flair_core"
+keywords = ["style", "animations", "bevy", "css", "macros"]
+categories = ["games", "game-development"]
+license.workspace = true
+repository = "https://github.com/eckz/bevy_flair"
+
+[lib]
+name = "bevy_flair_core_macros"
+path = "src/lib.rs"
+proc-macro = true
+
+[dependencies]
+syn = { version = "2.0", features = ["full", "extra-traits"] }
+quote = "1.0"
+proc-macro2 = "1.0"
+proc-macro-crate = "3.5"

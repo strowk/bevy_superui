@@ -12,9 +12,16 @@ Marker grammar (both lines required; use `//` in `.rs` files, `#` in `Cargo.toml
 
 Upstream bases:
 - bevy_flair 0.8.0 (bevy 0.19) (https://github.com/eckz/bevy_flair)
+  - bevy_flair_core_macros 0.8.0
 - boa_engine / boa_parser 0.21.1 (https://github.com/boa-dev/boa)
 
 ## Patches
+
+### flair-macros-vendored-name
+- **Crate/file:** `superui_flair_core_macros` — `src/utils.rs`
+- **What:** Add `itself_alias: Option<&'static str>` field to `CratePath`; add `CratePath::with_alias` constructor; in the `FoundCrate::Itself` arm emit `itself_alias.unwrap_or(crate_name)` so the macro emits `::bevy_flair_core` rather than `::superui_flair_core`; add a third candidate `CratePath::with_alias("superui_flair_core", "bevy_flair_core")` in `bevy_flair_core_path()`.
+- **Why:** The fork renamed the core crate's lib to `superui_flair_core`, so the macro's default `::bevy_flair_core` path resolution (via `proc_macro_crate`) falls back to `FoundCrate::Itself` and would emit `::superui_flair_core` — which doesn't exist as a public path. The crate declares `extern crate self as bevy_flair_core;` so the alias resolves, but the macro must be told to emit that alias name. Without this patch every `#[derive(ComponentProperties)]` in `superui_flair_core` fails to compile.
+- **Upstream status:** local (not applicable upstream; this is a vendoring concern specific to the superui fork name).
 
 ### css-eof-guard
 - **Crate/file:** `superui_flair_css_parser` — `src/error.rs`
