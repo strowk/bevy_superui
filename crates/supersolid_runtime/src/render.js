@@ -420,6 +420,7 @@
     var items = [];       // previous item values (identity keys)
     var mapped = [];      // mapped nodes, parallel to items
     var disposers = [];   // dispose fn per item
+    var indexes = [];     // per-row index-signal setter, parallel to items
     onCleanup(function () {
       for (var i = 0; i < disposers.length; i++) disposers[i]();
     });
@@ -428,6 +429,7 @@
       return untrack(function () {
         var newMapped = new Array(list.length);
         var newDisposers = new Array(list.length);
+        var newIndexes = new Array(list.length);
         var prevIndex = new Map();
         for (var i = 0; i < items.length; i++) prevIndex.set(items[i], i);
         var used = new Array(items.length);
@@ -437,9 +439,13 @@
             var oldi = prevIndex.get(it);
             newMapped[j] = mapped[oldi];
             newDisposers[j] = disposers[oldi];
+            newIndexes[j] = indexes[oldi];
             used[oldi] = true;
+            // A retained row that moved position observes its new index reactively
+            // (Object.is-gated: a row that stayed put notifies nothing).
+            newIndexes[j](j);
           } else {
-            makeRow(it, j, newMapped, newDisposers, owner, mapFn);
+            makeRow(it, j, newMapped, newDisposers, newIndexes, owner, mapFn);
           }
         }
         for (var k = 0; k < items.length; k++) {
@@ -448,6 +454,7 @@
         items = list.slice();
         mapped = newMapped;
         disposers = newDisposers;
+        indexes = newIndexes;
         return mapped.slice();
       });
     };
@@ -468,14 +475,20 @@
   }
 
   // Build one row under its own root attached to the list's stable owner.
-  function makeRow(item, index, outMapped, outDisposers, owner, mapFn) {
+  function makeRow(item, index, outMapped, outDisposers, outIndexes, owner, mapFn) {
     createRoot(function (dispose) {
       outDisposers[index] = dispose;
+      // The index is a reactive accessor (Solid semantics): a signal created
+      // BEFORE the row frame opens so HMR cell collection skips it — position is
+      // derived from the list, never preserved across reloads. Reused rows that
+      // move update it via its setter (see mapArray's reconcile loop).
+      var idx = createSignal(index);
+      outIndexes[index] = idx[1];
       if (hmrOn() && currentRoot) {
         // <For> row keyed by item identity (same identity survives reorder).
-        outMapped[index] = withRowInstance(item, function () { return mapFn(item, index); });
+        outMapped[index] = withRowInstance(item, function () { return mapFn(item, idx[0]); });
       } else {
-        outMapped[index] = mapFn(item, index);
+        outMapped[index] = mapFn(item, idx[0]);
       }
     }, owner);
   }

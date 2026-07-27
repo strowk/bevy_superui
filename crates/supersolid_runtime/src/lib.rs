@@ -1039,6 +1039,44 @@ mod render_tests {
     }
 
     #[test]
+    fn for_index_is_a_reactive_accessor_that_updates_on_reorder() {
+        // The <For> child's second arg is `Accessor<number>` (Solid semantics),
+        // not a plain number: it must be callable, and a retained row that moves
+        // position must observe its new index reactively.
+        let mut e = render_engine();
+        e.eval(
+            r#"
+            globalThis.a = { n: "a" }; globalThis.b = { n: "b" }; globalThis.c = { n: "c" };
+            var pair = createSignal([globalThis.a, globalThis.b, globalThis.c]);
+            globalThis.set = pair[1];
+            globalThis.indexIsFn = false;
+            globalThis.p = $ss.el("ul");
+            $ss.insert(p, function () {
+                return $ss.cmp(For, {
+                    get each() { return pair[0](); },
+                    get children() {
+                        return function (item, index) {
+                            globalThis.indexIsFn = (typeof index === "function");
+                            var li = $ss.el("li");
+                            $ss.insert(li, function () { return item.n + index(); }); // reactive read
+                            return li;
+                        };
+                    },
+                });
+            });
+            function order(){var s="";for(var i=0;i<p.childNodes.length;i++){var n=p.childNodes[i];if(n.nodeType===1)s+=n.textContent;}return s;}
+            globalThis.o0 = order();                                   // "a0b1c2"
+            globalThis.set([globalThis.c, globalThis.a, globalThis.b]); // reorder
+            globalThis.o1 = order();                                   // "c0a1b2" — reused rows re-indexed
+            "#,
+        )
+        .unwrap();
+        assert_eq!(text(&mut e, "globalThis.indexIsFn"), "true");
+        assert_eq!(text(&mut e, "globalThis.o0"), "a0b1c2");
+        assert_eq!(text(&mut e, "globalThis.o1"), "c0a1b2");
+    }
+
+    #[test]
     fn index_keys_by_position_and_updates_item_in_place() {
         let mut e = render_engine();
         e.eval(
