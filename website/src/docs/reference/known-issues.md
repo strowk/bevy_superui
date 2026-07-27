@@ -40,27 +40,3 @@ At the same time top-level author-script errors are reported in WARN, so there i
 Normally browsers would surface uncaught listener errors to the console, but we currently do not always do that.
 
 Keep an eye on what your handlers do and if something there does not work, there is a chance you might have some simple typo in there that is silently dropped.
-
-## Loop index is not accessor
-
-The type of index in here:
-
-```ts
-  export const For: <T>(props: {
-    each: readonly T[] | undefined | null;
-    children: (item: T, index: Accessor<number>) => unknown;
-  }) => unknown;
-```
-is defined as `Accessor<number>`, but in actual runtime it is a plain number. 
-
-So if you write f.e:
-
-```ts
-<For each={props.state()?.saves ?? []}>
-            {(save, i) => (
-```
-
-Type system would say that `i` is an accessor and you would need to call it like `i()`, but in reality it is a plain number and calling it like a function would throw an error (which then will be silently dropped, see above).
-
-The type here is actually correct from perspective of following common practices, but implementation is wrong and needs adjustment. 
-Until this is fixed, you would need to treat index as a plain number and not call it like a function.
