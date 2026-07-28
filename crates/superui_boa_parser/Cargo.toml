@@ -40,11 +40,18 @@ icu_properties = { version = ">=2.0.0, <3", default-features = true }   # relaxe
 # <<< SUPERUI-FORK-PATCH: boa-icu-2x
 num-bigint = "0.4.6"
 num-traits = "0.2.19"
+# >>> SUPERUI-FORK-PATCH: parser-stacker-grow  (docs/fork-patches.md#parser-stacker-grow)
+stacker = "0.1"   # on-demand native stack growth for deeply-nested parse recursion
+# <<< SUPERUI-FORK-PATCH: parser-stacker-grow
 regress = { version = "0.10.4", features = ["utf16"] }
 rustc-hash = { version = "2.1.1", features = ["std"], default-features = false }
 
 [dev-dependencies]
 indoc = "2.0.6"
+# >>> SUPERUI-FORK-PATCH: parser-stacker-grow  (docs/fork-patches.md#parser-stacker-grow)
+boa_ast = "~0.21.1"       # for tests/deep_nesting_stack.rs (validates the stacker patch)
+boa_interner = "~0.21.1"
+# <<< SUPERUI-FORK-PATCH: parser-stacker-grow
 
 [lints.clippy]
 dbg_macro = "warn"

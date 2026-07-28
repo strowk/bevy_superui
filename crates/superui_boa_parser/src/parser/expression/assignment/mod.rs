@@ -85,6 +85,16 @@ where
     type Output = Expression;
 
     fn parse(self, cursor: &mut Cursor<R>, interner: &mut Interner) -> ParseResult<Expression> {
+        // >>> SUPERUI-FORK-PATCH: parser-stacker-grow  (docs/fork-patches.md#parser-stacker-grow)
+        // `AssignmentExpression::parse` is re-entered once per level of expression
+        // nesting, and each level costs ~15 native frames / ~85 KB (the full
+        // operator-precedence ladder). Deeply-nested transpiled JSX would overflow
+        // small stacks (the ~1 MB Windows main thread; ~2 MB libtest/TaskPool
+        // workers). `maybe_grow` transparently moves onto a fresh heap stack segment
+        // when the remaining native stack drops below the 512 KB red zone (which
+        // must exceed one level's cost), so any thread stack size suffices.
+        stacker::maybe_grow(512 * 1024, 8 * 1024 * 1024, move || {
+        // <<< SUPERUI-FORK-PATCH: parser-stacker-grow
         cursor.set_goal(InputElement::RegExp);
 
         match cursor.peek(0, interner).or_abrupt()?.kind() {
@@ -280,5 +290,8 @@ where
         }
 
         Ok(lhs)
+        // >>> SUPERUI-FORK-PATCH: parser-stacker-grow  (docs/fork-patches.md#parser-stacker-grow)
+        }) // end stacker::maybe_grow
+        // <<< SUPERUI-FORK-PATCH: parser-stacker-grow
     }
 }

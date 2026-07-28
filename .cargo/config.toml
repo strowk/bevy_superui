@@ -1,23 +1,2 @@
-# Cap concurrent codegen+link units. MSVC's link.exe uses ~2GB per binary, and
-# `cargo test --workspace` links many test binaries at once; without this cap it
-# can spawn ~10 linkers and exhaust RAM (LNK1318 "FILE_SYSTEM (3)" + PC freeze).
-[build]
-jobs = 4
-
 [target.wasm32-unknown-unknown]
 rustflags = ['--cfg', 'getrandom_backend="wasm_js"']
-
-# Windows main-thread stack size for runnable superui apps.
-#
-# `UiRuntime::new` has Boa PARSE + EVALUATE the embedded JS runtime (runtime.js +
-# render.js) at mount, on the bevy MAIN thread. Boa's recursive-descent parser is
-# stack-hungry; the grown render.js (Supersolid render + control-flow layer) needs
-# more than the Windows default main-thread stack (~1 MB), so a real windowed app
-# overflows the stack right after window creation. Headless tests are unaffected
-# because Rust spawns test functions on worker threads with a larger stack.
-#
-# Match the 8 MB main-thread stack Linux/macOS use by default. This is a link-time
-# flag; it affects only final binaries (rlibs ignore it) and is scoped to the MSVC
-# Windows target, so it's a no-op on every other platform.
-[target.'cfg(all(target_os = "windows", target_env = "msvc"))']
-rustflags = ["-C", "link-arg=/STACK:8388608"]
