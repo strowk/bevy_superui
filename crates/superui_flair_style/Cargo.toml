@@ -13,7 +13,7 @@
 edition = "2024"
 rust-version = "1.88.0"
 name = "superui_flair_style"
-version = "0.2.0"
+version.workspace = true
 build = false
 autolib = false
 autobins = false
