@@ -1,0 +1,145 @@
+[package]
+name = "superui_boa_parser"
+version.workspace = true
+edition = "2024"
+rust-version = "1.88.0"
+authors = ["boa-dev"]
+description = "Fork of boa_parser (boa 0.21.1) vendored for superui: on-demand parse-stack growth (parser-stacker-grow) + relaxed icu_properties pin. See docs/fork-patches.md. Upstream: https://github.com/boa-dev/boa"
+readme = false
+keywords = [
+    "javascript",
+    "js",
+    "syntax",
+    "parser",
+]
+categories = [
+    "parser-implementations",
+    "compilers",
+]
+license = "Unlicense OR MIT"
+repository = "https://github.com/boa-dev/boa"
+
+[package.metadata.docs.rs]
+all-features = true
+
+[features]
+annex-b = []
+
+[lib]
+name = "boa_parser"
+path = "src/lib.rs"
+
+[dependencies]
+bitflags = "2.9.3"
+boa_ast = "~0.21.1"
+boa_interner = "~0.21.1"
+boa_macros = "~0.21.1"
+fast-float2 = "0.2.3"
+# >>> SUPERUI-FORK-PATCH: boa-icu-2x  (docs/fork-patches.md#boa-icu-2x)
+icu_properties = { version = ">=2.0.0, <3", default-features = true }   # relaxed from upstream ~2.0.0 for Parley/icu-2.1
+# <<< SUPERUI-FORK-PATCH: boa-icu-2x
+num-bigint = "0.4.6"
+num-traits = "0.2.19"
+# >>> SUPERUI-FORK-PATCH: parser-stacker-grow  (docs/fork-patches.md#parser-stacker-grow)
+stacker = "0.1"   # on-demand native stack growth for deeply-nested parse recursion
+# <<< SUPERUI-FORK-PATCH: parser-stacker-grow
+regress = { version = "0.10.4", features = ["utf16"] }
+rustc-hash = { version = "2.1.1", features = ["std"], default-features = false }
+
+[dev-dependencies]
+indoc = "2.0.6"
+# >>> SUPERUI-FORK-PATCH: parser-stacker-grow  (docs/fork-patches.md#parser-stacker-grow)
+boa_ast = "~0.21.1"       # for tests/deep_nesting_stack.rs (validates the stacker patch)
+boa_interner = "~0.21.1"
+# <<< SUPERUI-FORK-PATCH: parser-stacker-grow
+
+[lints.clippy]
+dbg_macro = "warn"
+print_stderr = "warn"
+print_stdout = "warn"
+
+[lints.clippy.all]
+level = "warn"
+priority = -1
+
+[lints.clippy.complexity]
+level = "warn"
+priority = -1
+
+[lints.clippy.correctness]
+level = "warn"
+priority = -1
+
+[lints.clippy.pedantic]
+level = "warn"
+priority = -1
+
+[lints.clippy.perf]
+level = "warn"
+priority = -1
+
+[lints.clippy.style]
+level = "warn"
+priority = -1
+
+[lints.clippy.suspicious]
+level = "warn"
+priority = -1
+
+[lints.rust]
+macro_use_extern_crate = "warn"
+meta_variable_misuse = "warn"
+missing_abi = "warn"
+missing_copy_implementations = "warn"
+missing_debug_implementations = "warn"
+missing_docs = "warn"
+non_ascii_idents = "warn"
+noop_method_call = "warn"
+single_use_lifetimes = "warn"
+trivial_casts = "warn"
+trivial_numeric_casts = "warn"
+unreachable_pub = "warn"
+unsafe_op_in_unsafe_fn = "warn"
+unused_crate_dependencies = "warn"
+unused_import_braces = "warn"
+unused_lifetimes = "warn"
+unused_qualifications = "warn"
+variant_size_differences = "warn"
+warnings = "warn"
+
+[lints.rust.future_incompatible]
+level = "warn"
+priority = -1
+
+[lints.rust.let_underscore]
+level = "warn"
+priority = -1
+
+[lints.rust.nonstandard_style]
+level = "warn"
+priority = -1
+
+[lints.rust.rust_2018_compatibility]
+level = "warn"
+priority = -1
+
+[lints.rust.rust_2018_idioms]
+level = "warn"
+priority = -1
+
+[lints.rust.rust_2021_compatibility]
+level = "warn"
+priority = -1
+
+[lints.rust.unused]
+level = "warn"
+priority = -1
+
+[lints.rustdoc]
+bare_urls = "warn"
+broken_intra_doc_links = "warn"
+invalid_codeblock_attributes = "warn"
+invalid_rust_codeblocks = "warn"
+missing_crate_level_docs = "warn"
+private_doc_tests = "warn"
+private_intra_doc_links = "warn"

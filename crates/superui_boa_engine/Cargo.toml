@@ -1,0 +1,270 @@
+[package]
+name = "superui_boa_engine"
+version.workspace = true
+edition = "2024"
+rust-version = "1.88.0"
+authors = ["boa-dev"]
+description = "Fork of boa_engine (boa 0.21.1) vendored for superui so the boa_parser stack-growth patch is publishable; also carries a relaxed icu_normalizer pin. See docs/fork-patches.md. Upstream: https://github.com/boa-dev/boa"
+readme = "README.md"
+keywords = [
+    "javascript",
+    "js",
+    "compiler",
+    "lexer",
+    "parser",
+]
+categories = [
+    "parser-implementations",
+    "compilers",
+]
+license = "Unlicense OR MIT"
+repository = "https://github.com/boa-dev/boa"
+
+[package.metadata.docs.rs]
+all-features = true
+
+[features]
+annex-b = [
+    "boa_ast/annex-b",
+    "boa_parser/annex-b",
+]
+default = [
+    "float16",
+    "xsum",
+]
+deser = [
+    "boa_interner/serde",
+    "boa_ast/serde",
+]
+either = [
+    "dep:either",
+    "boa_gc/either",
+]
+embedded_lz4 = [
+    "boa_macros/embedded_lz4",
+    "lz4_flex",
+]
+experimental = ["temporal"]
+float16 = ["dep:float16"]
+flowgraph = []
+fuzz = [
+    "boa_ast/arbitrary",
+    "boa_interner/arbitrary",
+]
+# intl and intl_bundled are defined for API compatibility but are NON-FUNCTIONAL
+# in this fork: their optional icu ~2.0.x deps were removed to unblock icu 2.1
+# resolution (see docs/fork-patches.md#boa-icu-2x). The `temporal` feature below
+# is likewise degraded — its `dep:icu_calendar` (~2.0) was removed, so calendar
+# support is non-functional. No workspace consumer enables intl/temporal.
+intl = []
+intl_bundled = []
+js = [
+    "dep:web-time",
+    "dep:getrandom",
+    "getrandom/wasm_js",
+    "time/wasm-bindgen",
+]
+jsvalue-enum = []
+native-backtrace = []
+temporal = [
+    "dep:temporal_rs",
+    "dep:iana-time-zone",
+    "dep:timezone_provider",
+    "timezone_provider/tzif",
+]
+trace = ["js"]
+xsum = ["dep:xsum"]
+
+[lib]
+name = "boa_engine"
+crate-type = [
+    "cdylib",
+    "lib",
+]
+path = "src/lib.rs"
+bench = false
+
+[[test]]
+name = "gcd"
+path = "tests/gcd.rs"
+
+[[test]]
+name = "imports"
+path = "tests/imports.rs"
+
+[[test]]
+name = "macros"
+path = "tests/macros.rs"
+
+[[test]]
+name = "module"
+path = "tests/module.rs"
+
+[[bench]]
+name = "full"
+path = "benches/full.rs"
+harness = false
+
+[dependencies]
+aligned-vec = "0.6.4"
+arrayvec = "0.7.6"
+bitflags = "2.9.3"
+boa_ast = "~0.21.1"
+boa_gc = { version = "~0.21.0", features = ["thin-vec", "boa_string"] }
+boa_interner = "~0.21.1"
+boa_macros = "~0.21.1"
+boa_parser = { package = "superui_boa_parser", version = "0.1.0", path = "../superui_boa_parser" }
+boa_string = "~0.21.1"
+bytemuck = { version = "1.24.0", features = ["derive"], default-features = false }
+cfg-if = "1.0.1"
+cow-utils = "0.1.3"
+dashmap = "6.1.0"
+dynify = "0.1.2"
+either = { version = "1.15.0", optional = true }
+fast-float2 = "0.2.3"
+fixed_decimal = { version = "0.7.0", features = ["ryu", "experimental"], optional = true }
+float16 = { version = "0.1", optional = true }
+futures-channel = "0.3.31"
+futures-concurrency = "7.6.3"
+futures-lite = "2.6.1"
+hashbrown = "0.16.0"
+iana-time-zone = { version = "0.1.64", optional = true }
+# >>> SUPERUI-FORK-PATCH: boa-icu-2x  (docs/fork-patches.md#boa-icu-2x)
+icu_normalizer = { version = ">=2.0.0, <3", features = ["compiled_data", "utf16_iter"], default-features = false }   # relaxed from upstream ~2.0.0 for Parley/icu-2.1
+# <<< SUPERUI-FORK-PATCH: boa-icu-2x
+indexmap = { version = "2.11.4", features = ["std"], default-features = false }
+intrusive-collections = "0.9.7"
+itertools = { version = "0.14.0", default-features = false }
+lz4_flex = { version = "0.11.5", optional = true }
+num-bigint = { version = "0.4.6", features = ["serde"] }
+num-integer = "0.1.46"
+num-traits = "0.2.19"
+num_enum = "0.7.4"
+paste = "1.0"
+portable-atomic = "1.11.0"
+rand = "0.9.2"
+regress = { version = "0.10.4", features = ["utf16"] }
+rustc-hash = { version = "2.1.1", features = ["std"], default-features = false }
+ryu-js = "1.0.2"
+serde = { version = "1.0.219", features = ["derive", "rc"] }
+serde_json = "1.0.145"
+small_btree = "~0.1.0"
+static_assertions = "1.1.0"
+sys-locale = { version = "0.3.2", optional = true }
+tag_ptr = "~0.1.0"
+tap = "1.0.1"
+temporal_rs = { version = "0.1.0", optional = true, default-features = false }
+thin-vec = "0.2.14"
+thiserror = { version = "2.0.17", default-features = false }
+time = { version = "0.3.44", features = ["local-offset", "large-dates", "parsing", "formatting", "macros"], default-features = false }
+timezone_provider = { version = "0.1.0", optional = true }
+tinystr = { version = "~0.8.1", optional = true }
+writeable = { version = "~0.6.1", optional = true }
+xsum = { version = "0.1.5", optional = true }
+yoke = { version = "0.8.0", optional = true }
+zerofrom = { version = "~0.1.6", optional = true }
+
+[dev-dependencies]
+criterion = "0.5.1"
+float-cmp = "0.10.0"
+indoc = "2.0.6"
+test-case = "3.3.1"
+textwrap = "0.16.2"
+
+[target.'cfg(all(target_family = "wasm", not(any(target_os = "emscripten", target_os = "wasi"))))'.dependencies]
+getrandom = { version = "0.3.4", features = ["wasm_js"], optional = true, default-features = false }
+web-time = { version = "1.1.0", optional = true }
+
+[target.x86_64-unknown-linux-gnu.dev-dependencies]
+jemallocator = "0.5.4"
+
+[lints.clippy]
+dbg_macro = "warn"
+print_stderr = "warn"
+print_stdout = "warn"
+
+[lints.clippy.all]
+level = "warn"
+priority = -1
+
+[lints.clippy.complexity]
+level = "warn"
+priority = -1
+
+[lints.clippy.correctness]
+level = "warn"
+priority = -1
+
+[lints.clippy.pedantic]
+level = "warn"
+priority = -1
+
+[lints.clippy.perf]
+level = "warn"
+priority = -1
+
+[lints.clippy.style]
+level = "warn"
+priority = -1
+
+[lints.clippy.suspicious]
+level = "warn"
+priority = -1
+
+[lints.rust]
+macro_use_extern_crate = "warn"
+meta_variable_misuse = "warn"
+missing_abi = "warn"
+missing_copy_implementations = "warn"
+missing_debug_implementations = "warn"
+missing_docs = "warn"
+non_ascii_idents = "warn"
+noop_method_call = "warn"
+single_use_lifetimes = "warn"
+trivial_casts = "warn"
+trivial_numeric_casts = "warn"
+unreachable_pub = "warn"
+unsafe_op_in_unsafe_fn = "warn"
+unused_crate_dependencies = "warn"
+unused_import_braces = "warn"
+unused_lifetimes = "warn"
+unused_qualifications = "warn"
+variant_size_differences = "warn"
+warnings = "warn"
+
+[lints.rust.future_incompatible]
+level = "warn"
+priority = -1
+
+[lints.rust.let_underscore]
+level = "warn"
+priority = -1
+
+[lints.rust.nonstandard_style]
+level = "warn"
+priority = -1
+
+[lints.rust.rust_2018_compatibility]
+level = "warn"
+priority = -1
+
+[lints.rust.rust_2018_idioms]
+level = "warn"
+priority = -1
+
+[lints.rust.rust_2021_compatibility]
+level = "warn"
+priority = -1
+
+[lints.rust.unused]
+level = "warn"
+priority = -1
+
+[lints.rustdoc]
+bare_urls = "warn"
+broken_intra_doc_links = "warn"
+invalid_codeblock_attributes = "warn"
+invalid_rust_codeblocks = "warn"
+missing_crate_level_docs = "warn"
+private_doc_tests = "warn"
+private_intra_doc_links = "warn"

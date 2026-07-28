@@ -1,13 +1,15 @@
 use std::collections::BTreeSet;
 use std::path::Path;
 
-/// Returns the 15 publishable crates in dependency-topological order.
+/// Returns the 17 publishable crates in dependency-topological order.
 pub fn publish_order() -> Vec<&'static str> {
     vec![
         "superui_dom",
         "superui_paths",
         "superui_flair_core",
         "superui_html",
+        "superui_boa_parser",
+        "superui_boa_engine",
         "superui_js",
         "superui_api",
         "supersolid_runtime",
@@ -65,6 +67,26 @@ pub fn check_fork_patches(root: &Path) -> Result<Vec<String>, String> {
             if let Some(id) = open.pop() {
                 return Err(format!("{}: unclosed >>> for id `{id}`", entry.display()));
             }
+        }
+    }
+    // Scan Cargo.toml files in boa forks (markers use # comment syntax)
+    for crate_dir in ["superui_boa_parser", "superui_boa_engine"] {
+        let manifest = root.join("crates").join(crate_dir).join("Cargo.toml");
+        let text = std::fs::read_to_string(&manifest).map_err(|e| e.to_string())?;
+        let mut open: Vec<String> = Vec::new();
+        for line in text.lines() {
+            if let Some(id) = marker_id(line, ">>>") {
+                open.push(id.clone());
+                in_source.insert(id);
+            } else if let Some(id) = marker_id(line, "<<<") {
+                match open.pop() {
+                    Some(o) if o == id => {}
+                    _ => return Err(format!("{}: unmatched <<< for id `{id}`", manifest.display())),
+                }
+            }
+        }
+        if let Some(id) = open.pop() {
+            return Err(format!("{}: unclosed >>> for id `{id}`", manifest.display()));
         }
     }
     let registry = std::fs::read_to_string(root.join("docs/fork-patches.md")).map_err(|e| e.to_string())?;
