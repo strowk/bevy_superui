@@ -9,7 +9,7 @@ keywords = ["bevy", "ui", "reactive", "signals", "gamedev"]
 categories = ["game-development"]
 
 [dependencies]
-superui_js = { path = "../superui_js", version = "0.2.0" }
+superui_js = { path = "../superui_js", version = "0.2.2" }
 
 [dev-dependencies]
 superui_dom = { path = "../superui_dom" }
