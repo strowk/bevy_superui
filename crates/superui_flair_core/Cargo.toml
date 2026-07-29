@@ -57,7 +57,7 @@ workspace = true
 
 [dependencies.bevy_flair_core_macros]
 package = "superui_flair_core_macros"
-version = "0.3.0"
+version = "0.3.2"
 path = "../superui_flair_core_macros"
 
 [dependencies.bevy_image]

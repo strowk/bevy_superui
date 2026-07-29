@@ -9,8 +9,8 @@ keywords = ["bevy", "ui", "dom", "javascript", "gamedev"]
 categories = ["game-development"]
 
 [dependencies]
-superui_dom = { path = "../superui_dom", version = "0.3.0" }
-superui_js = { path = "../superui_js", version = "0.3.0" }
+superui_dom = { path = "../superui_dom", version = "0.3.2" }
+superui_js = { path = "../superui_js", version = "0.3.2" }
 boa_engine.workspace = true
 
 [dev-dependencies]

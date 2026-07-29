@@ -4,14 +4,14 @@ members = ["crates/*", "examples/*", "xtask", "tools/mdbook-gallery"]
 
 [workspace.package]
 edition = "2021"
-version = "0.3.1"
+version = "0.3.2"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/strowk/bevy_superui"
 
 [workspace.dependencies]
 slotmap = "1.0"
 html5ever = "0.39"
-boa_engine = { package = "superui_boa_engine", version = "0.3.0", path = "crates/superui_boa_engine" }
+boa_engine = { package = "superui_boa_engine", version = "0.3.2", path = "crates/superui_boa_engine" }
 boa_gc = "0.21"
 oxc = { version = "0.140", features = ["semantic", "transformer", "codegen", "ast_visit"] }
 bevy = { version = "0.19", default-features = false }
