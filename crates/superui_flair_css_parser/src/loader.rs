@@ -128,10 +128,20 @@ impl AssetLoader for CssStyleSheetLoader {
             // The issue here is that by using `load_value`,
             // `StyleBlock` do not get added to the `Assets<StyleBlock>` resource, and they are never 'Loaded'.
             // So we need to extract and map them from the loaded value into new `StyleBlock`.
+            // >>> SUPERUI-FORK-PATCH: css-import-relative-resolution  (docs/fork-patches.md#css-import-relative-resolution)
+            // CSS spec: @import URLs resolve relative to the importing stylesheet's directory,
+            // not the asset root. `resolve_embed_str` uses RFC-1808 (embedded) semantics: the base
+            // is the importing sheet FILE, so the relative import resolves against its directory.
+            // Fall back to the raw string if the import can't be parsed as an asset path.
+            let load_path = load_context
+                .path()
+                .resolve_embed_str(&import_path)
+                .unwrap_or_else(|_| import_path.clone().into());
             let loaded_asset = load_context
                 .load_builder()
-                .load_value::<StyleSheet>(&import_path)
+                .load_value::<StyleSheet>(load_path)
                 .await?;
+            // <<< SUPERUI-FORK-PATCH: css-import-relative-resolution
 
             let mut old_index_to_handle = FxHashMap::default();
 
