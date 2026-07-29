@@ -28,6 +28,8 @@ version = "0.22.1"
 # Host-only: pre-transpile app.tsx -> app.generated.js for wasm / no-HMR native.
 [build-dependencies]
 supersolid = { path = "../../crates/supersolid" }
+# Host-only: generate the class-utilities sheet for wasm / no-HMR native.
+superui_css_utilities = { path = "../../crates/superui_css_utilities" }
 
 [dev-dependencies]
 # Headless tests reuse the browser stack without a window.
