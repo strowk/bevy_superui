@@ -8,7 +8,7 @@ function Header(props) {
     <div id="new-todo-row">
       <input id="new-todo" type="text" placeholder="What needs to be done?"
              value={props.draft} onInput={(e) => props.onInput(e.target.value)} />
-      <button id="add" onClick={() => props.onAdd()}>Add</button>
+      <button id="add" class="w-[220px]" onClick={() => props.onAdd()}>Add</button>
     </div>
   );
 }
@@ -74,7 +74,7 @@ function App() {
 
   return (
     <div id="app">
-      <h1>todos</h1>
+      <h1 class="pt-4 text-center italic bg-slate-200">todos</h1>
       <Header draft={draft()} onInput={setDraft} onAdd={addTodo} />
       <div id="main">
         <input id="toggle-all" type="checkbox"

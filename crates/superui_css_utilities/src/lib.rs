@@ -17,6 +17,8 @@
 //! - [`scan_source`] — liberal candidate-token extraction from `.tsx`/`.ts` text.
 //! - [`generate_for_dir`] — scan every top-level `.tsx`/`.ts` in a UI dir, expand.
 //! - [`write_generated`] — `generate_for_dir` + write the generated sheet.
+//! - [`CATALOG`] — a curated subset of candidate utilities (per family) that the
+//!   reference docs are generated from.
 
 use std::collections::BTreeSet;
 use std::path::Path;
@@ -56,6 +58,117 @@ pub struct GenerateOutput {
     pub diagnostics: Vec<Diagnostic>,
 }
 
+/// A named family of candidate utility classes in the curated [`CATALOG`].
+#[derive(Debug, Clone, Copy)]
+pub struct CatalogFamily {
+    /// Human-readable family name (e.g. `"Flex & layout"`).
+    pub name: &'static str,
+    /// A one-line description of what this family maps onto in flair/bevy_ui.
+    pub blurb: &'static str,
+    /// The representative candidate classes probed for this family.
+    pub classes: &'static [&'static str],
+}
+
+/// A **deliberately curated subset** of Tailwind-compatible utility classes,
+/// grouped by family. This is the offline catalog the reference docs are
+/// generated from (design §5): the doc generator probes each class through the
+/// flair oracle and documents only the ones that pass. It is representative, not
+/// exhaustive — the per-build content-scan ([`generate_for_dir`]) already handles
+/// arbitrary concrete classes an app actually uses. Widening the catalog is
+/// nearly free: add a candidate here and re-run the generator.
+pub const CATALOG: &[CatalogFamily] = &[
+    CatalogFamily {
+        name: "Display & layout",
+        blurb: "`display` / `position` / `overflow` — flair maps these onto bevy_ui `Node`.",
+        classes: &[
+            "flex", "inline-flex", "grid", "block", "inline-block", "hidden",
+            "relative", "absolute", "static",
+            "overflow-hidden", "overflow-visible", "overflow-scroll",
+        ],
+    },
+    CatalogFamily {
+        name: "Flexbox",
+        blurb: "flex direction, wrap, alignment, and grow/shrink.",
+        classes: &[
+            "flex-row", "flex-col", "flex-row-reverse", "flex-col-reverse",
+            "flex-wrap", "flex-nowrap", "flex-wrap-reverse",
+            "items-start", "items-center", "items-end", "items-stretch", "items-baseline",
+            "justify-start", "justify-center", "justify-end",
+            "justify-between", "justify-around", "justify-evenly",
+            "self-auto", "self-start", "self-center", "self-end", "self-stretch",
+            "flex-1", "flex-auto", "flex-none", "grow", "grow-0", "shrink", "shrink-0",
+        ],
+    },
+    CatalogFamily {
+        name: "Spacing — padding",
+        blurb: "`padding` on each side; the rem scale resolves against flair's 16px root.",
+        classes: &[
+            "p-0", "p-1", "p-2", "p-4", "p-8",
+            "px-2", "px-4", "py-2", "py-4",
+            "pt-2", "pt-4", "pr-2", "pb-4", "pl-2",
+        ],
+    },
+    CatalogFamily {
+        name: "Spacing — margin",
+        blurb: "`margin` on each side (including `auto`).",
+        classes: &[
+            "m-0", "m-1", "m-2", "m-4", "m-8",
+            "mx-2", "mx-4", "my-2", "my-4", "mx-auto",
+            "mt-4", "mr-2", "mb-4", "ml-2",
+        ],
+    },
+    CatalogFamily {
+        name: "Spacing — gap",
+        blurb: "flexbox/grid `gap` between children.",
+        classes: &["gap-0", "gap-1", "gap-2", "gap-4", "gap-8", "gap-x-2", "gap-y-4"],
+    },
+    CatalogFamily {
+        name: "Sizing",
+        blurb: "`width` / `height`, including fractions, `full`, and arbitrary values.",
+        classes: &[
+            "w-0", "w-4", "w-8", "w-full", "w-1/2", "w-px", "w-[220px]",
+            "h-0", "h-4", "h-8", "h-full", "h-[100px]",
+            "min-w-0", "max-w-full", "min-h-0", "max-h-full",
+        ],
+    },
+    CatalogFamily {
+        name: "Background color",
+        blurb: "`background-color` from the Tailwind palette (and arbitrary hex).",
+        classes: &[
+            "bg-transparent", "bg-white", "bg-black",
+            "bg-slate-800", "bg-slate-200", "bg-red-500", "bg-green-500", "bg-blue-500",
+        ],
+    },
+    CatalogFamily {
+        name: "Text color",
+        blurb: "`color` from the Tailwind palette.",
+        classes: &[
+            "text-white", "text-black",
+            "text-slate-700", "text-red-500", "text-green-500", "text-blue-500",
+        ],
+    },
+    CatalogFamily {
+        name: "Text",
+        blurb: "font `size` / `weight` / `style` / alignment.",
+        classes: &[
+            "text-xs", "text-sm", "text-base", "text-lg", "text-xl", "text-2xl",
+            "font-normal", "font-medium", "font-semibold", "font-bold",
+            "italic", "not-italic",
+            "text-left", "text-center", "text-right", "text-justify",
+        ],
+    },
+    CatalogFamily {
+        name: "Border",
+        blurb: "border `width` / `radius` / `color`.",
+        classes: &[
+            "border", "border-0", "border-2", "border-4", "border-8",
+            "border-t", "border-b",
+            "rounded-none", "rounded-sm", "rounded", "rounded-md", "rounded-lg", "rounded-full",
+            "border-slate-300", "border-red-500", "border-white",
+        ],
+    },
+];
+
 /// Pure core: for each **unique** class, encre-css-generate → flair-probe →
 /// keep/drop. Classes encre-css doesn't recognize (empty output) are silently
 /// skipped (not diagnostics). Output is deterministic — classes are sorted.
@@ -69,6 +182,46 @@ where
     I: IntoIterator<Item = S>,
     S: AsRef<str>,
 {
+    let mut out = GenerateOutput::default();
+    for (_class, outcome) in probe_each(classes) {
+        match outcome {
+            ClassOutcome::Supported { css } => {
+                if !out.css.is_empty() {
+                    out.css.push('\n');
+                }
+                out.css.push_str(css.trim());
+                out.css.push('\n');
+            }
+            ClassOutcome::Dropped(diag) => out.diagnostics.push(diag),
+            ClassOutcome::Unrecognized => {}
+        }
+    }
+    out
+}
+
+/// The verdict for a single candidate class.
+#[derive(Debug, Clone)]
+pub enum ClassOutcome {
+    /// encre-css produced CSS and flair accepted it. Carries the generated rule.
+    Supported {
+        /// The flair-accepted CSS rule (e.g. `.flex { display: flex; }`).
+        css: String,
+    },
+    /// encre-css produced CSS but flair rejected it. Carries the reason.
+    Dropped(Diagnostic),
+    /// encre-css did not recognize the token (no CSS emitted) — not a utility.
+    Unrecognized,
+}
+
+/// Probe each **unique** class individually and return its per-class outcome,
+/// preserving the class↔CSS attribution that [`expand`] discards. Output is
+/// deterministic — classes are deduped and sorted. This is what the reference-doc
+/// generator uses to list each supported class alongside the CSS it produces.
+pub fn probe_each<I, S>(classes: I) -> Vec<(String, ClassOutcome)>
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<str>,
+{
     // Dedup + sort for deterministic output.
     let unique: BTreeSet<String> = classes
         .into_iter()
@@ -76,40 +229,32 @@ where
         .filter(|c| !c.is_empty())
         .collect();
 
-    let mut out = GenerateOutput::default();
     if unique.is_empty() {
-        return out;
+        return Vec::new();
     }
 
     let config = encre_config();
-
     // Build the headless oracle app ONCE and reuse it across every probe.
     let mut oracle = Oracle::new();
 
+    let mut results = Vec::with_capacity(unique.len());
     for class in unique {
         // encre-css scans the token and emits the class's rule (or nothing).
         let rule = encre_css::generate([class.as_str()], &config);
-        let rule = rule.trim();
-        if rule.is_empty() {
-            // Not a utility encre-css recognizes — skip silently (not a diagnostic).
-            continue;
-        }
-
-        match oracle.probe(rule) {
-            Ok(()) => {
-                if !out.css.is_empty() {
-                    out.css.push('\n');
+        let rule = rule.trim().to_string();
+        let outcome = if rule.is_empty() {
+            ClassOutcome::Unrecognized
+        } else {
+            match oracle.probe(&rule) {
+                Ok(()) => ClassOutcome::Supported { css: rule },
+                Err(report) => {
+                    ClassOutcome::Dropped(diagnostic_from_report(&class, &rule, &report))
                 }
-                out.css.push_str(rule);
-                out.css.push('\n');
             }
-            Err(report) => {
-                out.diagnostics.push(diagnostic_from_report(&class, rule, &report));
-            }
-        }
+        };
+        results.push((class, outcome));
     }
-
-    out
+    results
 }
 
 /// Liberal candidate-token extraction from `.tsx`/`.ts` source text: it pulls

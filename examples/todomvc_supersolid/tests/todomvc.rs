@@ -1,8 +1,48 @@
 //! Integration tests over the REAL authored Supersolid TodoMVC (`app.tsx`
 //! transpiled by the native TsxLoader), driven headlessly through `superui`.
 mod support;
+use bevy::prelude::Node;
+use bevy::ui::Val;
 use support::*;
 use superui_bridge::UiRuntime;
+
+/// End-to-end: a utility class authored in `app.tsx` flows through the generated
+/// sheet (`@import`ed by `style.css`) and flair's cascade into the element's
+/// computed `Node`. `.pt-4` → `padding-top: 1rem` (16px) on `<h1>`, and
+/// `.w-[220px]` → `width: 220px` on `#add` — both class selectors that win over
+/// the tag/id rules (which set neither property), proving the utility took.
+#[test]
+fn utility_classes_style_elements() {
+    let mut app = app();
+    let _root = mount(&mut app);
+    // Let the stylesheet (and its @import) load and flair apply the cascade.
+    tick(&mut app, 20);
+
+    // `.pt-4` on the <h1>.
+    let h1 = node_by_selector(&app, "h1");
+    let h1_e = entity_for(&app, h1);
+    let padding_top = app
+        .world()
+        .get::<Node>(h1_e)
+        .expect("h1 has a Node")
+        .padding
+        .top;
+    assert_eq!(
+        padding_top,
+        Val::Px(16.0),
+        "expected `.pt-4` (1rem @ 16px root) as padding-top, got {padding_top:?}"
+    );
+
+    // `.w-[220px]` (arbitrary value) on the Add button.
+    let add = node_by_selector(&app, "#add");
+    let add_e = entity_for(&app, add);
+    let width = app.world().get::<Node>(add_e).expect("#add has a Node").width;
+    assert_eq!(
+        width,
+        Val::Px(220.0),
+        "expected `.w-[220px]` as width, got {width:?}"
+    );
+}
 
 #[test]
 fn mounts_and_shows_title() {
