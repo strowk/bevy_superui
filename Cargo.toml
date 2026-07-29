@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = ["crates/*", "examples/*", "xtask", "tools/mdbook-gallery"]
+# `crates/*` already includes `crates/superui_css_utilities`.
 
 [workspace.package]
 edition = "2021"

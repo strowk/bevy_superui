@@ -1,0 +1,36 @@
+[package]
+name = "superui_css_utilities"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+description = "Class utilities (Tailwind-compatible) for bevy_superui: generate flair-supported CSS from utility class names"
+repository.workspace = true
+keywords = ["bevy", "ui", "css", "tailwind", "gamedev"]
+categories = ["game-development"]
+
+# Native-only pure core. The wasm-gating happens at the CONSUMERS (build.rs /
+# the `superui` `utilities` feature), not here — this crate is never compiled
+# into the wasm binary, so it carries no wasm-specific deps.
+[dependencies]
+encre-css = "0.20"
+superui_css = { path = "../superui_css", version = "0.3.2" }
+superui_paths = { path = "../superui_paths", version = "0.3.2" }
+
+# The flair oracle needs a headless Bevy app with the property registries
+# installed. default-features = false keeps it headless (no winit/render); the
+# feature list mirrors `superui_css`'s own integration-test harness — the minimum
+# for AssetPlugin + UiPlugin + text + picking + input-focus so `SuperUiCssPlugin`
+# builds cleanly.
+bevy = { workspace = true, default-features = false, features = [
+    "std",
+    "bevy_ui",
+    "bevy_text",
+    "bevy_picking",
+    "bevy_input_focus",
+    "ui_picking",
+    "default_font",
+] }
+
+[dev-dependencies]
+# Integration tests reference GENERATED_DIR directly.
+superui_paths = { path = "../superui_paths", version = "0.3.2" }
