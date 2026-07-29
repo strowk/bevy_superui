@@ -4,6 +4,8 @@
 mod assets;
 mod hot_reload;
 mod mount;
+#[cfg(all(not(target_arch = "wasm32"), feature = "utilities"))]
+mod utilities;
 
 pub use assets::{HtmlLoader, HtmlSource, JsLoader, JsSource};
 #[cfg(not(target_arch = "wasm32"))]

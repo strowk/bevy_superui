@@ -29,6 +29,9 @@ bevy = { workspace = true, default-features = false, features = [
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 supersolid = { path = "../supersolid", version = "0.3.2" }
+# Opt-in (`utilities` feature) class-utilities stylesheet generator. Native-only
+# and optional — never enters the wasm binary and adds zero deps unless enabled.
+superui_css_utilities = { path = "../superui_css_utilities", version = "0.3.2", optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.3", features = ["wasm_js"] }
@@ -37,6 +40,11 @@ getrandom = { version = "0.3", features = ["wasm_js"] }
 # State-preserving hot reload (Plan 5). Enable ALONGSIDE `bevy/file_watcher`.
 # When on, HMR still only activates while the AssetServer is watching for changes.
 hmr = []
+
+# Opt-in class-utilities: a native-only, watch-gated system that regenerates
+# `<ui>/.superui/build/utilities.generated.css` from the app's `.tsx`/`.ts`
+# sources when they change, logging dropped-class diagnostics via `warn!`.
+utilities = ["dep:superui_css_utilities"]
 
 [dev-dependencies]
 serde = { version = "1", features = ["derive"] }

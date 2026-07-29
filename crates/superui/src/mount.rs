@@ -174,7 +174,16 @@ impl Plugin for SuperUiPlugin {
                 apply_hot_reload
                     .after(detect_hot_reload)
                     .after(mount_when_ready),
-            )
+            );
+        // Opt-in class-utilities: regenerate the generated stylesheet from the
+        // app's `.tsx`/`.ts` sources while the AssetServer is watching (native +
+        // `utilities` feature).
+        #[cfg(all(not(target_arch = "wasm32"), feature = "utilities"))]
+        app.add_systems(
+            Update,
+            crate::utilities::regenerate_utilities.after(mount_when_ready),
+        );
+        app
             .add_systems(
                 Update,
                 // Ordering rule: JS-dispatching systems (drain_dom_events,
