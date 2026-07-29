@@ -37,6 +37,13 @@ Upstream bases:
 - **Why:** CSS-spec compliance: `@import` URLs are defined relative to the importing stylesheet, but upstream passes the raw import string straight to the `AssetServer`, which loads it asset-root-relative. This breaks portable/generated stylesheets (e.g. a `style.css` that `@import`s a sibling `.superui/build/utilities.generated.css`) and any subdirectory-relative import. Regression test: `crates/superui_css/tests/imports_relative.rs`.
 - **Upstream status:** local (not yet submitted; to be offered to bevy_flair).
 
+### css-rem-unit
+- **Crate/file:** `superui_flair_css_parser` — `src/reflect/ui.rs` (`parse_val`); `src/reflect/text.rs` (`parse_line_height`).
+- **Upstream location:** the `Token::Dimension` `match_ignore_ascii_case!` arm in each of `parse_val` and `parse_line_height`.
+- **What:** Accept the CSS `rem` unit as `value * 16.0` px at these length sites: `parse_val` adds `"rem" => Val::Px(*value * 16.0)`; `parse_line_height` adds `"rem" => LineHeight::Px(*value * 16.0)` (LineHeight has no `Rem` variant). The corresponding error-message unit lists are extended to include `'rem'`. Font-size (`parse_font_size`) and letter-spacing (`parse_letter_spacing`) already accept `rem` upstream via the native `FontSize::Rem` / `LetterSpacing::Rem` variants, so they need no patch.
+- **Why:** CSS `rem` is a standard length unit that bevy_ui's `Val` (and bevy_text's `LineHeight`) lacks, so upstream flair rejects it (`UNEXPECTED_VAL_TOKEN` / `UNEXPECTED_LINE_HEIGHT_TOKEN`). It is needed so Tailwind-compatible class-utility scales resolve: encre-css emits `rem` for spacing/sizing/text utilities (`pt-4`, `gap-2`, `text-sm`, etc.). A 16px root (`1rem` = `16px`) is the CSS and Tailwind default.
+- **Upstream status:** local — to be offered to bevy_flair alongside `css-import-relative-resolution`.
+
 ### boa-icu-2x
 - **Crate/file:** `superui_boa_engine` — `Cargo.toml` (`icu_normalizer` dep); `superui_boa_parser` — `Cargo.toml` (`icu_properties` dep).
 - **What:** (a) Relax `icu_normalizer` and `icu_properties` version constraints from upstream `~2.0.0` (tilde = `>=2.0.0, <2.1`) to `>=2.0.0, <3` (accept the full icu 2.x family including 2.1). (b) Because boa's *optional* icu deps (behind `intl`/`intl_bundled`/`temporal`) still pin `~2.0.0` and drag the icu family back to 2.0, remove those optional icu deps and stub `intl`/`intl_bundled` as empty features; `temporal` likewise loses its `icu_calendar` dep. These features become non-functional in the fork.
