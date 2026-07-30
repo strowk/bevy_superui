@@ -14,7 +14,7 @@ use superui_css::html_type_name;
 use superui_css::prelude::{AttributeList, ClassList, InlineStyle, Styled, TypeName};
 use superui_dom::{NodeId, NodeKind};
 
-use crate::runtime::{DomNode, InputValueText, UiRuntime};
+use crate::runtime::{DomNode, InputValueText, PickingPolicy, UiRuntime};
 
 /// Exclusive system: reconcile when dirty. Pulls the NonSend runtime out, syncs,
 /// re-inserts (the NonSend resource has no `resource_scope`, so move it out/in).
@@ -47,6 +47,15 @@ impl UiRuntime {
             .entity_mut(self.root)
             .insert((DomNode(body), Styled::new(self.stylesheet.clone())));
 
+        // Picking policy for this pass. The root is a full-viewport node in the
+        // usual bundle, so it is the first thing that would hide the world.
+        let picking = world
+            .get::<PickingPolicy>(self.root)
+            .copied()
+            .unwrap_or_default();
+        let body_interactive = !dom.listeners(body).is_empty();
+        apply_picking(world, self.root, picking, body_interactive);
+
         // FIX 1: Give the body/root entity a TypeName and sync its identity
         // (id/class/attrs/inline-style), but only when body is actually an
         // Element (when query_selector returned None we fell back to document,
@@ -70,7 +79,7 @@ impl UiRuntime {
         // Recursively sync, collecting every node we touched this pass.
         let mut live: HashSet<NodeId> = HashSet::new();
         live.insert(body);
-        self.sync_children(world, &dom, body);
+        self.sync_children(world, &dom, body, picking, body_interactive);
         self.collect_live(&dom, body, &mut live);
 
         // Despawn entities whose node is no longer reachable.
@@ -91,7 +100,19 @@ impl UiRuntime {
 
     /// Ensure every child of `parent_node` has an entity, is synced, and appears
     /// in the right order under the parent entity.
-    fn sync_children(&mut self, world: &mut World, dom: &superui_dom::Dom, parent_node: NodeId) {
+    ///
+    /// `parent_interactive` is whether `parent_node` or any of its ancestors has
+    /// a DOM event listener; it flows down so [`apply_picking`] can block the
+    /// layers below exactly where the UI is live. Threading it through the walk
+    /// keeps that per-node decision free of extra tree traversals.
+    fn sync_children(
+        &mut self,
+        world: &mut World,
+        dom: &superui_dom::Dom,
+        parent_node: NodeId,
+        picking: PickingPolicy,
+        parent_interactive: bool,
+    ) {
         let parent_entity = self.entity_for(parent_node).expect("parent bound");
         let child_nodes: Vec<NodeId> = dom.children(parent_node).to_vec();
         let mut child_entities: Vec<Entity> = Vec::with_capacity(child_nodes.len());
@@ -128,9 +149,14 @@ impl UiRuntime {
                                 Hovered::default(),
                             ))
                             .id(),
-                        NodeKind::Text(t) => {
-                            world.spawn((Text::new(t.clone()), DomNode(child))).id()
-                        }
+                        // `Pickable::IGNORE`: a text node is never a meaningful
+                        // pick target. Picks resolve to the nearest `DomNode`
+                        // ancestor anyway, so taking text out of the hit list
+                        // costs nothing and stops labels from swallowing the
+                        // clicks and hovers meant for what is behind them.
+                        NodeKind::Text(t) => world
+                            .spawn((Text::new(t.clone()), DomNode(child), Pickable::IGNORE))
+                            .id(),
                         NodeKind::Document => continue,
                     };
                     self.bind(child, e);
@@ -145,8 +171,10 @@ impl UiRuntime {
                     }
                 }
             }
+            let interactive = parent_interactive || !dom.listeners(child).is_empty();
             if matches!(kind, NodeKind::Element(_)) {
                 self.sync_identity(world, dom, child, entity);
+                apply_picking(world, entity, picking, interactive);
                 // `autofocus`: give keyboard focus to the first element that
                 // declares it (browser-standard), so text entry works on load.
                 if self.focused.is_none() && dom.get_attribute(child, "autofocus").is_some() {
@@ -156,7 +184,7 @@ impl UiRuntime {
             child_entities.push(entity);
             // Recurse into element children.
             if matches!(kind, NodeKind::Element(_)) {
-                self.sync_children(world, dom, child);
+                self.sync_children(world, dom, child, picking, interactive);
             }
         }
 
@@ -438,6 +466,43 @@ impl UiRuntime {
             ec.insert(Checked);
         } else {
             ec.remove::<Checked>();
+        }
+    }
+}
+
+/// Give an element node the `Pickable` its policy calls for.
+///
+/// `is_hoverable` stays `true` throughout: hover events are what drive `Hovered`,
+/// and flair reads `:hover` from it — so pass-through costs no styling. Only
+/// `should_block_lower` varies, and only that decides whether the sprite/mesh
+/// backends below ever see the pointer.
+///
+/// Blocking on "self **or an ancestor** is interactive" rather than on "self" is
+/// what keeps a click single. A non-blocking node does not stop the backend from
+/// also reporting its ancestors as hits, so a bare `<div>` inside a listener-
+/// bearing `<button>` would produce two `Pointer<Click>`s and dispatch the DOM
+/// click twice. Blocking the whole interactive subtree reports exactly one hit,
+/// and the DOM's own bubbling carries it to the listener.
+fn apply_picking(world: &mut World, entity: Entity, policy: PickingPolicy, interactive: bool) {
+    let mut ec = world.entity_mut(entity);
+    match policy {
+        PickingPolicy::PassThrough => {
+            let want = Pickable {
+                should_block_lower: interactive,
+                is_hoverable: true,
+            };
+            // Equality guard: `insert` marks the component `Changed`, and picking
+            // runs every frame over every node.
+            if ec.get::<Pickable>() != Some(&want) {
+                ec.insert(want);
+            }
+        }
+        // No `Pickable` is how bevy_ui spells "blocks" — so `Solid` is the absence
+        // of one. The remove matters only when the policy is switched at runtime.
+        PickingPolicy::Solid => {
+            if ec.contains::<Pickable>() {
+                ec.remove::<Pickable>();
+            }
         }
     }
 }

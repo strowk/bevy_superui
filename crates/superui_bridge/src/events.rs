@@ -75,25 +75,60 @@ pub fn on_pointer_click(
     let Some(mut dom) = dom else {
         return;
     };
-    // `Pointer<Click>` bubbles up the entity hierarchy, firing this observer once
-    // per ancestor. We only want to act on the actual (deepest) target — otherwise
-    // focus would be overwritten by each ancestor up to `<body>`. Stop propagation
-    // so we handle the click exactly once. (DOM-level bubbling is done separately
-    // by our own W3C dispatch in `click_effect`/`dispatch_event`.)
-    let target = ev.event().entity;
+    // Resolve BEFORE claiming the event. This is a global observer on the
+    // app-wide `Pointer<Click>`, so it also runs for entities that have nothing
+    // to do with superui — a game's own buttons, world objects, another UI. Those
+    // must be left alone: stopping propagation for them cancels bubbling to the
+    // handler on their ancestor, which is where Bevy UIs put it (the pick lands
+    // on a `Text` child and only reaches the button by propagation).
+    let Some(node) = resolve_dom_node(ev.event().entity, &nodes, &parents) else {
+        return;
+    };
+    // Ours. `Pointer<Click>` bubbles up the entity hierarchy, firing this observer
+    // once per ancestor. We only want the actual (deepest) target — otherwise focus
+    // would be overwritten by each ancestor up to `<body>`. Stop propagation so we
+    // handle the click exactly once. (DOM-level bubbling is done separately by our
+    // own W3C dispatch in `click_effect`/`dispatch_event`.)
     ev.propagate(false);
-    apply_pointer_click(target, &nodes, &parents, &mut dom, &mut pending);
+    focus_and_click(node, &mut dom, &mut pending);
+}
+
+/// Walk up from `entity` to the nearest ancestor that carries a [`DomNode`],
+/// returning `None` when the entity belongs to no mounted UI.
+///
+/// The hit entity may be a reconciler-internal child (e.g. an input's managed
+/// text child, or an element's `Text` child) with no `DomNode` — so clicking
+/// anywhere inside the input resolves to the input, like a browser.
+pub fn resolve_dom_node(
+    entity: Entity,
+    nodes: &Query<&DomNode>,
+    parents: &Query<&ChildOf>,
+) -> Option<NodeId> {
+    let mut cur = entity;
+    loop {
+        if let Ok(dom_node) = nodes.get(cur) {
+            return Some(dom_node.0);
+        }
+        match parents.get(cur) {
+            Ok(parent) => cur = parent.parent(),
+            Err(_) => return None,
+        }
+    }
+}
+
+/// Focus a resolved node and enqueue its `click` (+ checkbox `change`) DOM event.
+fn focus_and_click(node: NodeId, rt: &mut UiRuntime, pending: &mut PendingDomEvents) {
+    rt.focused = Some(node);
+    rt.caret_visible = true;
+    rt.caret_accum = 0.0;
+    click_effect(rt, node, pending);
 }
 
 /// The core of a pointer click on a UI `entity`: resolve it to a DOM node, focus
 /// it, and enqueue the `click` (+ checkbox `change`) DOM event. Shared by the
 /// picking observer and by test/automation drivers that can't synthesize a real
-/// `Pointer<Click>` (e.g. the `mcp_debug` click injector).
-///
-/// The hit entity may be a reconciler-internal child (e.g. an input's managed
-/// text child, or an element's `Text` child) with no `DomNode`. So resolve to
-/// the nearest ancestor that *is* a DOM node — clicking anywhere inside the
-/// input focuses the input, like a browser.
+/// `Pointer<Click>` (e.g. the `mcp_debug` click injector). Silently does nothing
+/// when the entity belongs to no mounted UI.
 pub fn apply_pointer_click(
     entity: Entity,
     nodes: &Query<&DomNode>,
@@ -101,23 +136,9 @@ pub fn apply_pointer_click(
     rt: &mut UiRuntime,
     pending: &mut PendingDomEvents,
 ) {
-    let mut cur = entity;
-    let node = loop {
-        if let Ok(dom_node) = nodes.get(cur) {
-            break Some(dom_node.0);
-        }
-        match parents.get(cur) {
-            Ok(parent) => cur = parent.parent(),
-            Err(_) => break None,
-        }
-    };
-    let Some(node) = node else {
-        return;
-    };
-    rt.focused = Some(node);
-    rt.caret_visible = true;
-    rt.caret_accum = 0.0;
-    click_effect(rt, node, pending);
+    if let Some(node) = resolve_dom_node(entity, nodes, parents) {
+        focus_and_click(node, rt, pending);
+    }
 }
 
 /// Blink the text caret (~2 Hz) while a text field is focused; re-renders on flip.

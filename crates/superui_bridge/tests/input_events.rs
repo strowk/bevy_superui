@@ -196,3 +196,68 @@ fn checkbox_click_toggles_checked_and_fires_change() {
     let data_changes = dom.borrow().get_attribute(node, "data-changes").unwrap_or("").to_string();
     assert_eq!(data_changes, "1", "change listener must have fired exactly once");
 }
+
+/// Regression: superui's click observer is global — it runs for every
+/// `Pointer<Click>` in the app, including entities that belong to the host game.
+/// Claiming those (stopping propagation) cancels bubbling to the handler on their
+/// ancestor, which is where a Bevy UI puts it: the pick lands on the `Text` child
+/// and only reaches the button by propagation. So while a UI is mounted, every
+/// button in the host app goes dead.
+#[test]
+fn a_click_on_a_foreign_entity_still_reaches_its_ancestors_handler() {
+    use bevy::camera::NormalizedRenderTarget;
+    use bevy::picking::backend::HitData;
+    use bevy::picking::events::{Click, Pointer};
+    use bevy::picking::pointer::{Location, PointerButton, PointerId};
+    use bevy::window::{PrimaryWindow, WindowRef};
+
+    #[derive(Resource, Default)]
+    struct AncestorRan(bool);
+
+    let dom = Rc::new(RefCell::new(superui_html::parse_document(
+        "<button id='b'>superui</button>",
+    )));
+    let mut app = test_app();
+    mount_with_input(&mut app, dom.clone());
+    app.init_resource::<AncestorRan>();
+    app.update(); // mount + first reconcile
+
+    // A host-app widget with nothing to do with superui: handler on the parent,
+    // pickable child underneath it.
+    let child = app.world_mut().spawn(Node::default()).id();
+    app.world_mut()
+        .spawn(Node::default())
+        .add_child(child)
+        .observe(|_: On<Pointer<Click>>, mut ran: ResMut<AncestorRan>| ran.0 = true);
+
+    // A real `Pointer<Click>` on the child — the entity-only path can't reproduce
+    // a propagation bug.
+    let camera = app.world_mut().spawn(Camera2d).id();
+    let window = app
+        .world_mut()
+        .query_filtered::<Entity, With<PrimaryWindow>>()
+        .single(app.world())
+        .expect("primary window");
+    let target = WindowRef::Entity(window)
+        .normalize(Some(window))
+        .expect("normalized window");
+    app.world_mut().trigger(Pointer::new(
+        PointerId::Mouse,
+        Location {
+            target: NormalizedRenderTarget::Window(target),
+            position: Vec2::ZERO,
+        },
+        Click {
+            button: PointerButton::Primary,
+            hit: HitData::new(camera, 0.0, None, None),
+            duration: std::time::Duration::ZERO,
+            count: 1,
+        },
+        child,
+    ));
+
+    assert!(
+        app.world().resource::<AncestorRan>().0,
+        "superui must leave clicks it does not own alone so they keep bubbling"
+    );
+}
