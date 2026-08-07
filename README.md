@@ -188,10 +188,20 @@ at your option.
 This means you can select the license you prefer. This dual-licensing approach is
 the de-facto standard in the Rust and Bevy ecosystems.
 
-Portions of this repository are derived from [`bevy_flair`](https://github.com/eckz/bevy_flair)
-(the vendored crates under `crates/bevy_flair_*`), which is itself dual-licensed
-under MIT OR Apache-2.0. Copyright over those portions remains with the original
-authors; see the upstream project for details.
+### Vendored third-party code
+
+This repository vendors forks of two upstream projects. Copyright over those
+portions remains with their original authors; see the upstream projects for
+details.
+
+- **[`bevy_flair`](https://github.com/eckz/bevy_flair)** — the crates under
+  `crates/superui_flair_*`, licensed **MIT OR Apache-2.0** (same terms as this
+  project).
+- **[Boa](https://github.com/boa-dev/boa)** — the crates under
+  `crates/superui_boa_engine` and `crates/superui_boa_parser`, which are forks of
+  `boa_engine` / `boa_parser` 0.21.1 licensed **Unlicense OR MIT**. They are
+  published under their own crate names to avoid clashing with upstream on
+  crates.io.
 
 ### Your contributions
 
