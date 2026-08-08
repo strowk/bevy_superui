@@ -4,67 +4,131 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <base href="./">
-<title>{{TITLE}} — superui demo</title>
+<title>{{TITLE}} — superui</title>
+<!-- The shared chrome. These two files are copied verbatim (unhashed) from
+     website/src/assets/, so this relative path is stable in the built site. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;600;700&family=Archivo:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="../../assets/blueprint.css">
+<link rel="stylesheet" href="../../assets/demo.css">
 <link rel="stylesheet" href="../vendor/highlight.css">
-<style>
-  :root { --bg:#1e1e28; --panel:#262633; --fg:#e6e6ef; --muted:#9a9ab0; }
-  * { box-sizing:border-box; }
-  html,body { margin:0; height:100%; background:var(--bg); color:var(--fg);
-              font-family:system-ui, sans-serif; }
-  #banner { padding:8px 12px; background:#2f2a4a; font-size:13px; border-bottom:1px solid #3a3a52; }
-  #banner code { background:#00000040; padding:1px 5px; border-radius:4px; }
-  #site-nav { display:flex; gap:16px; padding:8px 12px; background:#262633;
-              border-bottom:1px solid #3a3a52; font-size:13px; }
-  #site-nav a { color:#a99bff; text-decoration:none; }
-  #site-nav a:hover { text-decoration:underline; }
-  #view-tabs { display:none; background:var(--panel); }
-  #layout { display:flex; height:calc(100% - 70px); }
-  #app-pane { flex:1 1 55%; position:relative; min-width:0; border-right:1px solid #3a3a52; }
-  #superui-canvas { width:100%; height:100%; display:block; }
-  #loader { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
-            padding:0 24px; text-align:center; color:var(--muted); font-size:14px; }
-  #code-pane { flex:1 1 45%; display:flex; flex-direction:column; min-width:0; }
-  #tabs { display:flex; gap:2px; background:var(--panel); padding:6px 6px 0; flex-wrap:wrap; }
-  .tab { padding:6px 12px; cursor:pointer; color:var(--muted); border:none; background:transparent;
-         font-size:13px; border-radius:6px 6px 0 0; }
-  .tab.active { color:var(--fg); background:var(--bg); }
-  #code-scroll { flex:1; overflow:auto; margin:0; }
-  #code-scroll code { display:block; padding:12px 16px; font-size:13px; line-height:1.5;
-                      font-family:ui-monospace, "Cascadia Code", Consolas, monospace; }
-  @media (max-width:800px) {
-    #layout { flex-direction:column; }
-    #app-pane, #code-pane { flex:1 1 auto; border:none; }
-    #view-tabs { display:flex; }
-    .hidden { display:none !important; }
-  }
-</style>
+<script>var path_to_root = "../../";</script>
+<script defer src="../../assets/blueprint.js"></script>
 </head>
 <body>
-  <nav id="site-nav">
-    <a href="../../">Home</a>
-    <a href="../../docs/">Docs</a>
-    <a href="../">Examples</a>
-    <a href="https://github.com/strowk/bevy_superui">GitHub</a>
-  </nav>
-  <div id="banner">
-    ▶ Static WebAssembly build of <strong>{{TITLE}}</strong>. Live hot-reload of the UI is
-    <strong>native-only</strong> — <code>git clone … &amp;&amp; cargo run -p {{SLUG}}</code>
-    (add <code>--features hmr</code> for the supersolid TSX examples) to edit it live.
-  </div>
-  <div id="view-tabs">
-    <button class="tab active" data-view="app">Demo</button>
-    <button class="tab" data-view="code">Code</button>
-  </div>
-  <div id="layout">
-    <div id="app-pane">
-      <canvas id="superui-canvas"></canvas>
-      <div id="loader">Loading {{TITLE}} — this is a large WebAssembly binary, please wait…</div>
+  <div class="su-bg su-bg--wash"></div>
+  <div class="su-bg su-bg--grid-fine"></div>
+  <div class="su-bg su-bg--grid-coarse"></div>
+
+  <!-- Same markup the book renders from website/theme/index.hbs. Keep the two in sync.
+       No sidebar toggle (no sidebar) and no search button (standalone file, no index). -->
+  <header class="su-bar" data-su-path="examples/">
+    <!-- Spacer matching the sidebar-toggle box the book pages have here, so the brand
+         starts at the same x and the header does not shift between them. -->
+    <div class="left-buttons" aria-hidden="true"></div>
+    <div class="su-bar-inner">
+      <a class="su-brand" href="../../index.html">
+        <img class="su-logo" src="../../logo.svg" alt="">
+        <span class="su-word"><b>SUPERUI</b><small>MADE FOR BEVY</small></span>
+      </a>
+      <nav class="su-tabs" aria-label="Site sections">
+        <a class="su-tab" data-su-tab="home" href="../../index.html">HOME</a>
+        <a class="su-tab" data-su-tab="docs" href="../../docs/index.html">DOCS</a>
+        <a class="su-tab" data-su-tab="examples" href="../../examples/index.html">EXAMPLES</a>
+      </nav>
     </div>
-    <div id="code-pane">
-      <div id="tabs"></div>
-      <pre id="code-scroll"><code id="code-el"></code></pre>
+    <a class="su-source" href="https://github.com/strowk/bevy_superui" target="_blank" rel="noopener">
+      <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg><span>SOURCE ↗</span>
+    </a>
+  </header>
+
+  <main class="demo-main">
+    <div class="demo-crumbs">
+      <a href="../">← EXAMPLES</a><span>/</span><span>{{CATEGORY}}</span><span>/</span>
+      <span class="demo-crumb-now">{{TITLE}}</span>
     </div>
-  </div>
+
+    <div class="demo-grid" id="demo-grid">
+      <div class="demo-stage">
+        <div class="demo-stage-bar">
+          <div class="demo-tabs">
+            <button class="demo-tab is-active" data-view="app" type="button">VIEW</button>
+            <button class="demo-tab" data-view="code" type="button">PARTS</button>
+          </div>
+          <span class="demo-stage-meta">WASM · {{SLUG}}</span>
+          <button class="demo-expand" id="demo-expand" type="button">⤢ FULL SHEET</button>
+        </div>
+
+        <!-- Both panes share one grid cell so they are always the same size and the
+             inactive one keeps its box — the app sizes its canvas from the parent's box
+             (bevy's fit_canvas_to_parent) and would mis-measure a display:none parent. -->
+        <div class="demo-panes">
+          <div class="demo-frame" id="app-pane">
+            <span class="demo-frame-label demo-frame-label--tl">VIEWPORT — APP MOUNTS HERE</span>
+            <span class="demo-frame-label demo-frame-label--br">BEVY · WGPU</span>
+            <canvas id="superui-canvas"></canvas>
+            <div id="loader" class="demo-loader">
+              <div class="demo-radar"><i></i><b></b></div>
+              <div class="demo-loader-title">Plotting drawing</div>
+              <div class="demo-loader-text">Loading {{TITLE}} — this is a large WebAssembly binary, please wait…</div>
+              <div class="demo-loader-bar"><span></span></div>
+            </div>
+          </div>
+
+          <div class="demo-parts is-off" id="code-pane">
+            <div class="demo-parts-list">
+              <div class="demo-parts-head">PARTS LIST</div>
+              <div id="tabs"></div>
+            </div>
+            <div class="demo-parts-code">
+              <div class="demo-parts-path"><span id="active-path"></span></div>
+              <pre id="code-scroll"><code id="code-el"></code></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <aside class="demo-spec">
+        <div class="demo-spec-card">
+          <div class="demo-spec-eyebrow">{{CATEGORY}}</div>
+          <h1>{{TITLE}}</h1>
+          <div class="demo-spec-rule"></div>
+          <p>{{DESCRIPTION}}</p>
+          <div class="badges">{{BADGES}}</div>
+        </div>
+
+        <div class="demo-warn">
+          <div class="demo-warn-rail">!</div>
+          <div class="demo-warn-body">
+            <div class="demo-warn-title">AS-BUILT — WASM</div>
+            <p>This is a prebuilt binary. Live UI hot reload is <strong>native only</strong> —
+               clone the repo and run it locally to edit the interface while the game runs.</p>
+          </div>
+        </div>
+
+        <div class="demo-run">
+          <div class="demo-run-head">HOW TO RUN IT LOCALLY</div>
+          <pre><span class="c"># clone &amp; run</span>
+git clone https://github.com/strowk/bevy_superui
+cargo run -p {{SLUG}}
+<span class="c"># edit the UI while it runs:</span>
+cargo run -p {{SLUG}} <span class="s">--features hmr</span></pre>
+        </div>
+
+        <a class="su-source demo-source" href="https://github.com/strowk/bevy_superui"
+           target="_blank" rel="noopener">VIEW SOURCE ↗</a>
+      </aside>
+    </div>
+  </main>
+
+  <footer class="su-titleblock">
+    <div><span>PROJECT</span><b>SUPERUI · BEVY UI</b></div>
+    <div><span>DRAWN BY</span><b>STROWK</b></div>
+    <div><span>SCALE</span><b>NOT TO SCALE</b></div>
+    <div><span>REV</span><b class="su-rev">R1 · 0.1 EARLY BUILD</b></div>
+    <div><span>LICENCE</span><b>MIT / APACHE-2.0</b></div>
+  </footer>
 
   <script>window.__SOURCES__ = {{SOURCES_JSON}};</script>
   <script src="../vendor/highlight.min.js"></script>
@@ -72,10 +136,15 @@
     const sources = window.__SOURCES__ || [];
     const tabsEl = document.getElementById('tabs');
     const codeEl = document.getElementById('code-el');
+    const pathEl = document.getElementById('active-path');
     const cache = {};
+    const LANG_COLOR = { typescript: '#34e6d6', xml: '#ff8a6b', css: '#8fb8ff', javascript: '#ffc46b' };
+    const LANG_LABEL = { typescript: 'TSX', xml: 'HTML', css: 'CSS', javascript: 'JS' };
+
     async function show(i) {
       const src = sources[i];
-      [...tabsEl.children].forEach((t, j) => t.classList.toggle('active', i === j));
+      [...tabsEl.children].forEach((t, j) => t.classList.toggle('is-active', i === j));
+      if (pathEl) pathEl.textContent = src.path;
       if (cache[i] == null) {
         try { cache[i] = await (await fetch(src.path)).text(); }
         catch (e) { cache[i] = '// failed to load ' + src.path; }
@@ -85,26 +154,39 @@
       codeEl.className = 'language-' + src.lang;
       if (window.hljs) hljs.highlightElement(codeEl);
     }
+
     sources.forEach((src, i) => {
       const b = document.createElement('button');
-      b.className = 'tab' + (i === 0 ? ' active' : '');
-      b.textContent = src.name;
+      b.className = 'demo-part' + (i === 0 ? ' is-active' : '');
+      b.type = 'button';
+      const color = LANG_COLOR[src.lang] || '#7fa3bd';
+      b.innerHTML = '<span class="demo-part-badge" style="color:' + color +
+        ';border-color:' + color + '">' + (LANG_LABEL[src.lang] || '·') + '</span>' +
+        '<span>' + src.name + '</span>';
       b.onclick = () => show(i);
       tabsEl.appendChild(b);
     });
     if (sources.length) show(0);
 
+    // VIEW / PARTS — works at every width (the old switch was mobile-only).
     const appPane = document.getElementById('app-pane');
     const codePane = document.getElementById('code-pane');
-    document.querySelectorAll('#view-tabs .tab').forEach(t => {
+    document.querySelectorAll('.demo-tab').forEach(t => {
       t.onclick = () => {
-        document.querySelectorAll('#view-tabs .tab').forEach(x => x.classList.remove('active'));
-        t.classList.add('active');
+        document.querySelectorAll('.demo-tab').forEach(x => x.classList.remove('is-active'));
+        t.classList.add('is-active');
         const app = t.dataset.view === 'app';
-        appPane.classList.toggle('hidden', !app);
-        codePane.classList.toggle('hidden', app);
+        appPane.classList.toggle('is-off', !app);
+        codePane.classList.toggle('is-off', app);
       };
     });
+
+    const expand = document.getElementById('demo-expand');
+    const grid = document.getElementById('demo-grid');
+    expand.onclick = () => {
+      const full = grid.classList.toggle('is-full');
+      expand.textContent = full ? '⤡ FIT SHEET' : '⤢ FULL SHEET';
+    };
   </script>
 
   <script type="module">

@@ -1,0 +1,204 @@
+/* Standalone demo host page chrome. Loaded alongside blueprint.css (see
+   tools/gallery/host.html.tmpl). Demo pages do not load site.css, so the
+   .badges/.badge rules are duplicated here from website/theme/css/site.css. */
+
+/* Clear the now-fixed shared header. Book pages get this from site.css's
+   `.page { padding-top: var(--menu-bar-height) }`; demo pages have no `.page` wrapper. */
+body { padding-top: var(--menu-bar-height, 64px); }
+
+.hidden { display: none !important; }
+
+.demo-main {
+  position: relative; z-index: 4; max-width: 1620px; margin: 0 auto;
+  padding: clamp(22px, 3vw, 36px) var(--su-edge) 60px;
+}
+
+.demo-crumbs {
+  display: flex; align-items: center; gap: 11px; flex-wrap: wrap;
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.12em; color: var(--su-muted);
+}
+.demo-crumbs a { color: var(--su-teal); text-decoration: none; }
+.demo-crumb-now { color: var(--su-heading); }
+
+.demo-grid {
+  display: grid; grid-template-columns: minmax(0, 1.62fr) minmax(268px, 1fr);
+  gap: clamp(16px, 2.4vw, 24px); margin-top: 18px; align-items: start;
+}
+.demo-grid.is-full { display: flex; flex-direction: column; }
+@media (max-width: 900px) {
+  .demo-grid { display: flex; flex-direction: column; }
+}
+
+.demo-stage-bar { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; padding-bottom: 9px; }
+.demo-tabs { display: flex; }
+.demo-tab {
+  font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.16em; cursor: pointer;
+  padding: 7px 15px; border: 1px solid var(--su-line); background: transparent;
+  color: var(--su-body); margin-right: -1px;
+}
+.demo-tab.is-active {
+  border-color: var(--su-teal); background: rgba(52, 230, 214, 0.12); color: var(--su-teal);
+}
+.demo-stage-meta {
+  margin-left: auto; font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.18em;
+  color: var(--su-dim);
+}
+.demo-expand {
+  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.14em; cursor: pointer;
+  padding: 7px 11px; border: 1px solid var(--su-line); background: transparent;
+  color: var(--su-body); margin-right: 0;
+}
+
+/* VIEW and PARTS stack in the same cell, so they are always identically sized and the
+   inactive one keeps its box. */
+.demo-panes { display: grid; min-height: 390px; height: 520px; }
+.demo-panes > * { grid-area: 1 / 1; min-width: 0; min-height: 0; }
+.demo-panes > .is-off { visibility: hidden; pointer-events: none; }
+.demo-grid.is-full .demo-panes { min-height: 540px; height: calc(100vh - 250px); }
+
+.demo-frame {
+  position: relative; border: 1px solid var(--su-line); background: rgba(7, 26, 40, 0.85);
+  overflow: hidden;
+  background-image:
+    linear-gradient(rgba(220, 233, 242, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(220, 233, 242, 0.055) 1px, transparent 1px);
+  background-size: 26px 26px;
+}
+.demo-frame::before, .demo-frame::after {
+  content: ""; position: absolute; width: 13px; height: 13px; z-index: 2;
+}
+.demo-frame::before {
+  top: 9px; left: 9px;
+  border-top: 1px solid var(--su-teal); border-left: 1px solid var(--su-teal);
+}
+.demo-frame::after {
+  bottom: 9px; right: 9px;
+  border-bottom: 1px solid var(--su-teal); border-right: 1px solid var(--su-teal);
+}
+
+.demo-frame-label {
+  position: absolute; z-index: 2; font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.2em;
+}
+.demo-frame-label--tl { top: 14px; left: 32px; color: var(--su-teal); }
+.demo-frame-label--br { bottom: 14px; right: 32px; color: var(--su-dim); }
+
+#superui-canvas { width: 100%; height: 100%; display: block; }
+
+.demo-loader {
+  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 12px; text-align: center; padding: 0 24px;
+  background: rgba(7, 26, 40, 0.9);
+}
+.demo-radar { position: relative; width: 66px; height: 66px; border: 1px solid var(--su-line-soft); }
+.demo-radar i {
+  position: absolute; top: 50%; left: 50%; width: 50%; height: 1px; background: var(--su-teal);
+  transform-origin: 0 50%; animation: bp-plot 2.4s linear infinite;
+}
+.demo-radar b {
+  position: absolute; top: 50%; left: 50%; width: 5px; height: 5px; margin: -2.5px 0 0 -2.5px;
+  background: var(--su-teal);
+}
+.demo-loader-title {
+  font-family: var(--font-display); font-weight: 600; font-size: 15px; letter-spacing: 0.2em;
+  text-transform: uppercase; color: var(--su-teal);
+}
+.demo-loader-text {
+  font-family: var(--font-mono); font-size: 12.5px; line-height: 1.6; color: var(--su-muted);
+  max-width: 410px;
+}
+.demo-loader-bar {
+  position: relative; width: 240px; height: 2px; background: rgba(220, 233, 242, 0.16);
+  overflow: hidden;
+}
+.demo-loader-bar span {
+  position: absolute; top: 0; width: 30%; height: 100%; background: var(--su-teal);
+  animation: bp-sweep 1.6s ease-in-out infinite;
+}
+
+.demo-parts {
+  display: grid; grid-template-columns: 214px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr);
+  border: 1px solid var(--su-line); background: rgba(7, 26, 40, 0.85);
+}
+/* Filename bar on top, scroller filling the rest. `min-height: 0` or the flex item
+   refuses to shrink below its content and overflows. */
+.demo-parts-code { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.demo-parts-list {
+  border-right: 1px solid var(--su-line-soft); padding: 12px 8px; overflow: auto;
+  background: var(--su-panel);
+}
+.demo-parts-head {
+  font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.2em; color: var(--su-dim);
+  padding: 2px 8px 10px;
+}
+.demo-part {
+  display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
+  font-family: var(--font-mono); font-size: 11.5px; padding: 6px 8px; cursor: pointer;
+  background: transparent; border: none; border-left: 2px solid transparent; color: var(--su-body);
+}
+.demo-part.is-active {
+  color: var(--su-heading); background: rgba(52, 230, 214, 0.12); border-left-color: var(--su-teal);
+}
+.demo-part-badge {
+  display: inline-grid; place-items: center; min-width: 32px; font-size: 8.5px; letter-spacing: 0.06em;
+  padding: 2px 4px; border: 1px solid currentColor;
+}
+.demo-parts-path {
+  display: flex; padding: 9px 14px; border-bottom: 1px solid var(--su-line-soft);
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em; color: var(--su-muted);
+}
+#code-scroll { margin: 0; overflow: auto; flex: 1; min-height: 0; }
+
+.demo-spec { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.demo-spec-card { border: 1px solid var(--su-line-soft); background: var(--su-panel); padding: 20px; }
+.demo-spec-eyebrow {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.18em; color: var(--su-dim);
+}
+.demo-spec-card h1 {
+  font-family: var(--font-display); font-weight: 700; font-size: clamp(23px, 2.7vw, 30px);
+  letter-spacing: 0.03em; text-transform: uppercase; margin: 11px 0 0; color: var(--su-heading);
+}
+.demo-spec-rule {
+  margin-top: 11px; height: 2px;
+  background: linear-gradient(90deg, var(--su-teal) 0 54px, rgba(220, 233, 242, 0.18) 54px);
+}
+.demo-spec-card p { font-size: 15px; line-height: 1.6; color: var(--su-body); margin: 14px 0 0; }
+
+.demo-warn {
+  display: flex; align-items: stretch; border: 1px solid rgba(255, 138, 107, 0.5);
+  background: rgba(255, 138, 107, 0.06);
+}
+.demo-warn-rail {
+  width: 40px; flex: 0 0 40px; display: grid; place-items: center;
+  border-right: 1px solid rgba(255, 138, 107, 0.4);
+  font-family: var(--font-mono); font-weight: 600; font-size: 14px; color: var(--su-orange);
+}
+.demo-warn-body { padding: 14px 16px; }
+.demo-warn-title {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.18em; color: var(--su-orange);
+}
+.demo-warn-body p { margin: 7px 0 0; font-size: 13.5px; line-height: 1.55; color: #c2d4e0; }
+.demo-warn-body strong { color: #ffb59f; }
+
+.demo-run { border: 1px solid var(--su-line); background: rgba(7, 26, 40, 0.7); }
+.demo-run-head {
+  padding: 9px 13px; border-bottom: 1px solid var(--su-line-soft);
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.16em; color: var(--su-muted);
+}
+.demo-run pre {
+  margin: 0; padding: 14px 16px; font-family: var(--font-mono); font-size: 12px; line-height: 1.74;
+  color: #b6cfdf; white-space: pre-wrap; word-break: break-word;
+}
+.demo-run pre .c { color: var(--su-dim); }
+.demo-run pre .s { color: #9de8b4; }
+
+.demo-source {
+  justify-content: center; padding: 13px; font-family: var(--font-display); font-weight: 600;
+  font-size: 14px; letter-spacing: 0.14em;
+}
+
+/* Duplicated from website/theme/css/site.css — demo pages do not load site.css. */
+.badges { margin-top: 14px; display: flex; gap: 7px; flex-wrap: wrap; }
+.badge {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; padding: 3px 8px;
+  border: 1px solid rgba(52, 230, 214, 0.35); color: var(--su-teal);
+}

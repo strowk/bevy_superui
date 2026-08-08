@@ -9,14 +9,9 @@ pub struct Example {
     #[allow(dead_code)]
     pub package: String,
     pub title: String,
-    // Kept for the manifest schema; the gallery index (which read these) moved to
-    // the mdbook-gallery preprocessor, so host-page no longer touches them.
-    #[allow(dead_code)]
     pub description: String,
-    #[allow(dead_code)]
     pub category: String,
     #[serde(default)]
-    #[allow(dead_code)]
     pub tags: Vec<String>,
 }
 

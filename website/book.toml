@@ -11,7 +11,6 @@ preferred-dark-theme = "navy"
 site-url = "/bevy_superui/"
 git-repository-url = "https://github.com/strowk/bevy_superui"
 additional-css = ["theme/css/site.css", "theme/css/landing.css"]
-additional-js = ["theme/js/site.js"]
 no-section-label = true
 
 [preprocessor.gallery]
