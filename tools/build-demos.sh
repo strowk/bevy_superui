@@ -21,6 +21,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."   # repo root
 
 TARGET=wasm32-unknown-unknown
+CARGO_TARGET_ROOT="${CARGO_TARGET_DIR:-target}"
 OUT_ROOT=website/src/examples
 
 # slug -> extra `cargo build` args. Keep in sync with examples/gallery.json
@@ -81,7 +82,7 @@ for slug in "${slugs[@]}"; do
   mkdir -p "$out"
   wasm-bindgen --no-typescript --target web \
     --out-dir "$out" --out-name "$slug" \
-    "target/$TARGET/release/$slug.wasm"
+    "$CARGO_TARGET_ROOT/$TARGET/release/$slug.wasm"
   cargo run -q -p xtask -- host-page --slug "$slug" --out "$out"
   rm -rf "$out/assets"
   cp -r "examples/$slug/assets" "$out/assets"

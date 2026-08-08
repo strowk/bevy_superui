@@ -1,0 +1,156 @@
+/* Shared blueprint design system. Linked by the book from theme/index.hbs and by the
+   generated demo pages from tools/gallery/host.html.tmpl. Nothing mdBook-specific here.
+   The font stylesheet is <link>ed by both, not @imported, so it downloads in parallel. */
+
+:root {
+  --su-bg: #0d2b40;
+  --su-bg-deep: #071a28;
+  --su-panel: rgba(9, 32, 48, 0.5);
+  --su-panel-solid: #092030;
+  --su-teal: #34e6d6;
+  --su-teal-bright: #5cf2e4;
+  --su-orange: #ff8a6b;
+  --su-amber: #ffc46b;
+  --su-heading: #f2f9fc;
+  --su-text: #dce9f2;
+  --su-body: #a9c4d6;
+  --su-muted: #7fa3bd;
+  --su-dim: #5c7f99;
+  --su-line: rgba(220, 233, 242, 0.28);
+  --su-line-soft: rgba(220, 233, 242, 0.16);
+  --font-display: "Saira Condensed", system-ui, sans-serif;
+  --font-body: "Archivo", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  --su-app-max: 1520px;
+  --su-edge: max(clamp(14px, 3vw, 26px), calc((100vw - var(--su-app-max)) / 2));
+}
+
+html, body { background: var(--su-bg); color: var(--su-text); font-family: var(--font-body); }
+
+/* mdBook's chrome.css supplies this on book pages; the standalone demo pages do not load
+   it, so without this they inherit the browser's default 8px body margin. */
+body { margin: 0; }
+
+/* --- fixed background layers --- */
+.su-bg { position: fixed; pointer-events: none; }
+.su-bg--wash {
+  inset: -15%; z-index: 0; filter: blur(26px);
+  background:
+    radial-gradient(700px 560px at 26% 24%, rgba(52, 230, 214, 0.10), transparent 68%),
+    radial-gradient(620px 520px at 76% 72%, rgba(120, 180, 235, 0.07), transparent 66%);
+  animation: bp-wash 26s ease-in-out infinite;
+}
+.su-bg--grid-fine {
+  inset: 0; z-index: 0;
+  background-image:
+    linear-gradient(rgba(220, 233, 242, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(220, 233, 242, 0.05) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+.su-bg--grid-coarse {
+  inset: 0; z-index: 0;
+  background-image:
+    linear-gradient(rgba(220, 233, 242, 0.10) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(220, 233, 242, 0.10) 1px, transparent 1px);
+  background-size: 110px 110px;
+}
+
+@keyframes bp-wash {
+  0%, 100% { opacity: 0.5; transform: translate3d(0, 0, 0); }
+  50% { opacity: 0.85; transform: translate3d(2%, 1.5%, 0); }
+}
+@keyframes bp-march { to { background-position: 14px 0; } }
+@keyframes bp-plot { to { transform: rotate(360deg); } }
+@keyframes bp-sweep { 0% { left: -30%; } 100% { left: 100%; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .su-bg { animation: none !important; }
+  * { animation-duration: 0s !important; animation-iteration-count: 1 !important; }
+}
+
+/* ============ shared header ============ */
+/* The header's position belongs here, in the shared sheet, because both the book and the
+   standalone demo pages use it. site.css additionally restates this with `!important` for
+   the book only, in order to defeat an inline `style.top` that mdBook's own book.js writes
+   on every scroll event. */
+.su-bar {
+  position: fixed; top: 0; inset-inline: 0; z-index: 200;
+  display: flex; align-items: stretch;
+  box-sizing: border-box;
+  background: rgba(9, 32, 48, 0.88);
+  border-bottom: 1px solid var(--su-line);
+  padding-inline: var(--su-edge);
+  min-height: var(--menu-bar-height, 64px);
+}
+/* Fixed width so the brand starts at the same x everywhere: book pages put the sidebar
+   toggle here, demo pages have no toggle and use an empty spacer. */
+.su-bar > .left-buttons { flex: 0 0 48px; display: flex; align-items: center; margin: 0; }
+.su-bar-inner { display: flex; align-items: stretch; gap: 20px; min-width: 0; }
+
+.su-brand { display: flex; align-items: center; gap: 13px; text-decoration: none;
+  border-bottom: none; }
+.su-logo { height: 30px; width: auto; display: block;
+  filter: drop-shadow(0 0 10px rgba(52, 230, 214, 0.3)); }
+.su-word { line-height: 1; display: inline-flex; flex-direction: column; }
+.su-word b { font-family: var(--font-display); font-weight: 700; font-size: 21px;
+  letter-spacing: 0.14em; text-transform: uppercase; color: var(--su-heading); }
+.su-word small { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.24em;
+  color: var(--su-muted); margin-top: 4px; }
+
+.su-tabs { display: flex; align-items: stretch; }
+.su-tab {
+  display: flex; align-items: center; padding: 0 18px; white-space: nowrap;
+  font-family: var(--font-display); font-weight: 600; font-size: 16px;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--su-text); text-decoration: none;
+  border-bottom: 2px solid transparent;
+}
+.su-tab:hover { border-bottom-color: rgba(52, 230, 214, 0.5); }
+/* mdBook's chrome.css has an unscoped `a:visited { color: var(--links) }` at specificity
+   (0,1,1), which beats a plain class rule. */
+.su-tab:visited { color: var(--su-text); }
+
+/* Active tab, from the `data-su-path` the page stamps on the bar — mdBook's `{{ path }}`
+   (e.g. "docs/concepts/signals.md"); demo pages hardcode "examples/". Home is anything
+   that is neither docs nor examples. */
+.su-bar[data-su-path^="docs/"] .su-tab[data-su-tab="docs"],
+.su-bar[data-su-path^="examples/"] .su-tab[data-su-tab="examples"],
+.su-bar:not([data-su-path^="docs/"]):not([data-su-path^="examples/"]) .su-tab[data-su-tab="home"] {
+  border-bottom-color: var(--su-teal); background: rgba(52, 230, 214, 0.07);
+}
+
+.su-source {
+  display: inline-flex; align-items: center; gap: 7px; align-self: center;
+  /* Right-aligns it on the demo pages, where it is a direct flex child of the bar. */
+  margin-inline-start: auto;
+  font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.1em;
+  color: var(--su-bg); background: var(--su-teal); padding: 9px 15px;
+  text-decoration: none; border-bottom: none; white-space: nowrap;
+}
+.su-source:hover { background: var(--su-teal-bright); color: var(--su-bg); }
+/* Without this a visited SOURCE button renders teal text on its own teal fill. */
+.su-source:visited { color: var(--su-bg); }
+
+/* Never wrap: --menu-bar-height drives the sidebar top offset and the page padding,
+   so a wrapped bar would silently overlap the content. Drop elements instead. */
+@media (max-width: 1079px) { .su-word small { display: none; } }
+@media (max-width: 767px)  {
+  .su-word { display: none; }
+  .su-source span { display: none; }
+  .su-tab { padding: 0 11px; font-size: 14px; }
+  .su-bar-inner { gap: 10px; }
+}
+
+/* ============ shared footer (title block) ============ */
+.su-titleblock {
+  position: relative; z-index: 4; margin-top: 60px;
+  border-top: 1px solid var(--su-line); background: rgba(9, 32, 48, 0.86);
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.14em;
+}
+.su-titleblock > div { padding: 13px 16px; border-right: 1px solid var(--su-line-soft); }
+.su-titleblock > div:last-child { border-right: none; }
+.su-titleblock span { display: block; color: var(--su-dim); font-size: 8.5px; }
+.su-titleblock b { display: block; margin-top: 5px; font-weight: 400;
+  letter-spacing: 0.1em; color: var(--su-heading); }
+.su-titleblock b.su-rev { color: var(--su-teal); }

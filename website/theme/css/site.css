@@ -1,364 +1,368 @@
-/* ============ superui redesign theme ============ */
-:root, .navy, .light, .rust, .coal, .ayu {
-  --su-teal: #34e6d6;
-  --su-teal-bright: #4ff0e0;
-  --su-teal-deep: #2bd0c0;
-  --su-teal-light: #7ff3e9;
-  --su-amber: #ffb454;
-  --su-amber-light: #ffce8a;
-  --su-bg: #080b12;
-  --su-panel: rgba(13, 19, 28, 0.7);
-  --su-panel-solid: #0d131c;
-  --su-border: rgba(52, 230, 214, 0.16);
-  --su-border-strong: rgba(52, 230, 214, 0.35);
-  --su-text: #cdd8e6;
-  --su-heading: #f2f8f7;
-  --su-muted: #8a97a8;
-  --su-muted-dim: #5f7085;
-  --font-display: "Chakra Petch", system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Code", Consolas, monospace;
-  --font-body: "Space Grotesk", system-ui, sans-serif;
+/* blueprint.css is <link>ed from theme/index.hbs, ahead of this file. */
 
-  /* Override mdBook navy variables so built-in chrome matches. */
+/* The drafting sheet has no rounded corners. These are every rule in mdBook's
+   chrome.css and general.css that sets a radius (mdBook 0.5.4). If a future mdBook
+   rounds something new, Task 8's visual sweep is what catches it. */
+.mobile-nav-chapters,
+:not(pre) > .hljs,
+pre > .buttons button,
+mark,
+#mdbook-searchbar,
+ul#mdbook-searchresults li,
+.theme-popup,
+#mdbook-help-popup,
+kbd,
+.footnote-definition > li:target::before,
+.footnote-reference:target,
+.tooltiptext { border-radius: 0; }
+
+/* mdBook drives its built-in chrome from these; point them at the blueprint palette.
+   The theme-class selectors are mdBook's own — matching them keeps our values winning
+   whichever theme class ends up on <html>. */
+:root, .navy, .light, .rust, .coal, .ayu {
   --bg: var(--su-bg);
   --fg: var(--su-text);
-  --sidebar-bg: #0b0f17;
+  --sidebar-bg: var(--su-bg-deep);
   --sidebar-fg: var(--su-text);
+  --sidebar-non-existant: var(--su-dim);
   --sidebar-active: var(--su-teal);
-  --links: var(--su-teal-light);
-  /* The 4px rule beside a page's headers in the nav — navy's default is an
-     off-palette blue (#3473ad); bring it onto the teal palette. */
+  --sidebar-spacer: var(--su-line-soft);
+  --scrollbar: rgba(52, 230, 214, 0.28);
+  --icons: var(--su-muted);
+  --icons-hover: var(--su-teal);
+  --links: var(--su-teal);
+  --inline-code-color: var(--su-teal);
+  --theme-popup-bg: var(--su-panel-solid);
+  --theme-popup-border: var(--su-line);
+  --theme-hover: rgba(52, 230, 214, 0.08);
+  --quote-bg: rgba(52, 230, 214, 0.06);
+  --quote-border: rgba(52, 230, 214, 0.4);
+  --warning-border: var(--su-orange);
+  --table-border-color: var(--su-line-soft);
+  --table-header-bg: rgba(9, 32, 48, 0.7);
+  --table-alternate-bg: rgba(9, 32, 48, 0.35);
+  --searchbar-border-color: var(--su-line);
+  --searchbar-bg: rgba(7, 26, 40, 0.92);
+  --searchbar-fg: var(--su-text);
+  --searchresults-header-fg: var(--su-muted);
+  --searchresults-border-color: var(--su-line-soft);
+  --searchresults-li-bg: rgba(9, 32, 48, 0.5);
+  --search-mark-bg: rgba(255, 196, 107, 0.22);
+  --footnote-highlight: var(--su-teal);
+  --overlay-bg: rgba(7, 26, 40, 0.72);
+  --color-scheme: dark;
+
+  /* The 4px rule beside a page's headers in the nav. mdBook's navy default is an
+     off-palette blue (#2f6ab5); the previous theme overrode it and so must we. */
   --sidebar-header-border-color: rgba(52, 230, 214, 0.35);
+
+  /* GitHub-style alert accents (`> [!NOTE]` and friends). Unused in the docs today,
+     but mdBook 0.5 renders them and its defaults are all off-palette. */
+  --blockquote-note-color: var(--su-teal);
+  --blockquote-tip-color: #9de8b4;
+  --blockquote-important-color: #8fb8ff;
+  --blockquote-warning-color: var(--su-amber);
+  --blockquote-caution-color: var(--su-orange);
 }
 
-html, body { background: var(--su-bg); color: var(--su-text); font-family: var(--font-body); }
-
-/* Page (document) scrollbar — themed to match the nav panel and code blocks. */
-html {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(52, 230, 214, 0.28) transparent;
-}
-html::-webkit-scrollbar { width: 12px; height: 12px; }
-html::-webkit-scrollbar-track { background: transparent; }
-html::-webkit-scrollbar-thumb {
-  background-color: rgba(52, 230, 214, 0.24);
-  border-radius: 999px;
-  border: 3px solid transparent;   /* inset so the thumb reads as a pill */
-  background-clip: padding-box;
-}
-html::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(52, 230, 214, 0.5);
-  background-clip: padding-box;
-}
-
-/* Layered fixed background (divs injected by site.js). */
-.su-bg { position: fixed; inset: 0; pointer-events: none; }
-.su-bg--aurora {
-  inset: -20%; z-index: 0; filter: blur(30px); opacity: 0.8;
-  background:
-    radial-gradient(600px 500px at 30% 40%, rgba(52,230,214,0.14), transparent 60%),
-    radial-gradient(560px 480px at 70% 60%, rgba(255,180,84,0.09), transparent 60%);
-  animation: su-aurora 24s ease-in-out infinite;
-}
-.su-bg--grid {
-  z-index: 0; opacity: 0.6;
-  background-image:
-    linear-gradient(rgba(52,230,214,0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(52,230,214,0.05) 1px, transparent 1px);
-  background-size: 40px 40px;
-  animation: su-drift 18s linear infinite;
-}
-.su-bg--scan {
-  z-index: 0; opacity: 0.35; mix-blend-mode: overlay;
-  background: repeating-linear-gradient(transparent 0 2px, rgba(0,0,0,0.35) 2px 3px);
-}
-/* Base page gradient behind the layers. */
-body::before {
-  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
-  background:
-    radial-gradient(1200px 600px at 80% -10%, rgba(52,230,214,0.10), transparent 60%),
-    radial-gradient(900px 500px at 0% 110%, rgba(255,180,84,0.06), transparent 55%),
-    linear-gradient(#06080d, #080b12);
-}
-/* mdBook content must sit above the background layers. */
-.page-wrapper, .menu-bar { position: relative; z-index: 1; }
-/* ...but the wrappers must be transparent, or their opaque background covers the
-   fixed grid/aurora only as far as the (short) content reaches, leaving a seam
-   where the background suddenly shows through below. Let body::before be the base. */
-#page-wrapper, .page-wrapper, .page, .content { background: transparent; }
-
-@keyframes su-aurora {
-  0%,100% { transform: translate3d(0,0,0) scale(1); }
-  50% { transform: translate3d(5%,4%,0) scale(1.12); }
-}
-@keyframes su-drift { 0% { background-position: 0 0; } 100% { background-position: 40px 40px; } }
-@keyframes su-pulse {
-  0%,100% { opacity: 1; box-shadow: 0 0 0 0 rgba(52,230,214,0.55); }
-  50% { opacity: 0.55; box-shadow: 0 0 0 4px rgba(52,230,214,0); }
-}
-@keyframes su-flicker { 0%,100%,48%,52% { opacity: 0.9; } 50% { opacity: 0.6; } }
-@keyframes su-glow {
-  0%,100% { box-shadow: 0 24px 60px rgba(0,0,0,0.5), inset 0 0 30px rgba(52,230,214,0.05); }
-  50% { box-shadow: 0 24px 70px rgba(0,0,0,0.5), inset 0 0 42px rgba(52,230,214,0.10), 0 0 26px rgba(52,230,214,0.18); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .su-bg--aurora, .su-bg--grid { animation: none; }
-  * { animation-duration: 0s !important; animation-iteration-count: 1 !important; }
-}
-
-/* --- chrome-light landing: hide sidebar + top bar on the landing only --- */
-body:has(.superui-landing) .sidebar,
-body:has(.superui-landing) .sidebar,
-body:has(.superui-landing) #menu-bar,
-body:has(.superui-landing) .menu-bar,
-body:has(.superui-landing) .sidebar-resize-handle,
-body:has(.superui-landing) .nav-chapters,
-body:has(.superui-landing) .mobile-nav-chapters {
-  display: none !important;
-}
-/* mdBook's hover-placeholder sits over the top 50px at z-index 101, above our
-   menu-bar (z-index 1), so it intercepts every header-button click (search,
-   GitHub, sidebar toggle) and the landing nav. Our menu-bar is position:relative
-   (not sticky), so the placeholder's hover-to-reveal purpose is void — disable
-   its pointer events everywhere so clicks pass through to the bar beneath. */
-#mdbook-menu-bar-hover-placeholder, #menu-bar-hover-placeholder { pointer-events: none; }
-body:has(.superui-landing) .page-wrapper {
-  margin-left: 0 !important;
-  margin-inline-start: 0 !important;
-  left: 0 !important;
-}
-body:has(.superui-landing) .content main {
-  max-width: none;
-  margin: 0;
-  padding: 0;
-}
-
-/* Landing marker: hides mdBook chrome (rules above) and never renders itself.
-   The redesigned landing (index.md + landing.css) uses su-* classes. */
-.superui-landing { display: none; }
-
-/* ============ examples gallery ============ */
-.gallery-cat h2 {
-  font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.16em;
-  text-transform: uppercase; color: var(--su-muted); border: none; margin: 34px 0 14px; }
-.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
-.card {
-  position: relative; display: block; text-decoration: none; color: inherit;
-  background: var(--su-panel); border: 1px solid rgba(52,230,214,0.16);
-  border-radius: 10px; padding: 22px 20px; overflow: hidden;
-  transition: border-color .15s, transform .15s, box-shadow .15s; }
-.card:hover { border-color: rgba(52,230,214,0.5); transform: translateY(-2px);
-  box-shadow: 0 14px 34px rgba(0,0,0,0.4); }
-/* corner brackets */
-.card::before, .card::after {
-  content: ""; position: absolute; width: 14px; height: 14px; pointer-events: none; }
-.card::before { top: -1px; left: -1px;
-  border-top: 2px solid var(--su-teal); border-left: 2px solid var(--su-teal); }
-.card::after { bottom: -1px; right: -1px;
-  border-bottom: 2px solid var(--su-teal); border-right: 2px solid var(--su-teal); }
-.card .card-title { margin: 0 0 8px; font-family: var(--font-display); font-weight: 600;
-  font-size: 19px; color: var(--su-teal-light); }
-.card .card-desc { margin: 0; color: var(--su-muted); font-size: 14px; line-height: 1.55; }
-.badges { margin-top: 12px; display: flex; gap: 6px; flex-wrap: wrap; }
-.badge { font-family: var(--font-mono); font-size: 11px; padding: 2px 8px; border-radius: 999px;
-  background: rgba(52,230,214,0.10); border: 1px solid rgba(52,230,214,0.3); color: var(--su-teal-light); }
-
-/* ============ header (reskinned mdBook menu-bar) ============ */
-.menu-bar {
-  background: rgba(8, 11, 18, 0.72);
-  backdrop-filter: blur(8px);
-  border-bottom: 1px solid rgba(52, 230, 214, 0.18);
-}
-.menu-bar .icon-button { color: var(--su-muted); }
-.menu-bar .icon-button:hover { color: var(--su-teal-light); }
-/* single dark theme: hide the theme picker (mdBook 0.5 ids are mdbook-*) */
-#mdbook-theme-toggle, #mdbook-theme-list,
-#theme-toggle, #theme-list { display: none !important; }
-/* our brand replaces the book title; our GITHUB link replaces the default git icon */
-.menu-bar .menu-title { display: none; }
-.right-buttons a[title="Git repository"], #git-repository-button { display: none !important; }
-
-.su-brand { display: inline-flex; align-items: center; gap: 12px; text-decoration: none;
-  margin: 0 8px 0 6px; }
-.su-logo { height: 30px; width: auto; display: block;
-  filter: drop-shadow(0 0 10px rgba(52,230,214,0.35)); }
-.su-word { line-height: 1; display: inline-flex; flex-direction: column; }
-.su-word b { font-family: var(--font-display); font-weight: 700; font-size: 17px;
-  letter-spacing: 0.16em; color: var(--su-heading); }
-.su-word small { font-family: var(--font-mono); font-size: 8px; letter-spacing: 0.34em;
-  color: var(--su-muted-dim); margin-top: 3px; }
-
-.su-chip { display: inline-flex; align-items: center; gap: 8px; font-family: var(--font-mono);
-  font-size: 11px; color: var(--su-muted); white-space: nowrap; margin-right: 4px; }
-.su-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--su-amber);
-  box-shadow: 0 0 8px var(--su-amber); animation: su-pulse 2.4s ease-in-out infinite; }
-.su-gh { display: inline-flex; align-items: center; gap: 7px;
-  font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.06em;
-  color: var(--su-text) !important; border: 1px solid rgba(205,216,230,0.22); padding: 6px 12px;
-  border-radius: 6px; text-decoration: none; white-space: nowrap; }
-.su-gh:hover { border-color: rgba(52,230,214,0.5); color: var(--su-teal-light); color: var(--links) !important; }
-.su-gh svg { flex: none; display: block; }
-
-/* ============ footer ============ */
-.su-footer, .content .su-footer { border-top: 1px solid rgba(52,230,214,0.14);
-  padding: 22px 26px; display: flex; align-items: center; gap: 14px;
-  font-family: var(--font-mono); font-size: 11px; color: var(--su-muted-dim); }
-.su-footer .su-f-brand { color: var(--su-teal); }
-.su-footer .su-f-right { margin-left: auto; }
-
-/* ============ sidebar → "MODULE INDEX" ============ */
-.sidebar, .sidebar { background: #0b0f17; border-right: 1px solid rgba(52,230,214,0.12); }
-.sidebar .sidebar-scrollbox { padding: 14px 12px; }
-/* Themed scrollbar for the nav panel when it overflows (teal, translucent,
-   track-transparent so it blends into the sidebar). Firefox uses the two
-   scrollbar-* properties; WebKit/Blink use the ::-webkit-scrollbar pseudos. */
-.sidebar-scrollbox {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(52, 230, 214, 0.28) transparent;
-}
-.sidebar-scrollbox::-webkit-scrollbar { width: 10px; }
-.sidebar-scrollbox::-webkit-scrollbar-track { background: transparent; }
-.sidebar-scrollbox::-webkit-scrollbar-thumb {
-  background-color: rgba(52, 230, 214, 0.24);
-  border-radius: 999px;
-  border: 2px solid transparent;   /* inset the thumb so it reads as a pill */
-  background-clip: padding-box;
-}
-.sidebar-scrollbox::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(52, 230, 214, 0.5);
-  background-clip: padding-box;
-}
-.chapter li.part-title {
-  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.14em;
-  text-transform: uppercase; color: var(--su-teal); margin: 18px 0 8px; padding: 0 6px;
-}
-.chapter li a { font-family: var(--font-body); font-size: 14px; color: var(--su-muted);
-  border-radius: 6px; border-left: 2px solid transparent; padding: 7px 10px; }
-.chapter li a:hover { color: var(--su-text); background: rgba(52,230,214,0.06); }
-.chapter li a.active { color: var(--su-teal-light); background: rgba(52,230,214,0.10);
-  border-left-color: var(--su-teal); }
-
-/* ============ content ============ */
-.content main { color: var(--su-text); }
-/* Wide screens: center the WHOLE app (sidebar + book content + header) within a
-   max-width, instead of pinning the sidebar to the far-left edge with the content
-   drifting away from it. The gutter is 0 below the cap, so narrower screens keep
-   mdBook's normal layout untouched. The fixed prev/next arrows move to the gutters
-   too, so they never overlap the content. --su-pw-offset is the inline-start margin
-   mdBook gives .page-wrapper when the sidebar is visible (sidebar width + padding).
-   NB mdBook 0.5: the `sidebar-visible` class is on <html>, ids are `mdbook-*`, and
-   the layout uses logical margins (margin-inline-*). */
 :root {
-  --su-app-max: 1600px;
+  --menu-bar-height: 64px;
+  --content-max-width: 900px;
   --su-gutter: max(0px, calc((100vw - var(--su-app-max)) / 2));
   --su-pw-offset: calc(var(--sidebar-width, 300px) + 8px);
 }
-/* Only shift the sidebar by the gutter while it's visible: when collapsed, mdBook
-   slides it off by its own width, which wouldn't clear the gutter offset, leaving
-   a sliver (and the resize handle) on-screen. Default left:0 when hidden. */
-html.sidebar-visible body:not(:has(.superui-landing)) .sidebar { left: var(--su-gutter); }
+
+/* --- the header: fixed, full-width, above sidebar AND content --- */
+/* `top: 0 !important` is load-bearing, not decoration. mdBook's book.js runs a
+   `controllMenu()` hide-on-scroll routine that writes an INLINE `menu.style.top =
+   scrollTop + 'px'` on every scroll event. A non-important `top: 0` loses to that
+   inline style and the header walks off-screen as you scroll. An !important author
+   declaration beats a non-important inline style, which pins it. */
+.menu-bar {
+  position: fixed !important;
+  top: 0 !important; inset-inline: 0;
+  margin: 0 !important;
+  z-index: 200;
+  height: var(--menu-bar-height);
+}
+/* mdBook's hover-placeholder reserves the bar's height inside the page and sits at
+   z-index 101 over the top 50px, intercepting header clicks. With a fixed bar it has
+   no purpose. */
+#mdbook-menu-bar-hover-placeholder, #menu-bar-hover-placeholder { display: none !important; }
+/* .page carries a negative top margin to compensate for that placeholder; with the
+   placeholder gone the compensation must go too, replaced by real padding. */
+.page { margin-block-start: 0 !important; padding-top: var(--menu-bar-height); }
+/* The sidebar is fixed at top:0 by default — drop it below the bar. */
+.sidebar { top: var(--menu-bar-height) !important; }
+/* The fixed prev/next arrows span the full viewport height; keep them clear of the bar. */
+.nav-chapters { top: var(--menu-bar-height) !important; }
+
+/* --- centre the whole app within --su-app-max on wide screens --- */
+/* Only shift the sidebar while it is visible: when collapsed mdBook slides it off by
+   its own width, which would not clear the gutter, leaving a sliver on screen. */
+body:not(:has(.superui-landing)) .sidebar { left: var(--su-gutter); }
+/* mdBook slides the sidebar off by its own width. With the gutter offset above it would
+   stop short of the edge, so extend the travel by the gutter. */
+body:not(:has(.superui-landing)) #mdbook-sidebar-toggle-anchor:not(:checked) ~ .sidebar {
+  transform: translateX(calc(0px - var(--sidebar-width) - var(--sidebar-resize-indicator-width) - var(--su-gutter)));
+}
+/* Above .page-wrapper (z-index 1) so it overlays the content on mobile, below the
+   header (200). */
+.sidebar { z-index: 150; }
 body:not(:has(.superui-landing)) .page-wrapper { margin-inline-end: var(--su-gutter); }
-/* Target the #mdbook-page-wrapper id: mdBook 0.5 sets its inline-start margin via
-   an id selector that out-specifies a .page-wrapper class rule. */
+/* mdBook 0.5 sets the inline-start margin from an id selector, which out-specifies a
+   class rule — match on the id. */
 html.sidebar-visible body:not(:has(.superui-landing)) #mdbook-page-wrapper {
   margin-inline-start: calc(var(--su-gutter) + var(--su-pw-offset)); }
 html:not(.sidebar-visible) body:not(:has(.superui-landing)) #mdbook-page-wrapper {
   margin-inline-start: var(--su-gutter); }
-/* The prev arrow must clear the (shifted) sidebar: place it just right of it when
-   the sidebar is visible, else at the content-area's left edge. The next arrow
-   sits at the content-area's right edge in both states. */
 html.sidebar-visible body:not(:has(.superui-landing)) .nav-chapters.previous {
   left: calc(var(--su-gutter) + var(--su-pw-offset)); }
 html:not(.sidebar-visible) body:not(:has(.superui-landing)) .nav-chapters.previous {
   left: var(--su-gutter); }
 body:not(:has(.superui-landing)) .nav-chapters.next { right: var(--su-gutter); }
-.content h1, .content h2, .content h3, .content h4 {
-  font-family: var(--font-display); color: var(--su-heading); font-weight: 700; }
-.content h1 { font-size: clamp(34px, 5vw, 48px); letter-spacing: -0.01em; }
-.content h2 { border: none; margin-top: 2em; }
-/* Docs link color — scoped off the landing so its buttons/nav/banner keep their
-   own colors (this rule's .content specificity would otherwise override them). */
-body:not(:has(.superui-landing)) .content a:not(.header) { color: var(--su-teal-light); }
-.content p, .content li { color: var(--su-text); }
-/* Larger, more readable body text. Headings (incl. h1) keep their own sizes. */
-.content p, .content li, .content td, .content th,
-.content dd, .content dt, .content blockquote {
-  font-size: 1.75rem;
-  line-height: 1.72;
+
+/* --- home: no sidebar, no sidebar toggle, full-bleed content --- */
+body:has(.superui-landing) .sidebar,
+body:has(.superui-landing) .sidebar-resize-handle,
+body:has(.superui-landing) .nav-chapters,
+body:has(.superui-landing) .mobile-nav-chapters { display: none !important; }
+/* Home has no sidebar, so its toggle does nothing. Hidden with `visibility`, not
+   `display`, so its layout box survives — the brand sits right after `.left-buttons`,
+   and collapsing that box would shift the whole header 48px left on home only.
+   `visibility: hidden` also drops it from the tab order and the accessibility tree. */
+body:has(.superui-landing) #mdbook-sidebar-toggle,
+body:has(.superui-landing) #sidebar-toggle { visibility: hidden; pointer-events: none; }
+body:has(.superui-landing) .page-wrapper,
+body:has(.superui-landing) #mdbook-page-wrapper {
+  margin-inline-start: 0 !important; margin-inline-end: 0 !important; left: 0 !important; }
+body:has(.superui-landing) .content main { max-width: none; margin: 0; padding: 0; }
+/* The marker itself never renders. */
+.superui-landing { display: none; }
+
+/* --- mobile only: keep the header on screen while the nav is open --- */
+/* Below 620px mdBook reveals the sidebar by sliding the page with `transform:
+   translateX(...)` on .page-wrapper. A transformed ancestor becomes the containing block
+   for position:fixed descendants, so the header inside it slides away too, taking the
+   burger with it. Cancelling that transform lets the sidebar overlay the content instead
+   (it is already position:fixed). mdBook sets `transform: none` itself at >=620px, so
+   desktop is unaffected. */
+@media only screen and (max-width: 619px) {
+  #mdbook-sidebar-toggle-anchor:checked ~ .page-wrapper { transform: none; }
 }
 
-/* code blocks */
-.content pre {
-  background: rgba(9,13,20,0.85); border: 1px solid rgba(52,230,214,0.16);
-  border-radius: 10px; }
-.content pre > code { font-family: var(--font-mono); font-size: 14.5px; line-height: 1.6; }
-/* Shiki (build-time) code blocks. The preprocessor strips the <pre>'s inline
-   background so the panel styling above shows; the <pre> is the scroll container. */
-.content pre.shiki { overflow-x: auto; }
-.content pre.shiki code { background: transparent; }
-/* Themed horizontal scrollbar on long code blocks — matches the nav panel. */
-.content pre.shiki {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(52, 230, 214, 0.28) transparent;
+/* --- wrappers must be transparent or they cover the fixed background layers --- */
+#mdbook-page-wrapper, .page-wrapper, .page, .content { background: transparent; }
+.page-wrapper { position: relative; z-index: 1; }
+
+/* single dark theme: hide the theme picker */
+#mdbook-theme-toggle, #mdbook-theme-list, #theme-toggle, #theme-list { display: none !important; }
+/* our brand replaces the book title; our SOURCE button replaces the git icon */
+.menu-bar .menu-title { display: none !important; }
+.menu-bar a[title="Git repository"], #git-repository-button,
+.menu-bar a[title="Print this book"], #print-button { display: none !important; }
+.menu-bar .icon-button { color: var(--su-muted); }
+.menu-bar .icon-button:hover { color: var(--su-teal); }
+.menu-bar .left-buttons, .menu-bar .right-buttons { display: flex; align-items: center; margin: 0; }
+/* push the right cluster (search + SOURCE) to the far edge */
+.menu-bar .right-buttons { margin-inline-start: auto; gap: 6px; }
+
+/* ============ sidebar ============ */
+/* Opaque — it overlays content on mobile, and the background grid showing through made
+   the nav read as intersecting the text. */
+.sidebar { background: var(--su-bg-deep); border-right: 1px solid var(--su-line-soft); }
+.sidebar .sidebar-scrollbox { padding: 20px 14px 60px; }
+.sidebar .sidebar-scrollbox::before {
+  content: "CONTENTS"; display: block;
+  font-family: var(--font-display); font-weight: 600; font-size: 13px;
+  letter-spacing: 0.16em; text-transform: uppercase; color: var(--su-heading);
+  padding-bottom: 12px; margin-bottom: 8px; border-bottom: 1px solid var(--su-line);
 }
+.chapter li.part-title {
+  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.2em;
+  text-transform: uppercase; color: var(--su-teal); margin: 20px 0 8px; padding: 0 6px;
+}
+.chapter li a {
+  display: flex; align-items: baseline;
+  font-family: var(--font-body); font-size: 14px; color: var(--su-body);
+  border-left: 2px solid transparent; padding: 6px 8px; margin-bottom: 1px;
+}
+/* dotted leader running to the right edge — drawing-index feel, no fake page numbers */
+.chapter li a::after {
+  content: ""; flex: 1; margin: 0 0 5px 7px;
+  border-bottom: 1px dotted rgba(220, 233, 242, 0.3);
+}
+.chapter li a:hover { color: var(--su-heading); background: rgba(52, 230, 214, 0.06); }
+.chapter li a.active {
+  color: var(--su-heading); background: rgba(52, 230, 214, 0.10);
+  border-left-color: var(--su-teal);
+}
+
+/* themed scrollbars (page + sidebar + code) */
+html, .sidebar-scrollbox, .content pre.shiki {
+  scrollbar-width: thin; scrollbar-color: rgba(52, 230, 214, 0.28) transparent;
+}
+html::-webkit-scrollbar, .sidebar-scrollbox::-webkit-scrollbar,
 .content pre.shiki::-webkit-scrollbar { width: 10px; height: 10px; }
+html::-webkit-scrollbar-track, .sidebar-scrollbox::-webkit-scrollbar-track,
 .content pre.shiki::-webkit-scrollbar-track { background: transparent; }
+html::-webkit-scrollbar-thumb, .sidebar-scrollbox::-webkit-scrollbar-thumb,
 .content pre.shiki::-webkit-scrollbar-thumb {
   background-color: rgba(52, 230, 214, 0.24);
-  border-radius: 999px;
-  border: 2px solid transparent;
-  background-clip: padding-box;
+  border: 2px solid transparent; background-clip: padding-box;
 }
-.content pre.shiki::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(52, 230, 214, 0.5);
-  background-clip: padding-box;
+
+/* ============ article typography ============ */
+.content main { color: var(--su-text); counter-reset: su-h2; }
+/* `.page`'s padding-top only clears the fixed bar and mdBook's `.content` has none of its
+   own, so an article's first line would sit flush against the header. Home and demo pages
+   are excluded — their own mains carry padding. */
+body:not(:has(.superui-landing)) .content { padding-top: clamp(26px, 3.5vw, 44px); }
+.content p, .content li, .content td, .content th, .content dd, .content dt {
+  font-size: 1.7rem; line-height: 1.72; color: var(--su-text);
 }
+.content h1, .content h2, .content h3, .content h4 {
+  font-family: var(--font-display); color: var(--su-heading);
+  font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em;
+}
+.content h1 { font-size: clamp(28px, 3.6vw, 40px); line-height: 1.06; margin-bottom: 0; }
+/* teal-to-hairline rule under the H1 */
+.content main > h1::after {
+  content: ""; display: block; margin-top: 14px; height: 2px;
+  background: linear-gradient(90deg, var(--su-teal) 0 80px, rgba(220,233,242,0.2) 80px);
+}
+.su-eyebrow {
+  display: flex; align-items: center; gap: 10px;
+  font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.18em;
+  color: var(--su-muted); margin-bottom: 12px;
+}
+.su-eyebrow::before { content: ""; width: 22px; height: 1px; background: var(--su-teal); }
+
+/* Auto-numbered H2 chips. Scoped to main's DIRECT children so the gallery's category
+   headings (inside section.gallery-cat) and any nested headings are untouched. */
+.content main > h2 {
+  display: flex; align-items: baseline; gap: 13px;
+  font-weight: 600; font-size: 21px; letter-spacing: 0.1em;
+  border: none; margin-top: 2em;
+}
+.content main > h2::before {
+  counter-increment: su-h2;
+  content: counter(su-h2, decimal-leading-zero);
+  font-family: var(--font-mono); font-weight: 600; font-size: 14px;
+  color: var(--su-teal); border: 1px solid var(--su-teal); padding: 3px 8px;
+  align-self: center;
+}
+body:not(:has(.superui-landing)) .content a:not(.header) { color: var(--su-teal); }
+
+/* ============ code ============ */
+.content pre {
+  background: rgba(7, 26, 40, 0.7); border: 1px solid var(--su-line);
+}
+.content pre > code { font-family: var(--font-mono); font-size: 14.5px; line-height: 1.7; }
+.content pre.shiki { overflow-x: auto; }
+.content pre.shiki code { background: transparent; }
 .content code:not(pre code) {
-  font-family: var(--font-mono); color: var(--su-teal-light);
-  background: rgba(52,230,214,0.08); border-radius: 4px; padding: 1px 5px; }
-/* mdBook's hover clipboard button = our "COPY" control */
+  font-family: var(--font-mono); font-size: 0.9em; color: var(--su-teal);
+  background: rgba(52, 230, 214, 0.09); border: 1px solid rgba(52, 230, 214, 0.24);
+  padding: 1px 5px;
+}
 .buttons .clip-button, pre .buttons { color: var(--su-muted); }
-.buttons .clip-button:hover { color: var(--su-teal-light); }
+.buttons .clip-button:hover { color: var(--su-teal); }
 
-/* blockquote → TIP callout */
+/* ============ blockquote → callout with an "i" rail ============ */
 .content blockquote {
-  border: 1px solid rgba(52,230,214,0.2); border-left: 3px solid var(--su-teal);
-  background: rgba(52,230,214,0.06); color: var(--su-text);
-  border-radius: 8px; padding: 14px 18px; }
+  position: relative; margin-inline: 0; padding: 15px 18px 15px 60px;
+  border: 1px solid rgba(52, 230, 214, 0.4); border-left: none;
+  background: rgba(52, 230, 214, 0.06); color: var(--su-text);
+}
+.content blockquote::before {
+  content: "i"; position: absolute; left: 0; top: 0; bottom: 0; width: 42px;
+  display: grid; place-items: center;
+  border-right: 1px solid rgba(52, 230, 214, 0.34);
+  font-family: var(--font-mono); font-weight: 600; font-size: 15px; color: var(--su-teal);
+}
 
-/* prev/next */
+/* ============ prev/next + search ============ */
 .nav-chapters { color: var(--su-muted); font-family: var(--font-mono); }
-.nav-chapters:hover { color: var(--su-teal-light); }
-.mobile-nav-chapters { color: var(--su-teal-light); }
-
-/* ============ "// MODULE INDEX" eyebrow atop the docs sidebar ============ */
-.sidebar .sidebar-scrollbox::before {
-  content: "// MODULE INDEX"; display: block;
-  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.22em;
-  color: var(--su-muted-dim); padding: 0 6px; margin: 2px 0 16px;
-}
-
-/* ============ search box + results ============ */
-#mdbook-searchbar {
-  background: rgba(9, 13, 20, 0.92); color: var(--su-text);
+.nav-chapters:hover { color: var(--su-teal); }
+.mobile-nav-chapters { color: var(--su-teal); }
+#mdbook-searchbar, #searchbar {
+  background: rgba(7, 26, 40, 0.92); color: var(--su-text);
   font-family: var(--font-mono); font-size: 14px;
-  border: 1px solid var(--su-border-strong); border-radius: 8px;
-  padding: 10px 14px; margin-top: 8px;
+  border: 1px solid var(--su-line); padding: 10px 14px; margin-top: 8px;
 }
-#mdbook-searchbar:focus { outline: none; border-color: var(--su-teal);
-  box-shadow: 0 0 0 2px rgba(52, 230, 214, 0.18); }
-#mdbook-searchbar::placeholder { color: var(--su-muted-dim); }
+#mdbook-searchbar:focus, #searchbar:focus {
+  outline: none; border-color: var(--su-teal);
+  box-shadow: 0 0 0 2px rgba(52, 230, 214, 0.18);
+}
 .searchresults-header {
   font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.16em;
   text-transform: uppercase; color: var(--su-muted); margin-top: 12px;
 }
-#mdbook-searchresults { border-top: 1px solid var(--su-border); }
-#mdbook-searchresults li { list-style: none; padding: 8px 4px;
-  border-bottom: 1px solid rgba(52, 230, 214, 0.08); }
-#mdbook-searchresults a { color: var(--su-teal-light); text-decoration: none; }
-#mdbook-searchresults a:hover { text-decoration: underline; }
-#mdbook-searchresults span.teaser { color: var(--su-muted); font-size: 13px; }
-#mdbook-searchresults mark, .content mark {
-  background: rgba(255, 180, 84, 0.22); color: var(--su-amber-light);
-  border-radius: 2px; padding: 0 2px; }
+#mdbook-searchresults, #searchresults { border-top: 1px solid var(--su-line-soft); }
+#mdbook-searchresults li, #searchresults li {
+  list-style: none; padding: 8px 4px; border-bottom: 1px solid rgba(52, 230, 214, 0.08);
+}
+#mdbook-searchresults a, #searchresults a { color: var(--su-teal); text-decoration: none; }
+#mdbook-searchresults span.teaser, #searchresults span.teaser {
+  color: var(--su-muted); font-size: 13px;
+}
+mark { background: rgba(255, 196, 107, 0.22); color: var(--su-amber); padding: 0 2px; }
+
+/* ============ examples gallery ============ */
+.cat-head { display: flex; align-items: center; gap: 14px; margin: 38px 0 22px; }
+.cat-head h2 {
+  font-family: var(--font-display); font-weight: 600; font-size: 15px;
+  letter-spacing: 0.18em; text-transform: uppercase; color: var(--su-heading);
+  border: none; margin: 0;
+}
+.cat-head .cat-rule {
+  flex: 1; height: 1px;
+  background: repeating-linear-gradient(90deg, rgba(220,233,242,0.4) 0 7px, transparent 7px 14px);
+}
+.cat-head .cat-count {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.16em; color: var(--su-dim);
+}
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(292px, 1fr)); gap: 20px; }
+.card {
+  position: relative; display: block; text-decoration: none; color: inherit;
+  border: 1px solid var(--su-line-soft); background: var(--su-panel);
+}
+.card:hover { border-color: rgba(52, 230, 214, 0.55); background: rgba(52, 230, 214, 0.06); }
+.card::before, .card::after { content: ""; position: absolute; width: 11px; height: 11px; }
+.card::before { top: -1px; left: -1px;
+  border-top: 2px solid var(--su-teal); border-left: 2px solid var(--su-teal); }
+.card::after { bottom: -1px; right: -1px;
+  border-bottom: 2px solid var(--su-teal); border-right: 2px solid var(--su-teal); }
+
+/* drawing plate: grid ground + crosshair reticle + the package slug */
+.card-plate {
+  position: relative; height: 118px; overflow: hidden;
+  border-bottom: 1px solid var(--su-line-soft); background: rgba(7, 26, 40, 0.6);
+  display: grid; place-items: center;
+  background-image:
+    linear-gradient(rgba(220,233,242,0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(220,233,242,0.06) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+.card-plate::before {
+  content: ""; width: 56px; height: 56px; border: 1px solid rgba(52, 230, 214, 0.5);
+}
+.card-plate::after {
+  content: ""; position: absolute; width: 4px; height: 4px; background: var(--su-teal);
+}
+.plate-slug {
+  position: absolute; bottom: 10px; right: 12px;
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em; color: var(--su-muted);
+}
+.card-body { padding: 16px 18px 18px; }
+.card-title {
+  font-family: var(--font-display); font-weight: 600; font-size: 18px;
+  letter-spacing: 0.06em; text-transform: uppercase; color: var(--su-heading); margin-bottom: 8px;
+}
+.card-desc { font-size: 14px; line-height: 1.5; color: var(--su-body); }
+.badges { margin-top: 14px; display: flex; gap: 7px; flex-wrap: wrap; }
+.badge {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; padding: 3px 8px;
+  border: 1px solid rgba(52, 230, 214, 0.35); color: var(--su-teal);
+}

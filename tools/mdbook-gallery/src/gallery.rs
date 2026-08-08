@@ -48,10 +48,15 @@ pub fn render(examples: &[Example]) -> String {
 
     let mut out = String::new();
     for cat in categories {
+        let items: Vec<&Example> = examples.iter().filter(|e| e.category == cat).collect();
+        let count = items.len();
+        let noun = if count == 1 { "ITEM" } else { "ITEMS" };
         out.push_str(&format!(
-            "<section class=\"gallery-cat\"><h2>{cat}</h2><div class=\"cards\">"
+            "<section class=\"gallery-cat\"><div class=\"cat-head\"><h2>{cat}</h2>\
+             <span class=\"cat-rule\"></span><span class=\"cat-count\">{count} {noun}</span></div>\
+             <div class=\"cards\">"
         ));
-        for e in examples.iter().filter(|e| e.category == cat) {
+        for e in items {
             let badges: String = e
                 .tags
                 .iter()
@@ -67,7 +72,11 @@ pub fn render(examples: &[Example]) -> String {
             // this card <a> is invalid HTML — the browser splits the card apart. Plain
             // divs are immune across mdBook versions.
             out.push_str(&format!(
-                "<a class=\"card\" href=\"{slug}/\"><div class=\"card-title\">{title}</div><div class=\"card-desc\">{desc}</div>{badges_html}</a>",
+                "<a class=\"card\" href=\"{slug}/\">\
+                 <div class=\"card-plate\"><span class=\"plate-slug\">{slug}</span></div>\
+                 <div class=\"card-body\">\
+                 <div class=\"card-title\">{title}</div>\
+                 <div class=\"card-desc\">{desc}</div>{badges_html}</div></a>",
                 slug = e.slug,
                 title = e.title,
                 desc = e.description,
@@ -100,13 +109,17 @@ mod tests {
             ex("horde", "Stress tests", &["Playable game"]),
         ];
         let out = render(&examples);
-        // Category headers, first-seen order.
+        // Category headers, first-seen order, each with a rule and an item count.
         assert!(out.contains("<h2>Apps</h2>"));
         assert!(out.contains("<h2>Stress tests</h2>"));
         assert!(out.find("Apps").unwrap() < out.find("Stress tests").unwrap());
+        assert!(out.contains(r#"<span class="cat-count">2 ITEMS</span>"#));
+        assert!(out.contains(r#"<span class="cat-count">1 ITEM</span>"#));
         // Card links are relative to the /examples/ page.
         assert!(out.contains(r#"href="todomvc/""#));
         assert!(out.contains(r#"href="todomvc_supersolid/""#));
+        // Each card opens with a drawing plate carrying the slug.
+        assert!(out.contains(r#"<div class="card-plate"><span class="plate-slug">todomvc</span></div>"#));
         // Title/description use plain divs, NOT <h3>/<p> (which mdBook would turn
         // into anchored headings, nesting an <a> inside the card <a> and breaking it).
         assert!(out.contains(r#"<div class="card-title">todomvc title</div>"#));
