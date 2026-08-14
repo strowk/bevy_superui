@@ -1,0 +1,12 @@
+[package]
+name = "world_picking"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+superui = { path = "../../crates/superui" }
+# Full Bevy (windowing + rendering) — this is a runnable app, not a headless lib.
+# The default feature set brings in the sprite and UI picking backends.
+bevy = { workspace = true, default-features = true }
