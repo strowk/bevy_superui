@@ -170,6 +170,12 @@
                         </ul>
                     </div>
 
+                    <!-- Same story as the theme popup above: book.js's scrollToTop
+                         unconditionally dereferences `.menu-title`. The brand block
+                         below replaces it visually, so it is kept (hidden via
+                         site.css) purely so the script survives to controllMenu. -->
+                    <h1 class="menu-title">{{ book_title }}</h1>
+
                     <div class="su-bar-inner">
                         <a class="su-brand" href="{{ path_to_root }}index.html">
                             <img class="su-logo" src="{{ path_to_root }}logo.svg" alt="">
