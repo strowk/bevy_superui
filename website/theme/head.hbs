@@ -2,3 +2,28 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;600;700&family=Archivo:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 <script defer src="{{ path_to_root }}assets/blueprint.js"></script>
+
+<!-- Open Graph / Twitter card. URLs are hardcoded: book.toml's `site-url` is
+     path-only and never reaches the templates. The description is site-wide,
+     as mdBook has no per-page front matter. `og:url` is emitted for the
+     landing page only — the sole page identifier Handlebars gets is the
+     *Markdown source* path (`path`), with no string helper to turn it
+     into the emitted .html URL, and scrapers fall back to the fetched URL
+     when og:url is absent, so omitting it beats getting it wrong. -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="{{ book_title }}">
+{{#if is_index}}
+<meta property="og:title" content="superui — game UI you already know how to write">
+<meta property="og:url" content="https://strowk.github.io/bevy_superui/">
+{{else}}
+<meta property="og:title" content="{{ title }}">
+{{/if}}
+<meta property="og:description" content="{{ description }}">
+<meta property="og:locale" content="en_US">
+<meta property="og:image" content="https://strowk.github.io/bevy_superui/og-image.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="superui — game UI you already know how to write. Browser-grade HTML, CSS and JS, plus Solid-style TSX, driving real Bevy interfaces. Alongside, a counter.tsx snippet building a click counter with createSignal.">
+<!-- X/Twitter reads the og:* tags above for everything except the card shape. -->
+<meta name="twitter:card" content="summary_large_image">

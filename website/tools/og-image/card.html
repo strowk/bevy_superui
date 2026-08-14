@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;600;700&family=Archivo:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=block">
+<style>
+  :root {
+    --su-bg: #0d2b40;
+    --su-bg-deep: #071a28;
+    --su-teal: #34e6d6;
+    --su-amber: #ffc46b;
+    --su-heading: #f2f9fc;
+    --su-text: #dce9f2;
+    --su-body: #a9c4d6;
+    --su-muted: #7fa3bd;
+    --su-line: rgba(220, 233, 242, 0.28);
+    --font-display: "Saira Condensed", system-ui, sans-serif;
+    --font-body: "Archivo", system-ui, sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1200px; height: 630px; overflow: hidden; }
+  body { background: var(--su-bg); font-family: var(--font-body); color: var(--su-text); }
+
+  .card { position: relative; width: 1200px; height: 630px; overflow: hidden; }
+
+  /* --- blueprint background layers (mirrors assets/blueprint.css) --- */
+  .layer { position: absolute; inset: 0; }
+  .wash {
+    background:
+      radial-gradient(760px 600px at 24% 22%, rgba(52, 230, 214, 0.16), transparent 68%),
+      radial-gradient(660px 540px at 80% 78%, rgba(120, 180, 235, 0.10), transparent 66%);
+  }
+  .grid-fine {
+    background-image:
+      linear-gradient(rgba(220, 233, 242, 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(220, 233, 242, 0.05) 1px, transparent 1px);
+    background-size: 22px 22px;
+  }
+  .grid-coarse {
+    background-image:
+      linear-gradient(rgba(220, 233, 242, 0.10) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(220, 233, 242, 0.10) 1px, transparent 1px);
+    background-size: 110px 110px;
+  }
+  .vignette {
+    background: radial-gradient(120% 120% at 50% 45%, transparent 45%, rgba(7, 26, 40, 0.55) 100%);
+  }
+
+  /* --- drawing frame + corner ticks --- */
+  .edge { inset: 34px; border: 1px solid var(--su-line); }
+  .tick { position: absolute; background: var(--su-teal); }
+  .tick.h { width: 34px; height: 2px; }
+  .tick.v { width: 2px; height: 34px; }
+
+  .content {
+    position: relative; z-index: 5; height: 100%;
+    padding: 62px 76px 56px;
+    display: flex; flex-direction: column; justify-content: space-between;
+  }
+
+  /* --- brand row --- */
+  .brand { display: flex; align-items: center; gap: 16px; }
+  .brand img { height: 46px; width: auto; display: block;
+    filter: drop-shadow(0 0 16px rgba(52, 230, 214, 0.35)); }
+  .word { display: flex; flex-direction: column; line-height: 1; }
+  .word b { font-family: var(--font-display); font-weight: 700; font-size: 34px;
+    letter-spacing: 0.14em; text-transform: uppercase; color: var(--su-heading); }
+  .word small { font-family: var(--font-mono); font-size: 13px; letter-spacing: 0.24em;
+    color: var(--su-muted); margin-top: 8px; }
+
+  /* --- two-column body: pitch on the left, code panel on the right --- */
+  .hero { display: grid; grid-template-columns: 1fr 566px; gap: 48px; align-items: center; }
+
+  .tickline { display: flex; align-items: center; gap: 12px; font-family: var(--font-mono);
+    font-size: 14px; letter-spacing: 0.2em; color: var(--su-teal); }
+  .tickline > i { width: 32px; height: 1px; background: var(--su-teal); display: block; flex: none; }
+  h1 { font-family: var(--font-display); font-weight: 700; font-size: 62px; line-height: 1.03;
+    text-transform: uppercase; color: var(--su-heading); margin-top: 18px; }
+  h1 .accent { color: var(--su-teal); }
+  p.tagline { font-size: 20px; line-height: 1.5; color: var(--su-body); margin-top: 20px; }
+  p.tagline strong { color: var(--su-text); font-weight: 600; }
+
+  /* --- code panel (the landing hero's .su-frame, minus its labels and live
+         preview: at link-preview size those read as noise, and the space buys
+         a code font big enough to actually read in a feed) --- */
+  .frame { position: relative; border: 1px solid var(--su-line); background: rgba(7, 26, 40, 0.72); }
+  .frame::before, .frame::after { content: ""; position: absolute; width: 13px; height: 13px; }
+  .frame::before { top: -1px; left: -1px;
+    border-top: 2px solid var(--su-teal); border-left: 2px solid var(--su-teal); }
+  .frame::after { bottom: -1px; right: -1px;
+    border-bottom: 2px solid var(--su-teal); border-right: 2px solid var(--su-teal); }
+  pre.code { padding: 26px 24px; font-family: var(--font-mono); font-size: 17px; line-height: 1.72;
+    color: #b6cfdf; }
+  pre.code .k { color: #8fb8ff; }
+  pre.code .fn { color: var(--su-teal); }
+  pre.code .tag { color: #9de8b4; }
+  pre.code .attr { color: var(--su-teal); }
+  pre.code .n { color: var(--su-amber); }
+
+  /* --- footer stack row --- */
+  .foot { display: flex; align-items: center; justify-content: space-between; }
+  .stack { display: flex; align-items: center; gap: 11px; font-family: var(--font-display);
+    font-weight: 600; font-size: 19px; letter-spacing: 0.12em; color: var(--su-text); }
+  .stack i { color: var(--su-teal); font-style: normal; }
+  .repo { font-family: var(--font-mono); font-size: 17px; letter-spacing: 0.06em;
+    color: var(--su-muted); }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="layer wash"></div>
+  <div class="layer grid-fine"></div>
+  <div class="layer grid-coarse"></div>
+  <div class="layer vignette"></div>
+
+  <div class="layer edge">
+    <span class="tick h" style="top:-1px;left:-1px"></span>
+    <span class="tick v" style="top:-1px;left:-1px"></span>
+    <span class="tick h" style="top:-1px;right:-1px"></span>
+    <span class="tick v" style="top:-1px;right:-1px"></span>
+    <span class="tick h" style="bottom:-1px;left:-1px"></span>
+    <span class="tick v" style="bottom:-1px;left:-1px"></span>
+    <span class="tick h" style="bottom:-1px;right:-1px"></span>
+    <span class="tick v" style="bottom:-1px;right:-1px"></span>
+  </div>
+
+  <div class="content">
+    <div class="brand">
+      <img src="logo.svg" alt="">
+      <span class="word"><b>SUPERUI</b><small>MADE FOR BEVY</small></span>
+    </div>
+
+    <div class="hero">
+      <div>
+        <div class="tickline"><i></i>RENDERS THROUGH BEVY_UI</div>
+        <h1>Game UI you<br>already know<br><span class="accent">how to write.</span></h1>
+        <p class="tagline">Browser-grade <strong>HTML, CSS and JS</strong> — plus
+          Solid-style <strong>TSX</strong> — driving real Bevy interfaces.</p>
+      </div>
+
+      <div class="frame">
+<pre class="code"><span class="k">function</span> <span class="fn">Counter</span>() {
+  <span class="k">const</span> [count, setCount] = <span class="fn">createSignal</span>(<span class="n">0</span>);
+  <span class="k">return</span> (
+    &lt;<span class="tag">button</span> <span class="attr">onClick</span>={() =&gt; <span class="fn">setCount</span>(count() + <span class="n">1</span>)}&gt;
+      clicked {count()} times
+    &lt;/<span class="tag">button</span>&gt;
+  );
+}</pre>
+      </div>
+    </div>
+
+    <div class="foot">
+      <div class="stack"><span>RUST</span><i>+</i><span>BEVY_UI</span><i>+</i><span>WASM</span><i>+</i><span>NATIVE</span></div>
+      <div class="repo">github.com/strowk/bevy_superui</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
