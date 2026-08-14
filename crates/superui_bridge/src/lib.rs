@@ -13,7 +13,7 @@ pub use bevy_bridge::{
 };
 pub use events::{
     apply_pointer_click, blink_caret_system, click_effect, drain_dom_events_system,
-    keyboard_events_system, on_pointer_click, PendingDomEvent, PendingDomEvents,
+    keyboard_events_system, on_pointer_click, resolve_dom_node, PendingDomEvent, PendingDomEvents,
 };
 pub use reconcile::reconcile_system;
-pub use runtime::{DomNode, InputValueText, UiRuntime};
+pub use runtime::{DomNode, InputValueText, PickingPolicy, UiRuntime};
