@@ -15,12 +15,12 @@ mcp_debug = ["dep:bevy_brp_extras", "bevy/bevy_remote"]
 bevy = { workspace = true, default-features = true }
 bevy_egui = "0.39"
 bevy_brp_extras = { version = "0.19", optional = true }
-superui = { path = "../superui", version = "0.2.2" }
-superui_bridge = { path = "../superui_bridge", version = "0.2.2" }
-superui_dom = { path = "../superui_dom", version = "0.2.2" }
-superui_css = { path = "../superui_css", version = "0.2.2" }
-supersolid = { path = "../supersolid", version = "0.2.2" }
-superui_js = { path = "../superui_js", version = "0.2.2" }
+superui = { path = "../superui", version = "0.2.3" }
+superui_bridge = { path = "../superui_bridge", version = "0.2.3" }
+superui_dom = { path = "../superui_dom", version = "0.2.3" }
+superui_css = { path = "../superui_css", version = "0.2.3" }
+supersolid = { path = "../supersolid", version = "0.2.3" }
+superui_js = { path = "../superui_js", version = "0.2.3" }
 boa_engine = { workspace = true }
 boa_gc = { workspace = true }
 serde = { version = "1", features = ["derive"] }

@@ -9,13 +9,13 @@ keywords = ["bevy", "ui", "html", "css", "gamedev"]
 categories = ["game-development"]
 
 [dependencies]
-superui_dom = { path = "../superui_dom", version = "0.2.2" }
-superui_html = { path = "../superui_html", version = "0.2.2" }
-superui_js = { path = "../superui_js", version = "0.2.2" }
-superui_api = { path = "../superui_api", version = "0.2.2" }
-superui_css = { path = "../superui_css", version = "0.2.2" }
-superui_bridge = { path = "../superui_bridge", version = "0.2.2" }
-superui_paths = { path = "../superui_paths", version = "0.2.2" }
+superui_dom = { path = "../superui_dom", version = "0.2.3" }
+superui_html = { path = "../superui_html", version = "0.2.3" }
+superui_js = { path = "../superui_js", version = "0.2.3" }
+superui_api = { path = "../superui_api", version = "0.2.3" }
+superui_css = { path = "../superui_css", version = "0.2.3" }
+superui_bridge = { path = "../superui_bridge", version = "0.2.3" }
+superui_paths = { path = "../superui_paths", version = "0.2.3" }
 
 bevy = { workspace = true, default-features = false, features = [
     "std",
@@ -28,7 +28,7 @@ bevy = { workspace = true, default-features = false, features = [
 ] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-supersolid = { path = "../supersolid", version = "0.2.2" }
+supersolid = { path = "../supersolid", version = "0.2.3" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.3", features = ["wasm_js"] }
