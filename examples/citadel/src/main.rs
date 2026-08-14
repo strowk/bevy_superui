@@ -28,6 +28,18 @@ fn web_window(window: bevy::window::Window) -> bevy::window::Window {
     window
 }
 
+/// Bevy probes for a `<asset>.meta` sidecar next to every asset it loads. Those
+/// files are not shipped, which on native is a silent miss but on the web is a
+/// 404 per asset in the browser console. Skip the probe on wasm. Identity on native.
+fn web_asset_plugin(plugin: AssetPlugin) -> AssetPlugin {
+    #[cfg(target_arch = "wasm32")]
+    let plugin = AssetPlugin {
+        meta_check: bevy::asset::AssetMetaCheck::Never,
+        ..plugin
+    };
+    plugin
+}
+
 fn main() {
     App::new()
         // Insert BEFORE SimPlugin so it keeps our (lighter) windowed config instead
@@ -39,7 +51,7 @@ fn main() {
             tech_count: 32,
             seed: 1,
         })
-        .add_plugins(DefaultPlugins.set(WindowPlugin {
+        .add_plugins(DefaultPlugins.set(web_asset_plugin(default())).set(WindowPlugin {
             primary_window: Some(web_window(Window {
                 title: "Citadel".into(),
                 resolution: (1600u32, 900u32).into(),
