@@ -1,6 +1,6 @@
 [package]
 name = "citadel"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2021"
 publish = false
 # With the extra `citadel-bench` bin, `cargo run -p citadel` is otherwise ambiguous.
