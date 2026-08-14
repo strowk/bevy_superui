@@ -143,5 +143,7 @@ only knows the names and shapes it registered.
 ## Reference
 
 - [`window.bevy`](../reference/js-dom.md#globals) — the bridge in the JS/DOM ledger.
+- [Picking & the world behind the UI](picking.md) — the other half of the seam:
+  which clicks the UI keeps and which reach the game.
 - [Keyed lists & performance](keyed.md) — rendering high-frequency
   per-entity data from a frame payload.

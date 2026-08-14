@@ -19,6 +19,7 @@
 - [Lifecycle](docs/concepts/lifecycle.md)
 - [Context](docs/concepts/context.md)
 - [The Bevy Bridge](docs/concepts/bevy-bridge.md)
+- [Picking & the world behind the UI](docs/concepts/picking.md)
 
 # Reference
 
