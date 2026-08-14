@@ -1,0 +1,46 @@
+/* The overlay is deliberately mostly empty: #root fills the mounted node so the
+   world sprites underneath sit behind plain, non-interactive layout scaffolding
+   — the exact shape of a HUD, and the shape that decides whether the picking
+   backend can still see the world. */
+#root {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 460px;
+  margin: 24px;
+  padding: 16px;
+  row-gap: 8px;
+  background-color: #1b2233;
+  border: 2px #3d63c8;
+  border-radius: 10px;
+}
+
+h1 {
+  color: #cfe0ff;
+  font-size: 26px;
+}
+
+p {
+  color: #8fa4c8;
+  font-size: 15px;
+}
+
+#ping {
+  padding: 10px 18px;
+  background-color: #3d63c8;
+  border-radius: 6px;
+  color: #ffffff;
+  font-size: 16px;
+}
+
+#ping:hover {
+  background-color: #5b81e6;
+}
