@@ -13,6 +13,6 @@ pub use mount::{SuperUiPlugin, SuperUiRoot};
 /// The HTML-shaped surface authors/games reach for.
 pub mod prelude {
     pub use crate::{HtmlSource, JsSource, SuperUiPlugin, SuperUiRoot};
-    pub use superui_bridge::SuperUiApp;
+    pub use superui_bridge::{PickingPolicy, SuperUiApp};
     pub use superui_css::prelude::*;
 }

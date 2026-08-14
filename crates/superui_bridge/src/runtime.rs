@@ -23,6 +23,35 @@ pub struct DomNode(pub NodeId);
 #[derive(Component, Clone, Copy, Debug)]
 pub struct InputValueText;
 
+/// How a mounted UI's nodes take part in `bevy_picking`. Put it on the root
+/// entity next to `SuperUiRoot`; the reconciler reads it once per pass.
+///
+/// Bevy's UI picking backend treats a node without a `Pickable` component as
+/// blocking, and it runs at camera order +0.5 — so it outranks the sprite and
+/// mesh backends. Left alone, a mounted UI therefore hides the whole world from
+/// the pointer, which is wrong for anything drawn over live gameplay.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum PickingPolicy {
+    /// Nodes block the layers below only where the DOM is actually interactive:
+    /// a node blocks if it or one of its ancestors has an event listener. HUDs,
+    /// overlays and anything mounted over a live world want this.
+    ///
+    /// The trade-off is that clicks land on the world through non-interactive
+    /// chrome — a panel background, padding, a decorative card. Note this is
+    /// per-node and unrelated to entity-hierarchy bubbling: a listener on an
+    /// element still receives clicks on its children, because the reconciler
+    /// resolves a pick to the nearest DOM ancestor and the DOM dispatch bubbles.
+    #[default]
+    PassThrough,
+    /// Every element blocks, like a page in a browser. For full-screen menus and
+    /// modals that should swallow everything behind them.
+    ///
+    /// Text nodes stay ignored either way — a pick resolves to its nearest
+    /// element ancestor, which blocks under this policy, so the layers below are
+    /// covered just the same.
+    Solid,
+}
+
 /// NonSend because [`BoaEngine`] holds `Rc<RefCell<Dom>>` and Boa `JsFunction`s.
 pub struct UiRuntime {
     /// The retained arena DOM — the source of truth. Shared with `engine`.
