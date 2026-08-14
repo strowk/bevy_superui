@@ -60,7 +60,7 @@ workspace = true
 workspace = true
 
 [dependencies.superui_flair_core]
-version = "0.3.2"
+version = "0.3.3"
 path = "../superui_flair_core"
 
 [dependencies.bevy_image]
