@@ -411,14 +411,22 @@ impl UiRuntime {
         node: NodeId,
         entity: Entity,
     ) {
-        // id -> Name (flair's id selector matches on Name).
+        // id -> Name (flair's id selector matches on Name). Same equality guard as class
+        // and attributes below, for the same reason: `insert` marks `Name` `Changed` even
+        // for an identical value, and flair's cascade is gated on `Changed<Name>`, so
+        // re-stamping every stable node's id each reconcile pass re-cascades the subtree.
         let mut ec = world.entity_mut(entity);
         match dom.get_attribute(node, "id") {
             Some(id) if !id.is_empty() => {
-                ec.insert(Name::new(id.to_string()));
+                let new_name = Name::new(id.to_string());
+                if ec.get::<Name>() != Some(&new_name) {
+                    ec.insert(new_name);
+                }
             }
             _ => {
-                ec.remove::<Name>();
+                if ec.contains::<Name>() {
+                    ec.remove::<Name>();
+                }
             }
         }
 
@@ -451,20 +459,31 @@ impl UiRuntime {
             ec.insert(attrs);
         }
 
-        // inline style -> InlineStyle.
-        match dom.get_attribute(node, "style") {
-            Some(s) if !s.is_empty() => {
-                ec.insert(InlineStyle::new(s));
-            }
-            _ => {
-                ec.remove::<InlineStyle>();
+        // inline style -> InlineStyle. Same equality guard as class/attributes above:
+        // flair filters its cascade on `Changed<InlineStyle>`, so re-inserting an
+        // identical value each pass would re-cascade every styled node.
+        let new_inline = match dom.get_attribute(node, "style") {
+            Some(s) if !s.is_empty() => Some(InlineStyle::new(s)),
+            _ => None,
+        };
+        if ec.get::<InlineStyle>() != new_inline.as_ref() {
+            match new_inline {
+                Some(style) => {
+                    ec.insert(style);
+                }
+                None => {
+                    ec.remove::<InlineStyle>();
+                }
             }
         }
 
-        // checked (input) -> bevy_ui Checked marker, so `:checked` matches.
+        // checked (input) -> bevy_ui Checked marker, so `:checked` matches. Guarded like
+        // the rest: re-inserting the marker each pass would mark it `Changed`.
         if dom.checked(node) {
-            ec.insert(Checked);
-        } else {
+            if !ec.contains::<Checked>() {
+                ec.insert(Checked);
+            }
+        } else if ec.contains::<Checked>() {
             ec.remove::<Checked>();
         }
     }
