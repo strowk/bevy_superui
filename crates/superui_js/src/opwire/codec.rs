@@ -90,11 +90,21 @@ impl Op {
 /// Why [`OpBatch::decode`] rejected a buffer.
 #[derive(PartialEq, Debug, Clone)]
 pub enum CodecError {
-    /// Buffer ended before a declared field (header, operand, or string) could be read.
+    /// Buffer ended before a declared field (header, operand, or string)
+    /// could be read, or a string's declared bytes were not valid UTF-8.
     Truncated,
     /// An op record's opcode byte was outside `0..=8`.
     BadOpcode(u8),
 }
+
+/// Smallest possible encoded op record: 1 opcode byte + the smallest arity
+/// (2) worth of `u32` operands. Used to cap a capacity reservation against
+/// an untrusted header count (see [`OpBatch::decode`]).
+const MIN_OP_RECORD_LEN: usize = 1 + 2 * 4;
+
+/// Smallest possible encoded string record: a `u32` length prefix on an
+/// empty string. Used the same way as [`MIN_OP_RECORD_LEN`].
+const MIN_STRING_RECORD_LEN: usize = 4;
 
 /// One frame's worth of recorded JS shadow-DOM mutations, plus the string
 /// pool its [`Op`]s' [`StrId`]s index into.
@@ -149,7 +159,13 @@ impl OpBatch {
         let op_count = cursor.read_u32()?;
         let string_count = cursor.read_u32()?;
 
-        let mut ops = Vec::with_capacity(op_count as usize);
+        // op_count/string_count come from the buffer itself, so a forged
+        // header (e.g. a huge count with no data behind it) must not drive
+        // an unbounded `with_capacity` — cap the reservation by what the
+        // remaining bytes could actually hold; the per-field bounds checks
+        // below still catch a short buffer either way.
+        let ops_cap = (op_count as usize).min(cursor.remaining() / MIN_OP_RECORD_LEN);
+        let mut ops = Vec::with_capacity(ops_cap);
         for _ in 0..op_count {
             let opcode = cursor.read_u8()?;
             let arity = Op::arity(opcode).ok_or(CodecError::BadOpcode(opcode))?;
@@ -160,7 +176,8 @@ impl OpBatch {
             ops.push(Op::from_operands(opcode, &operands[..arity as usize]));
         }
 
-        let mut strings = Vec::with_capacity(string_count as usize);
+        let strings_cap = (string_count as usize).min(cursor.remaining() / MIN_STRING_RECORD_LEN);
+        let mut strings = Vec::with_capacity(strings_cap);
         for _ in 0..string_count {
             let len = cursor.read_u32()? as usize;
             let raw = cursor.read_bytes(len)?;
@@ -181,6 +198,10 @@ struct Cursor<'a> {
 impl<'a> Cursor<'a> {
     fn new(bytes: &'a [u8]) -> Self {
         Cursor { bytes, pos: 0 }
+    }
+
+    fn remaining(&self) -> usize {
+        self.bytes.len() - self.pos
     }
 
     fn read_bytes(&mut self, n: usize) -> Result<&'a [u8], CodecError> {
@@ -236,6 +257,40 @@ mod tests {
         let mut bytes = [1u32.to_le_bytes(), 0u32.to_le_bytes()].concat();
         bytes.push(255);
         assert_eq!(OpBatch::decode(&bytes), Err(CodecError::BadOpcode(255)));
+    }
+
+    #[test]
+    fn roundtrip_covers_all_op_variants() {
+        let mut b = OpBatch::default();
+        let a = b.intern("a");
+        let c = b.intern("c");
+        let v = b.intern("v");
+        b.ops.push(Op::CreateElement { id: 2, tag: a });
+        b.ops.push(Op::CreateText { id: 3, data: v });
+        b.ops.push(Op::SetAttribute { id: 2, name: c, value: v });
+        b.ops.push(Op::RemoveAttribute { id: 2, name: c });
+        b.ops.push(Op::SetProperty { id: 2, name: c, value: v });
+        b.ops.push(Op::SetStyle { id: 2, prop: c, value: v });
+        b.ops.push(Op::SetText { id: 3, data: v });
+        b.ops.push(Op::InsertBefore { parent: 1, node: 2, reference: 3 });
+        b.ops.push(Op::RemoveChild { parent: 1, node: 3 });
+        let back = OpBatch::decode(&b.encode()).unwrap();
+        assert_eq!(back.ops, b.ops);
+    }
+
+    #[test]
+    fn decode_rejects_truncation_after_valid_header() {
+        // Header declares 1 op, 0 strings, but no operand bytes follow.
+        let mut header_only = [1u32.to_le_bytes(), 0u32.to_le_bytes()].concat();
+        header_only.push(0); // opcode for CreateElement, arity 2 — no operands follow
+        assert_eq!(OpBatch::decode(&header_only), Err(CodecError::Truncated));
+
+        // Header declares 0 ops, 1 string, whose declared length exceeds
+        // the bytes actually present.
+        let mut string_len_lies = [0u32.to_le_bytes(), 1u32.to_le_bytes()].concat();
+        string_len_lies.extend_from_slice(&100u32.to_le_bytes());
+        string_len_lies.extend_from_slice(b"short");
+        assert_eq!(OpBatch::decode(&string_len_lies), Err(CodecError::Truncated));
     }
 
     #[test]
