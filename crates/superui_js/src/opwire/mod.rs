@@ -2,5 +2,7 @@
 //! of recorded mutations.
 
 mod codec;
+pub mod idmap;
 
 pub use codec::{CodecError, JsNodeId, Op, OpBatch, StrId};
+pub use idmap::IdMap;
