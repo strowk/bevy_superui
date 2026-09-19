@@ -121,6 +121,13 @@ mod tests {
     use crate::opwire::{Op, OpBatch};
 
     use super::super::OpApplier;
+    use super::merge_style;
+
+    #[test]
+    fn merge_style_overwrites_one_prop_among_several_preserving_order() {
+        let merged = merge_style(Some("color:red;font-size:12px"), "color", "blue");
+        assert_eq!(merged, "color:blue;font-size:12px");
+    }
 
     #[test]
     fn applies_create_and_insert_into_dom() {
