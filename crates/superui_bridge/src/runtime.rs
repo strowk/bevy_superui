@@ -2,13 +2,13 @@
 //! `NodeId <-> Entity` map that the reconciler maintains. One per mounted UI.
 
 use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::rc::Rc;
 
 use bevy::log::warn;
 use bevy::prelude::*;
 use superui_css::style::StyleSheet;
-use superui_dom::{Dom, ListenerId, NodeId};
+use superui_dom::{Dom, NodeId};
 use superui_js::opwire::{bootstrap_js, OpApplier};
 use superui_js::{BoaEngine, JsEngine};
 
@@ -75,10 +75,6 @@ pub struct UiRuntime {
     pub reconciles: u64,
     node_to_entity: HashMap<NodeId, Entity>,
     entity_to_node: HashMap<Entity, NodeId>,
-    /// Mirror nodes carrying a synthetic listener that reflects JS-side listener
-    /// presence, so `dom.listeners()` (which the picking policy reads) is
-    /// non-empty exactly when the shadow DOM has a real listener. See [`Self::pump`].
-    interactive: HashMap<NodeId, ListenerId>,
     /// The DOM node that currently has keyboard focus (Task 5).
     pub(crate) focused: Option<NodeId>,
     /// Whether the text caret is currently drawn (blinks; see `blink_caret_system`).
@@ -144,7 +140,6 @@ impl UiRuntime {
             reconciles: 0,
             node_to_entity: HashMap::new(),
             entity_to_node: HashMap::new(),
-            interactive: HashMap::new(),
             focused: None,
             caret_visible: true,
             caret_accum: 0.0,
@@ -152,56 +147,16 @@ impl UiRuntime {
         }
     }
 
-    /// Flush the JS shadow DOM's queued mutations onto the render mirror and
-    /// reflect listener presence. Call after any JS runs (author script, event
-    /// dispatch, timers, ECS→JS emit) so its DOM changes reach the reconciler.
+    /// Flush the JS shadow DOM's queued mutations onto the render mirror. Call
+    /// after any JS runs (author script, event dispatch, timers, ECS→JS emit) so
+    /// its DOM changes — including listener-presence markers (`SetListener`) that
+    /// drive picking — reach the reconciler.
     pub fn pump(&mut self) {
         let batch = self.engine.flush_ops();
         if !batch.ops.is_empty() {
             self.applier.apply(&mut self.dom.borrow_mut(), &batch);
             self.dirty = true;
         }
-        // Listeners emit no op, so their presence can change without a batch
-        // (e.g. a script that only calls addEventListener). Reconcile the picking
-        // policy every pump.
-        if self.sync_interactive_listeners() {
-            self.dirty = true;
-        }
-    }
-
-    /// Mirror JS-side listener presence into `dom` so the reconciler's picking
-    /// policy (`dom.listeners(node).is_empty()`) tracks the shadow DOM. Adds a
-    /// single synthetic listener to each newly-interactive node and drops it when
-    /// the node loses all real listeners. Returns whether anything changed.
-    fn sync_interactive_listeners(&mut self) -> bool {
-        let want: HashSet<NodeId> = self
-            .engine
-            .listener_node_ids()
-            .into_iter()
-            .filter_map(|js| self.applier.node(js))
-            .collect();
-        let mut changed = false;
-        let stale: Vec<NodeId> = self
-            .interactive
-            .keys()
-            .copied()
-            .filter(|n| !want.contains(n))
-            .collect();
-        for node in stale {
-            if let Some(lid) = self.interactive.remove(&node) {
-                self.dom.borrow_mut().remove_event_listener(node, lid);
-                changed = true;
-            }
-        }
-        for node in want {
-            if !self.interactive.contains_key(&node) {
-                if let Some(lid) = self.dom.borrow_mut().add_event_listener(node, "__ss", false) {
-                    self.interactive.insert(node, lid);
-                    changed = true;
-                }
-            }
-        }
-        changed
     }
 
     /// Advance the caret-blink clock by `dt` seconds. Returns `true` if the caret

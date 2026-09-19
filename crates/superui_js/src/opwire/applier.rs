@@ -1,7 +1,9 @@
 //! Applies a decoded [`OpBatch`] to a render-mirror [`superui_dom::Dom`],
 //! translating [`JsNodeId`]s through an [`IdMap`].
 
-use superui_dom::{Dom, NodeId};
+use std::collections::HashMap;
+
+use superui_dom::{Dom, ListenerId, NodeId};
 
 use crate::opwire::{IdMap, JsNodeId, Op, OpBatch};
 
@@ -14,12 +16,17 @@ use crate::opwire::{IdMap, JsNodeId, Op, OpBatch};
 /// is not a bug worth panicking over.
 pub struct OpApplier {
     map: IdMap,
+    /// Synthetic marker listeners keyed by node, driven by [`Op::SetListener`].
+    /// A node carries one exactly while its JS shadow node has a listener, so
+    /// `reconcile.rs`'s `dom.listeners(node).is_empty()` picking check tracks
+    /// interactivity without the reconciler knowing about the op-wire.
+    listeners: HashMap<NodeId, ListenerId>,
 }
 
 impl OpApplier {
     /// Creates an applier with the root pre-bound: jsId `1 -> root_node`.
     pub fn new(root_node: NodeId) -> Self {
-        OpApplier { map: IdMap::new(root_node) }
+        OpApplier { map: IdMap::new(root_node), listeners: HashMap::new() }
     }
 
     /// The [`NodeId`] currently bound to `js`, if any.
@@ -97,6 +104,21 @@ impl OpApplier {
                 let Some(child) = self.map.node(node) else { return };
                 if dom.remove_child(parent, child).is_ok() {
                     self.map.unbind(node);
+                    self.listeners.remove(&child);
+                }
+            }
+            Op::SetListener { id, has_listener } => {
+                let Some(node) = self.map.node(id) else { return };
+                if has_listener {
+                    if let std::collections::hash_map::Entry::Vacant(slot) =
+                        self.listeners.entry(node)
+                    {
+                        if let Some(lid) = dom.add_event_listener(node, "__ss", false) {
+                            slot.insert(lid);
+                        }
+                    }
+                } else if let Some(lid) = self.listeners.remove(&node) {
+                    dom.remove_event_listener(node, lid);
                 }
             }
         }

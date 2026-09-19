@@ -245,24 +245,6 @@ impl JsEngine for BoaEngine {
     fn drain_outbox(&mut self) -> Vec<(String, serde_json::Value)> {
         with_host_state_mut(&mut self.context, |s| std::mem::take(&mut s.outbox))
     }
-
-    fn listener_node_ids(&mut self) -> Vec<crate::JsNodeId> {
-        let value = match self.context.eval(Source::from_bytes("__ss_listener_ids()")) {
-            Ok(v) => v,
-            Err(_) => return Vec::new(),
-        };
-        let Some(array) = value.as_object().and_then(|o| JsArray::from_object(o.clone()).ok()) else {
-            return Vec::new();
-        };
-        let len = array.length(&mut self.context).unwrap_or(0);
-        let mut ids = Vec::with_capacity(len as usize);
-        for i in 0..len {
-            if let Some(n) = array.at(i as i64, &mut self.context).ok().and_then(|v| v.as_number()) {
-                ids.push(n as crate::JsNodeId);
-            }
-        }
-        ids
-    }
 }
 
 // ---- host import implementations -------------------------------------------

@@ -40,6 +40,7 @@
   var OP_SET_TEXT = 6;
   var OP_INSERT_BEFORE = 7;
   var OP_REMOVE_CHILD = 8;
+  var OP_SET_LISTENER = 9;
 
   function emit(op, operands) {
     pendingOps.push({ op: op, a: operands });
@@ -254,16 +255,30 @@
     return this._attrs.has(name);
   };
 
-  // ---- event listeners (JS-only table; NO ops — listeners live only here) -----
+  // ---- event listeners --------------------------------------------------------
+  // The listener table itself is JS-only, but a 0<->1 transition in the node's
+  // TOTAL listener count emits SetListener so the render mirror knows whether the
+  // node is interactive (its picking policy). The count is across all types.
+  function hasAnyListener(node) {
+    if (!node._listeners) return false;
+    var found = false;
+    node._listeners.forEach(function (arr) {
+      if (arr && arr.length) found = true;
+    });
+    return found;
+  }
+
   proto.addEventListener = function (type, fn, capture) {
     if (typeof fn !== "function") return;
     if (!this._listeners) this._listeners = new Map();
+    var had = hasAnyListener(this);
     var arr = this._listeners.get(type);
     if (!arr) {
       arr = [];
       this._listeners.set(type, arr);
     }
     arr.push({ fn: fn, capture: !!capture });
+    if (!had) emit(OP_SET_LISTENER, [this.id, 1]);
   };
 
   proto.removeEventListener = function (type, fn, capture) {
@@ -274,6 +289,7 @@
     for (var i = 0; i < arr.length; i++) {
       if (arr[i].fn === fn && arr[i].capture === cap) {
         arr.splice(i, 1);
+        if (!hasAnyListener(this)) emit(OP_SET_LISTENER, [this.id, 0]);
         return;
       }
     }
@@ -500,20 +516,5 @@
   // Test hook: whether an id is still registered (see forget()).
   globalThis.__ss_hasNode = function (id) {
     return nodesById.has(id >>> 0);
-  };
-
-  // jsIds carrying at least one listener. Listeners emit no op, so the host reads
-  // this to reflect interactivity into the render mirror for its picking policy.
-  globalThis.__ss_listener_ids = function () {
-    var out = [];
-    nodesById.forEach(function (node, id) {
-      if (!node._listeners) return;
-      var any = false;
-      node._listeners.forEach(function (arr) {
-        if (arr && arr.length) any = true;
-      });
-      if (any) out.push(id);
-    });
-    return out;
   };
 })();

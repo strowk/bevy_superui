@@ -11,7 +11,6 @@ categories = ["game-development"]
 [dependencies]
 superui_dom = { path = "../superui_dom", version = "0.3.3" }
 superui_js = { path = "../superui_js", version = "0.3.3" }
-superui_api = { path = "../superui_api", version = "0.3.3" }
 superui_css = { path = "../superui_css", version = "0.3.3" }
 supersolid_runtime = { path = "../supersolid_runtime", version = "0.3.3" }
 boa_engine.workspace = true

@@ -18,6 +18,9 @@ pub enum Op {
     /// `reference == 0` means append (insert at end of `parent`'s children).
     InsertBefore { parent: JsNodeId, node: JsNodeId, reference: JsNodeId },
     RemoveChild { parent: JsNodeId, node: JsNodeId },
+    /// Node's total listener count crossed 0<->1. The render mirror drives its
+    /// picking policy off this "is the node interactive at all" marker.
+    SetListener { id: JsNodeId, has_listener: bool },
 }
 
 impl Op {
@@ -34,6 +37,7 @@ impl Op {
             Op::SetText { .. } => 6,
             Op::InsertBefore { .. } => 7,
             Op::RemoveChild { .. } => 8,
+            Op::SetListener { .. } => 9,
         }
     }
 
@@ -49,6 +53,7 @@ impl Op {
             6 => Some(2), // SetText { id, data }
             7 => Some(3), // InsertBefore { parent, node, reference }
             8 => Some(2), // RemoveChild { parent, node }
+            9 => Some(2), // SetListener { id, has_listener }
             _ => None,
         }
     }
@@ -64,6 +69,7 @@ impl Op {
             Op::SetText { id, data } => [id, data, 0],
             Op::InsertBefore { parent, node, reference } => [parent, node, reference],
             Op::RemoveChild { parent, node } => [parent, node, 0],
+            Op::SetListener { id, has_listener } => [id, has_listener as u32, 0],
         };
         let n = Self::arity(self.opcode()).unwrap() as usize;
         for &operand in &operands[..n] {
@@ -82,6 +88,7 @@ impl Op {
             6 => Op::SetText { id: operands[0], data: operands[1] },
             7 => Op::InsertBefore { parent: operands[0], node: operands[1], reference: operands[2] },
             8 => Op::RemoveChild { parent: operands[0], node: operands[1] },
+            9 => Op::SetListener { id: operands[0], has_listener: operands[1] != 0 },
             _ => unreachable!("opcode range checked by caller"),
         }
     }
@@ -93,7 +100,7 @@ pub enum CodecError {
     /// Buffer ended before a declared field (header, operand, or string)
     /// could be read, or a string's declared bytes were not valid UTF-8.
     Truncated,
-    /// An op record's opcode byte was outside `0..=8`.
+    /// An op record's opcode byte was outside `0..=9`.
     BadOpcode(u8),
 }
 
@@ -274,6 +281,17 @@ mod tests {
         b.ops.push(Op::SetText { id: 3, data: v });
         b.ops.push(Op::InsertBefore { parent: 1, node: 2, reference: 3 });
         b.ops.push(Op::RemoveChild { parent: 1, node: 3 });
+        b.ops.push(Op::SetListener { id: 2, has_listener: true });
+        b.ops.push(Op::SetListener { id: 2, has_listener: false });
+        let back = OpBatch::decode(&b.encode()).unwrap();
+        assert_eq!(back.ops, b.ops);
+    }
+
+    #[test]
+    fn set_listener_roundtrips_both_states() {
+        let mut b = OpBatch::default();
+        b.ops.push(Op::SetListener { id: 7, has_listener: true });
+        b.ops.push(Op::SetListener { id: 7, has_listener: false });
         let back = OpBatch::decode(&b.encode()).unwrap();
         assert_eq!(back.ops, b.ops);
     }
