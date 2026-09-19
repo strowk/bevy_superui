@@ -30,12 +30,16 @@ compile_error!("engine-web is wasm-only");
 
 #[cfg(feature = "engine-boa")]
 mod engine;
+#[cfg(feature = "engine-v8")]
+mod engine_v8;
 pub mod opwire;
 #[cfg(feature = "engine-boa")]
 mod state;
 
 #[cfg(feature = "engine-boa")]
 pub use engine::BoaEngine;
+#[cfg(feature = "engine-v8")]
+pub use engine_v8::V8Engine;
 pub use opwire::{JsNodeId, OpBatch};
 #[cfg(feature = "engine-boa")]
 pub use state::{with_host_state, with_host_state_mut, HostState, Timer};
@@ -52,11 +56,10 @@ pub fn new_engine(dom: Rc<RefCell<Dom>>) -> Box<dyn JsEngine> {
     Box::new(BoaEngine::new(dom))
 }
 
-/// No `engine-v8` adapter exists yet; fail the build here instead of at a
-/// confusing missing-type error further down the crate graph.
+/// Build the compile-time-selected [`JsEngine`] backend on `deno_core`/V8.
 #[cfg(feature = "engine-v8")]
-pub fn new_engine(_dom: Rc<RefCell<Dom>>) -> Box<dyn JsEngine> {
-    compile_error!("engine-v8 adapter not yet implemented")
+pub fn new_engine(dom: Rc<RefCell<Dom>>) -> Box<dyn JsEngine> {
+    Box::new(V8Engine::new(dom))
 }
 
 /// No `engine-web` adapter exists yet; see the `engine-v8` version of
