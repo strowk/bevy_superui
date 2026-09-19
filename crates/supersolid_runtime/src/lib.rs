@@ -30,7 +30,7 @@ pub fn install(engine: &mut dyn JsEngine) {
 /// Test-only value readback over the `JsEngine` boundary: the trait exposes no
 /// typed eval result, so evaluate `Number(expr)`/`String(expr)`, ship it out via
 /// `__superui_bevy_send`, and decode the drained JSON.
-#[cfg(test)]
+#[cfg(all(test, feature = "engine-boa"))]
 mod test_read {
     use superui_js::{BoaEngine, JsEngine};
 
@@ -61,7 +61,7 @@ mod test_read {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "engine-boa"))]
 mod tests {
     use super::*;
     use crate::test_read::{num, text};
@@ -584,7 +584,7 @@ mod tests {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "engine-boa"))]
 mod render_tests {
     use super::*;
     use crate::test_read::{num, text};
