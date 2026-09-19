@@ -233,6 +233,36 @@
     return this._attrs.has(name);
   };
 
+  // ---- event listeners (JS-only table; NO ops — listeners live only here) -----
+  proto.addEventListener = function (type, fn, capture) {
+    if (typeof fn !== "function") return;
+    if (!this._listeners) this._listeners = new Map();
+    var arr = this._listeners.get(type);
+    if (!arr) {
+      arr = [];
+      this._listeners.set(type, arr);
+    }
+    arr.push({ fn: fn, capture: !!capture });
+  };
+
+  proto.removeEventListener = function (type, fn, capture) {
+    if (!this._listeners) return;
+    var arr = this._listeners.get(type);
+    if (!arr) return;
+    var cap = !!capture;
+    for (var i = 0; i < arr.length; i++) {
+      if (arr[i].fn === fn && arr[i].capture === cap) {
+        arr.splice(i, 1);
+        return;
+      }
+    }
+  };
+
+  function listenersFor(node, type) {
+    if (!node._listeners) return null;
+    return node._listeners.get(type) || null;
+  }
+
   // ---- text / textContent ----------------------------------------------------
   Object.defineProperty(proto, "data", {
     get: function () {
@@ -360,8 +390,84 @@
     },
   };
 
+  // ---- W3C event dispatch (capture -> target -> bubble) ----------------------
+  //
+  // Mirrors the retired superui_dom::build_dispatch_plan phase model, in JS:
+  //   * capture: root -> parent(target), capture-flagged listeners
+  //   * target:  all listeners on the target, in registration order
+  //   * bubble:  parent(target) -> root, non-capture listeners (only if bubbles)
+  // stopPropagation ends after the current node finishes; stopImmediate also ends
+  // the current node's remaining listeners; preventDefault (cancelable only) is
+  // reported as the return value.
+  function dispatch(jsId, type, key, bubbles, cancelable) {
+    var target = nodesById.get(jsId >>> 0);
+    if (!target) return false;
+
+    var ancestors = []; // parent(target) -> root
+    var cur = target.parentNode;
+    while (cur) {
+      ancestors.push(cur);
+      cur = cur.parentNode;
+    }
+
+    var stopped = false;
+    var immediate = false;
+    var prevented = false;
+    var event = {
+      type: "" + type,
+      key: key == null ? null : "" + key,
+      target: target,
+      currentTarget: null,
+      bubbles: !!bubbles,
+      cancelable: !!cancelable,
+      defaultPrevented: false,
+      preventDefault: function () {
+        if (cancelable) {
+          prevented = true;
+          this.defaultPrevented = true;
+        }
+      },
+      stopPropagation: function () {
+        stopped = true;
+      },
+      stopImmediatePropagation: function () {
+        stopped = true;
+        immediate = true;
+      },
+    };
+
+    // Ordered visit plan: { node, phase } with phase in "capture"|"target"|"bubble".
+    var plan = [];
+    for (var c = ancestors.length - 1; c >= 0; c--) plan.push({ node: ancestors[c], phase: "capture" });
+    plan.push({ node: target, phase: "target" });
+    if (bubbles) {
+      for (var b = 0; b < ancestors.length; b++) plan.push({ node: ancestors[b], phase: "bubble" });
+    }
+
+    for (var s = 0; s < plan.length; s++) {
+      if (stopped) break;
+      var step = plan[s];
+      var live = listenersFor(step.node, "" + type);
+      if (!live || live.length === 0) continue;
+      event.currentTarget = step.node;
+      immediate = false;
+      var snapshot = live.slice(); // stable order; re-check membership before firing
+      for (var l = 0; l < snapshot.length; l++) {
+        if (immediate) break;
+        var entry = snapshot[l];
+        if (step.phase === "capture" && !entry.capture) continue;
+        if (step.phase === "bubble" && entry.capture) continue;
+        if (live.indexOf(entry) === -1) continue; // removed mid-dispatch
+        entry.fn.call(step.node, event);
+      }
+    }
+    event.currentTarget = null;
+    return prevented;
+  }
+
   // ---- publish globals -------------------------------------------------------
   globalThis.document = document;
   globalThis.__ss_root = root;
   globalThis.__ss_flush = flush;
+  globalThis.__ss_dispatch = dispatch;
 })();
