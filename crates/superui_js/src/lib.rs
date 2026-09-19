@@ -4,6 +4,7 @@
 //! Headless-testable.
 
 mod engine;
+pub mod opwire;
 mod state;
 
 pub use engine::BoaEngine;
