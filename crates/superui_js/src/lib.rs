@@ -5,14 +5,66 @@
 //! the host [`JsEngine::flush_ops`] decodes that batch (see [`opwire`]) so the
 //! bridge can replay it onto the render mirror. Knows nothing about Bevy.
 //! Headless-testable.
+//!
+//! The backend is chosen at compile time via three mutually-exclusive features:
+//! `engine-boa` (default; the only one implemented), `engine-v8`, `engine-web`.
+//! Build one with [`new_engine`] rather than naming a concrete engine type.
 
+#[cfg(not(any(feature = "engine-boa", feature = "engine-v8", feature = "engine-web")))]
+compile_error!(
+    "superui_js: select exactly one engine feature: engine-boa | engine-v8 | engine-web"
+);
+
+#[cfg(any(
+    all(feature = "engine-boa", feature = "engine-v8"),
+    all(feature = "engine-boa", feature = "engine-web"),
+    all(feature = "engine-v8", feature = "engine-web"),
+))]
+compile_error!("superui_js: enable exactly one engine feature (found multiple)");
+
+#[cfg(all(feature = "engine-v8", target_arch = "wasm32"))]
+compile_error!("engine-v8 is native-only");
+
+#[cfg(all(feature = "engine-web", not(target_arch = "wasm32")))]
+compile_error!("engine-web is wasm-only");
+
+#[cfg(feature = "engine-boa")]
 mod engine;
 pub mod opwire;
+#[cfg(feature = "engine-boa")]
 mod state;
 
+#[cfg(feature = "engine-boa")]
 pub use engine::BoaEngine;
 pub use opwire::{JsNodeId, OpBatch};
+#[cfg(feature = "engine-boa")]
 pub use state::{with_host_state, with_host_state_mut, HostState, Timer};
+
+use std::cell::RefCell;
+use std::rc::Rc;
+
+use superui_dom::Dom;
+
+/// Build the compile-time-selected [`JsEngine`] backend. The only supported way
+/// for dependents to construct an engine without naming a concrete type.
+#[cfg(feature = "engine-boa")]
+pub fn new_engine(dom: Rc<RefCell<Dom>>) -> Box<dyn JsEngine> {
+    Box::new(BoaEngine::new(dom))
+}
+
+/// No `engine-v8` adapter exists yet; fail the build here instead of at a
+/// confusing missing-type error further down the crate graph.
+#[cfg(feature = "engine-v8")]
+pub fn new_engine(_dom: Rc<RefCell<Dom>>) -> Box<dyn JsEngine> {
+    compile_error!("engine-v8 adapter not yet implemented")
+}
+
+/// No `engine-web` adapter exists yet; see the `engine-v8` version of
+/// `new_engine` for why this is a `compile_error!` rather than a `todo!()`.
+#[cfg(feature = "engine-web")]
+pub fn new_engine(_dom: Rc<RefCell<Dom>>) -> Box<dyn JsEngine> {
+    compile_error!("engine-web adapter not yet implemented")
+}
 
 /// The coarse boundary the Bevy layers consume so they never name Boa. JS-side
 /// mutations arrive as an [`OpBatch`]; nodes are addressed by [`JsNodeId`].
@@ -47,12 +99,9 @@ pub trait JsEngine {
     fn drain_outbox(&mut self) -> Vec<(String, serde_json::Value)>;
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "engine-boa"))]
 mod tests {
     use super::*;
-    use std::cell::RefCell;
-    use std::rc::Rc;
-    use superui_dom::Dom;
 
     #[test]
     fn eval_runs_and_shares_the_dom_handle() {

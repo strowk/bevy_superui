@@ -10,7 +10,7 @@ use bevy::prelude::*;
 use superui_css::style::StyleSheet;
 use superui_dom::{Dom, NodeId};
 use superui_js::opwire::{bootstrap_js, OpApplier};
-use superui_js::{BoaEngine, JsEngine};
+use superui_js::JsEngine;
 
 /// Stamped by the reconciler on every entity it owns, so observers and systems
 /// can resolve `Entity -> NodeId` via a normal query (the runtime is NonSend and
@@ -105,8 +105,7 @@ impl UiRuntime {
         // hydration source, leaving an empty Dom for the applier to rebuild into.
         let source = std::mem::replace(&mut *dom.borrow_mut(), Dom::new());
 
-        // TODO(engine-v8/web): cfg-select the engine (feature gating is next task).
-        let mut engine = BoaEngine::new(dom.clone());
+        let mut engine = superui_js::new_engine(dom.clone());
         let mut applier = OpApplier::new(dom.borrow().document());
 
         // Hydrate the initial HTML through the op-wire: bootstrap_js rebuilds the
@@ -120,7 +119,7 @@ impl UiRuntime {
             applier.apply(&mut dom.borrow_mut(), &batch);
         }
 
-        supersolid_runtime::install(&mut engine);
+        supersolid_runtime::install(engine.as_mut());
         // Plan 5: enable state-preserving HMR collection in render.js. Must run
         // after install (so the runtime exists) and before any run_script (so the
         // first render already collects). Gate decided by the caller (feature +
@@ -128,11 +127,11 @@ impl UiRuntime {
         if hmr {
             let _ = engine.eval("globalThis.__ssHmr = true;");
         }
-        crate::bevy_bridge::install_bevy_bridge(&mut engine);
+        crate::bevy_bridge::install_bevy_bridge(engine.as_mut());
 
         UiRuntime {
             dom,
-            engine: Box::new(engine),
+            engine,
             applier,
             root,
             stylesheet,

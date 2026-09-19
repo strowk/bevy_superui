@@ -18,7 +18,7 @@ const RENDER_JS: &str = include_str!("render.js");
 /// plus `$ss` (`el`/`txt`/`attr`/`child`/`on`/`bind`/`insert`/`cmp`/`frag`)
 /// from the render layer, and author globals `render`/`Show`/`For`/`Index`/
 /// `Switch`/`Match`.
-pub fn install(engine: &mut impl JsEngine) {
+pub fn install(engine: &mut dyn JsEngine) {
     engine
         .eval(RUNTIME_JS)
         .expect("supersolid_runtime: runtime.js must evaluate (internal invariant)");

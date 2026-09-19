@@ -2,6 +2,8 @@
 //! registers listeners, calls `__ss_dispatch`, and asserts phase ordering,
 //! `preventDefault` return value, and `stopPropagation` semantics.
 
+#![cfg(feature = "engine-boa")]
+
 use boa_engine::{Context, JsValue, Source};
 
 const DOM_JS: &str = include_str!("../js/dom.js");

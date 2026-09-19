@@ -4,6 +4,8 @@
 //! that structural/attribute reads are served from JS state and that
 //! `replaceChild` decomposes into insertBefore + removeChild.
 
+#![cfg(feature = "engine-boa")]
+
 use boa_engine::{js_string, Context, JsValue, Source};
 
 use superui_js::opwire::{Op, OpBatch};

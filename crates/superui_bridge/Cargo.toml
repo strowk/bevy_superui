@@ -10,10 +10,9 @@ categories = ["game-development"]
 
 [dependencies]
 superui_dom = { path = "../superui_dom", version = "0.3.3" }
-superui_js = { path = "../superui_js", version = "0.3.3" }
+superui_js = { path = "../superui_js", version = "0.3.3", default-features = false }
 superui_css = { path = "../superui_css", version = "0.3.3" }
-supersolid_runtime = { path = "../supersolid_runtime", version = "0.3.3" }
-boa_engine.workspace = true
+supersolid_runtime = { path = "../supersolid_runtime", version = "0.3.3", default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
@@ -29,10 +28,11 @@ bevy = { workspace = true, default-features = false, features = [
     "default_font",
 ] }
 
-# Boa pulls getrandom 0.3, which needs the JS backend on wasm (same gotcha as the
-# JS crates). Pair with the repo-root `.cargo/config.toml` rustflag.
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-getrandom = { version = "0.3", features = ["wasm_js"] }
-
 [dev-dependencies]
 superui_html = { path = "../superui_html" }
+
+[features]
+default = ["engine-boa"]
+engine-boa = ["superui_js/engine-boa", "supersolid_runtime/engine-boa"]
+engine-v8 = ["superui_js/engine-v8", "supersolid_runtime/engine-v8"]
+engine-web = ["superui_js/engine-web", "supersolid_runtime/engine-web"]

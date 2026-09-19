@@ -10,18 +10,27 @@ categories = ["game-development"]
 
 [dependencies]
 superui_dom = { path = "../superui_dom", version = "0.3.3" }
-boa_engine.workspace = true
-boa_gc.workspace = true
+boa_engine = { workspace = true, optional = true }
+boa_gc = { workspace = true, optional = true }
 serde_json = "1"
 
 [dev-dependencies]
 superui_html = { path = "../superui_html", version = "0.3.3" }
 
-# wasm-only. `getrandom`: Boa pulls getrandom 0.3, which needs the JS backend on
-# wasm (pair with the `.cargo/config.toml` rustflag at the repo root).
-# `web-time`: wall clock for Boa's `Date`; the default `StdClock`
-# (`std::time::SystemTime::now`) panics on wasm. Native keeps `StdClock` and pulls
-# neither of these.
+# wasm-only, and only needed by the `engine-boa` backend. `getrandom`: Boa pulls
+# getrandom 0.3, which needs the JS backend on wasm (pair with the
+# `.cargo/config.toml` rustflag at the repo root). `web-time`: wall clock for
+# Boa's `Date`; the default `StdClock` (`std::time::SystemTime::now`) panics on
+# wasm. Native keeps `StdClock` and pulls neither of these.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-getrandom = { version = "0.3", features = ["wasm_js"] }
-web-time = "1"
+getrandom = { version = "0.3", features = ["wasm_js"], optional = true }
+web-time = { version = "1", optional = true }
+
+[features]
+# Boa is the only engine with a real adapter today; v8/web are declared so the
+# feature surface (and dependents' manifests) is stable ahead of their adapters
+# landing, but selecting them fails at compile time (see src/lib.rs guards).
+default = ["engine-boa"]
+engine-boa = ["dep:boa_engine", "dep:boa_gc", "dep:getrandom", "dep:web-time"]
+engine-v8 = []
+engine-web = []

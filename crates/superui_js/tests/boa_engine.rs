@@ -2,6 +2,8 @@
 //! and the op-wire. Author JS mutates `document`; the engine flushes a decoded
 //! [`OpBatch`], dispatches events back into JS, and drains the Bevy outbox.
 
+#![cfg(feature = "engine-boa")]
+
 use std::cell::RefCell;
 use std::rc::Rc;
 
