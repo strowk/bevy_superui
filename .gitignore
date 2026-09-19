@@ -34,3 +34,5 @@ dhat-heap.json
 /.playwright-mcp/
 # Playwright/verification screenshots dropped at repo root
 /.playwright-screenshots/
+
+*.local.*
