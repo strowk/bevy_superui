@@ -263,3 +263,121 @@ fn flush_clears_the_queue() {
     assert!(second.ops.is_empty());
     assert!(second.strings.is_empty());
 }
+
+#[test]
+fn non_ascii_strings_survive_roundtrip() {
+    for s in ["caf\u{e9}", "\u{65e5}\u{672c}\u{8a9e}", "a\u{1f600}b"] {
+        let mut ctx = ctx();
+        eval(
+            &mut ctx,
+            &format!("__ss_root.appendChild(document.createTextNode(\"{s}\"));"),
+        );
+        let batch = OpBatch::decode(&flush(&mut ctx)).expect("decodes");
+        assert!(
+            batch.strings.iter().any(|p| p == s),
+            "pool {:?} missing {s:?}",
+            batch.strings
+        );
+    }
+}
+
+#[test]
+fn lone_surrogate_becomes_replacement_char_not_decode_failure() {
+    let mut ctx = ctx();
+    // A lone high surrogate (0xD83D) is not valid UTF-8; the encoder must emit
+    // U+FFFD so decode succeeds and the frame is not dropped.
+    eval(
+        &mut ctx,
+        r#"__ss_root.appendChild(document.createTextNode("x" + String.fromCharCode(0xD83D) + "y"));"#,
+    );
+    let batch = OpBatch::decode(&flush(&mut ctx)).expect("decodes despite lone surrogate");
+    assert!(
+        batch.strings.iter().any(|p| p == "x\u{FFFD}y"),
+        "pool {:?} missing replacement-char string",
+        batch.strings
+    );
+}
+
+#[test]
+fn removing_subtree_prunes_the_node_registry() {
+    let mut ctx = ctx();
+    eval(
+        &mut ctx,
+        r#"
+        globalThis.p = document.createElement('p');
+        globalThis.a = document.createElement('a');
+        globalThis.b = document.createElement('b');
+        __ss_root.appendChild(p);
+        p.appendChild(a);
+        a.appendChild(b);
+        globalThis.pid = p.id; globalThis.aid = a.id; globalThis.bid = b.id;
+        "#,
+    );
+    assert!(eval_bool(&mut ctx, "__ss_hasNode(pid) && __ss_hasNode(aid) && __ss_hasNode(bid)"));
+    eval(&mut ctx, "__ss_root.removeChild(p);");
+    assert!(eval_bool(
+        &mut ctx,
+        "!__ss_hasNode(pid) && !__ss_hasNode(aid) && !__ss_hasNode(bid)"
+    ));
+}
+
+#[test]
+fn text_content_setter_prunes_cleared_children() {
+    let mut ctx = ctx();
+    eval(
+        &mut ctx,
+        r#"
+        globalThis.p = document.createElement('p');
+        globalThis.a = document.createElement('a');
+        __ss_root.appendChild(p);
+        p.appendChild(a);
+        globalThis.aid = a.id;
+        "#,
+    );
+    assert!(eval_bool(&mut ctx, "__ss_hasNode(aid)"));
+    eval(&mut ctx, "p.textContent = 'gone';");
+    assert!(eval_bool(&mut ctx, "!__ss_hasNode(aid)"));
+}
+
+#[test]
+fn insert_before_foreign_reference_appends_and_emits_zero() {
+    let mut ctx = ctx();
+    eval(
+        &mut ctx,
+        r#"
+        globalThis.p = document.createElement('p');
+        globalThis.q = document.createElement('q');
+        globalThis.foreign = document.createElement('x');
+        globalThis.n = document.createElement('n');
+        __ss_root.appendChild(p);
+        __ss_root.appendChild(q);
+        q.appendChild(foreign);
+        "#,
+    );
+    let _ = flush(&mut ctx); // drop setup ops
+    // `foreign` is q's child, not p's; the local fallback appends, so the emitted
+    // op must also append (reference 0) to keep Rust in sync.
+    eval(&mut ctx, "p.insertBefore(n, foreign);");
+    let batch = OpBatch::decode(&flush(&mut ctx)).expect("decodes");
+    // p=2, q=3, foreign=4, n=5.
+    assert_eq!(
+        batch.ops.last(),
+        Some(&Op::InsertBefore { parent: 2, node: 5, reference: 0 })
+    );
+    assert!(eval_bool(&mut ctx, "p.childNodes.length === 1 && p.childNodes[0] === n"));
+}
+
+#[test]
+fn data_property_is_ignored_on_elements() {
+    let mut ctx = ctx();
+    eval(
+        &mut ctx,
+        "globalThis.d = document.createElement('div'); __ss_root.appendChild(d); d.data = 'x';",
+    );
+    let batch = OpBatch::decode(&flush(&mut ctx)).expect("decodes");
+    assert!(
+        !batch.ops.iter().any(|op| matches!(op, Op::SetText { .. })),
+        "element .data must not emit SetText, got {:?}",
+        batch.ops
+    );
+}

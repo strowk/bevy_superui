@@ -55,7 +55,9 @@
     out.push(n & 0xff, (n >>> 8) & 0xff, (n >>> 16) & 0xff, (n >>> 24) & 0xff);
   }
 
-  // Manual UTF-8 encoder (no TextEncoder dependency) -> array of byte values.
+  // UTF-8 encode to a byte array (no TextEncoder dependency). Unpaired surrogates
+  // become U+FFFD: a raw surrogate is invalid UTF-8, which the Rust codec's
+  // String::from_utf8 rejects, dropping the whole frame's batch.
   function utf8Bytes(str) {
     var out = [];
     for (var i = 0; i < str.length; i++) {
@@ -64,22 +66,24 @@
         out.push(c);
       } else if (c < 0x800) {
         out.push(0xc0 | (c >> 6), 0x80 | (c & 0x3f));
-      } else if (c >= 0xd800 && c <= 0xdbff && i + 1 < str.length) {
-        var c2 = str.charCodeAt(i + 1);
-        if (c2 >= 0xdc00 && c2 <= 0xdfff) {
-          var cp = 0x10000 + ((c - 0xd800) << 10) + (c2 - 0xdc00);
-          out.push(
-            0xf0 | (cp >> 18),
-            0x80 | ((cp >> 12) & 0x3f),
-            0x80 | ((cp >> 6) & 0x3f),
-            0x80 | (cp & 0x3f)
-          );
-          i++;
-        } else {
-          out.push(0xe0 | (c >> 12), 0x80 | ((c >> 6) & 0x3f), 0x80 | (c & 0x3f));
-        }
-      } else {
+      } else if (c < 0xd800 || c > 0xdfff) {
         out.push(0xe0 | (c >> 12), 0x80 | ((c >> 6) & 0x3f), 0x80 | (c & 0x3f));
+      } else if (
+        c <= 0xdbff &&
+        i + 1 < str.length &&
+        str.charCodeAt(i + 1) >= 0xdc00 &&
+        str.charCodeAt(i + 1) <= 0xdfff
+      ) {
+        var cp = 0x10000 + ((c - 0xd800) << 10) + (str.charCodeAt(i + 1) - 0xdc00);
+        out.push(
+          0xf0 | (cp >> 18),
+          0x80 | ((cp >> 12) & 0x3f),
+          0x80 | ((cp >> 6) & 0x3f),
+          0x80 | (cp & 0x3f)
+        );
+        i++;
+      } else {
+        out.push(0xef, 0xbf, 0xbd); // U+FFFD
       }
     }
     return out;
@@ -164,6 +168,8 @@
   });
 
   // ---- structural mutations --------------------------------------------------
+  // Unlink from the current parent without emitting an op: a move is one
+  // InsertBefore, and Rust's insert_before/append_child re-parent on their side.
   function detach(child) {
     var old = child.parentNode;
     if (old) {
@@ -171,6 +177,13 @@
       if (i >= 0) old._children.splice(i, 1);
       child.parentNode = null;
     }
+  }
+
+  // Drop a removed node and its descendants from the id registry. Identity-guarded
+  // so an id already rebound to a different node survives.
+  function forget(node) {
+    if (nodesById.get(node.id) === node) nodesById.delete(node.id);
+    for (var i = 0; i < node._children.length; i++) forget(node._children[i]);
   }
 
   proto.appendChild = function (child) {
@@ -183,12 +196,14 @@
 
   proto.insertBefore = function (child, reference) {
     detach(child);
-    if (reference == null) {
+    var idx = reference == null ? -1 : this._children.indexOf(reference);
+    if (idx < 0) {
+      // Null reference, or a reference that is not this node's child: append, and
+      // emit reference 0 so Rust appends too. A foreign reference in the op would
+      // be dropped by the applier, desyncing JS from the render mirror.
       this._children.push(child);
       emit(OP_INSERT_BEFORE, [this.id, child.id, 0]);
     } else {
-      var idx = this._children.indexOf(reference);
-      if (idx < 0) idx = this._children.length; // ref not a child => append
       this._children.splice(idx, 0, child);
       emit(OP_INSERT_BEFORE, [this.id, child.id, reference.id]);
     }
@@ -202,6 +217,7 @@
       this._children.splice(i, 1);
       child.parentNode = null;
       emit(OP_REMOVE_CHILD, [this.id, child.id]);
+      forget(child);
     }
     return child;
   };
@@ -264,11 +280,13 @@
   }
 
   // ---- text / textContent ----------------------------------------------------
+  // `.data` is a text-node property; ignore it on elements.
   Object.defineProperty(proto, "data", {
     get: function () {
-      return this._data;
+      return this.nodeType === TEXT_NODE ? this._data : undefined;
     },
     set: function (value) {
+      if (this.nodeType !== TEXT_NODE) return;
       var v = "" + value;
       this._data = v;
       emit(OP_SET_TEXT, [this.id, intern(v)]);
@@ -289,7 +307,10 @@
       var v = "" + value;
       // Clear existing children (no per-child RemoveChild op: SetText on the
       // parent replaces the subtree on the Rust side).
-      for (var i = 0; i < this._children.length; i++) this._children[i].parentNode = null;
+      for (var i = 0; i < this._children.length; i++) {
+        this._children[i].parentNode = null;
+        forget(this._children[i]);
+      }
       this._children = [];
       this._data = v;
       emit(OP_SET_TEXT, [this.id, intern(v)]);
@@ -363,10 +384,10 @@
     return node;
   }
 
-  function walkById(node, id, seen) {
+  function walkById(node, id) {
     if (node.nodeType === ELEMENT_NODE && node.getAttribute("id") === id) return node;
     for (var i = 0; i < node._children.length; i++) {
-      var hit = walkById(node._children[i], id, seen);
+      var hit = walkById(node._children[i], id);
       if (hit) return hit;
     }
     return null;
@@ -380,7 +401,7 @@
     createElement: createElement,
     createTextNode: createTextNode,
     getElementById: function (id) {
-      return walkById(root, "" + id, null);
+      return walkById(root, "" + id);
     },
     get body() {
       return root;
@@ -470,4 +491,9 @@
   globalThis.__ss_root = root;
   globalThis.__ss_flush = flush;
   globalThis.__ss_dispatch = dispatch;
+
+  // Test hook: whether an id is still registered (see forget()).
+  globalThis.__ss_hasNode = function (id) {
+    return nodesById.has(id >>> 0);
+  };
 })();
