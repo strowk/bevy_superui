@@ -14,6 +14,9 @@ boa_engine.workspace = true
 boa_gc.workspace = true
 serde_json = "1"
 
+[dev-dependencies]
+superui_html = { path = "../superui_html", version = "0.3.3" }
+
 # wasm-only. `getrandom`: Boa pulls getrandom 0.3, which needs the JS backend on
 # wasm (pair with the `.cargo/config.toml` rustflag at the repo root).
 # `web-time`: wall clock for Boa's `Date`; the default `StdClock`
