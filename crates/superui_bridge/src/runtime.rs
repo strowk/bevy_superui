@@ -2,13 +2,14 @@
 //! `NodeId <-> Entity` map that the reconciler maintains. One per mounted UI.
 
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 use bevy::log::warn;
 use bevy::prelude::*;
 use superui_css::style::StyleSheet;
-use superui_dom::{Dom, NodeId};
+use superui_dom::{Dom, ListenerId, NodeId};
+use superui_js::opwire::{bootstrap_js, OpApplier};
 use superui_js::{BoaEngine, JsEngine};
 
 /// Stamped by the reconciler on every entity it owns, so observers and systems
@@ -52,12 +53,15 @@ pub enum PickingPolicy {
     Solid,
 }
 
-/// NonSend because [`BoaEngine`] holds `Rc<RefCell<Dom>>` and Boa `JsFunction`s.
+/// NonSend because the engine holds `Rc<RefCell<Dom>>` and `!Send` JS handles.
 pub struct UiRuntime {
-    /// The retained arena DOM — the source of truth. Shared with `engine`.
+    /// The render-mirror DOM the reconciler reads: the [`OpApplier`]'s output,
+    /// rebuilt from the JS shadow DOM's op batches. Shared with the engine.
     pub dom: Rc<RefCell<Dom>>,
-    /// The Boa engine, wired to `dom` and the DOM/Web API + `window.bevy`.
-    pub engine: BoaEngine,
+    /// The JS engine, running the shadow DOM + reactive runtime + `window.bevy`.
+    pub engine: Box<dyn JsEngine>,
+    /// Replays each flushed op batch onto `dom` and owns the `jsId <-> NodeId` map.
+    pub applier: OpApplier,
     /// The ECS entity the DOM `<body>` reconciles into (its children mount here).
     pub root: Entity,
     /// The stylesheet handle the root carries (children inherit it in flair).
@@ -71,6 +75,10 @@ pub struct UiRuntime {
     pub reconciles: u64,
     node_to_entity: HashMap<NodeId, Entity>,
     entity_to_node: HashMap<Entity, NodeId>,
+    /// Mirror nodes carrying a synthetic listener that reflects JS-side listener
+    /// presence, so `dom.listeners()` (which the picking policy reads) is
+    /// non-empty exactly when the shadow DOM has a real listener. See [`Self::pump`].
+    interactive: HashMap<NodeId, ListenerId>,
     /// The DOM node that currently has keyboard focus (Task 5).
     pub(crate) focused: Option<NodeId>,
     /// Whether the text caret is currently drawn (blinks; see `blink_caret_system`).
@@ -82,19 +90,40 @@ pub struct UiRuntime {
 }
 
 impl UiRuntime {
-    /// Build a runtime around an already-parsed `dom`, mounting at `root` with
-    /// `stylesheet`. Installs the DOM/Web API surface and the `window.bevy`
-    /// bootstrap, but does NOT run author JS yet (callers `run_script` after, so
-    /// hot reload can re-exec independently). Starts `dirty` so the first frame
-    /// reconciles.
+    /// Build a runtime around a parsed `dom`, mounting at `root` with `stylesheet`.
+    ///
+    /// The parsed tree is taken out as a hydration source and `dom` is left empty
+    /// to serve as the render mirror the applier rebuilds into — so the shared
+    /// handle the reconciler reads is the op-wire's output, while
+    /// `document.getElementById(...)` in JS resolves against the shadow DOM. The
+    /// initial HTML is replayed through the op-wire, then the reactive runtime and
+    /// `window.bevy` are installed. Does NOT run author JS yet (callers
+    /// `run_script` after, so hot reload can re-exec independently). Starts `dirty`.
     pub fn new(
         dom: Rc<RefCell<Dom>>,
         root: Entity,
         stylesheet: Handle<StyleSheet>,
         hmr: bool,
     ) -> Self {
+        // Repurpose the parsed document as the mirror: take its tree out as the
+        // hydration source, leaving an empty Dom for the applier to rebuild into.
+        let source = std::mem::replace(&mut *dom.borrow_mut(), Dom::new());
+
+        // TODO(engine-v8/web): cfg-select the engine (feature gating is next task).
         let mut engine = BoaEngine::new(dom.clone());
-        superui_api::install(&mut engine);
+        let mut applier = OpApplier::new(dom.borrow().document());
+
+        // Hydrate the initial HTML through the op-wire: bootstrap_js rebuilds the
+        // source tree via the shadow DOM's own createElement/appendChild, recording
+        // an ordinary op batch the applier replays onto the (empty) mirror. This
+        // makes getElementById work in JS AND populates the render mirror.
+        let boot = bootstrap_js(&source);
+        let _ = engine.eval(&boot);
+        let batch = engine.flush_ops();
+        if !batch.ops.is_empty() {
+            applier.apply(&mut dom.borrow_mut(), &batch);
+        }
+
         supersolid_runtime::install(&mut engine);
         // Plan 5: enable state-preserving HMR collection in render.js. Must run
         // after install (so the runtime exists) and before any run_script (so the
@@ -104,20 +133,75 @@ impl UiRuntime {
             let _ = engine.eval("globalThis.__ssHmr = true;");
         }
         crate::bevy_bridge::install_bevy_bridge(&mut engine);
+
         UiRuntime {
             dom,
-            engine,
+            engine: Box::new(engine),
+            applier,
             root,
             stylesheet,
             dirty: true,
             reconciles: 0,
             node_to_entity: HashMap::new(),
             entity_to_node: HashMap::new(),
+            interactive: HashMap::new(),
             focused: None,
             caret_visible: true,
             caret_accum: 0.0,
             input_texts: HashMap::new(),
         }
+    }
+
+    /// Flush the JS shadow DOM's queued mutations onto the render mirror and
+    /// reflect listener presence. Call after any JS runs (author script, event
+    /// dispatch, timers, ECS→JS emit) so its DOM changes reach the reconciler.
+    pub fn pump(&mut self) {
+        let batch = self.engine.flush_ops();
+        if !batch.ops.is_empty() {
+            self.applier.apply(&mut self.dom.borrow_mut(), &batch);
+            self.dirty = true;
+        }
+        // Listeners emit no op, so their presence can change without a batch
+        // (e.g. a script that only calls addEventListener). Reconcile the picking
+        // policy every pump.
+        if self.sync_interactive_listeners() {
+            self.dirty = true;
+        }
+    }
+
+    /// Mirror JS-side listener presence into `dom` so the reconciler's picking
+    /// policy (`dom.listeners(node).is_empty()`) tracks the shadow DOM. Adds a
+    /// single synthetic listener to each newly-interactive node and drops it when
+    /// the node loses all real listeners. Returns whether anything changed.
+    fn sync_interactive_listeners(&mut self) -> bool {
+        let want: HashSet<NodeId> = self
+            .engine
+            .listener_node_ids()
+            .into_iter()
+            .filter_map(|js| self.applier.node(js))
+            .collect();
+        let mut changed = false;
+        let stale: Vec<NodeId> = self
+            .interactive
+            .keys()
+            .copied()
+            .filter(|n| !want.contains(n))
+            .collect();
+        for node in stale {
+            if let Some(lid) = self.interactive.remove(&node) {
+                self.dom.borrow_mut().remove_event_listener(node, lid);
+                changed = true;
+            }
+        }
+        for node in want {
+            if !self.interactive.contains_key(&node) {
+                if let Some(lid) = self.dom.borrow_mut().add_event_listener(node, "__ss", false) {
+                    self.interactive.insert(node, lid);
+                    changed = true;
+                }
+            }
+        }
+        changed
     }
 
     /// Advance the caret-blink clock by `dt` seconds. Returns `true` if the caret
@@ -139,8 +223,9 @@ impl UiRuntime {
         false
     }
 
-    /// Evaluate an author script against the current DOM. Errors are logged and
-    /// swallowed (graceful degradation, design §1). Marks the runtime dirty.
+    /// Evaluate an author script against the current DOM, then flush its DOM
+    /// mutations onto the render mirror. Errors are logged and swallowed (graceful
+    /// degradation, design §1). Marks the runtime dirty.
     ///
     /// The script is wrapped in an IIFE so its top-level `const`/`let`/`class`
     /// bindings are function-scoped rather than landing in the global lexical
@@ -159,6 +244,27 @@ impl UiRuntime {
             warn!("superui: JS error: {e}");
         }
         self.dirty = true;
+        self.pump();
+    }
+
+    /// Dispatch a DOM event at the render-mirror `node` by routing it to the
+    /// shadow DOM's `jsId`, then flush any DOM mutations the listeners made.
+    /// Returns whether `preventDefault()` was called. A node with no shadow
+    /// binding is skipped (returns `false`).
+    pub fn dispatch_dom_event(
+        &mut self,
+        node: NodeId,
+        ty: &str,
+        key: Option<&str>,
+        bubbles: bool,
+        cancelable: bool,
+    ) -> bool {
+        let Some(js) = self.applier.js(node) else {
+            return false;
+        };
+        let prevented = self.engine.dispatch_event(js, ty, key, bubbles, cancelable);
+        self.pump();
+        prevented
     }
 
     pub fn entity_for(&self, node: NodeId) -> Option<Entity> {
@@ -215,23 +321,34 @@ impl UiRuntime {
 mod tests {
     use super::*;
 
+    /// Read a JS-side value back over the engine boundary via the outbox — the
+    /// op-wire has no direct value-read, so the assertions route through
+    /// `__superui_bevy_send`, exactly the path the bevy bridge drains each frame.
+    fn read_back(rt: &mut UiRuntime, expr: &str) -> serde_json::Value {
+        rt.engine
+            .eval(&format!("__superui_bevy_send('__t', ({expr}));"))
+            .unwrap();
+        let out = rt.engine.drain_outbox();
+        out.into_iter()
+            .find(|(n, _)| n == "__t")
+            .map(|(_, v)| v)
+            .unwrap_or(serde_json::Value::Null)
+    }
+
     #[test]
-    fn new_runtime_is_dirty_and_runs_script() {
+    fn new_runtime_is_dirty_and_reflects_script_on_the_mirror() {
         let dom = Rc::new(RefCell::new(superui_html::parse_document(
             "<div id='a'></div>",
         )));
         let mut rt = UiRuntime::new(dom.clone(), Entity::PLACEHOLDER, Handle::default(), false);
         assert!(rt.dirty, "a fresh runtime must reconcile on the first frame");
 
-        // A script that mutates the DOM runs without panicking and re-dirties.
+        // A script that mutates the DOM reaches the render mirror and re-dirties.
         rt.dirty = false;
         rt.run_script("document.getElementById('a').setAttribute('data-x','1');");
         assert!(rt.dirty);
-        assert_eq!(
-            dom.borrow()
-                .get_attribute(dom.borrow().get_element_by_id("a").unwrap(), "data-x"),
-            Some("1")
-        );
+        let node = dom.borrow().get_element_by_id("a").unwrap();
+        assert_eq!(dom.borrow().get_attribute(node, "data-x"), Some("1"));
 
         // A broken script is swallowed, not panicked, and still marks dirty.
         rt.run_script("this is not valid js @@@");
@@ -253,42 +370,21 @@ mod tests {
             n[1](42);
             "#,
         );
-        let got = rt
-            .engine
-            .context_mut()
-            .eval(boa_engine::Source::from_bytes("globalThis.captured"))
-            .unwrap()
-            .as_number()
-            .unwrap();
-        assert_eq!(got, 42.0);
+        assert_eq!(read_back(&mut rt, "globalThis.captured").as_f64(), Some(42.0));
     }
 
     #[test]
     fn hmr_flag_set_when_enabled() {
         let dom = Rc::new(RefCell::new(superui_html::parse_document("<div id='a'></div>")));
         let mut rt = UiRuntime::new(dom, Entity::PLACEHOLDER, Handle::default(), true);
-        let on = rt
-            .engine
-            .context_mut()
-            .eval(boa_engine::Source::from_bytes("globalThis.__ssHmr === true"))
-            .unwrap()
-            .as_boolean()
-            .unwrap();
-        assert!(on, "hmr=true must set globalThis.__ssHmr");
+        assert_eq!(read_back(&mut rt, "globalThis.__ssHmr === true"), serde_json::json!(true));
     }
 
     #[test]
     fn hmr_flag_absent_when_disabled() {
         let dom = Rc::new(RefCell::new(superui_html::parse_document("<div id='a'></div>")));
         let mut rt = UiRuntime::new(dom, Entity::PLACEHOLDER, Handle::default(), false);
-        let on = rt
-            .engine
-            .context_mut()
-            .eval(boa_engine::Source::from_bytes("globalThis.__ssHmr === true"))
-            .unwrap()
-            .as_boolean()
-            .unwrap();
-        assert!(!on, "hmr=false must leave globalThis.__ssHmr unset");
+        assert_eq!(read_back(&mut rt, "globalThis.__ssHmr === true"), serde_json::json!(false));
     }
 
     #[test]
@@ -311,13 +407,10 @@ mod tests {
         rt.run_script(script);
         rt.run_script(script); // simulate a hot reload re-exec
 
-        let runs = rt
-            .engine
-            .context_mut()
-            .eval(boa_engine::Source::from_bytes("globalThis.runs"))
-            .unwrap()
-            .as_number()
-            .unwrap();
-        assert_eq!(runs, 2.0, "re-exec must run fully, not abort on a duplicate const");
+        assert_eq!(
+            read_back(&mut rt, "globalThis.runs").as_f64(),
+            Some(2.0),
+            "re-exec must run fully, not abort on a duplicate const"
+        );
     }
 }

@@ -9,55 +9,25 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 
 use bevy::prelude::*;
-use boa_engine::{js_string, Context, JsValue, NativeFunction};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use superui_js::{BoaEngine, JsEngine};
+use superui_js::JsEngine;
 
 use crate::runtime::UiRuntime;
 
 thread_local! {
-    /// JS -> ECS queue: `bevy.send` pushes `(name, payload-json)` here; the ECS
-    /// drain system reads it. Thread-local because Boa is single-threaded and the
-    /// runtime is NonSend (main thread only).
-    static OUTBOX: RefCell<Vec<(String, serde_json::Value)>> = const { RefCell::new(Vec::new()) };
     /// ECS -> JS queue: observers push `(name, payload-json)`; the emit system
-    /// forwards to JS `bevy._emit`.
+    /// forwards to JS `bevy._emit`. Thread-local because observers can't reach the
+    /// NonSend runtime directly. (JS -> ECS runs the other way, through the
+    /// engine's own outbox, drained via [`JsEngine::drain_outbox`].)
     static INBOX: RefCell<Vec<(String, serde_json::Value)>> = const { RefCell::new(Vec::new()) };
 }
 
-/// Native `__superui_bevy_send(name, payload)` — stash `(name, json(payload))`.
-fn native_bevy_send(
-    _this: &JsValue,
-    args: &[JsValue],
-    context: &mut Context,
-) -> boa_engine::JsResult<JsValue> {
-    let name = args
-        .first()
-        .and_then(|v| v.as_string())
-        .map(|s| s.to_std_string_escaped())
-        .unwrap_or_default();
-    let payload = match args.get(1) {
-        Some(v) => v.to_json(context)?.unwrap_or(serde_json::Value::Null),
-        None => serde_json::Value::Null,
-    };
-    OUTBOX.with(|o| o.borrow_mut().push((name, payload)));
-    Ok(JsValue::undefined())
-}
-
-/// Install the `window.bevy` global into `engine`. Registers the native send
-/// hook and the JS surface (`send`/`on`/`_emit`), and aliases `window` to
-/// `globalThis` so both `bevy.*` and `window.bevy.*` resolve.
-pub(crate) fn install_bevy_bridge(engine: &mut BoaEngine) {
-    let ctx = engine.context_mut();
-    ctx.register_global_callable(
-        js_string!("__superui_bevy_send"),
-        2,
-        NativeFunction::from_fn_ptr(native_bevy_send),
-    )
-    .expect("register __superui_bevy_send");
-
-    // Bootstrap the JS-visible object.
+/// Install the `window.bevy` global into `engine`. `__superui_bevy_send` is
+/// already registered by the engine (it pushes onto the outbox), so this only
+/// defines the JS surface (`send`/`on`/`_emit`) + the `__ss_emit` hook the engine
+/// calls for ECS→JS events, and aliases `window` to `globalThis`.
+pub(crate) fn install_bevy_bridge(engine: &mut dyn JsEngine) {
     let _ = engine.eval(
         r#"
         globalThis.window = globalThis;
@@ -76,6 +46,7 @@ pub(crate) fn install_bevy_bridge(engine: &mut BoaEngine) {
                 }
             };
         })();
+        globalThis.__ss_emit = function (name, data) { globalThis.bevy._emit(name, data); };
         "#,
     );
 }
@@ -151,8 +122,14 @@ fn forward_event_observer<T: Event + Serialize>(
 
 /// Exclusive system: drain the JS -> ECS outbox, triggering registered events.
 pub fn drain_bevy_outbox_system(world: &mut World) {
-    let items: Vec<(String, serde_json::Value)> =
-        OUTBOX.with(|o| std::mem::take(&mut *o.borrow_mut()));
+    let items: Vec<(String, serde_json::Value)> = {
+        let Some(mut rt) = world.remove_non_send::<UiRuntime>() else {
+            return;
+        };
+        let items = rt.engine.drain_outbox();
+        world.insert_non_send(rt);
+        items
+    };
     if items.is_empty() {
         return;
     }
@@ -189,31 +166,9 @@ pub fn emit_bevy_inbox_system(world: &mut World) {
         return;
     };
     for (name, json) in items {
-        emit_one(&mut rt.engine, &name, &json);
+        rt.engine.emit(&name, &json);
     }
-    rt.dirty = true; // a bevy.on callback may have mutated the DOM
+    // A bevy.on callback may have mutated the shadow DOM; flush it to the mirror.
+    rt.pump();
     world.insert_non_send(rt);
-}
-
-/// Call JS `globalThis.bevy._emit(name, payload)`.
-fn emit_one(engine: &mut BoaEngine, name: &str, json: &serde_json::Value) {
-    let ctx = engine.context_mut();
-    let Ok(bevy_val) = ctx.global_object().get(js_string!("bevy"), ctx) else {
-        return;
-    };
-    let Some(bevy_obj) = bevy_val.as_object() else {
-        return;
-    };
-    let Ok(emit) = bevy_obj.get(js_string!("_emit"), ctx) else {
-        return;
-    };
-    let Some(emit_fn) = emit.as_callable() else {
-        return;
-    };
-    let payload = JsValue::from_json(json, ctx).unwrap_or(JsValue::undefined());
-    let _ = emit_fn.call(
-        &bevy_val,
-        &[JsValue::from(js_string!(name)), payload],
-        ctx,
-    );
 }

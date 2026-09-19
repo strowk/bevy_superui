@@ -206,12 +206,13 @@ fn runtime_exists(world: &World) -> bool {
     world.contains_non_send::<UiRuntime>()
 }
 
-/// Drive Boa timers each frame from Bevy's clock.
+/// Drive JS timers each frame from Bevy's clock, then flush any DOM mutations the
+/// timer callbacks made onto the render mirror.
 fn tick_timers_system(time: Res<Time>, rt: Option<NonSendMut<UiRuntime>>) {
-    use superui_js::JsEngine;
     if let Some(mut rt) = rt {
         let now_ms = time.elapsed_secs_f64() * 1000.0;
         rt.engine.run_timers(now_ms);
+        rt.pump();
     }
 }
 

@@ -182,7 +182,6 @@ pub fn keyboard_events_system(
     if presses.is_empty() {
         return;
     }
-    use superui_js::JsEngine;
     let mut any = false;
     for (key, code, pressed) in presses {
         let Some(focused) = rt.focused else {
@@ -190,7 +189,7 @@ pub fn keyboard_events_system(
         };
         let type_ = if pressed { "keydown" } else { "keyup" };
         let kn = key_name(&key, code);
-        rt.engine.dispatch_event(focused, type_, Some(&kn), true, true);
+        rt.dispatch_dom_event(focused, type_, Some(&kn), true, true);
         any = true;
         if !pressed {
             continue;
@@ -217,13 +216,13 @@ pub fn keyboard_events_system(
         // Enter/Space activates a focused button; Space toggles a focused
         // checkbox — the browser's default keyboard activation.
         if is_button && matches!(code, KeyCode::Enter | KeyCode::Space) {
-            rt.engine.dispatch_event(focused, "click", None, true, true);
+            rt.dispatch_dom_event(focused, "click", None, true, true);
             continue;
         }
         if is_checkbox && code == KeyCode::Space {
             let now = !rt.dom.borrow().checked(focused);
             rt.dom.borrow_mut().set_checked(focused, now);
-            rt.engine.dispatch_event(focused, "change", None, true, false);
+            rt.dispatch_dom_event(focused, "change", None, true, false);
             continue;
         }
 
@@ -246,7 +245,7 @@ pub fn keyboard_events_system(
             changed = true;
         }
         if changed {
-            rt.engine.dispatch_event(focused, "input", None, true, false);
+            rt.dispatch_dom_event(focused, "input", None, true, false);
         }
     }
     if any {
@@ -321,9 +320,7 @@ pub fn drain_dom_events_system(world: &mut World) {
         return;
     };
     for e in queued {
-        use superui_js::JsEngine;
-        rt.engine
-            .dispatch_event(e.target, &e.type_, None, e.bubbles, e.cancelable);
+        rt.dispatch_dom_event(e.target, &e.type_, None, e.bubbles, e.cancelable);
     }
     rt.dirty = true;
     world.insert_non_send(rt);

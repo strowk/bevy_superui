@@ -501,4 +501,19 @@
   globalThis.__ss_hasNode = function (id) {
     return nodesById.has(id >>> 0);
   };
+
+  // jsIds carrying at least one listener. Listeners emit no op, so the host reads
+  // this to reflect interactivity into the render mirror for its picking policy.
+  globalThis.__ss_listener_ids = function () {
+    var out = [];
+    nodesById.forEach(function (node, id) {
+      if (!node._listeners) return;
+      var any = false;
+      node._listeners.forEach(function (arr) {
+        if (arr && arr.length) any = true;
+      });
+      if (any) out.push(id);
+    });
+    return out;
+  };
 })();

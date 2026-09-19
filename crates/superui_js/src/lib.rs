@@ -45,6 +45,11 @@ pub trait JsEngine {
 
     /// JS→Bevy: take the messages `__superui_bevy_send` queued this frame.
     fn drain_outbox(&mut self) -> Vec<(String, serde_json::Value)>;
+
+    /// The [`JsNodeId`]s that currently carry at least one event listener.
+    /// Listeners live only in JS and emit no op, so the host polls this to learn
+    /// which nodes are interactive (the reconciler's picking policy reads it).
+    fn listener_node_ids(&mut self) -> Vec<JsNodeId>;
 }
 
 #[cfg(test)]

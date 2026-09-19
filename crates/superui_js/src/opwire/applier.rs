@@ -27,6 +27,13 @@ impl OpApplier {
         self.map.node(js)
     }
 
+    /// The [`JsNodeId`] bound to a render-mirror `node`, if any (reverse of
+    /// [`OpApplier::node`]). The bridge uses it to route an input hit on a
+    /// mirror node back to the shadow-DOM node the engine dispatches against.
+    pub fn js(&self, node: NodeId) -> Option<JsNodeId> {
+        self.map.js(node)
+    }
+
     /// Applies every op in `batch`, in order.
     pub fn apply(&mut self, dom: &mut Dom, batch: &OpBatch) {
         for op in &batch.ops {

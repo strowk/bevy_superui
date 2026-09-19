@@ -116,7 +116,7 @@ fn syncs_identity_and_updates_in_place() {
         "<div id='root'><input type='checkbox' class='a b'></div>",
     )));
     let mut app = test_app();
-    let root = mount(&mut app, dom.clone());
+    let _root = mount(&mut app, dom.clone());
     app.update();
 
     // Find the <input> entity via its DomNode.
