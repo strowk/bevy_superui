@@ -1,0 +1,265 @@
+//! Drives `js/dom.js` through a bare Boa context: runs author JS that mutates
+//! the JS-side shadow DOM, calls `__ss_flush()`, and decodes the returned byte
+//! array with [`OpBatch::decode`] to assert the exact recorded ops. Also checks
+//! that structural/attribute reads are served from JS state and that
+//! `replaceChild` decomposes into insertBefore + removeChild.
+
+use boa_engine::{js_string, Context, JsValue, Source};
+
+use superui_js::opwire::{Op, OpBatch};
+
+const DOM_JS: &str = include_str!("../js/dom.js");
+
+/// Fresh Boa context with `dom.js` evaluated (globals installed).
+fn ctx() -> Context {
+    let mut ctx = Context::default();
+    ctx.eval(Source::from_bytes(DOM_JS))
+        .expect("dom.js evaluates cleanly");
+    ctx
+}
+
+fn eval(ctx: &mut Context, src: &str) -> JsValue {
+    ctx.eval(Source::from_bytes(src))
+        .unwrap_or_else(|e| panic!("eval failed for `{src}`: {e}"))
+}
+
+/// Call `__ss_flush()` and read the returned array-of-bytes into a `Vec<u8>`.
+fn flush(ctx: &mut Context) -> Vec<u8> {
+    let value = eval(ctx, "__ss_flush()");
+    let obj = value.as_object().expect("__ss_flush returns an array/object");
+    let len = obj
+        .get(js_string!("length"), ctx)
+        .unwrap()
+        .to_u32(ctx)
+        .unwrap();
+    let mut bytes = Vec::with_capacity(len as usize);
+    for i in 0..len {
+        let v = obj.get(i, ctx).unwrap();
+        bytes.push(v.to_u32(ctx).unwrap() as u8);
+    }
+    bytes
+}
+
+fn eval_bool(ctx: &mut Context, src: &str) -> bool {
+    eval(ctx, src).as_boolean().expect("boolean result")
+}
+
+fn eval_string(ctx: &mut Context, src: &str) -> String {
+    eval(ctx, src)
+        .to_string(ctx)
+        .expect("string result")
+        .to_std_string_escaped()
+}
+
+/// Position of an already-interned string in a decoded batch's pool.
+fn pos(batch: &OpBatch, s: &str) -> u32 {
+    batch
+        .strings
+        .iter()
+        .position(|existing| existing == s)
+        .unwrap_or_else(|| panic!("string {s:?} not in pool {:?}", batch.strings)) as u32
+}
+
+#[test]
+fn author_mutations_emit_the_exact_ops() {
+    let mut ctx = ctx();
+    eval(
+        &mut ctx,
+        r#"
+        const d = document.createElement('div');
+        d.setAttribute('class', 'row');
+        __ss_root.appendChild(d);
+        const t = document.createTextNode('hello');
+        d.appendChild(t);
+        "#,
+    );
+    let batch = OpBatch::decode(&flush(&mut ctx)).expect("decodes");
+
+    // ids: div = 2, text = 3. string pool interned in emission order.
+    let div = pos(&batch, "div");
+    let class = pos(&batch, "class");
+    let row = pos(&batch, "row");
+    let hello = pos(&batch, "hello");
+
+    assert_eq!(
+        batch.ops,
+        vec![
+            Op::CreateElement { id: 2, tag: div },
+            Op::SetAttribute { id: 2, name: class, value: row },
+            Op::InsertBefore { parent: 1, node: 2, reference: 0 },
+            Op::CreateText { id: 3, data: hello },
+            Op::InsertBefore { parent: 2, node: 3, reference: 0 },
+        ]
+    );
+}
+
+#[test]
+fn insert_before_uses_reference_id() {
+    let mut ctx = ctx();
+    eval(
+        &mut ctx,
+        r#"
+        const a = document.createElement('a');
+        const b = document.createElement('b');
+        __ss_root.appendChild(a);
+        __ss_root.insertBefore(b, a);
+        "#,
+    );
+    let batch = OpBatch::decode(&flush(&mut ctx)).expect("decodes");
+    // a = 2, b = 3. insertBefore(b, a) references a's id (2).
+    assert_eq!(
+        batch.ops.last(),
+        Some(&Op::InsertBefore { parent: 1, node: 3, reference: 2 })
+    );
+}
+
+#[test]
+fn property_and_style_and_text_ops() {
+    let mut ctx = ctx();
+    eval(
+        &mut ctx,
+        r#"
+        const inp = document.createElement('input');
+        __ss_root.appendChild(inp);
+        inp.value = 'typed';
+        inp.checked = true;
+        inp.style.color = 'red';
+        const t = document.createTextNode('a');
+        inp.appendChild(t);
+        t.data = 'b';
+        inp.textContent = 'c';
+        inp.removeAttribute('class');
+        "#,
+    );
+    let batch = OpBatch::decode(&flush(&mut ctx)).expect("decodes");
+
+    let has = |op: Op| assert!(batch.ops.contains(&op), "missing op {op:?} in {:?}", batch.ops);
+    let s = |v: &str| pos(&batch, v);
+    has(Op::SetProperty { id: 2, name: s("value"), value: s("typed") });
+    has(Op::SetProperty { id: 2, name: s("checked"), value: s("true") });
+    has(Op::SetStyle { id: 2, prop: s("color"), value: s("red") });
+    has(Op::SetText { id: 3, data: s("b") });
+    has(Op::SetText { id: 2, data: s("c") });
+    has(Op::RemoveAttribute { id: 2, name: s("class") });
+}
+
+#[test]
+fn reads_served_from_js_state() {
+    let mut ctx = ctx();
+    eval(
+        &mut ctx,
+        r#"
+        globalThis.d = document.createElement('div');
+        d.setAttribute('id', 'main');
+        d.setAttribute('class', 'row');
+        __ss_root.appendChild(d);
+        globalThis.t = document.createTextNode('hi');
+        d.appendChild(t);
+        "#,
+    );
+    // flush so reads are proven independent of the op queue
+    let _ = flush(&mut ctx);
+
+    assert_eq!(eval_string(&mut ctx, "d.getAttribute('class')"), "row");
+    assert_eq!(eval_string(&mut ctx, "d.getAttribute('missing') === null ? 'NULL' : 'x'"), "NULL");
+    assert_eq!(eval_string(&mut ctx, "'' + d.childNodes.length"), "1");
+    assert!(eval_bool(&mut ctx, "d.childNodes[0] === t"));
+    assert!(eval_bool(&mut ctx, "t.parentNode === d"));
+    assert_eq!(eval_string(&mut ctx, "'' + t.nodeType"), "3");
+    assert_eq!(eval_string(&mut ctx, "'' + d.nodeType"), "1");
+    assert_eq!(eval_string(&mut ctx, "t.data"), "hi");
+    assert_eq!(eval_string(&mut ctx, "d.textContent"), "hi");
+    assert!(eval_bool(&mut ctx, "document.getElementById('main') === d"));
+}
+
+#[test]
+fn next_sibling_reads_from_js_state() {
+    let mut ctx = ctx();
+    eval(
+        &mut ctx,
+        r#"
+        globalThis.p = document.createElement('p');
+        globalThis.a = document.createElement('a');
+        globalThis.b = document.createElement('b');
+        __ss_root.appendChild(p);
+        p.appendChild(a);
+        p.appendChild(b);
+        "#,
+    );
+    assert!(eval_bool(&mut ctx, "a.nextSibling === b"));
+    assert!(eval_bool(&mut ctx, "b.nextSibling === null"));
+}
+
+#[test]
+fn replace_child_decomposes_into_insert_then_remove() {
+    let mut ctx = ctx();
+    eval(
+        &mut ctx,
+        r#"
+        globalThis.p = document.createElement('p');
+        globalThis.a = document.createElement('a');
+        globalThis.b = document.createElement('b');
+        __ss_root.appendChild(p);
+        p.appendChild(a);
+        p.appendChild(b);
+        "#,
+    );
+    let _ = flush(&mut ctx); // drop setup ops
+    eval(
+        &mut ctx,
+        r#"
+        globalThis.c = document.createElement('c');
+        p.replaceChild(c, a);
+        "#,
+    );
+    let batch = OpBatch::decode(&flush(&mut ctx)).expect("decodes");
+    // p=2, a=3, b=4, c=5. replaceChild(c, a) => insertBefore(c, a) then removeChild(a).
+    assert_eq!(
+        batch.ops,
+        vec![
+            Op::CreateElement { id: 5, tag: pos(&batch, "c") },
+            Op::InsertBefore { parent: 2, node: 5, reference: 3 },
+            Op::RemoveChild { parent: 2, node: 3 },
+        ]
+    );
+    // JS tree now [c, b]
+    assert!(eval_bool(&mut ctx, "p.childNodes.length === 2 && p.childNodes[0] === c && p.childNodes[1] === b"));
+    assert!(eval_bool(&mut ctx, "c.parentNode === p && a.parentNode === null"));
+}
+
+#[test]
+fn text_content_setter_clears_children() {
+    let mut ctx = ctx();
+    eval(
+        &mut ctx,
+        r#"
+        globalThis.p = document.createElement('p');
+        globalThis.a = document.createElement('a');
+        __ss_root.appendChild(p);
+        p.appendChild(a);
+        p.textContent = 'gone';
+        "#,
+    );
+    let _ = flush(&mut ctx);
+    assert_eq!(eval_string(&mut ctx, "p.textContent"), "gone");
+    assert_eq!(eval_string(&mut ctx, "'' + p.childNodes.length"), "0");
+}
+
+#[test]
+fn bounding_rect_is_zero_without_measure_host() {
+    let mut ctx = ctx();
+    eval(&mut ctx, "globalThis.d = document.createElement('div'); __ss_root.appendChild(d);");
+    assert_eq!(eval_string(&mut ctx, "'' + d.getBoundingClientRect().width"), "0");
+    assert_eq!(eval_string(&mut ctx, "'' + d.offsetWidth"), "0");
+    assert_eq!(eval_string(&mut ctx, "'' + d.offsetHeight"), "0");
+}
+
+#[test]
+fn flush_clears_the_queue() {
+    let mut ctx = ctx();
+    eval(&mut ctx, "__ss_root.appendChild(document.createElement('div'));");
+    assert!(!flush(&mut ctx).is_empty());
+    let second = OpBatch::decode(&flush(&mut ctx)).expect("decodes");
+    assert!(second.ops.is_empty());
+    assert!(second.strings.is_empty());
+}
