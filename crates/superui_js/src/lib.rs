@@ -1,6 +1,9 @@
 //! JS engine boundary + Boa backend for bevy_superui.
 //!
-//! Owns the retained-DOM ↔ JS marshalling. Knows nothing about Bevy.
+//! The engine runs the framework-free JS shadow DOM (`js/dom.js`): author and
+//! reactive JS mutate a JS-side tree that records primitive ops. Once per frame
+//! the host [`JsEngine::flush_ops`] decodes that batch (see [`opwire`]) so the
+//! bridge can replay it onto the render mirror. Knows nothing about Bevy.
 //! Headless-testable.
 
 mod engine;
@@ -8,31 +11,40 @@ pub mod opwire;
 mod state;
 
 pub use engine::BoaEngine;
-pub use state::{
-    dom_of, jsstr, node_id_of, with_host_state, with_host_state_mut, wrap_node, wrap_opt_node,
-    EventData, HostState, NodeHandle, Protos, Timer,
-};
+pub use opwire::{JsNodeId, OpBatch};
+pub use state::{with_host_state, with_host_state_mut, HostState, Timer};
 
-/// The coarse boundary the Bevy layers consume so they never name Boa. Fine-
-/// grained DOM bindings live in `superui_api`, not here.
+/// The coarse boundary the Bevy layers consume so they never name Boa. JS-side
+/// mutations arrive as an [`OpBatch`]; nodes are addressed by [`JsNodeId`].
 pub trait JsEngine {
     /// Evaluate a script against the current context. `Err` carries a message.
     fn eval(&mut self, script: &str) -> Result<(), String>;
 
-    /// Dispatch a DOM event of `event_type` at `target` (W3C capture→target→
-    /// bubble). Returns whether `preventDefault()` was called.
+    /// Dispatch a DOM event of `ty` at the shadow-DOM node `target` (W3C
+    /// capture→target→bubble, run entirely in JS). Returns whether
+    /// `preventDefault()` was called.
     fn dispatch_event(
         &mut self,
-        target: superui_dom::NodeId,
-        event_type: &str,
+        target: JsNodeId,
+        ty: &str,
         key: Option<&str>,
         bubbles: bool,
         cancelable: bool,
     ) -> bool;
 
-    /// Advance the timer clock to `now_ms` and fire all due timers (intervals
-    /// reschedule). Pumps the microtask queue afterward.
+    /// Advance the timer clock to `now_ms`, fire all due timers (intervals
+    /// reschedule), then drain the microtask queue.
     fn run_timers(&mut self, now_ms: f64);
+
+    /// Flush the JS shadow DOM's queued mutations into a decoded [`OpBatch`].
+    fn flush_ops(&mut self) -> OpBatch;
+
+    /// Bevy→JS: invoke the optional `globalThis.__ss_emit(name, value)` hook.
+    /// No-op if the JS side has not installed one.
+    fn emit(&mut self, name: &str, value: &serde_json::Value);
+
+    /// JS→Bevy: take the messages `__superui_bevy_send` queued this frame.
+    fn drain_outbox(&mut self) -> Vec<(String, serde_json::Value)>;
 }
 
 #[cfg(test)]

@@ -12,6 +12,7 @@ categories = ["game-development"]
 superui_dom = { path = "../superui_dom", version = "0.3.3" }
 boa_engine.workspace = true
 boa_gc.workspace = true
+serde_json = "1"
 
 # wasm-only. `getrandom`: Boa pulls getrandom 0.3, which needs the JS backend on
 # wasm (pair with the `.cargo/config.toml` rustflag at the repo root).
