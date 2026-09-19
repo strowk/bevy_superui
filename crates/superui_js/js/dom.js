@@ -195,6 +195,11 @@
   };
 
   proto.insertBefore = function (child, reference) {
+    // Inserting a node before itself leaves it in place (DOM spec: the reference
+    // is advanced to the node's next sibling). Mirrors superui_dom's
+    // insert_before self no-op; without it detach() drops `child` and the now
+    // stale `reference` lookup would re-append it, corrupting reorders.
+    if (child === reference) return child;
     detach(child);
     var idx = reference == null ? -1 : this._children.indexOf(reference);
     if (idx < 0) {
