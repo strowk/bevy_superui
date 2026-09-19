@@ -3,18 +3,9 @@ name = "superui_api"
 edition.workspace = true
 version.workspace = true
 license.workspace = true
-description = "Standards-shaped DOM/Web API surface for bevy_superui's JS engine"
+description = "Retired stub; the DOM/Web API surface now lives in superui_js"
 repository.workspace = true
 keywords = ["bevy", "ui", "dom", "javascript", "gamedev"]
 categories = ["game-development"]
 
 [dependencies]
-superui_dom = { path = "../superui_dom", version = "0.3.3" }
-superui_js = { path = "../superui_js", version = "0.3.3" }
-boa_engine.workspace = true
-
-[dev-dependencies]
-superui_html = { path = "../superui_html" }
-
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-getrandom = { version = "0.3", features = ["wasm_js"] }
