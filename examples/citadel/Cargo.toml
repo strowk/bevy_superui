@@ -25,13 +25,14 @@ default = ["debug-ui"]
 hmr = ["superui/hmr", "bevy/file_watcher"]
 debug-ui = ["bevy/bevy_dev_tools"]
 bench = []
-dhat-prof = ["dep:dhat"]
+dhat-prof = ["dep:dhat", "superui_bench_support/dhat-prof"]
 
 [dependencies]
 bevy = { workspace = true, default-features = true }
 superui = { path = "../../crates/superui" }
 superui_css = { path = "../../crates/superui_css" }
 superui_bridge = { path = "../../crates/superui_bridge" }
+superui_bench_support = { path = "../../crates/superui_bench_support" }
 serde = { version = "1", features = ["derive"] }
 
 [dependencies.dhat]

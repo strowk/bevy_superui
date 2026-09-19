@@ -51,11 +51,11 @@ fn sync(
                     row_gap: Val::Px(theme::SPACE),
                     padding: UiRect::all(Val::Px(16.0)),
                     border: UiRect::all(Val::Px(1.0)),
+                    border_radius: BorderRadius::all(Val::Px(theme::RADIUS)),
                     ..default()
                 },
                 BackgroundColor(theme::PANEL),
                 BorderColor::all(theme::PANEL_BORDER),
-                BorderRadius::all(Val::Px(theme::RADIUS)),
             )).with_children(|c| {
                 c.spawn(widgets::label("Inventory  (I to close)", theme::FONT_LG, theme::TEXT));
                 // Grid of owned weapons.
@@ -70,10 +70,9 @@ fn sync(
                         let s = weapon_stats(slot.kind);
                         let border = if slot.active { theme::ACCENT } else { theme::PANEL_BORDER };
                         g.spawn((
-                            Node { flex_direction: FlexDirection::Column, row_gap: Val::Px(4.0), padding: UiRect::all(Val::Px(theme::SPACE)), border: UiRect::all(Val::Px(2.0)), ..default() },
+                            Node { flex_direction: FlexDirection::Column, row_gap: Val::Px(4.0), padding: UiRect::all(Val::Px(theme::SPACE)), border: UiRect::all(Val::Px(2.0)), border_radius: BorderRadius::all(Val::Px(theme::RADIUS)), ..default() },
                             BackgroundColor(Color::srgb(0.16, 0.17, 0.24)),
                             BorderColor::all(border),
-                            BorderRadius::all(Val::Px(theme::RADIUS)),
                         )).with_children(|w| {
                             w.spawn(widgets::label(slot.kind.name(), theme::FONT, theme::TEXT));
                             w.spawn(widgets::label(format!("DMG {:.0}   RoF {:.2}s", s.damage, s.fire_interval), theme::FONT_SM, theme::TEXT_DIM));

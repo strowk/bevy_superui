@@ -1,0 +1,13 @@
+#main { display: flex; flex-direction: column; }
+.jumbotron { display: flex; flex-direction: row; }
+.table { display: flex; flex-direction: column; }
+.row { display: flex; flex-direction: row; height: 20px; }
+.col-md-1 { width: 40px; }
+.col-md-4 { width: 300px; }
+.col-md-6 { width: 200px; }
+.lbl { color: #dddddd; }
+.lbl.warm { color: #ff8844; }
+.lbl.cool { color: #4488ff; }
+.remove { color: #aa3333; }
+.glyphicon { width: 12px; }
+.row.danger { background-color: #331111; }

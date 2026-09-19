@@ -151,16 +151,19 @@ static nodes.
 ## Profiling — per-stage attribution (`--profile`)
 
 Splits the opaque `ui_backend` bucket into the five reconcile stages and prints a
-per-stage ms + %-of-frame table plus a one-line summary. Requires `bevy/trace`:
+per-stage ms + %-of-frame table plus a one-line summary. Requires both `bevy/trace`
+(creates spans) and `bevy/debug` (makes their names resolvable); without `debug` the
+whole frame lands in `other`:
 
-    cargo run --release -p citadel --features bench,bevy/trace --bin citadel-bench -- \
+    cargo run --release -p citadel --features bench,bevy/trace,bevy/debug --bin citadel-bench -- \
         --profile --frames 120 --warmup 200
 
 How it works: with `bevy/trace` every system is wrapped in a root
 `info_span!("system", name=…)`, and each stage lives in a different system, so a
 tracing layer that sums per-system busy-time attributes the whole frame. The **same
-spans feed a Tracy flamegraph** — swap `bevy/trace` for `bevy/trace_tracy` and
-attach Tracy for the visual timeline; `--profile` is the headless equivalent.
+spans feed a Tracy flamegraph** — swap `bevy/trace` for `bevy/trace_tracy` (with
+`bevy/debug` for name resolution) and attach Tracy for the visual timeline; `--profile`
+is the headless equivalent.
 
 ### Profile finding (Task 9 baseline)
 

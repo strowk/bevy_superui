@@ -116,34 +116,7 @@ pub fn build_bench_app(backend: Backend, cfg: CitadelConfig) -> App {
 
 // ── Stats ─────────────────────────────────────────────────────────────────────
 
-/// Per-frame timing statistics from a benchmark run.
-#[derive(Clone, Copy, Debug)]
-pub struct Stats {
-    pub mean_ms: f64,
-    pub p50_ms: f64,
-    pub p95_ms: f64,
-    pub p99_ms: f64,
-    pub fps: f64,
-}
-
-/// Nearest-rank percentile over sorted samples.
-pub fn stats_from(mut samples: Vec<f64>) -> Stats {
-    assert!(!samples.is_empty(), "stats_from: empty samples");
-    samples.sort_by(|a, b| a.partial_cmp(b).unwrap());
-    let n = samples.len();
-    let pct = |p: f64| {
-        let idx = ((n - 1) as f64 * p).round() as usize;
-        samples[idx]
-    };
-    let mean = samples.iter().sum::<f64>() / n as f64;
-    Stats {
-        mean_ms: mean,
-        p50_ms: pct(0.50),
-        p95_ms: pct(0.95),
-        p99_ms: pct(0.99),
-        fps: if mean > 0.0 { 1000.0 / mean } else { f64::INFINITY },
-    }
-}
+pub use superui_bench_support::{stats_from, Stats};
 
 // ── Timing ────────────────────────────────────────────────────────────────────
 
@@ -364,117 +337,46 @@ pub fn sim_for(cap: usize, seed: u64) -> CitadelConfig {
 
 // ── CLI arg parsing ───────────────────────────────────────────────────────────
 
-#[derive(Clone, Debug)]
-pub struct BenchArgs {
-    pub backend: Backend,
-    pub caps: Vec<usize>,
-    pub frames: usize,
-    pub warmup: usize,
-    pub seed: u64,
-    pub json: bool,
-    pub dhat: bool,
-    pub profile: bool,
-}
+pub use superui_bench_support::{alloc_table, AllocReport};
 
-/// Minimal `--key value` / `--flag` parser.
+const ARG_DEFAULTS: superui_bench_support::ArgDefaults = superui_bench_support::ArgDefaults {
+    frames: 1000,
+    warmup: 100,
+    cap_flags: &["--building-count", "--enemy-cap"],
+};
+
+/// Citadel's arg parsing: shared parser, then map the backend string and apply
+/// citadel's own default building_count.
 pub fn parse_args(argv: &[String]) -> Result<BenchArgs, String> {
-    let mut backend: Option<Backend> = None;
-    let mut caps: Vec<usize> = Vec::new();
-    let mut frames = 1000usize;
-    let mut warmup = 100usize;
-    let mut seed = 0u64;
-    let mut json = false;
-    let mut dhat = false;
-    let mut profile = false;
-
-    let mut i = 0;
-    while i < argv.len() {
-        let key = argv[i].as_str();
-        let advance = |i: &mut usize| -> Result<&str, String> {
-            *i += 1;
-            argv.get(*i).map(|s| s.as_str()).ok_or_else(|| format!("missing value for {key}"))
-        };
-        match key {
-            "--backend" => {
-                backend = Some(match advance(&mut i)? {
-                    "null" => Backend::Null,
-                    "supersolid" => Backend::Supersolid,
-                    other => return Err(format!("unknown backend '{other}'")),
-                });
-            }
-            // Accept --preset and ignore it (tolerated for script compatibility)
-            "--preset" => { advance(&mut i)?; }
-            "--building-count" | "--enemy-cap" => {
-                let v = advance(&mut i)?.parse().map_err(|_| "bad --building-count".to_string())?;
-                caps = vec![v];
-            }
-            "--sweep" => {
-                caps = advance(&mut i)?
-                    .split(',')
-                    .map(|s| s.trim().parse::<usize>().map_err(|_| "bad --sweep list".to_string()))
-                    .collect::<Result<_, _>>()?;
-            }
-            "--frames" => frames = advance(&mut i)?.parse().map_err(|_| "bad --frames".to_string())?,
-            "--warmup" => warmup = advance(&mut i)?.parse().map_err(|_| "bad --warmup".to_string())?,
-            "--seed" => seed = advance(&mut i)?.parse().map_err(|_| "bad --seed".to_string())?,
-            "--format" => json = advance(&mut i)? == "json",
-            "--dhat" => dhat = true,
-            "--profile" => profile = true,
-            other => return Err(format!("unknown arg '{other}'")),
-        }
-        i += 1;
+    let mut a = superui_bench_support::parse_args(argv, ARG_DEFAULTS)?;
+    if a.caps.is_empty() {
+        a.caps = vec![CitadelConfig::default().building_count];
     }
-
-    // `--profile` only makes sense for supersolid, so it makes --backend optional.
-    let backend = match backend {
-        Some(b) => b,
-        None if profile => Backend::Supersolid,
-        None => return Err("--backend is required (null|supersolid)".to_string()),
-    };
-    if caps.is_empty() {
-        caps = vec![CitadelConfig::default().building_count];
-    }
-    Ok(BenchArgs { backend, caps, frames, warmup, seed, json, dhat, profile })
+    Ok(a)
 }
+
+/// Map the parsed backend string to citadel's enum. `--profile` implies supersolid.
+pub fn backend_of(a: &BenchArgs) -> Result<Backend, String> {
+    match a.backend.as_deref() {
+        Some("null") => Ok(Backend::Null),
+        Some("supersolid") => Ok(Backend::Supersolid),
+        Some(other) => Err(format!("unknown backend '{other}'")),
+        None if a.profile => Ok(Backend::Supersolid),
+        None => Err("--backend is required (null|supersolid)".to_string()),
+    }
+}
+
+pub use superui_bench_support::BenchArgs;
 
 // ── dhat support ─────────────────────────────────────────────────────────────
 
-#[derive(Clone, Copy, Debug)]
-pub struct AllocReport {
-    pub backend: Backend,
-    pub frames: usize,
-    pub bytes_per_frame: f64,
-    pub blocks_per_frame: f64,
-}
-
 #[cfg(feature = "dhat-prof")]
 pub fn run_alloc(backend: Backend, cfg: CitadelConfig, frames: usize, warmup: usize) -> AllocReport {
-    let mut app = build_bench_app(backend, cfg);
-    for _ in 0..warmup {
-        app.update();
-    }
-    let before = dhat::HeapStats::get();
-    for _ in 0..frames {
-        app.update();
-    }
-    let after = dhat::HeapStats::get();
-    let dbytes = after.total_bytes.saturating_sub(before.total_bytes) as f64;
-    let dblocks = after.total_blocks.saturating_sub(before.total_blocks) as f64;
-    AllocReport {
-        backend,
+    superui_bench_support::alloc::run_alloc_with(
+        backend.label().to_string(),
+        || build_bench_app(backend, cfg),
         frames,
-        bytes_per_frame: dbytes / frames as f64,
-        blocks_per_frame: dblocks / frames as f64,
-    }
-}
-
-pub fn alloc_table(r: &AllocReport) -> String {
-    format!(
-        "alloc churn: backend={} frames={} | {:.1} bytes/frame | {:.1} allocs/frame\n",
-        r.backend.label(),
-        r.frames,
-        r.bytes_per_frame,
-        r.blocks_per_frame,
+        warmup,
     )
 }
 
@@ -540,58 +442,11 @@ mod stats_tests {
     use super::*;
 
     #[test]
-    fn percentiles_on_known_data() {
-        let samples: Vec<f64> = (1..=100).map(|n| n as f64).collect();
-        let s = stats_from(samples);
-        assert!((s.mean_ms - 50.5).abs() < 1e-9);
-        assert_eq!(s.p50_ms, 51.0);
-        assert_eq!(s.p95_ms, 95.0);
-        assert_eq!(s.p99_ms, 99.0);
-        assert!((s.fps - 1000.0 / 50.5).abs() < 1e-9);
-    }
-
-    #[test]
     fn timing_run_produces_frames() {
         let cfg = sim_for(CitadelConfig::default().building_count, 1);
         let v = time_backend(Backend::Null, cfg, 30, 5);
         assert_eq!(v.len(), 30);
         assert!(v.iter().all(|&ms| ms >= 0.0));
-    }
-}
-
-#[cfg(test)]
-mod cli_tests {
-    use super::*;
-
-    fn args(v: &[&str]) -> Vec<String> {
-        v.iter().map(|s| s.to_string()).collect()
-    }
-
-    #[test]
-    fn parses_backend_and_flags() {
-        let a = parse_args(&args(&[
-            "--backend", "supersolid",
-            "--sweep", "60,120", "--frames", "500", "--warmup", "50",
-            "--seed", "7", "--format", "json",
-        ])).unwrap();
-        assert_eq!(a.backend, Backend::Supersolid);
-        assert_eq!(a.caps, vec![60, 120]);
-        assert_eq!(a.frames, 500);
-        assert_eq!(a.warmup, 50);
-        assert_eq!(a.seed, 7);
-        assert!(a.json);
-    }
-
-    #[test]
-    fn backend_is_required() {
-        assert!(parse_args(&args(&["--frames", "10"])).is_err());
-    }
-
-    #[test]
-    fn preset_is_tolerated() {
-        // --preset should be accepted and ignored
-        let a = parse_args(&args(&["--backend", "null", "--preset", "stress"])).unwrap();
-        assert_eq!(a.backend, Backend::Null);
     }
 }
 

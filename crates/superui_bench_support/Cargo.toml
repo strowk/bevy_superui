@@ -1,0 +1,18 @@
+[package]
+name = "superui_bench_support"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish = false
+description = "Shared harness for the superui macro-benchmarks (dev-only, never published)."
+
+[features]
+default = []
+dhat-prof = ["dep:dhat"]
+
+[dependencies]
+bevy = { workspace = true, default-features = true }
+
+[dependencies.dhat]
+optional = true
+version = "0.3"

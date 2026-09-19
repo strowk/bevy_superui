@@ -64,6 +64,11 @@ pub struct UiRuntime {
     pub stylesheet: Handle<StyleSheet>,
     /// Set whenever the DOM may have changed; cleared after a reconcile.
     pub dirty: bool,
+    /// Completed reconcile passes, monotonic. `dirty` is set and cleared within a
+    /// single schedule run, so it cannot be observed from outside; this counter is
+    /// what lets an external driver ask "did a reconcile happen during that
+    /// `app.update()`?" after the fact. Used by the rows benchmark's quiescence loop.
+    pub reconciles: u64,
     node_to_entity: HashMap<NodeId, Entity>,
     entity_to_node: HashMap<Entity, NodeId>,
     /// The DOM node that currently has keyboard focus (Task 5).
@@ -105,6 +110,7 @@ impl UiRuntime {
             root,
             stylesheet,
             dirty: true,
+            reconciles: 0,
             node_to_entity: HashMap::new(),
             entity_to_node: HashMap::new(),
             focused: None,

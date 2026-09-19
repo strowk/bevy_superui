@@ -92,11 +92,11 @@ fn ensure_slots(
                     justify_content: JustifyContent::Center,
                     align_items: AlignItems::Center,
                     border: UiRect::all(Val::Px(2.0)),
+                    border_radius: BorderRadius::all(Val::Px(theme::RADIUS)),
                     ..default()
                 },
                 BackgroundColor(bg),
                 BorderColor::all(border),
-                BorderRadius::all(Val::Px(theme::RADIUS)),
             ))
             .with_children(|c| {
                 c.spawn((

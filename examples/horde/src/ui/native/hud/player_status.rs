@@ -37,12 +37,12 @@ fn build(mut commands: Commands, roots: Query<Entity, With<HudRoot>>) {
                 row_gap: Val::Px(theme::SPACE),
                 padding: UiRect::all(Val::Px(theme::SPACE)),
                 border: UiRect::all(Val::Px(1.0)),
+                border_radius: BorderRadius::all(Val::Px(theme::RADIUS)),
                 ..default()
             },
             BackgroundColor(theme::PANEL),
             theme::panel_gradient(),
             BorderColor::all(theme::PANEL_BORDER),
-            BorderRadius::all(Val::Px(theme::RADIUS)),
             theme::panel_shadow(),
         ))
         .with_children(|c| {

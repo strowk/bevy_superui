@@ -30,12 +30,12 @@ fn build(mut commands: Commands, roots: Query<Entity, With<HudRoot>>) {
                 justify_content: JustifyContent::Center,
                 padding: UiRect::axes(Val::Px(theme::SPACE), Val::Px(6.0)),
                 border: UiRect::all(Val::Px(1.0)),
+                border_radius: BorderRadius::all(Val::Px(theme::RADIUS)),
                 ..default()
             },
             BackgroundColor(theme::PANEL),
             theme::panel_gradient(),
             BorderColor::all(theme::PANEL_BORDER),
-            BorderRadius::all(Val::Px(theme::RADIUS)),
             theme::panel_shadow(),
             Pickable::IGNORE,
         ))

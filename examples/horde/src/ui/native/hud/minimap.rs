@@ -33,11 +33,11 @@ fn build(mut commands: Commands, roots: Query<Entity, With<HudRoot>>) {
                 width: Val::Px(MAP),
                 height: Val::Px(MAP),
                 border: UiRect::all(Val::Px(1.0)),
+                border_radius: BorderRadius::all(Val::Px(theme::RADIUS)),
                 ..default()
             },
             BackgroundColor(Color::srgba(0.05, 0.05, 0.08, 0.85)),
             BorderColor::all(theme::PANEL_BORDER),
-            BorderRadius::all(Val::Px(theme::RADIUS)),
             theme::panel_shadow(),
             Pickable::IGNORE,
         ));
@@ -89,10 +89,10 @@ fn sync(
                     top: Val::Px(l.y - 2.0),
                     width: Val::Px(size),
                     height: Val::Px(size),
+                    border_radius: BorderRadius::all(Val::Px(size / 2.0)),
                     ..default()
                 },
                 BackgroundColor(blip_color(b.kind)),
-                BorderRadius::all(Val::Px(size / 2.0)),
                 Pickable::IGNORE,
             ));
         });

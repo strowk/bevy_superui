@@ -220,34 +220,7 @@ pub fn trajectory_signature(app: &App) -> (u32, u32, usize) {
     (s.kills, s.wave, s.enemies.len())
 }
 
-/// Per-frame timing statistics from a benchmark run.
-#[derive(Clone, Copy, Debug)]
-pub struct Stats {
-    pub mean_ms: f64,
-    pub p50_ms: f64,
-    pub p95_ms: f64,
-    pub p99_ms: f64,
-    pub fps: f64,
-}
-
-/// Nearest-rank percentile over sorted samples using index `round(p*(n-1))`.
-pub fn stats_from(mut samples: Vec<f64>) -> Stats {
-    assert!(!samples.is_empty(), "stats_from: empty samples");
-    samples.sort_by(|a, b| a.partial_cmp(b).unwrap());
-    let n = samples.len();
-    let pct = |p: f64| {
-        let idx = ((n - 1) as f64 * p).round() as usize;
-        samples[idx]
-    };
-    let mean = samples.iter().sum::<f64>() / n as f64;
-    Stats {
-        mean_ms: mean,
-        p50_ms: pct(0.50),
-        p95_ms: pct(0.95),
-        p99_ms: pct(0.99),
-        fps: if mean > 0.0 { 1000.0 / mean } else { f64::INFINITY },
-    }
-}
+pub use superui_bench_support::{stats_from, Stats};
 
 /// Drive `frames` measured updates (after `warmup`), returning per-frame ms.
 pub fn time_backend(backend: Backend, sim: SimConfig, frames: usize, warmup: usize) -> Vec<f64> {
@@ -586,18 +559,6 @@ mod stats_tests {
     use super::*;
 
     #[test]
-    fn percentiles_on_known_data() {
-        // 1..=100 ms
-        let samples: Vec<f64> = (1..=100).map(|n| n as f64).collect();
-        let s = stats_from(samples);
-        assert!((s.mean_ms - 50.5).abs() < 1e-9);
-        assert_eq!(s.p50_ms, 51.0); // index round(0.5*99)=50 -> value 51
-        assert_eq!(s.p95_ms, 95.0);
-        assert_eq!(s.p99_ms, 99.0);
-        assert!((s.fps - 1000.0 / 50.5).abs() < 1e-9);
-    }
-
-    #[test]
     fn timing_run_produces_frames() {
         let v = time_backend(Backend::Null, SimConfig::play(), 30, 5);
         assert_eq!(v.len(), 30);
@@ -630,14 +591,7 @@ pub fn report_json(r: &Report) -> String {
     )
 }
 
-/// Per-frame allocation churn measured by dhat.
-#[derive(Clone, Copy, Debug)]
-pub struct AllocReport {
-    pub backend: Backend,
-    pub frames: usize,
-    pub bytes_per_frame: f64,
-    pub blocks_per_frame: f64,
-}
+pub use superui_bench_support::{alloc_table, AllocReport};
 
 /// Measure per-frame allocation churn over `frames` steady-state updates.
 /// Requires an active `dhat::Profiler` in the caller (see the bin's `--dhat` path).
@@ -647,47 +601,12 @@ pub struct AllocReport {
 /// not net-live or peak heap size.
 #[cfg(feature = "dhat-prof")]
 pub fn run_alloc(backend: Backend, sim: SimConfig, frames: usize, warmup: usize) -> AllocReport {
-    let mut app = build_bench_app(backend, sim);
-    for _ in 0..warmup {
-        app.update();
-    }
-    let before = dhat::HeapStats::get();
-    for _ in 0..frames {
-        app.update();
-    }
-    let after = dhat::HeapStats::get();
-    let dbytes = after.total_bytes.saturating_sub(before.total_bytes) as f64;
-    let dblocks = after.total_blocks.saturating_sub(before.total_blocks) as f64;
-    AllocReport {
-        backend,
+    superui_bench_support::alloc::run_alloc_with(
+        backend.label().to_string(),
+        || build_bench_app(backend, sim),
         frames,
-        bytes_per_frame: dbytes / frames as f64,
-        blocks_per_frame: dblocks / frames as f64,
-    }
-}
-
-pub fn alloc_table(r: &AllocReport) -> String {
-    format!(
-        "alloc churn: backend={} frames={} | {:.1} bytes/frame | {:.1} allocs/frame\n",
-        r.backend.label(),
-        r.frames,
-        r.bytes_per_frame,
-        r.blocks_per_frame,
+        warmup,
     )
-}
-
-#[derive(Clone, Debug)]
-pub struct BenchArgs {
-    pub backend: Backend,
-    pub preset: String,
-    pub caps: Vec<usize>,
-    pub frames: usize,
-    pub warmup: usize,
-    pub seed: u64,
-    pub json: bool,
-    pub dhat: bool,
-    /// `--profile`: per-stage tracing breakdown of the supersolid frame.
-    pub profile: bool,
 }
 
 /// Build a SimConfig from a preset name, overriding enemy_cap and seed.
@@ -703,70 +622,80 @@ pub fn sim_for(preset: &str, cap: usize, seed: u64) -> SimConfig {
     cfg
 }
 
-/// Minimal `--key value` / `--flag` parser. `backend` is required.
+// ── CLI arg parsing ───────────────────────────────────────────────────────────
+
+const ARG_DEFAULTS: superui_bench_support::ArgDefaults = superui_bench_support::ArgDefaults {
+    frames: 1000,
+    warmup: 100,
+    cap_flags: &["--enemy-cap", "--building-count"],
+};
+
+/// Horde's own bench args. Wraps the shared parser's output: `backend` stays an
+/// unvalidated string (resolved by `backend_of`), and `preset` is threaded
+/// through separately because the shared parser accepts `--preset` only to
+/// discard it (for script compatibility across the examples) — horde's
+/// `sim_for` and its preset-dependent default `enemy_cap` both still need it.
+#[derive(Clone, Debug)]
+pub struct BenchArgs {
+    pub backend: Option<String>,
+    pub preset: String,
+    pub caps: Vec<usize>,
+    pub frames: usize,
+    pub warmup: usize,
+    pub seed: u64,
+    pub json: bool,
+    pub dhat: bool,
+    /// `--profile`: per-stage tracing breakdown of the supersolid frame.
+    pub profile: bool,
+}
+
+/// Extract `--preset VALUE` from argv, defaulting to `"play"`. The shared
+/// parser tolerates and discards `--preset`, so horde re-reads it itself.
+fn preset_of(argv: &[String]) -> String {
+    argv.iter()
+        .position(|a| a == "--preset")
+        .and_then(|i| argv.get(i + 1))
+        .cloned()
+        .unwrap_or_else(|| "play".to_string())
+}
+
+/// Horde's arg parsing: shared parser for everything else, plus horde's own
+/// preset scan and preset-dependent default `enemy_cap` (the shared parser
+/// always leaves `caps` empty for the caller to fill in).
 pub fn parse_args(argv: &[String]) -> Result<BenchArgs, String> {
-    let mut backend: Option<Backend> = None;
-    let mut preset = "play".to_string();
-    let mut caps: Vec<usize> = Vec::new();
-    let mut frames = 1000usize;
-    let mut warmup = 100usize;
-    let mut seed = 0u64;
-    let mut json = false;
-    let mut dhat = false;
-    let mut profile = false;
-
-    let mut i = 0;
-    while i < argv.len() {
-        let key = argv[i].as_str();
-        // Advance i and return the next token, or an error.
-        let advance = |i: &mut usize| -> Result<&str, String> {
-            *i += 1;
-            argv.get(*i).map(|s| s.as_str()).ok_or_else(|| format!("missing value for {key}"))
-        };
-        match key {
-            "--backend" => {
-                backend = Some(match advance(&mut i)? {
-                    "null" => Backend::Null,
-                    "native" => Backend::Native,
-                    "supersolid" => Backend::Supersolid,
-                    other => return Err(format!("unknown backend '{other}'")),
-                });
-            }
-            "--preset" => preset = advance(&mut i)?.to_string(),
-            "--enemy-cap" => {
-                let v = advance(&mut i)?.parse().map_err(|_| "bad --enemy-cap".to_string())?;
-                caps = vec![v];
-            }
-            "--sweep" => {
-                caps = advance(&mut i)?
-                    .split(',')
-                    .map(|s| s.trim().parse::<usize>().map_err(|_| "bad --sweep list".to_string()))
-                    .collect::<Result<_, _>>()?;
-            }
-            "--frames" => frames = advance(&mut i)?.parse().map_err(|_| "bad --frames".to_string())?,
-            "--warmup" => warmup = advance(&mut i)?.parse().map_err(|_| "bad --warmup".to_string())?,
-            "--seed" => seed = advance(&mut i)?.parse().map_err(|_| "bad --seed".to_string())?,
-            "--format" => json = advance(&mut i)? == "json",
-            "--dhat" => dhat = true,
-            "--profile" => profile = true,
-            other => return Err(format!("unknown arg '{other}'")),
-        }
-        i += 1;
-    }
-
-    // `--profile` only makes sense for supersolid, so it makes --backend optional.
-    let backend = match backend {
-        Some(b) => b,
-        None if profile => Backend::Supersolid,
-        None => return Err("--backend is required (null|native|supersolid)".to_string()),
-    };
+    let a = superui_bench_support::parse_args(argv, ARG_DEFAULTS)?;
+    let preset = preset_of(argv);
+    let mut caps = a.caps;
     if caps.is_empty() {
         caps = vec![match preset.as_str() {
             "stress" => SimConfig::stress().enemy_cap,
             _ => SimConfig::play().enemy_cap,
         }];
     }
-    Ok(BenchArgs { backend, preset, caps, frames, warmup, seed, json, dhat, profile })
+    Ok(BenchArgs {
+        backend: a.backend,
+        preset,
+        caps,
+        frames: a.frames,
+        warmup: a.warmup,
+        seed: a.seed,
+        json: a.json,
+        dhat: a.dhat,
+        profile: a.profile,
+    })
+}
+
+/// Map the parsed backend string to horde's enum. `--profile` implies supersolid.
+/// Horde's backend set includes Native, which the other examples have no meaning for.
+pub fn backend_of(a: &BenchArgs) -> Result<Backend, String> {
+    match a.backend.as_deref() {
+        Some("null") => Ok(Backend::Null),
+        Some("native") => Ok(Backend::Native),
+        Some("supersolid") => Ok(Backend::Supersolid),
+        Some(other) => Err(format!("unknown backend '{other}'")),
+        None if a.profile => Ok(Backend::Supersolid),
+        None => Err("--backend is required (null|native|supersolid)".to_string()),
+    }
 }
 
 #[cfg(test)]
@@ -807,7 +736,8 @@ mod cli_tests {
             "--seed", "7", "--format", "json",
         ]))
         .unwrap();
-        assert_eq!(a.backend, Backend::Supersolid);
+        assert_eq!(a.backend.as_deref(), Some("supersolid"));
+        assert_eq!(backend_of(&a).unwrap(), Backend::Supersolid);
         assert_eq!(a.preset, "stress");
         assert_eq!(a.caps, vec![60, 400]);
         assert_eq!(a.frames, 500);
@@ -817,8 +747,31 @@ mod cli_tests {
     }
 
     #[test]
-    fn backend_is_required() {
-        assert!(parse_args(&args(&["--frames", "10"])).is_err());
+    fn backend_of_requires_backend_without_profile() {
+        let a = parse_args(&args(&["--frames", "10"])).unwrap();
+        assert!(backend_of(&a).is_err());
+    }
+
+    #[test]
+    fn backend_of_defaults_to_supersolid_when_profiling() {
+        let a = parse_args(&args(&["--profile"])).unwrap();
+        assert_eq!(backend_of(&a).unwrap(), Backend::Supersolid);
+    }
+
+    #[test]
+    fn backend_of_rejects_unknown_backend_regardless_of_profile() {
+        let with_profile = parse_args(&args(&["--profile", "--backend", "bogus"])).unwrap();
+        assert!(backend_of(&with_profile).is_err());
+        let without_profile = parse_args(&args(&["--backend", "bogus"])).unwrap();
+        assert!(backend_of(&without_profile).is_err());
+    }
+
+    #[test]
+    fn default_cap_depends_on_preset() {
+        let play = parse_args(&args(&["--backend", "null"])).unwrap();
+        assert_eq!(play.caps, vec![SimConfig::play().enemy_cap]);
+        let stress = parse_args(&args(&["--backend", "null", "--preset", "stress"])).unwrap();
+        assert_eq!(stress.caps, vec![SimConfig::stress().enemy_cap]);
     }
 
     #[test]

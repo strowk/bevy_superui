@@ -5,8 +5,8 @@ static ALLOC: dhat::Alloc = dhat::Alloc;
 #[cfg(feature = "dhat-prof")]
 use horde::bench::alloc_table;
 use horde::bench::{
-    parse_args, report_json, report_table, run_report, sample_workload, sim_for, sweep_table,
-    workload_line, workload_summary,
+    backend_of, parse_args, report_json, report_table, run_report, sample_workload, sim_for,
+    sweep_table, workload_line, workload_summary,
 };
 
 fn main() {
@@ -17,7 +17,18 @@ fn main() {
             eprintln!("horde-bench: {e}");
             eprintln!("usage: horde-bench --backend null|native|supersolid \\");
             eprintln!("       [--preset play|stress] [--enemy-cap N | --sweep 60,200,400] \\");
-            eprintln!("       [--frames N] [--warmup N] [--seed N] [--format table|json] [--dhat]");
+            eprintln!("       [--frames N] [--warmup N] [--seed N] [--format table|json] [--dhat] [--profile]");
+            std::process::exit(2);
+        }
+    };
+
+    // Validate --backend before branching: an explicitly-supplied unknown value must
+    // error the same way (and with the same exit code) whether or not --profile is
+    // set, even though --profile itself never reads the resolved value below.
+    let backend = match backend_of(&args) {
+        Ok(b) => b,
+        Err(e) => {
+            eprintln!("horde-bench: {e}");
             std::process::exit(2);
         }
     };
@@ -39,7 +50,7 @@ fn main() {
             let _profiler = dhat::Profiler::new_heap();
             for &cap in &args.caps {
                 let sim = sim_for(&args.preset, cap, args.seed);
-                let r = horde::bench::run_alloc(args.backend, sim, args.frames, args.warmup);
+                let r = horde::bench::run_alloc(backend, sim, args.frames, args.warmup);
                 print!("{}", alloc_table(&r));
             }
         }
@@ -54,7 +65,7 @@ fn main() {
         let sim = sim_for(&args.preset, cap, args.seed);
         // Live element counts (what drives UI node/render cost) — backend-independent.
         let workload = sample_workload(sim.clone(), args.frames, args.warmup);
-        let report = run_report(args.backend, sim, args.frames, args.warmup);
+        let report = run_report(backend, sim, args.frames, args.warmup);
         if args.json {
             println!("{}", report_json(&report));
         } else if args.caps.len() == 1 {

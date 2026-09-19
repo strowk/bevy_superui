@@ -5,8 +5,8 @@ static ALLOC: dhat::Alloc = dhat::Alloc;
 #[cfg(feature = "dhat-prof")]
 use citadel::bench::alloc_table;
 use citadel::bench::{
-    parse_args, report_json, report_table, run_report, sample_workload, sim_for, sweep_table,
-    workload_line, workload_summary,
+    backend_of, parse_args, report_json, report_table, run_report, sample_workload, sim_for,
+    sweep_table, workload_line, workload_summary,
 };
 use citadel::bench::profile::run_profile;
 
@@ -19,6 +19,17 @@ fn main() {
             eprintln!("usage: citadel-bench --backend null|supersolid \\");
             eprintln!("       [--building-count N | --sweep 60,120,240] \\");
             eprintln!("       [--frames N] [--warmup N] [--seed N] [--format table|json] [--dhat] [--profile]");
+            std::process::exit(2);
+        }
+    };
+
+    // Validate --backend before branching: an explicitly-supplied unknown value must
+    // error the same way (and with the same exit code) whether or not --profile is
+    // set, even though --profile itself never reads the resolved value below.
+    let backend = match backend_of(&args) {
+        Ok(b) => b,
+        Err(e) => {
+            eprintln!("citadel-bench: {e}");
             std::process::exit(2);
         }
     };
@@ -36,7 +47,7 @@ fn main() {
             let _profiler = dhat::Profiler::new_heap();
             for &cap in &args.caps {
                 let cfg = sim_for(cap, args.seed);
-                let r = citadel::bench::run_alloc(args.backend, cfg, args.frames, args.warmup);
+                let r = citadel::bench::run_alloc(backend, cfg, args.frames, args.warmup);
                 print!("{}", alloc_table(&r));
             }
         }
@@ -51,7 +62,7 @@ fn main() {
         let cfg = sim_for(cap, args.seed);
         // Live element counts (what drives UI node/render cost) — backend-independent.
         let workload = sample_workload(cfg.clone(), args.frames, args.warmup);
-        let report = run_report(args.backend, cfg, args.frames, args.warmup);
+        let report = run_report(backend, cfg, args.frames, args.warmup);
         if args.json {
             println!("{}", report_json(&report));
         } else if args.caps.len() == 1 {

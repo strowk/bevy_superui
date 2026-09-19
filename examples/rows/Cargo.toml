@@ -1,0 +1,38 @@
+[package]
+name = "rows"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish = false
+# With the `rows-bench` bin also present, `cargo run -p rows` would otherwise be ambiguous.
+default-run = "rows"
+
+[lib]
+name = "rows"
+path = "src/lib.rs"
+
+[[bin]]
+name = "rows"
+path = "src/main.rs"
+
+[[bin]]
+name = "rows-bench"
+path = "src/bin/bench.rs"
+required-features = ["bench"]
+
+[features]
+default = []
+bench = []
+
+[dependencies]
+bevy = { workspace = true, default-features = true }
+superui = { path = "../../crates/superui" }
+superui_css = { path = "../../crates/superui_css" }
+superui_bridge = { path = "../../crates/superui_bridge" }
+superui_dom = { path = "../../crates/superui_dom" }
+superui_bench_support = { path = "../../crates/superui_bench_support" }
+
+# Host-only: pre-transpile app.tsx -> app.js for wasm / no-HMR native, and for
+# the bench module's `include_str!` (which loads assets from memory).
+[build-dependencies]
+supersolid = { path = "../../crates/supersolid" }

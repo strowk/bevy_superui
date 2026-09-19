@@ -25,6 +25,7 @@ pub fn reconcile_system(world: &mut World) {
     if rt.dirty {
         rt.reconcile(world);
         rt.dirty = false;
+        rt.reconciles += 1;
     }
     world.insert_non_send(rt);
 }
