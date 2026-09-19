@@ -4,21 +4,21 @@
 //! runs on every target — direction spec §5/§6). Only the author API is published
 //! on `globalThis`; the graph internals stay closured.
 
-use superui_js::{BoaEngine, JsEngine};
+use superui_js::JsEngine;
 
 /// The reactive core, embedded at build time.
 const RUNTIME_JS: &str = include_str!("runtime.js");
 /// The render + control-flow layer, embedded at build time.
 const RENDER_JS: &str = include_str!("render.js");
 
-/// Install the Supersolid reactive core onto `engine`. Call once, after
-/// `superui_api::install` and before evaluating author scripts. Publishes
+/// Install the Supersolid reactive core onto `engine`. Call once, after the
+/// engine's shadow DOM is up and before evaluating author scripts. Publishes
 /// `createSignal`/`createEffect`/`createMemo`/`onMount`/`onCleanup`/
 /// `createContext`/`useContext` (+ `createRoot`/`untrack`/`batch`) as globals,
 /// plus `$ss` (`el`/`txt`/`attr`/`child`/`on`/`bind`/`insert`/`cmp`/`frag`)
 /// from the render layer, and author globals `render`/`Show`/`For`/`Index`/
 /// `Switch`/`Match`.
-pub fn install(engine: &mut BoaEngine) {
+pub fn install(engine: &mut impl JsEngine) {
     engine
         .eval(RUNTIME_JS)
         .expect("supersolid_runtime: runtime.js must evaluate (internal invariant)");
@@ -27,36 +27,54 @@ pub fn install(engine: &mut BoaEngine) {
         .expect("supersolid_runtime: render.js must evaluate (internal invariant)");
 }
 
+/// Test-only value readback over the `JsEngine` boundary: the trait exposes no
+/// typed eval result, so evaluate `Number(expr)`/`String(expr)`, ship it out via
+/// `__superui_bevy_send`, and decode the drained JSON.
+#[cfg(test)]
+mod test_read {
+    use superui_js::{BoaEngine, JsEngine};
+
+    fn read(e: &mut BoaEngine, wrap: &str, expr: &str) -> serde_json::Value {
+        e.eval(&format!("__superui_bevy_send('__test', {wrap}(({expr})));"))
+            .unwrap();
+        e.drain_outbox()
+            .into_iter()
+            .rev()
+            .find_map(|(name, value)| (name == "__test").then_some(value))
+            .expect("test read produced no outbox message")
+    }
+
+    /// Evaluate `expr`, coerce with JS `Number(...)`, and read it back as f64.
+    pub fn num(e: &mut BoaEngine, expr: &str) -> f64 {
+        match read(e, "Number", expr) {
+            serde_json::Value::Number(n) => n.as_f64().unwrap_or(f64::NAN),
+            _ => f64::NAN,
+        }
+    }
+
+    /// Evaluate `expr`, coerce with JS `String(...)`, and read it back as a String.
+    pub fn text(e: &mut BoaEngine, expr: &str) -> String {
+        match read(e, "String", expr) {
+            serde_json::Value::String(s) => s,
+            other => other.to_string(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_read::{num, text};
     use std::cell::RefCell;
     use std::rc::Rc;
     use superui_dom::Dom;
+    use superui_js::BoaEngine;
 
     fn engine() -> BoaEngine {
         let dom = Rc::new(RefCell::new(Dom::new()));
         let mut e = BoaEngine::new(dom);
         install(&mut e);
         e
-    }
-
-    /// Evaluate `expr` and read it back as an f64 (reads `globalThis.*` snapshots).
-    fn num(e: &mut BoaEngine, expr: &str) -> f64 {
-        e.context_mut()
-            .eval(boa_engine::Source::from_bytes(expr))
-            .unwrap()
-            .as_number()
-            .unwrap_or(f64::NAN)
-    }
-
-    /// Evaluate `expr` and read it back as a Rust String.
-    fn text(e: &mut BoaEngine, expr: &str) -> String {
-        let v = e
-            .context_mut()
-            .eval(boa_engine::Source::from_bytes(expr))
-            .unwrap();
-        v.to_string(e.context_mut()).unwrap().to_std_string_escaped()
     }
 
     #[test]
@@ -569,44 +587,20 @@ mod tests {
 #[cfg(test)]
 mod render_tests {
     use super::*;
+    use crate::test_read::{num, text};
     use std::cell::RefCell;
     use std::rc::Rc;
     use superui_dom::Dom;
+    use superui_js::BoaEngine;
 
-    /// A BoaEngine with the DOM/Web API (superui_api) AND the reactive+render
-    /// runtime installed — the full surface author `.tsx` runs against.
+    /// A BoaEngine running the JS shadow DOM plus the reactive+render runtime —
+    /// the full surface author `.tsx` runs against. Reads go through the shadow
+    /// DOM (`p.childNodes`, `getAttribute`, ...) via the `test_read` helpers.
     fn render_engine() -> BoaEngine {
         let dom = Rc::new(RefCell::new(Dom::new()));
         let mut e = BoaEngine::new(dom);
-        superui_api::install(&mut e);
         install(&mut e);
         e
-    }
-
-    /// Like `render_engine` but also returns the shared `Dom` so tests can
-    /// resolve `NodeId`s (e.g. to call `BoaEngine::dispatch_event`).
-    fn render_engine_with_dom() -> (BoaEngine, Rc<RefCell<Dom>>) {
-        let dom = Rc::new(RefCell::new(Dom::new()));
-        let mut e = BoaEngine::new(dom.clone());
-        superui_api::install(&mut e);
-        install(&mut e);
-        (e, dom)
-    }
-
-    fn num(e: &mut BoaEngine, expr: &str) -> f64 {
-        e.context_mut()
-            .eval(boa_engine::Source::from_bytes(expr))
-            .unwrap()
-            .as_number()
-            .unwrap_or(f64::NAN)
-    }
-
-    fn text(e: &mut BoaEngine, expr: &str) -> String {
-        let v = e
-            .context_mut()
-            .eval(boa_engine::Source::from_bytes(expr))
-            .unwrap();
-        v.to_string(e.context_mut()).unwrap().to_std_string_escaped()
     }
 
     #[test]
@@ -618,13 +612,13 @@ mod render_tests {
             $ss.child(p, $ss.el("span"));
             $ss.child(p, $ss.txt("hi"));
             globalThis.count = p.childNodes.length;   // 2
-            globalThis.tag0 = p.childNodes[0].tagName; // "SPAN"
+            globalThis.tag0 = p.childNodes[0].tagName; // "span" (shadow DOM keeps the raw tag)
             globalThis.txt1 = p.childNodes[1].data;    // "hi"
             "#,
         )
         .unwrap();
         assert_eq!(num(&mut e, "globalThis.count"), 2.0);
-        assert_eq!(text(&mut e, "globalThis.tag0"), "SPAN");
+        assert_eq!(text(&mut e, "globalThis.tag0"), "span");
         assert_eq!(text(&mut e, "globalThis.txt1"), "hi");
     }
 
@@ -642,8 +636,8 @@ mod render_tests {
             "#,
         )
         .unwrap();
-        // `class` reaches the class attribute (read back via className accessor).
-        assert_eq!(text(&mut e, "globalThis.a.className"), "box");
+        // `class` reaches the class attribute (read back via getAttribute).
+        assert_eq!(text(&mut e, "globalThis.a.getAttribute('class')"), "box");
         assert_eq!(text(&mut e, "globalThis.val"), "typed");
     }
 
@@ -670,9 +664,9 @@ mod render_tests {
             globalThis.get = pair[0]; globalThis.set = pair[1];
             globalThis.el = $ss.el("div");
             $ss.bind(el, "class", function () { return globalThis.get(); });
-            globalThis.c0 = el.className;   // "a" — effect ran once on bind
+            globalThis.c0 = el.getAttribute("class");   // "a" — effect ran once on bind
             globalThis.set("b");
-            globalThis.c1 = el.className;   // "b" — surgical re-run
+            globalThis.c1 = el.getAttribute("class");   // "b" — surgical re-run
             "#,
         )
         .unwrap();
@@ -770,34 +764,32 @@ mod render_tests {
                 return $ss.frag([ $ss.el("a"), $ss.txt("mid"), $ss.el("b") ]);
             });
             globalThis.count = p.childNodes.length;  // 3 content + 1 anchor = 4
-            globalThis.first = p.childNodes[0].tagName;  // "A"
+            globalThis.first = p.childNodes[0].tagName;  // "a" (shadow DOM keeps the raw tag)
             globalThis.mid = p.childNodes[1].data;       // "mid"
-            globalThis.last = p.childNodes[2].tagName;   // "B"
+            globalThis.last = p.childNodes[2].tagName;   // "b"
             "#,
         )
         .unwrap();
         assert_eq!(num(&mut e, "globalThis.count"), 4.0);
-        assert_eq!(text(&mut e, "globalThis.first"), "A");
+        assert_eq!(text(&mut e, "globalThis.first"), "a");
         assert_eq!(text(&mut e, "globalThis.mid"), "mid");
-        assert_eq!(text(&mut e, "globalThis.last"), "B");
+        assert_eq!(text(&mut e, "globalThis.last"), "b");
     }
 
     #[test]
     fn on_fires_a_registered_click_handler() {
-        // Events dispatch from the Rust side (BoaEngine::dispatch_event), not from JS.
-        // Attach the button to the document so we can resolve its NodeId and dispatch.
-        let (mut e, dom) = render_engine_with_dom();
+        // Events dispatch from the Rust side (JsEngine::dispatch_event), addressing
+        // the shadow-DOM node by its JsNodeId (the node's `.id`), which we read back.
+        let mut e = render_engine();
         e.eval(
             r#"
             globalThis.clicks = 0;
-            var b = $ss.el("button");
-            b.setAttribute("id", "btn");
-            document.appendChild(b);
-            $ss.on(b, "click", function () { globalThis.clicks++; });
+            globalThis.b = $ss.el("button");
+            $ss.on(globalThis.b, "click", function () { globalThis.clicks++; });
             "#,
         )
         .unwrap();
-        let btn = { let d = dom.borrow(); d.get_element_by_id("btn").unwrap() };
+        let btn = num(&mut e, "globalThis.b.id") as superui_js::JsNodeId;
         e.dispatch_event(btn, "click", None, true, true);
         assert_eq!(num(&mut e, "globalThis.clicks"), 1.0);
     }
@@ -1355,8 +1347,10 @@ mod render_tests {
     // replace-based stub yields the SAME final DOM as minimal-move (the two order
     // tests above pass under both). What distinguishes them is HOW MANY DOM ops a
     // reorder costs. Spy on the parent's insertBefore/removeChild and assert a single
-    // item moving in a list of four costs only a couple of ops — a full rebuild would
-    // be 4 removes + 4 inserts = 8.
+    // item moving in a list of four is a handful of ops — a full rebuild would be
+    // 4 removes + 4 inserts = 8. The reconcile does one replaceChild plus one
+    // insertBefore; in the shadow DOM replaceChild decomposes into insertBefore +
+    // removeChild (both counted), so the minimal-move cost is 3 wire ops.
     #[test]
     fn insert_array_reorder_is_minimal_moves() {
         let mut e = render_engine();
@@ -1380,9 +1374,9 @@ mod render_tests {
             "#,
         )
         .unwrap();
-        // Minimal-move handles this in <= 2 ops; the replace-based stub would use 8.
+        // Minimal-move handles this in <= 3 wire ops; the replace-based stub would use 8.
         let ops = num(&mut e, "globalThis.opsAfter");
-        assert!(ops <= 2.0, "expected minimal moves (<=2 ops), got {ops}");
+        assert!(ops <= 3.0, "expected minimal moves (<=3 ops), got {ops}");
     }
 
     #[test]

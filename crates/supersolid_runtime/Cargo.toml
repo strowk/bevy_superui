@@ -13,8 +13,7 @@ superui_js = { path = "../superui_js", version = "0.3.3" }
 
 [dev-dependencies]
 superui_dom = { path = "../superui_dom" }
-superui_api = { path = "../superui_api" }
-boa_engine.workspace = true
+serde_json = "1"
 
 # Boa pulls getrandom 0.3, which needs the JS backend on wasm (same gotcha as the
 # other JS crates). Pair with the repo-root `.cargo/config.toml` rustflag.
