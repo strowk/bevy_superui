@@ -107,6 +107,11 @@ extension!(
 /// Single-threaded.
 pub struct V8Engine {
     runtime: JsRuntime,
+    /// A current-thread tokio runtime, entered around every call that drives
+    /// `runtime`. deno_core's V8 platform posts delayed tasks (e.g. idle GC)
+    /// through `tokio::runtime::Handle::current`, which panics without an
+    /// entered context — so consumers need not enter one themselves.
+    tokio: tokio::runtime::Runtime,
 }
 
 impl V8Engine {
@@ -116,11 +121,17 @@ impl V8Engine {
     ///
     /// [`eval`]: JsEngine::eval
     pub fn new(dom: Rc<RefCell<Dom>>) -> Self {
-        let runtime = JsRuntime::new(RuntimeOptions {
-            extensions: vec![superui_host::init(dom)],
-            ..Default::default()
-        });
-        let mut engine = V8Engine { runtime };
+        let tokio = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .expect("failed to build tokio runtime for engine-v8");
+        let runtime = {
+            let _guard = tokio.enter();
+            JsRuntime::new(RuntimeOptions {
+                extensions: vec![superui_host::init(dom)],
+                ..Default::default()
+            })
+        };
+        let mut engine = V8Engine { runtime, tokio };
         engine
             .eval(BOOTSTRAP_JS)
             .expect("host-global bootstrap evaluates cleanly");
@@ -174,6 +185,8 @@ impl V8Engine {
 
 impl JsEngine for V8Engine {
     fn eval(&mut self, script: &str) -> Result<(), String> {
+        let handle = self.tokio.handle().clone();
+        let _rt = handle.enter();
         self.runtime
             .execute_script("<eval>", script.to_string())
             .map(|_| ())
@@ -188,6 +201,8 @@ impl JsEngine for V8Engine {
         bubbles: bool,
         cancelable: bool,
     ) -> bool {
+        let handle = self.tokio.handle().clone();
+        let _rt = handle.enter();
         let args = [
             json!(target),
             json!(ty),
@@ -206,6 +221,8 @@ impl JsEngine for V8Engine {
     }
 
     fn run_timers(&mut self, now_ms: f64) {
+        let handle = self.tokio.handle().clone();
+        let _rt = handle.enter();
         let state = self.runtime.op_state();
         state.borrow_mut().borrow_mut::<V8HostState>().now_ms = now_ms;
         loop {
@@ -242,6 +259,8 @@ impl JsEngine for V8Engine {
     }
 
     fn flush_ops(&mut self) -> OpBatch {
+        let handle = self.tokio.handle().clone();
+        let _rt = handle.enter();
         let bytes = match self.call_global::<Vec<u8>>("__ss_flush", &[]) {
             Ok(Some(bytes)) => bytes,
             Ok(None) => {
@@ -263,6 +282,8 @@ impl JsEngine for V8Engine {
     }
 
     fn emit(&mut self, name: &str, value: &Value) {
+        let handle = self.tokio.handle().clone();
+        let _rt = handle.enter();
         let args = [json!(name), value.clone()];
         if let Err(e) = self.call_global::<Value>("__ss_emit", &args) {
             eprintln!("__ss_emit() failed: {e}");

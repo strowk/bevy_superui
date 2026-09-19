@@ -28,7 +28,7 @@ bench = []
 dhat-prof = ["dep:dhat", "superui_bench_support/dhat-prof"]
 # JS engine selection: forward to every engine-carrying dependency. Exactly one must be active.
 engine-boa = ["superui/engine-boa", "superui_bridge/engine-boa"]
-engine-v8 = ["superui/engine-v8", "superui_bridge/engine-v8", "dep:tokio"]
+engine-v8 = ["superui/engine-v8", "superui_bridge/engine-v8"]
 engine-web = ["superui/engine-web", "superui_bridge/engine-web"]
 
 [dependencies]
@@ -54,9 +54,6 @@ superui_html = { path = "../../crates/superui_html" }
 # file_watcher (hot-reload) is native-only; wasm build drops it.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 bevy = { workspace = true, features = ["file_watcher"] }
-# engine-v8 only: deno_core needs an entered tokio runtime context to post
-# delayed platform tasks (e.g. idle GC), even for otherwise-synchronous use.
-tokio = { version = "1", default-features = false, features = ["rt"], optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.3", features = ["wasm_js"] }

@@ -25,7 +25,7 @@ default = ["engine-boa"]
 bench = []
 # JS engine selection: forward to every engine-carrying dependency. Exactly one must be active.
 engine-boa = ["superui/engine-boa", "superui_bridge/engine-boa"]
-engine-v8 = ["superui/engine-v8", "superui_bridge/engine-v8", "dep:tokio"]
+engine-v8 = ["superui/engine-v8", "superui_bridge/engine-v8"]
 engine-web = ["superui/engine-web", "superui_bridge/engine-web"]
 
 [dependencies]
@@ -35,9 +35,6 @@ superui_css = { path = "../../crates/superui_css" }
 superui_bridge = { path = "../../crates/superui_bridge", default-features = false }
 superui_dom = { path = "../../crates/superui_dom" }
 superui_bench_support = { path = "../../crates/superui_bench_support" }
-# engine-v8 only: deno_core needs an entered tokio runtime context to post
-# delayed platform tasks (e.g. idle GC), even for otherwise-synchronous use.
-tokio = { version = "1", default-features = false, features = ["rt"], optional = true }
 
 # Host-only: pre-transpile app.tsx -> app.js for wasm / no-HMR native, and for
 # the bench module's `include_str!` (which loads assets from memory).

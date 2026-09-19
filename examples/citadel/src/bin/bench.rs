@@ -11,14 +11,6 @@ use citadel::bench::{
 use citadel::bench::profile::run_profile;
 
 fn main() {
-    // deno_core's V8 platform posts delayed tasks (e.g. idle GC) that require an
-    // entered tokio runtime context, even though the bench drives the engine
-    // fully synchronously. Boa has no such requirement.
-    #[cfg(feature = "engine-v8")]
-    let _tokio_rt = tokio::runtime::Runtime::new().expect("tokio runtime for engine-v8");
-    #[cfg(feature = "engine-v8")]
-    let _tokio_guard = _tokio_rt.enter();
-
     let argv: Vec<String> = std::env::args().skip(1).collect();
     let args = match parse_args(&argv) {
         Ok(a) => a,
