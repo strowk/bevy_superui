@@ -34,6 +34,10 @@ const SCREENSHOT_CAPTURE_TIMEOUT_FRAMES: usize = 64;
 /// partial/blurry frame (unlike the headless CLI, which reaches the screenshot
 /// step far more settled). This gives the render pipeline time to stabilize.
 const SCREENSHOT_SETTLE_FRAMES: usize = 30;
+/// Readbacks to take before asserting, so a frame is used only once it stops
+/// changing. The async readback can land a blank/partial frame even after the
+/// DOM settles; requiring two identical consecutive frames rejects those.
+const SCREENSHOT_STABILITY_ATTEMPTS: usize = 12;
 
 /// Non-send holder for the in-progress run (or `None` when idle). Kept
 /// non-send to stay alongside the `!Send` `UiRuntime` it steps.
@@ -91,6 +95,10 @@ struct ScreenshotCapture {
     spawned: bool,
     /// Frames spent polling the sink after spawning.
     frames_waited: usize,
+    /// Pixels of the previous readback, to detect a stable (unchanging) frame.
+    prev: Option<Vec<u8>>,
+    /// Readbacks taken so far, capping the stability retries.
+    attempts: usize,
 }
 
 /// Per-test working state, reset when a new test starts.
@@ -368,6 +376,22 @@ fn step_running(world: &mut World, run: &mut RunState) {
                 let sink = world.resource::<crate::render::CaptureSink>().0.clone();
                 let ready = sink.lock().unwrap().take();
                 if let Some(img) = ready {
+                    cap.attempts += 1;
+                    // The readback races the render: even post-settle, the first
+                    // frame that lands can be blank or partially drawn. Assert
+                    // only once a frame is non-blank and identical to the prior
+                    // one; otherwise re-spawn and keep polling.
+                    let stable = !crate::render::is_blank(&img.rgba)
+                        && cap.prev.as_deref() == Some(img.rgba.as_slice());
+                    if !stable && cap.attempts < SCREENSHOT_STABILITY_ATTEMPTS {
+                        cap.prev = Some(img.rgba);
+                        let handle = world.resource::<crate::render::RenderTargetHandle>().0.clone();
+                        let sink = world.resource::<crate::render::CaptureSink>().0.clone();
+                        crate::render::spawn_screenshot(world, handle, sink);
+                        cap.frames_waited = 0;
+                        work.capturing = Some(cap);
+                        return;
+                    }
                     let result = match &run.opts.snapshot {
                         Some(cfg) => snapshot::match_screenshot(
                             cfg, &run.opts.spec_file, &cap.name, img.width, img.height, &img.rgba,
@@ -412,6 +436,8 @@ fn step_running(world: &mut World, run: &mut RunState) {
                         settle: SCREENSHOT_SETTLE_FRAMES,
                         spawned: false,
                         frames_waited: 0,
+                        prev: None,
+                        attempts: 0,
                     });
                 } else if !opts_render {
                     // Headless: no pixels; pass immediately.

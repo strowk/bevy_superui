@@ -32,6 +32,10 @@ pub struct RenderTargetHandle(pub Handle<Image>);
 #[derive(Resource, Clone, Default)]
 pub(crate) struct CaptureSink(pub Arc<Mutex<Option<CapturedImage>>>);
 
+/// Screenshot readbacks to take before giving up on a stable frame (see
+/// [`capture`]). Each stabilizes within a readback or two in practice.
+const CAPTURE_STABILITY_ATTEMPTS: usize = 12;
+
 /// Build the canonical render-to-texture `Image` for `width`x`height`.
 pub fn make_target_image(width: u32, height: u32) -> Image {
     let size = Extent3d {
@@ -158,21 +162,58 @@ pub(crate) fn spawn_screenshot(
         );
 }
 
-/// Spawn a screenshot request against the offscreen target, tick until the
-/// async capture fires, and return the decoded RGBA frame. (Headless/blocking.)
-pub fn capture(app: &mut App) -> Option<CapturedImage> {
-    let handle = app.world().resource::<RenderTargetHandle>().0.clone();
-    let sink = app.world().resource::<CaptureSink>().0.clone();
-
-    spawn_screenshot(app.world_mut(), handle, sink.clone());
-
-    // Capture is async (spans render sub-app frames); poll the sink.
+/// Spawn one screenshot request against the offscreen target, tick until the
+/// async readback lands in `sink`, and return that frame. (Headless/blocking.)
+fn capture_once(app: &mut App, handle: &Handle<Image>, sink: &CaptureSink) -> Option<CapturedImage> {
+    spawn_screenshot(app.world_mut(), handle.clone(), sink.0.clone());
+    // Readback is async (spans render sub-app frames); poll the sink.
     for _ in 0..64 {
         app.update();
-        if sink.lock().unwrap().is_some() {
+        if sink.0.lock().unwrap().is_some() {
             break;
         }
     }
-    let captured = sink.lock().unwrap().take();
-    captured
+    sink.0.lock().unwrap().take()
+}
+
+/// Capture a stable frame of the offscreen target.
+///
+/// The screenshot readback races the render: the first buffer that lands can
+/// predate a fully-composited frame of the (already-settled) UI, so a single
+/// readback is intermittently blank or partially drawn. Capture repeatedly and
+/// accept a frame only once it is non-blank and byte-identical to the prior
+/// readback — i.e. the render has stopped changing. Falls back to the last
+/// frame if the target never stabilizes within the attempt budget.
+pub fn capture(app: &mut App) -> Option<CapturedImage> {
+    let handle = app.world().resource::<RenderTargetHandle>().0.clone();
+    let sink = app.world().resource::<CaptureSink>().clone();
+
+    let mut prev: Option<CapturedImage> = None;
+    for _ in 0..CAPTURE_STABILITY_ATTEMPTS {
+        let Some(frame) = capture_once(app, &handle, &sink) else {
+            continue;
+        };
+        let stable = !is_blank(&frame.rgba)
+            && prev.as_ref().is_some_and(|p| p.rgba == frame.rgba);
+        if stable {
+            return Some(frame);
+        }
+        prev = Some(frame);
+    }
+    prev
+}
+
+/// A frame is "blank" when almost every pixel matches the top-left one — a
+/// uniform fill with no UI drawn. Guards against accepting two identical blank
+/// readbacks as a stable frame.
+pub(crate) fn is_blank(rgba: &[u8]) -> bool {
+    let Some(&[r0, g0, b0, ..]) = rgba.get(0..4) else {
+        return true;
+    };
+    let differing = rgba
+        .chunks_exact(4)
+        .filter(|px| px[0].abs_diff(r0) > 12 || px[1].abs_diff(g0) > 12 || px[2].abs_diff(b0) > 12)
+        .count();
+    // Fewer than 0.1% of pixels differ from the corner -> effectively uniform.
+    differing * 1000 < rgba.len() / 4
 }
