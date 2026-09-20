@@ -1,5 +1,6 @@
-//! Import rewriting: Boa runs plain scripts (no ESM). Strip ALL imports; classify
-//! each by specifier — runtime (silent), `.css` (record), else warn.
+//! Import rewriting: the engine runs plain (non-module) scripts, so imports are
+//! stripped. Strip ALL imports; classify each by specifier — runtime (silent),
+//! `.css` (record), else warn.
 
 use oxc::allocator::Allocator;
 use oxc::ast::ast::{Program, Statement};

@@ -9,7 +9,7 @@
 //! | stage                         | system(s)                                   |
 //! |-------------------------------|---------------------------------------------|
 //! | marshal (Rust→JS JSON)        | `push_ui_frame` / `forward_event_observer`  |
-//! | Boa render (reactive re-run)  | `emit_bevy_inbox_system`                    |
+//! | JS render (reactive re-run)   | `emit_bevy_inbox_system`                    |
 //! | DOM diff + bevy_ui apply      | `reconcile_system`                          |
 //! | flair cascade / selectors     | `bevy_flair_style::systems::*`              |
 //! | taffy layout                  | `bevy_ui::layout::ui_layout_system`         |
@@ -17,7 +17,7 @@
 //! So a tracing layer that sums busy-time per system name, keyed and bucketed,
 //! attributes the whole frame with no edits to the library crates. The same spans
 //! feed a Tracy flamegraph under `--features bench bevy/trace_tracy`; this mode is
-//! the headless equivalent that prints the "X% cascade, Y% Boa …" one-liner.
+//! the headless equivalent that prints the "X% cascade, Y% JS render …" one-liner.
 //!
 //! Generic over the example: `run_profile_with` takes the finished `App` as an
 //! `impl FnOnce() -> App` and a `rebuild_hint` command string to print when no
@@ -145,7 +145,7 @@ where
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum Bucket {
     Marshal,
-    BoaRender,
+    JsRender,
     Reconcile,
     Flair,
     Taffy,
@@ -157,7 +157,7 @@ impl Bucket {
     fn label(self) -> &'static str {
         match self {
             Bucket::Marshal => "marshal (Rust->JS JSON bridge)",
-            Bucket::BoaRender => "Boa render (JS reactive re-run)",
+            Bucket::JsRender => "JS render (JS reactive re-run)",
             Bucket::Reconcile => "reconcile (DOM diff + bevy_ui apply)",
             Bucket::Flair => "flair cascade / selector matching",
             Bucket::Taffy => "taffy layout",
@@ -168,7 +168,7 @@ impl Bucket {
     /// Report order.
     fn all() -> [Bucket; 7] {
         [
-            Bucket::BoaRender,
+            Bucket::JsRender,
             Bucket::Reconcile,
             Bucket::Flair,
             Bucket::Taffy,
@@ -190,7 +190,7 @@ pub fn is_wrapper(name: &str) -> bool {
 pub fn bucket_for(name: &str) -> Bucket {
     let n = name;
     if n.contains("emit_bevy_inbox") {
-        Bucket::BoaRender
+        Bucket::JsRender
     } else if n.contains("reconcile") {
         Bucket::Reconcile
     } else if n.contains("flair") {
@@ -384,9 +384,9 @@ fn print_report(agg: &Arc<Mutex<Agg>>, frames: usize, wall_total_ms: f64, rebuil
     let one = |b: Bucket| pct(buckets.get(&b).copied().unwrap_or(0.0) / n);
     let _ = writeln!(
         out,
-        "\nof the {:.0} ms frame: {:.0}% Boa render, {:.0}% reconcile, {:.0}% flair cascade, {:.0}% taffy, {:.0}% marshal.",
+        "\nof the {:.0} ms frame: {:.0}% JS render, {:.0}% reconcile, {:.0}% flair cascade, {:.0}% taffy, {:.0}% marshal.",
         frame_ms,
-        one(Bucket::BoaRender),
+        one(Bucket::JsRender),
         one(Bucket::Reconcile),
         one(Bucket::Flair),
         one(Bucket::Taffy),
@@ -402,7 +402,7 @@ mod tests {
 
     #[test]
     fn buckets_map_known_system_paths() {
-        assert_eq!(bucket_for("supersolid::emit_bevy_inbox_system"), Bucket::BoaRender);
+        assert_eq!(bucket_for("supersolid::emit_bevy_inbox_system"), Bucket::JsRender);
         assert_eq!(bucket_for("superui_bridge::reconcile_system"), Bucket::Reconcile);
         assert_eq!(bucket_for("bevy_flair_style::systems::recalculate"), Bucket::Flair);
         assert_eq!(bucket_for("bevy_ui::layout::ui_layout_system"), Bucket::Taffy);

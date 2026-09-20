@@ -63,8 +63,8 @@ struct V8Timer {
 /// Host state stored in the runtime's [`OpState`]. The ops reach the timer
 /// queue and the Bevy outbox through it.
 struct V8HostState {
-    /// The render-mirror DOM, shared with the bridge. Held for parity with the
-    /// Boa backend and a future real `__ss_measure`; unused today.
+    /// The render-mirror DOM, shared with the bridge. Held for a future real
+    /// `__ss_measure`; unused today.
     #[allow(dead_code)]
     dom: Rc<RefCell<Dom>>,
     timers: Vec<V8Timer>,

@@ -99,7 +99,7 @@ pub fn run(cfg: &TestConfig, project: &HostProject, specs: &[PathBuf]) {
     let handle = app.world_mut().resource_mut::<Assets<Image>>().add(image);
     app.insert_resource(RenderTargetHandle(handle.clone()));
     app.insert_resource(CaptureSink::default());
-    // ActiveRun holds Boa !Send values — must be a non-send resource.
+    // ActiveRun holds !Send engine values (V8Engine) — must be a non-send resource.
     app.init_non_send::<ActiveRun>();
 
     app.insert_resource(UiState {

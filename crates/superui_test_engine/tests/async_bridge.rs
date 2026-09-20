@@ -1,6 +1,6 @@
 //! The harness ABI drives entirely over the `JsEngine` boundary: register a
 //! test, run it, drain the command it awaits, resolve it, and observe the test
-//! promise settle, with no Boa handle held in Rust.
+//! promise settle, with no JS-engine handle held in Rust.
 
 use std::cell::RefCell;
 use std::rc::Rc;

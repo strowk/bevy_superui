@@ -4,8 +4,7 @@
 //! These helpers drive it with [`JsEngine::eval`] and read values back the way
 //! the rest of superui does — a `__superui_bevy_send(name, value)` snippet
 //! followed by [`JsEngine::drain_outbox`]. Nothing here names a concrete engine
-//! or holds a JS handle across calls, so the crate no longer depends on Boa
-//! internals.
+//! or holds a JS-engine handle across calls.
 
 use serde_json::Value;
 use superui_js::JsEngine;

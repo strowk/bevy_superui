@@ -5,9 +5,9 @@
 // the real render mirror. Reads (childNodes, getAttribute, ...) are answered from
 // this JS state and never cross to Rust.
 //
-// Framework-free ES: no window / Node globals. The SAME file runs on Boa, V8 and
-// browsers, so `document`, `__ss_root`, `__ss_flush` and `__ss_dispatch` are
-// DEFINED here (installed on globalThis).
+// Framework-free ES: no window / Node globals. The SAME file runs on V8 and the
+// browser engine, so `document`, `__ss_root`, `__ss_flush` and `__ss_dispatch`
+// are DEFINED here (installed on globalThis).
 (function () {
   "use strict";
 
@@ -681,7 +681,7 @@
     return nodesById.has(id >>> 0);
   };
 
-  // Boa/V8: succeeds, so bare `document` resolves to the shadow doc globally.
+  // V8 (native): succeeds, so bare `document` resolves to the shadow doc globally.
   // Browser: throws (read-only getter) and is caught; WebEngine scopes it instead.
   try {
     globalThis.document = document;

@@ -1,7 +1,7 @@
 //! The `window.bevy` bridge: the one non-web API JS sees (design §8). JS calls
 //! `bevy.send(name, data)` (JS -> ECS: trigger a registered `Event`) and
 //! `bevy.on(name, cb)` (ECS -> JS: a registered game event invokes JS callbacks).
-//! Marshalling is `serde_json::Value` <-> boa `JsValue`. Phase 1 = send + on
+//! Marshalling is between `serde_json::Value` and the engine's JS values. Phase 1 = send + on
 //! only (no `query`; that is Phase 2).
 
 use std::any::TypeId;

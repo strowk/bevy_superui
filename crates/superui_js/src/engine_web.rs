@@ -16,8 +16,8 @@
 //!
 //! `console` and the timer globals are the browser's own — no shim, and the
 //! reactive scheduler drives microtasks off the page event loop, so
-//! [`run_timers`](JsEngine::run_timers) is a no-op here (unlike Boa/V8, which
-//! must pump timers and microtasks explicitly).
+//! [`run_timers`](JsEngine::run_timers) is a no-op here (unlike V8, which must
+//! pump timers and microtasks explicitly).
 //!
 //! wasm-only. Single-threaded (the page's main thread).
 
@@ -35,7 +35,7 @@ use crate::{JsEngine, OpBatch};
 
 /// The JS shadow DOM. Defines `document`, `__ss_root`, `__ss_flush`,
 /// `__ss_dispatch` on the scope it runs in; guards `__ss_measure`. Byte-for-byte
-/// the bundle the browser runs — identical to the Boa/V8 backends.
+/// the bundle the browser runs — identical to the V8 backend.
 const DOM_JS: &str = include_str!("../js/dom.js");
 
 /// A [`JsEngine`] that delegates to the browser's own engine, isolated to a
@@ -155,8 +155,8 @@ impl JsEngine for WebEngine {
 
     fn run_timers(&mut self, _now_ms: f64) {
         // No-op on web: the browser owns setTimeout/queueMicrotask and its event
-        // loop drives the reactive scheduler's microtasks between frames. Boa/V8
-        // must pump their timer queue and microtasks explicitly; the page does
+        // loop drives the reactive scheduler's microtasks between frames. V8
+        // must pump its timer queue and microtasks explicitly; the page does
         // not.
     }
 
@@ -173,8 +173,8 @@ impl JsEngine for WebEngine {
             }
         };
         // dom.js returns an Array<number> of bytes. `Uint8Array::new` copies the
-        // whole array-like across the boundary in one call and `to_vec` bulk
-        // copies it into Rust — the web advantage over Boa's per-element read.
+        // whole array-like across the boundary in one call, and `to_vec` bulk
+        // copies it into Rust.
         let bytes = Uint8Array::new(&value).to_vec();
         match OpBatch::decode(&bytes) {
             Ok(batch) => batch,

@@ -1,4 +1,4 @@
-// Supersolid reactive core — Solid-like fine-grained signals for Boa.
+// Supersolid reactive core — Solid-like fine-grained signals for the superui JS runtime.
 //
 // Glitch-free two-color (CLEAN/CHECK/DIRTY) mark-and-sweep graph with lazy
 // pull-through memos, plus Solid's Owner/Listener split for ownership, cleanup,

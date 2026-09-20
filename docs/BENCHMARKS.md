@@ -95,12 +95,12 @@ No bevy_react comparison is measured in this repo; none is claimed here.
 
 **Historical, pre-swap capture.** Everything below this point (Provenance
 through Findings) was captured before the V8 swap, when Boa was superui's
-only native JS engine — the `JS (Boa)` column in the traced tables names a
-profiling stage bucket (`bucket_for` in `superui_bench_support`), not a claim
-that Boa is still in use. It measures the `vanilla`-vs-`supersolid` framework
-overhead question below, which is orthogonal to and unaffected by which JS
-engine executes the `supersolid` side — see "Engine swap" above for the
-Boa/V8 comparison.
+only native JS engine — the `JS (Boa)` column in the traced tables names the
+profiling stage bucket now called `JsRender` (`bucket_for` in
+`superui_bench_support`), under the label it had at capture time. It measures
+the `vanilla`-vs-`supersolid` framework overhead question below, which is
+orthogonal to and unaffected by which JS engine executes the `supersolid`
+side — see "Engine swap" above for the Boa/V8 comparison.
 
 The [js-framework-benchmark](https://github.com/krausest/js-framework-benchmark)
 ("krausest") **rows** workload, run on superui in two backends (`examples/rows`).
