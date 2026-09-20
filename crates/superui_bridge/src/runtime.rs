@@ -77,10 +77,8 @@ pub struct UiRuntime {
     entity_to_node: HashMap<Entity, NodeId>,
     /// The DOM node that currently has keyboard focus (Task 5).
     pub(crate) focused: Option<NodeId>,
-    /// Whether the text caret is currently drawn (blinks; see `blink_caret_system`).
-    pub(crate) caret_visible: bool,
-    /// Time accumulator driving the caret blink.
-    pub(crate) caret_accum: f32,
+    /// The focused node's value at focus-gain, for the on_focus_lost change check.
+    pub(crate) focus_snapshot: Option<(NodeId, String)>,
     /// Text-`<input>` node -> its managed [`InputValueText`] child entity.
     pub(crate) input_texts: HashMap<NodeId, Entity>,
     /// EditableText `<input>` node -> the value the DOM and the `EditableText`
@@ -148,8 +146,7 @@ impl UiRuntime {
             node_to_entity: HashMap::new(),
             entity_to_node: HashMap::new(),
             focused: None,
-            caret_visible: true,
-            caret_accum: 0.0,
+            focus_snapshot: None,
             input_texts: HashMap::new(),
             editable_synced: HashMap::new(),
         }
@@ -165,25 +162,6 @@ impl UiRuntime {
             self.applier.apply(&mut self.dom.borrow_mut(), &batch);
             self.dirty = true;
         }
-    }
-
-    /// Advance the caret-blink clock by `dt` seconds. Returns `true` if the caret
-    /// visibility flipped (so the caller can mark the runtime dirty to re-render).
-    pub fn advance_caret(&mut self, dt: f32) -> bool {
-        if self.focused.is_none() {
-            // No focus: keep the caret "on" so it shows immediately next focus.
-            self.caret_accum = 0.0;
-            let was_off = !self.caret_visible;
-            self.caret_visible = true;
-            return was_off;
-        }
-        self.caret_accum += dt;
-        if self.caret_accum >= 0.53 {
-            self.caret_accum = 0.0;
-            self.caret_visible = !self.caret_visible;
-            return true;
-        }
-        false
     }
 
     /// Evaluate an author script against the current DOM, then flush its DOM

@@ -143,7 +143,6 @@ fn typing_into_focused_input_updates_value_and_fires_input() {
 /// into the EditableText buffer must NOT re-emit `input` (which would loop).
 #[test]
 fn js_value_set_does_not_re_emit_input() {
-    use bevy::input_focus::InputFocus;
     let dom = Rc::new(RefCell::new(superui_html::parse_document(
         "<input id='t' type='text'>",
     )));
@@ -326,5 +325,116 @@ fn a_click_on_a_foreign_entity_still_reaches_its_ancestors_handler() {
     assert!(
         app.world().resource::<AncestorRan>().0,
         "superui must leave clicks it does not own alone so they keep bubbling"
+    );
+}
+
+/// Editing then blurring fires exactly one `change` (web semantics).
+#[test]
+fn edit_then_blur_fires_change() {
+    use bevy::input::keyboard::{Key, KeyCode, KeyboardInput};
+    use bevy::input::ButtonState;
+    use bevy::input_focus::{FocusCause, InputFocus};
+
+    let dom = Rc::new(RefCell::new(superui_html::parse_document(
+        "<input id='a' type='text'><input id='b' type='text'>",
+    )));
+    let mut app = test_app();
+    let _root = mount(&mut app, dom.clone());
+    app.init_resource::<PendingDomEvents>();
+    app.add_observer(superui_bridge::on_focus_gained);
+    app.add_observer(superui_bridge::on_focus_lost);
+    app.add_systems(
+        Update,
+        (superui_bridge::editable_input_events_system, drain_dom_events_system)
+            .chain()
+            .before(superui_bridge::reconcile_system),
+    );
+    app.world_mut().non_send_mut::<UiRuntime>().run_script(
+        "globalThis.changes = 0; \
+         document.getElementById('a').addEventListener('change', function(){ globalThis.changes++; });",
+    );
+    app.update();
+    let (a, b) = {
+        let d = dom.borrow();
+        (d.get_element_by_id("a").unwrap(), d.get_element_by_id("b").unwrap())
+    };
+    let (ea, eb) = ({
+        let mut q = app.world_mut().query::<(Entity, &superui_bridge::DomNode)>();
+        q.iter(app.world()).find(|(_, d)| d.0 == a).map(|(e, _)| e).unwrap()
+    }, {
+        let mut q = app.world_mut().query::<(Entity, &superui_bridge::DomNode)>();
+        q.iter(app.world()).find(|(_, d)| d.0 == b).map(|(e, _)| e).unwrap()
+    });
+
+    app.world_mut().resource_mut::<InputFocus>().set(ea, FocusCause::Pressed);
+    app.update(); app.update();
+    app.world_mut().write_message(KeyboardInput {
+        key_code: KeyCode::KeyX,
+        logical_key: Key::Character("x".into()),
+        state: ButtonState::Pressed,
+        repeat: false,
+        window: Entity::PLACEHOLDER,
+        text: Some("x".into()), // bevy_ui_widgets 0.19 edits from .text
+    });
+    app.update(); app.update();
+    app.world_mut().resource_mut::<InputFocus>().set(eb, FocusCause::Pressed);
+    app.update(); app.update();
+
+    app.world_mut().non_send_mut::<UiRuntime>().run_script(
+        "document.getElementById('a').setAttribute('data-changes', String(globalThis.changes));",
+    );
+    assert_eq!(
+        dom.borrow().get_attribute(a, "data-changes").unwrap_or("0"),
+        "1",
+        "editing then blurring fires exactly one change"
+    );
+}
+
+/// Enter in a single-line input is not swallowed by the editor; it dispatches a
+/// keydown with key "Enter" (todomvc's add-on-Enter).
+#[test]
+fn enter_dispatches_keydown_in_single_line_input() {
+    use bevy::input::keyboard::{Key, KeyCode, KeyboardInput};
+    use bevy::input::ButtonState;
+    use bevy::input_focus::{FocusCause, InputFocus};
+
+    let dom = Rc::new(RefCell::new(superui_html::parse_document(
+        "<input id='t' type='text'>",
+    )));
+    let mut app = test_app();
+    let _root = mount(&mut app, dom.clone());
+    app.init_resource::<PendingDomEvents>();
+    app.add_systems(Update, superui_bridge::keyboard_events_system);
+    app.world_mut().non_send_mut::<UiRuntime>().run_script(
+        "globalThis.enters = 0; \
+         document.getElementById('t').addEventListener('keydown', function(e){ if (e.key === 'Enter') globalThis.enters++; });",
+    );
+    app.update();
+    let node = dom.borrow().get_element_by_id("t").unwrap();
+    let ent = {
+        let mut q = app.world_mut().query::<(Entity, &superui_bridge::DomNode)>();
+        q.iter(app.world()).find(|(_, d)| d.0 == node).map(|(e, _)| e).unwrap()
+    };
+    app.world_mut().resource_mut::<InputFocus>().set(ent, FocusCause::Pressed);
+    // Ensure the runtime mirror knows focus (keyboard_events_system dispatches to it).
+    app.world_mut().non_send_mut::<UiRuntime>().set_focus(Some(node));
+    // key_name maps KeyCode::Enter -> "Enter" regardless of logical_key, so any
+    // constructible logical_key works here.
+    app.world_mut().write_message(KeyboardInput {
+        key_code: KeyCode::Enter,
+        logical_key: Key::Character("x".into()),
+        state: ButtonState::Pressed,
+        repeat: false,
+        window: Entity::PLACEHOLDER,
+        text: None,
+    });
+    app.update();
+    app.world_mut().non_send_mut::<UiRuntime>().run_script(
+        "document.getElementById('t').setAttribute('data-enters', String(globalThis.enters));",
+    );
+    assert_eq!(
+        dom.borrow().get_attribute(node, "data-enters").unwrap_or("0"),
+        "1",
+        "Enter dispatches a keydown with key Enter"
     );
 }

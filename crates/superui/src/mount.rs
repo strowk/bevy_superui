@@ -7,9 +7,9 @@ use std::rc::Rc;
 use bevy::asset::LoadState;
 use bevy::prelude::*;
 use superui_bridge::{
-    blink_caret_system, clamp_scroll_position_system, drain_bevy_outbox_system,
-    drain_dom_events_system, editable_input_events_system, emit_bevy_inbox_system,
-    keyboard_events_system, on_pointer_click, reconcile_system, wheel_scroll_system,
+    clamp_scroll_position_system, drain_bevy_outbox_system, drain_dom_events_system,
+    editable_input_events_system, emit_bevy_inbox_system, keyboard_events_system,
+    on_focus_gained, on_focus_lost, on_pointer_click, reconcile_system, wheel_scroll_system,
     PendingDomEvents, UiRuntime,
 };
 use superui_css::style::StyleSheet;
@@ -160,6 +160,13 @@ impl Plugin for SuperUiPlugin {
             .init_asset::<JsSource>()
             .register_asset_loader(HtmlLoader)
             .register_asset_loader(JsLoader);
+        // `InputFocusPlugin` runs `process_recorded_focus_changes`, the system that
+        // turns an `InputFocus` mutation into `FocusGained`/`FocusLost` events —
+        // without it, our focus/blur/change observers never fire. `DefaultPlugins`
+        // already adds both, so these guards only matter for a minimal app.
+        if !app.is_plugin_added::<bevy::input_focus::InputFocusPlugin>() {
+            app.add_plugins(bevy::input_focus::InputFocusPlugin);
+        }
         if !app.is_plugin_added::<bevy::input_focus::InputDispatchPlugin>() {
             app.add_plugins(bevy::input_focus::InputDispatchPlugin);
         }
@@ -170,6 +177,8 @@ impl Plugin for SuperUiPlugin {
             .init_resource::<PendingDomEvents>()
             .init_resource::<HotReloadFlags>()
             .add_observer(on_pointer_click)
+            .add_observer(on_focus_gained)
+            .add_observer(on_focus_lost)
             // Wheel scrolling is pure Bevy (no UiRuntime), so it runs plainly in
             // Update rather than inside the runtime_exists DOM chain below.
             .add_systems(Update, wheel_scroll_system)
@@ -206,7 +215,6 @@ impl Plugin for SuperUiPlugin {
                     editable_input_events_system,
                     drain_dom_events_system,
                     keyboard_events_system,
-                    blink_caret_system,
                     emit_bevy_inbox_system,
                     drain_bevy_outbox_system,
                     tick_timers_system,

@@ -151,13 +151,53 @@ pub fn apply_pointer_click(
     }
 }
 
-/// Blink the text caret (~2 Hz) while a text field is focused; re-renders on flip.
-pub fn blink_caret_system(time: Res<Time>, rt: Option<NonSendMut<UiRuntime>>) {
-    if let Some(mut rt) = rt {
-        let dt = time.delta_secs();
-        if rt.advance_caret(dt) {
-            rt.dirty = true;
+/// Observer: an entity gained input focus. Dispatch DOM `focus`, snapshot the
+/// current value for change-on-blur, and update the runtime focus mirror.
+pub fn on_focus_gained(
+    mut ev: On<bevy::input_focus::FocusGained>,
+    nodes: Query<&DomNode>,
+    parents: Query<&ChildOf>,
+    rt: Option<NonSendMut<UiRuntime>>,
+    mut pending: ResMut<PendingDomEvents>,
+) {
+    // FocusGained auto-propagates up the hierarchy; a global observer would
+    // otherwise fire once per ancestor. Handle the focused entity exactly once.
+    ev.propagate(false);
+    let Some(mut rt) = rt else { return; };
+    let Some(node) = resolve_dom_node(ev.entity, &nodes, &parents) else { return; };
+    let cur = rt.dom.borrow().value(node);
+    rt.set_focus(Some(node));
+    rt.focus_snapshot = Some((node, cur));
+    let mut e = PendingDomEvent::new(node, "focus");
+    e.bubbles = false;
+    pending.0.push(e);
+}
+
+/// Observer: an entity lost input focus. Fire `change` if its value changed since
+/// focus-gain, dispatch DOM `blur`, and clear the mirror if it pointed here.
+pub fn on_focus_lost(
+    mut ev: On<bevy::input_focus::FocusLost>,
+    nodes: Query<&DomNode>,
+    parents: Query<&ChildOf>,
+    rt: Option<NonSendMut<UiRuntime>>,
+    mut pending: ResMut<PendingDomEvents>,
+) {
+    // FocusLost auto-propagates; handle the blurred entity exactly once.
+    ev.propagate(false);
+    let Some(mut rt) = rt else { return; };
+    let Some(node) = resolve_dom_node(ev.entity, &nodes, &parents) else { return; };
+    if let Some((snap_node, old)) = rt.focus_snapshot.take() {
+        if snap_node == node && rt.dom.borrow().value(node) != old {
+            let mut c = PendingDomEvent::new(node, "change");
+            c.cancelable = false;
+            pending.0.push(c);
         }
+    }
+    let mut e = PendingDomEvent::new(node, "blur");
+    e.bubbles = false;
+    pending.0.push(e);
+    if rt.focused() == Some(node) {
+        rt.set_focus(None);
     }
 }
 
@@ -176,6 +216,7 @@ fn tag_of(dom: &superui_dom::Dom, node: NodeId) -> Option<String> {
 pub fn keyboard_events_system(
     mut reader: MessageReader<KeyboardInput>,
     mut rt: NonSendMut<UiRuntime>,
+    mut input_focus: ResMut<InputFocus>,
 ) {
     // Collect key messages first (the reader borrow must not overlap with rt).
     let presses: Vec<(Key, KeyCode, bool)> = reader
@@ -209,11 +250,13 @@ pub fn keyboard_events_system(
         if code == KeyCode::Tab {
             let focusables = collect_focusable(&rt.dom.borrow());
             if !focusables.is_empty() {
-                let next = match focusables.iter().position(|&n| Some(n) == rt.focused) {
+                let next = match focusables.iter().position(|&n| Some(n) == rt.focused()) {
                     Some(i) => focusables[(i + 1) % focusables.len()],
                     None => focusables[0],
                 };
-                rt.focused = Some(next);
+                if let Some(entity) = rt.entity_for(next) {
+                    input_focus.set(entity, FocusCause::Navigated);
+                }
             }
             continue;
         }

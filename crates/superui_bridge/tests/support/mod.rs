@@ -7,7 +7,7 @@ use std::rc::Rc;
 
 use bevy::image::{ImagePlugin, TextureAtlasPlugin};
 use bevy::input::InputPlugin;
-use bevy::input_focus::{InputFocus, InputFocusVisible};
+use bevy::input_focus::InputFocusPlugin;
 use bevy::picking::{InteractionPlugin, PickingPlugin};
 use bevy::prelude::*;
 use bevy::text::TextPlugin;
@@ -31,8 +31,11 @@ pub fn test_app() -> App {
         (InputPlugin, PickingPlugin, InteractionPlugin, UiPlugin),
         SuperUiCssPlugin,
     ));
-    app.init_resource::<InputFocus>()
-        .init_resource::<InputFocusVisible>();
+    // `InputFocusPlugin` (not just the resources) so `process_recorded_focus_changes`
+    // runs each frame and actually fires FocusGained/FocusLost on an `InputFocus` change.
+    if !app.is_plugin_added::<InputFocusPlugin>() {
+        app.add_plugins(InputFocusPlugin);
+    }
     if !app.is_plugin_added::<bevy::input_focus::InputDispatchPlugin>() {
         app.add_plugins(bevy::input_focus::InputDispatchPlugin);
     }

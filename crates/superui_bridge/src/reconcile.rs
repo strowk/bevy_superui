@@ -5,6 +5,7 @@
 
 use std::collections::HashSet;
 
+use bevy::input_focus::AutoFocus;
 use bevy::picking::hover::Hovered;
 use bevy::picking::Pickable;
 use bevy::prelude::*;
@@ -96,6 +97,7 @@ impl UiRuntime {
             }
             self.unbind(node, entity);
             self.input_texts.remove(&node);
+            self.editable_synced.remove(&node);
         }
     }
 
@@ -176,10 +178,12 @@ impl UiRuntime {
             if matches!(kind, NodeKind::Element(_)) {
                 self.sync_identity(world, dom, child, entity);
                 apply_picking(world, entity, picking, interactive);
-                // `autofocus`: give keyboard focus to the first element that
-                // declares it (browser-standard), so text entry works on load.
-                if self.focused.is_none() && dom.get_attribute(child, "autofocus").is_some() {
-                    self.focused = Some(child);
+                // `autofocus`: `AutoFocus` sets `InputFocus` on spawn (Bevy
+                // resolves first-wins when several elements declare it).
+                if dom.get_attribute(child, "autofocus").is_some()
+                    && world.get::<AutoFocus>(entity).is_none()
+                {
+                    world.entity_mut(entity).insert(AutoFocus);
                 }
             }
             child_entities.push(entity);
