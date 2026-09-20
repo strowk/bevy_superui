@@ -220,7 +220,9 @@ impl UiRuntime {
         // focus) and flair's inherited `color`/`font-size` make it visible,
         // unlike a separate child that intercepted picking and rendered white.
         if Self::is_text_input(dom, parent_node) {
-            self.sync_editable_input(world, dom, parent_node, parent_entity);
+            self.sync_editable_input(world, dom, parent_node, parent_entity, false);
+        } else if Self::is_textarea(dom, parent_node) {
+            self.sync_editable_input(world, dom, parent_node, parent_entity, true);
         } else if Self::is_checkbox(dom, parent_node) {
             self.sync_checkbox_mark(world, dom, parent_node, parent_entity);
         }
@@ -295,22 +297,47 @@ impl UiRuntime {
             && dom.get_attribute(node, "type") != Some("checkbox")
     }
 
-    /// A text-entry `<input>` carries `EditableText` on the element itself (flair
-    /// styles the same node). The DOM `value` is pushed into the buffer only when
-    /// it differs (so controlled inputs don't reset the cursor mid-edit); Bevy's
-    /// editor owns the text otherwise. An empty field shows a dim placeholder
-    /// overlay child (EditableText has no placeholder of its own).
+    /// Is `node` a `<textarea>`?
+    fn is_textarea(dom: &superui_dom::Dom, node: NodeId) -> bool {
+        matches!(dom.tag(node), Some("textarea"))
+    }
+
+    /// A text-entry `<input>` or `<textarea>` carries `EditableText` on the
+    /// element itself (flair styles the same node). The DOM `value` is pushed
+    /// into the buffer only when it differs (so controlled inputs don't reset
+    /// the cursor mid-edit); Bevy's editor owns the text otherwise. An empty
+    /// `<input>` shows a dim placeholder overlay child (EditableText has no
+    /// placeholder of its own); a `<textarea>` seeds instead from its text
+    /// content when the DOM has no `value` (HTML textareas are seeded from
+    /// their children, not an attribute) and skips the overlay.
     fn sync_editable_input(
         &mut self,
         world: &mut World,
         dom: &superui_dom::Dom,
         input_node: NodeId,
         input_entity: Entity,
+        multiline: bool,
     ) {
-        let value = dom.value(input_node);
+        let dom_value = dom.value(input_node);
+        let value = if multiline && dom_value.is_empty() {
+            dom.text_content(input_node)
+        } else {
+            dom_value
+        };
         let max_chars = dom
             .get_attribute(input_node, "maxlength")
             .and_then(|s| s.parse::<usize>().ok());
+        let visible_lines = if multiline {
+            dom.get_attribute(input_node, "rows")
+                .and_then(|s| s.parse::<f32>().ok())
+        } else {
+            None
+        };
+        let layout = if multiline {
+            TextLayout::default()
+        } else {
+            TextLayout::no_wrap()
+        };
 
         // A text input must not be a plain `Text` node (bevy_ui won't border one),
         // and any stray managed value-text from the old path is gone.
@@ -318,20 +345,23 @@ impl UiRuntime {
             world.entity_mut(input_entity).remove::<Text>();
         }
 
-        // Ensure EditableText (single-line) + no-wrap layout on the element.
+        // Ensure EditableText + a wrapping (textarea) or no-wrap (input) layout
+        // on the element.
         if world.get::<EditableText>(input_entity).is_none() {
             let mut editable = EditableText::default();
-            editable.allow_newlines = false;
+            editable.allow_newlines = multiline;
             editable.editor_mut().set_text(&value);
             editable.max_characters = max_chars;
-            world
-                .entity_mut(input_entity)
-                .insert((editable, TextLayout::no_wrap()));
+            editable.visible_lines = visible_lines.or(editable.visible_lines);
+            world.entity_mut(input_entity).insert((editable, layout));
         } else {
             // Keep buffer in sync with the DOM value when JS/JSX changed it.
             let mut ed = world.get_mut::<EditableText>(input_entity).unwrap();
             if ed.max_characters != max_chars {
                 ed.max_characters = max_chars;
+            }
+            if multiline {
+                ed.visible_lines = visible_lines.or(ed.visible_lines);
             }
             if ed.value().to_string() != value {
                 ed.editor_mut().set_text(&value);
@@ -341,7 +371,11 @@ impl UiRuntime {
         // doc comment): this reconcile pass leaves them equal either way.
         self.editable_synced.insert(input_node, value.clone());
 
-        self.sync_placeholder_overlay(world, dom, input_node, input_entity, value.is_empty());
+        // Textareas render their own multiline content; only inputs get the
+        // single-line placeholder overlay.
+        if !multiline {
+            self.sync_placeholder_overlay(world, dom, input_node, input_entity, value.is_empty());
+        }
     }
 
     /// Show/hide the dim placeholder overlay: a non-pickable `Text` child present
