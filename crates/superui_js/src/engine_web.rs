@@ -101,7 +101,14 @@ impl WebEngine {
 
 impl JsEngine for WebEngine {
     fn eval(&mut self, script: &str) -> Result<(), String> {
-        js_sys::eval(script).map(|_| ()).map_err(err_to_string)
+        // Bind bare `document` to the shadow doc, not the page's real document:
+        // author/render code (`document.createElement`, `getElementById`) must
+        // hit superui's shadow DOM. Runtime/render publish their API via explicit
+        // `globalThis.*`, so only `document` is shadowed. dom.js is eval'd raw in
+        // `new` (it defines __ss_document); wrapping it would hide that.
+        let wrapped =
+            format!("(function(document){{\n{script}\n}}).call(globalThis, globalThis.__ss_document);");
+        js_sys::eval(&wrapped).map(|_| ()).map_err(err_to_string)
     }
 
     fn dispatch_event(

@@ -536,7 +536,11 @@
   }
 
   // ---- publish globals -------------------------------------------------------
-  globalThis.document = document;
+  // The __ss_* installs run before `globalThis.document`: in a browser that is a
+  // read-only getter whose assignment throws, and ordering keeps the host entry
+  // points defined regardless. __ss_document carries the shadow doc under a
+  // browser-safe name (WebEngine rebinds bare `document` to it per-eval).
+  globalThis.__ss_document = document;
   globalThis.__ss_root = root;
   globalThis.__ss_flush = flush;
   globalThis.__ss_dispatch = dispatch;
@@ -545,4 +549,10 @@
   globalThis.__ss_hasNode = function (id) {
     return nodesById.has(id >>> 0);
   };
+
+  // Boa/V8: succeeds, so bare `document` resolves to the shadow doc globally.
+  // Browser: throws (read-only getter) and is caught; WebEngine scopes it instead.
+  try {
+    globalThis.document = document;
+  } catch (e) {}
 })();
