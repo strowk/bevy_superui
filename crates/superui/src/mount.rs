@@ -180,9 +180,12 @@ impl Plugin for SuperUiPlugin {
                 // Ordering rule: JS-dispatching systems (drain_dom_events,
                 // keyboard_events, emit_bevy_inbox) must run BEFORE
                 // drain_bevy_outbox so that a bevy.send issued from a DOM-event
-                // or timer callback is triggered the same frame. (A game-event
-                // → bevy.on callback that itself calls bevy.send still lags one
-                // frame — acceptable Phase 1 trade-off.)
+                // callback is delivered the same frame. tick_timers runs AFTER
+                // drain_bevy_outbox, so a bevy.send from a timer callback is
+                // only drained next frame — its DOM mutations still reach the
+                // mirror this frame via reconcile, just not the ECS command.
+                // (A game-event → bevy.on callback that itself calls bevy.send
+                // still lags one frame too — acceptable Phase 1 trade-off.)
                 (
                     drain_dom_events_system,
                     keyboard_events_system,

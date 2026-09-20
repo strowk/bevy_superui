@@ -77,12 +77,6 @@ impl BoaEngine {
         engine
     }
 
-    /// Mutable access to the underlying Boa context.
-    #[deprecated(note = "removed once superui_api/supersolid_runtime move off Boa internals")]
-    pub fn context_mut(&mut self) -> &mut Context {
-        &mut self.context
-    }
-
     /// A clone of the shared DOM handle.
     pub fn dom(&self) -> Rc<RefCell<Dom>> {
         self.dom.clone()

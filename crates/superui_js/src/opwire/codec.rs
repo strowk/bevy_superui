@@ -77,6 +77,23 @@ impl Op {
         }
     }
 
+    /// This op's [`StrId`] operands, for decode's string-pool bounds check.
+    /// `None` slots are unused (fewer than 2 string operands, or none).
+    fn string_ids(&self) -> [Option<StrId>; 2] {
+        match *self {
+            Op::CreateElement { tag, .. } => [Some(tag), None],
+            Op::CreateText { data, .. } => [Some(data), None],
+            Op::SetAttribute { name, value, .. } => [Some(name), Some(value)],
+            Op::RemoveAttribute { name, .. } => [Some(name), None],
+            Op::SetProperty { name, value, .. } => [Some(name), Some(value)],
+            Op::SetStyle { prop, value, .. } => [Some(prop), Some(value)],
+            Op::SetText { data, .. } => [Some(data), None],
+            Op::InsertBefore { .. } => [None, None],
+            Op::RemoveChild { .. } => [None, None],
+            Op::SetListener { .. } => [None, None],
+        }
+    }
+
     fn from_operands(opcode: u8, operands: &[u32]) -> Op {
         match opcode {
             0 => Op::CreateElement { id: operands[0], tag: operands[1] },
@@ -102,6 +119,8 @@ pub enum CodecError {
     Truncated,
     /// An op record's opcode byte was outside `0..=9`.
     BadOpcode(u8),
+    /// An op referenced a [`StrId`] outside the declared string pool.
+    BadStringId(StrId),
 }
 
 /// Smallest possible encoded op record: 1 opcode byte + the smallest arity
@@ -180,7 +199,13 @@ impl OpBatch {
             for slot in operands.iter_mut().take(arity as usize) {
                 *slot = cursor.read_u32()?;
             }
-            ops.push(Op::from_operands(opcode, &operands[..arity as usize]));
+            let op = Op::from_operands(opcode, &operands[..arity as usize]);
+            for sid in op.string_ids().into_iter().flatten() {
+                if sid >= string_count {
+                    return Err(CodecError::BadStringId(sid));
+                }
+            }
+            ops.push(op);
         }
 
         let strings_cap = (string_count as usize).min(cursor.remaining() / MIN_STRING_RECORD_LEN);
@@ -309,6 +334,17 @@ mod tests {
         string_len_lies.extend_from_slice(&100u32.to_le_bytes());
         string_len_lies.extend_from_slice(b"short");
         assert_eq!(OpBatch::decode(&string_len_lies), Err(CodecError::Truncated));
+    }
+
+    #[test]
+    fn decode_rejects_out_of_range_string_id() {
+        // header: 1 op, 0 strings; CreateElement's `tag` StrId (1) has
+        // nothing to resolve against.
+        let mut bytes = [1u32.to_le_bytes(), 0u32.to_le_bytes()].concat();
+        bytes.push(0); // opcode for CreateElement { id, tag }
+        bytes.extend_from_slice(&2u32.to_le_bytes()); // id
+        bytes.extend_from_slice(&1u32.to_le_bytes()); // tag: StrId 1, out of range
+        assert_eq!(OpBatch::decode(&bytes), Err(CodecError::BadStringId(1)));
     }
 
     #[test]
