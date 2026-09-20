@@ -9,11 +9,11 @@ keywords = ["bevy", "ui", "javascript", "v8", "gamedev"]
 categories = ["game-development"]
 
 [dependencies]
-superui_dom = { path = "../superui_dom", version = "0.3.3" }
+superui_dom = { path = "../superui_dom", version = "0.3.4" }
 serde_json = "1"
 
 [dev-dependencies]
-superui_html = { path = "../superui_html", version = "0.3.3" }
+superui_html = { path = "../superui_html", version = "0.3.4" }
 
 # wasm-only. `wasm-bindgen`/`js-sys` back `engine-web`, the adapter that runs
 # the JS bundle in the BROWSER's own engine and calls into it over the wasm

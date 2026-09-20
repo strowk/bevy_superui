@@ -9,10 +9,10 @@ keywords = ["bevy", "ui", "dom", "javascript", "gamedev"]
 categories = ["game-development"]
 
 [dependencies]
-superui_dom = { path = "../superui_dom", version = "0.3.3" }
-superui_js = { path = "../superui_js", version = "0.3.3", default-features = false }
-superui_css = { path = "../superui_css", version = "0.3.3" }
-supersolid_runtime = { path = "../supersolid_runtime", version = "0.3.3", default-features = false }
+superui_dom = { path = "../superui_dom", version = "0.3.4" }
+superui_js = { path = "../superui_js", version = "0.3.4", default-features = false }
+superui_css = { path = "../superui_css", version = "0.3.4" }
+supersolid_runtime = { path = "../supersolid_runtime", version = "0.3.4", default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
