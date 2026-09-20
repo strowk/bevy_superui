@@ -18,9 +18,10 @@ use superui_js::JsEngine;
 #[derive(Component, Clone, Copy, Debug)]
 pub struct DomNode(pub NodeId);
 
-/// Marks the reconciler-managed child that renders a text `<input>`'s value or
-/// placeholder. It's kept non-pickable so clicks fall through to the input
-/// (container) itself, which is what receives keyboard focus.
+/// Marks a reconciler-managed overlay child: a checkbox's checkmark, or a
+/// text `<input>`'s dim placeholder (shown only while empty; `EditableText`
+/// renders the actual value). Non-pickable so clicks fall through to the
+/// input itself, which holds keyboard focus.
 #[derive(Component, Clone, Copy, Debug)]
 pub struct InputValueText;
 

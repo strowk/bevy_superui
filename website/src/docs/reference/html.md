@@ -13,9 +13,8 @@ Unknown tags render as plain boxes; unknown attributes are ignored.
 | `h1`–`h6` | ✅ | T0 | no built-in heading sizes; size via CSS `font-size` |
 | `ul` / `ol` / `li` | ✅ | T0 | plain flex boxes (no list markers yet) |
 | `button` | ✅ | T0 | clickable |
-| `input type=text` | ✅ | T1 | value renders as text (single-line, dim placeholder, blinking caret); typed via keyboard seam. Editing is **append + backspace at the end only** — see "full text input editing" below |
+| `input type=text` | ✅ | T1 | single-line; full cursor navigation, selection, OS clipboard, IME, unicode |
 | `input type=checkbox` | ✅ | T1 | toggles `checked`, drives `:checked`; shows a mark when checked |
-| full text input editing | 🟡 | T2 | **roadmap: fully functional `<input>` editing** — caret positioning (click-to-place, arrow keys, Home/End), text selection, and mid-string insert/delete. Today the caret is pinned to the end (append + backspace); the field already scrolls horizontally to keep that end in view |
 | `label` | ✅ | T1 | plain box (no implicit `for` focus yet) |
 | text nodes | ✅ | T0 | rendered as text |
 | semantic / block tags (`nav`, `header`, `footer`, `section`, `article`, `main`, `aside`, `blockquote`, `figure`) | ✅ | T0 | generic boxes, like `div` |
@@ -26,7 +25,8 @@ Unknown tags render as plain boxes; unknown attributes are ignored.
 | `a` (anchor) | 🟡 | T1 | renders; no navigation (no network) |
 | `img` | 🟡 | T2 | needs image asset wiring |
 | `form` | 🟡 | T1 | renders; no `submit` semantics yet |
-| `select` / `option` / `textarea` | 🟡 | T2 | |
+| `textarea` | ✅ | T1 | multiline; full cursor navigation, selection, OS clipboard, IME, unicode |
+| `select` / `option` | 🟡 | T2 | |
 | `table`/`tr`/`td` | 🟡 | T2 | via flex/grid approximation |
 | `svg` + children | 🟡 | T2 | AI emits it often; planned |
 | `canvas` | 🟡 | T3 | |

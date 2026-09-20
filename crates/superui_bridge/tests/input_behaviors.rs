@@ -1,7 +1,7 @@
 //! Regression tests for the browser-like input/checkbox/click polish that was
-//! previously only verified live via BRP: placeholder-vs-value color, the
-//! blinking caret while focused, single-line (no-wrap) input rendering, the
-//! checked-checkbox mark, and click-propagation stopping at the deepest DOM node.
+//! previously only verified live via BRP: placeholder-vs-value color,
+//! single-line (no-wrap) input rendering, the checked-checkbox mark, and
+//! click-propagation stopping at the deepest DOM node.
 mod support;
 use support::*;
 

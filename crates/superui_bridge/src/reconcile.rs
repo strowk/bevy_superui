@@ -348,10 +348,12 @@ impl UiRuntime {
         // Ensure EditableText + a wrapping (textarea) or no-wrap (input) layout
         // on the element.
         if world.get::<EditableText>(input_entity).is_none() {
-            let mut editable = EditableText::default();
-            editable.allow_newlines = multiline;
+            let mut editable = EditableText {
+                allow_newlines: multiline,
+                max_characters: max_chars,
+                ..Default::default()
+            };
             editable.editor_mut().set_text(&value);
-            editable.max_characters = max_chars;
             editable.visible_lines = visible_lines.or(editable.visible_lines);
             world.entity_mut(input_entity).insert((editable, layout));
         } else {
