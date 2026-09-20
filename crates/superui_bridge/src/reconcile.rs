@@ -291,7 +291,8 @@ impl UiRuntime {
     }
 
     /// Does `node` name a text-entry `<input>` (i.e. an `input` whose `type`
-    /// is not `checkbox`)? Such inputs get a managed visible text child.
+    /// is not `checkbox`)? Such inputs carry `EditableText` plus a
+    /// placeholder-only overlay child.
     fn is_text_input(dom: &superui_dom::Dom, node: NodeId) -> bool {
         matches!(dom.tag(node), Some("input"))
             && dom.get_attribute(node, "type") != Some("checkbox")
@@ -319,17 +320,15 @@ impl UiRuntime {
         multiline: bool,
     ) {
         let dom_value = dom.value(input_node);
-        let value = if multiline && dom_value.is_empty() {
-            dom.text_content(input_node)
-        } else {
-            dom_value
-        };
         let max_chars = dom
             .get_attribute(input_node, "maxlength")
             .and_then(|s| s.parse::<usize>().ok());
+        // `EditableText::default()`'s `visible_lines` is `Some(1.0)`, a one-line
+        // textarea; give multiline fields a taller default when `rows` is absent.
         let visible_lines = if multiline {
             dom.get_attribute(input_node, "rows")
                 .and_then(|s| s.parse::<f32>().ok())
+                .or(Some(3.0))
         } else {
             None
         };
@@ -347,17 +346,27 @@ impl UiRuntime {
 
         // Ensure EditableText + a wrapping (textarea) or no-wrap (input) layout
         // on the element.
-        if world.get::<EditableText>(input_entity).is_none() {
+        let synced = if world.get::<EditableText>(input_entity).is_none() {
+            // Seed from `text_content` only on first insert: a `<textarea>`'s
+            // initial value comes from its children, not a `value` attribute.
+            // Using this fallback on every pass would refill a cleared field,
+            // since `text_content` never changes after the field is edited.
+            let seed = if multiline && dom_value.is_empty() {
+                dom.text_content(input_node)
+            } else {
+                dom_value.clone()
+            };
             let mut editable = EditableText {
                 allow_newlines: multiline,
                 max_characters: max_chars,
                 ..Default::default()
             };
-            editable.editor_mut().set_text(&value);
+            editable.editor_mut().set_text(&seed);
             editable.visible_lines = visible_lines.or(editable.visible_lines);
             world.entity_mut(input_entity).insert((editable, layout));
+            seed
         } else {
-            // Keep buffer in sync with the DOM value when JS/JSX changed it.
+            // Keep buffer in sync with the live DOM value when JS/JSX changed it.
             let mut ed = world.get_mut::<EditableText>(input_entity).unwrap();
             if ed.max_characters != max_chars {
                 ed.max_characters = max_chars;
@@ -365,18 +374,19 @@ impl UiRuntime {
             if multiline {
                 ed.visible_lines = visible_lines.or(ed.visible_lines);
             }
-            if ed.value().to_string() != value {
-                ed.editor_mut().set_text(&value);
+            if ed.value().to_string() != dom_value {
+                ed.editor_mut().set_text(&dom_value);
             }
-        }
+            dom_value.clone()
+        };
         // Record what the DOM and buffer now agree on (see `editable_synced`'s
         // doc comment): this reconcile pass leaves them equal either way.
-        self.editable_synced.insert(input_node, value.clone());
+        self.editable_synced.insert(input_node, synced.clone());
 
         // Textareas render their own multiline content; only inputs get the
         // single-line placeholder overlay.
         if !multiline {
-            self.sync_placeholder_overlay(world, dom, input_node, input_entity, value.is_empty());
+            self.sync_placeholder_overlay(world, dom, input_node, input_entity, synced.is_empty());
         }
     }
 

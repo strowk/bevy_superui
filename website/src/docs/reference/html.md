@@ -47,7 +47,10 @@ Unknown tags render as plain boxes; unknown attributes are ignored.
 | `href` | 🟡 | T1 | stored; no navigation |
 | `disabled` | 🟡 | T1 | |
 | `for` (label) | 🟡 | T2 | no label→input focus yet |
-| `readonly` / `required` / `maxlength` / `min` / `max` / `step` / `name` | 🟡 | T2 | form field attributes |
+| `readonly` / `required` / `min` / `max` / `step` / `name` | 🟡 | T2 | form field attributes |
+| `maxlength` (input/textarea) | ✅ | T1 | caps character count |
+| `rows` (textarea) | ✅ | T1 | visible line count; defaults to 3 |
+| `autofocus` | ✅ | T1 | focuses the element on mount |
 | `tabindex` | 🟡 | T2 | focus order |
 | `hidden` | 🟡 | T2 | use `display: none` for now |
 | `src` (img) | 🟡 | T2 | needs image assets |
