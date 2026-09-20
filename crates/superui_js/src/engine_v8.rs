@@ -1,12 +1,12 @@
 //! The V8-backed [`JsEngine`] implementation: a `deno_core` [`JsRuntime`]
-//! running the same JS shadow DOM (`js/dom.js`) as the Boa backend, with an
-//! equivalent set of host imports.
+//! running the same JS shadow DOM (`js/dom.js`) as the web (browser) engine,
+//! with an equivalent set of host imports.
 //!
 //! The host functions the JS bundle needs (`console.*`, `__ss_measure`, the
 //! timer globals, `__superui_bevy_send`) are provided as `deno_core` ops and
 //! wired onto `globalThis` by a small JS bootstrap ([`BOOTSTRAP_JS`]) that
 //! forwards to `Deno.core.ops.*`. Per-frame state (timers + the Bevy-bound
-//! outbox) lives in the runtime's [`OpState`], mirroring Boa's `HostState`.
+//! outbox) lives in the runtime's [`OpState`].
 //! Single-threaded, native-only.
 
 use std::cell::RefCell;

@@ -1,4 +1,100 @@
-# Rows — the krausest rows benchmark on superui
+# superui benchmarks
+
+## JS engine
+
+superui selects its JS engine by build target; there is no runtime choice and
+no bundled interpreter:
+
+| Target | Engine |
+|---|---|
+| native | V8, via [`deno_core`](https://crates.io/crates/deno_core) |
+| `wasm32` (web) | the host browser's own JS engine |
+
+Boa (the pure-Rust interpreter superui used on native before 2026-09-20) has
+been removed from the workspace; `crates/superui_boa_engine` and
+`crates/superui_boa_parser` no longer exist. Tables further down this document
+that show a `JS (Boa)` column were captured before the removal and are kept as
+a historical record — see the provenance note on each.
+
+## Engine swap: Boa → V8
+
+Native `ui_ms`/`p50_ms`, same harness and sweep on both engines, captured back
+to back on the same machine (`--seed 1 --frames 120 --warmup 30`, debug
+build). Raw captures: `docs/superpowers/bench/raw/{horde,citadel,rows}-boa-baseline*.json`
+(Boa) and `{horde,citadel,rows}-v8.json` (V8).
+
+### horde (`enemy_cap` sweep, `--preset stress`)
+
+| enemy_cap | Boa `ui_ms` | V8 `ui_ms` | speedup |
+|---:|---:|---:|---:|
+| 60  | 59.09  | 11.48 | 5.1× |
+| 200 | 80.48  | 15.94 | 5.0× |
+| 400 | 81.73  | 15.57 | 5.2× |
+
+### citadel (`building_count` sweep)
+
+| building_count | Boa `ui_ms` | V8 `ui_ms` | speedup |
+|---:|---:|---:|---:|
+| 60  | 51.34  | 22.57 | 2.3× |
+| 120 | 81.38  | 40.80 | 2.0× |
+| 240 | 135.39 | 76.27 | 1.8× |
+
+### rows (1,000 rows, per-op `p50_ms`)
+
+| op | Boa | V8 | speedup |
+|---|---:|---:|---:|
+| `create` | 2680.81 | 867.69 | 3.09× |
+| `append1` | 424.29 | 348.09 | 1.22× |
+| `append1k` | 3053.30 | 1201.58 | 2.54× |
+| `insert1` | 448.30 | 345.77 | 1.30× |
+| `insertEvery2nd` | 1756.40 | 770.52 | 2.28× |
+| `updateText1` | 68.66 | 74.10 | 0.93× |
+| `updateTextEvery2nd` | 223.34 | 88.61 | 2.52× |
+| `updateColor1` | 68.10 | 74.43 | 0.92× |
+| `updateColorEvery2nd` | 201.38 | 115.77 | 1.74× |
+| `swap1` | 267.66 | 208.56 | 1.28× |
+| `swapEvery2nd` | 301.61 | 159.06 | 1.90× |
+| `remove1` | 277.49 | 217.69 | 1.27× |
+| `removeEvery2nd` | 281.52 | 181.13 | 1.55× |
+| `clear` | 260.67 | 102.96 | 2.53× |
+
+Most ops are faster on V8; `updateText1`/`updateColor1` (single-value touches,
+mostly `bevy_ui`/layout cost rather than JS) are ~8% slower — not every op
+improved, and this is reported as measured.
+
+## V8, release build (current numbers)
+
+The numbers a real (release) build ships at. No Boa release baseline exists
+for horde/citadel, so this table is V8-only, not a before/after. Raw:
+`{horde,citadel}-v8-release.json`, `rows-v8-release.json`.
+
+| example | sweep value | `ui_ms` | fps |
+|---|---:|---:|---:|
+| horde   | enemy_cap 60  | 2.52  | 370.1 |
+| horde   | enemy_cap 200 | 3.22  | 292.9 |
+| horde   | enemy_cap 400 | 3.17  | 296.7 |
+| citadel | building_count 60  | 6.01  | 162.4 |
+| citadel | building_count 120 | 13.58 | 73.0 |
+| citadel | building_count 240 | 26.51 | 37.5 |
+
+rows (1,000 rows, per-op `p50_ms`, release):
+
+| `create` | `append1` | `append1k` | `insert1` | `insertEvery2nd` | `updateText1` | `updateTextEvery2nd` | `updateColor1` | `updateColorEvery2nd` | `swap1` | `swapEvery2nd` | `remove1` | `removeEvery2nd` | `clear` |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 232.97 | 50.75 | 270.08 | 50.80 | 157.38 | 18.85 | 35.90 | 19.06 | 35.58 | 42.66 | 51.31 | 43.94 | 53.21 | 54.54 |
+
+No bevy_react comparison is measured in this repo; none is claimed here.
+
+## Rows — the krausest rows benchmark on superui
+
+**Historical, pre-swap capture.** Everything below this point (Provenance
+through Findings) was captured before the V8 swap, when Boa was superui's
+only native JS engine — the `JS (Boa)` column in the traced tables names a
+profiling stage bucket (`bucket_for` in `superui_bench_support`), not a claim
+that Boa is still in use. It measures the `vanilla`-vs-`supersolid` framework
+overhead question below, which is orthogonal to and unaffected by which JS
+engine executes the `supersolid` side — see "Engine swap" above for the
+Boa/V8 comparison.
 
 The [js-framework-benchmark](https://github.com/krausest/js-framework-benchmark)
 ("krausest") **rows** workload, run on superui in two backends (`examples/rows`).
@@ -11,7 +107,7 @@ rows rendered by `<For>`); the delta between them is the framework's overhead ov
 raw DOM manipulation. See `examples/rows/benchmark.md` for how to run this
 yourself.
 
-## Provenance
+### Provenance
 
 | | |
 |---|---|
@@ -51,7 +147,7 @@ traced tables is sound even though their commit differs from the other six files
 The old (pre-fix) 10k traced captures are kept for reference under
 `rows-results/pre-e502035-traced10k/` and are not cited anywhere in this document.
 
-## How to reproduce
+### How to reproduce
 
 Untraced pass (the citable numbers), one invocation per backend × scale:
 
@@ -88,7 +184,7 @@ cargo run --release -p rows --features bench,bevy/trace,bevy/debug --bin rows-be
 Raw output for every command above: `.superpowers/sdd/2026-08-07-rows-comparative-benchmark/rows-results/{untraced,traced}-{vanilla,supersolid}-{1000,10000}.{json,txt}`.
 Every number in this document appears there.
 
-## Untraced tables (the citable numbers)
+### Untraced tables (the citable numbers)
 
 `Rows` is the pre-op row count: 0 before `create`, 1000/10000 otherwise. `Nodes`
 counts row-attributable DOM elements only — each
@@ -104,7 +200,7 @@ every op, on both backends, at both scales (56/56 cells)**, which is what makes
 summing "the frames that did work" into a single `Total` legitimate rather than
 silently spreading the true cost across an unstated number of frames.
 
-### 1,000 rows
+#### 1,000 rows
 
 | Op | Rows | Nodes | Frames | vanilla p50 (ms) | supersolid p50 (ms) |
 |---|---:|---:|---:|---:|---:|
@@ -123,7 +219,7 @@ silently spreading the true cost across an unstated number of frames.
 | `removeEvery2nd` | 1000 | 4000 | 1 | 38.26 | 46.82 |
 | `clear` | 1000 | 0 | 1 | 38.26 | 52.20 |
 
-### 10,000 rows
+#### 10,000 rows
 
 | Op | Rows | Nodes | Frames | vanilla p50 (ms) | supersolid p50 (ms) |
 |---|---:|---:|---:|---:|---:|
@@ -146,7 +242,7 @@ silently spreading the true cost across an unstated number of frames.
 backends — confirmed by the `Nodes` column matching every neighbouring row
 (`80000`, `80008`, `88000`, …), not the 8,000 a 1,000-row `create` would produce.
 
-## Stage-bucket mapping
+### Stage-bucket mapping
 
 The traced pass sums per-system busy time (`bevy/trace` root spans) into six
 stages plus a residual, via `crates/superui_bench_support/src/profile.rs::bucket_for`:
@@ -161,7 +257,7 @@ stages plus a residual, via `crates/superui_bench_support/src/profile.rs::bucket
 | `bevy_ui other` | any system whose path contains `bevy_ui`, `bevy_text`, or `ui_stack` (text measurement/layout prep not captured above) |
 | `Other` | everything else (never dropped — see spec §5.1) |
 
-## Traced tables (the per-stage breakdown)
+### Traced tables (the per-stage breakdown)
 
 Every op below settled in the same 1 frame per rep as the untraced pass (per-rep
 frame counts are not separately printed by `--profile`, but the driver code path
@@ -180,7 +276,7 @@ schedule-runner/registry overhead outside the leaf systems). `JS (Boa)` is ~0.00
 ms for every op on **both** backends — see the caveat below explaining where
 that cost actually went before concluding either backend's JS is free.
 
-### 1,000 rows — vanilla
+#### 1,000 rows — vanilla
 
 | Op | Total (traced) ms | JS (Boa) | Reconcile | Flair cascade | Taffy | Marshal | bevy_ui other | Other |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -199,7 +295,7 @@ that cost actually went before concluding either backend's JS is free.
 | `removeEvery2nd` | 45.3 | 0.001 | 23.45 | 10.40 | 6.19 | 0.83 | 2.21 | 0.25 |
 | `clear` | 44.4 | 0.002 | 37.38 | 0.64 | 2.80 | 0.94 | 1.83 | 0.21 |
 
-### 1,000 rows — supersolid
+#### 1,000 rows — supersolid
 
 | Op | Total (traced) ms | JS (Boa) | Reconcile | Flair cascade | Taffy | Marshal | bevy_ui other | Other |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -218,7 +314,7 @@ that cost actually went before concluding either backend's JS is free.
 | `removeEvery2nd` | 53.4 | 0.001 | 22.88 | 9.86 | 6.52 | 9.70 | 2.17 | 0.23 |
 | `clear` | 85.4 | 0.001 | 38.52 | 0.70 | 2.71 | 40.48 | 1.77 | 0.20 |
 
-### 10,000 rows — vanilla
+#### 10,000 rows — vanilla
 
 Captured at `e502035` (the `button_for` fix), not `47a1576` — see the provenance
 note above.
@@ -240,7 +336,7 @@ note above.
 | `removeEvery2nd` | 560.7 | 0.001 | 289.70 | 102.98 | 110.28 | 18.94 | 29.62 | 0.59 |
 | `clear` | 579.5 | 0.001 | 498.73 | 3.51 | 43.88 | 20.25 | 15.89 | 0.46 |
 
-### 10,000 rows — supersolid
+#### 10,000 rows — supersolid
 
 Also captured at `e502035`, as a matched pair with the vanilla table above.
 
@@ -266,7 +362,7 @@ Also captured at `e502035`, as a matched pair with the vanilla table above.
 pass's own 1k→10k `create` ratios (9.8× vanilla, 10.6× supersolid) rather than the
 pre-fix traced capture's 1.007× (353.3 ms vs 350.7 ms, i.e. no scaling at all).
 
-## Traced-pass window vs. untraced `Total`
+### Traced-pass window vs. untraced `Total`
 
 How much bigger `Total (traced)` reads than the untraced pass's `Total`, for the
 identical op, same backend, same scale. **This table does not isolate tracing
@@ -285,7 +381,7 @@ shows is the settle frame and the node-count walk, not tracing. Never use a
 traced `Total (traced)` figure where the untraced `Total` belongs, and never cite
 this Δ column as "tracing overhead."
 
-### 1,000 rows
+#### 1,000 rows
 
 | Op | vanilla `Total` | vanilla `Total (traced)` | Δ | supersolid `Total` | supersolid `Total (traced)` | Δ |
 |---|---:|---:|---:|---:|---:|---:|
@@ -304,7 +400,7 @@ this Δ column as "tracing overhead."
 | `removeEvery2nd` | 38.26 | 45.3 | +7.0 (1.18×) | 46.82 | 53.4 | +6.6 (1.14×) |
 | `clear` | 38.26 | 44.4 | +6.2 (1.16×) | 52.20 | 85.4 | +33.2 (1.64×) |
 
-### 10,000 rows
+#### 10,000 rows
 
 Every `Total (traced)` column in this table is the `e502035` capture (see the
 provenance note); every `Total` column is still the `47a1576` untraced capture.
@@ -346,7 +442,7 @@ comparatively cheap single/half-table value touch and dominates the ratio. This
 window difference (not tracing) is also why the untraced pass, not the traced
 one, is what gets cited.
 
-## Caveats
+### Caveats
 
 - **`<Keyed>` is deliberately absent.** superui's `<Keyed>` control flow (used by
   horde's overlays) builds each row once and never reorders its DOM node —
@@ -428,7 +524,7 @@ one, is what gets cited.
   in ["Traced-pass window vs. untraced `Total`"](#traced-pass-window-vs-untraced-total)
   above; this document has not measured how large its effect is.
 
-## Findings
+### Findings
 
 **`updateTextEvery2nd` is supersolid's one clean, reproducible win** — faster
 than vanilla at both scales: 53.57 ms vs. 57.18 ms at 1k (0.937×) and 578.74 ms

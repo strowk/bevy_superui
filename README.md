@@ -197,11 +197,6 @@ details.
 - **[`bevy_flair`](https://github.com/eckz/bevy_flair)** — the crates under
   `crates/superui_flair_*`, licensed **MIT OR Apache-2.0** (same terms as this
   project).
-- **[Boa](https://github.com/boa-dev/boa)** — the crates under
-  `crates/superui_boa_engine` and `crates/superui_boa_parser`, which are forks of
-  `boa_engine` / `boa_parser` 0.21.1 licensed **Unlicense OR MIT**. They are
-  published under their own crate names to avoid clashing with upstream on
-  crates.io.
 
 ### Your contributions
 

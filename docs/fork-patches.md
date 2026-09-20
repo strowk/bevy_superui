@@ -13,7 +13,10 @@ Marker grammar (both lines required; use `//` in `.rs` files, `#` in `Cargo.toml
 Upstream bases:
 - bevy_flair 0.8.0 (bevy 0.19) (https://github.com/eckz/bevy_flair)
   - bevy_flair_core_macros 0.8.0
-- boa_engine / boa_parser 0.21.1 (https://github.com/boa-dev/boa)
+- ~~boa_engine / boa_parser 0.21.1 (https://github.com/boa-dev/boa)~~ — the
+  `superui_boa_engine`/`superui_boa_parser` forks were deleted in `986eba4`
+  (native JS moved to V8 via `deno_core`); the two patches below are kept for
+  history, not because the fork still exists.
 
 ## Patches
 
@@ -30,13 +33,13 @@ Upstream bases:
 - **Why:** Graceful degradation of malformed CSS (design §1). Regression test: `malformed_trailing_rule_degrades_without_panic` in `crates/superui_css/tests/selectors.rs`.
 - **Upstream status:** local (not yet submitted).
 
-### boa-icu-2x
+### boa-icu-2x (removed — crate deleted in `986eba4`)
 - **Crate/file:** `superui_boa_engine` — `Cargo.toml` (`icu_normalizer` dep); `superui_boa_parser` — `Cargo.toml` (`icu_properties` dep).
 - **What:** (a) Relax `icu_normalizer` and `icu_properties` version constraints from upstream `~2.0.0` (tilde = `>=2.0.0, <2.1`) to `>=2.0.0, <3` (accept the full icu 2.x family including 2.1). (b) Because boa's *optional* icu deps (behind `intl`/`intl_bundled`/`temporal`) still pin `~2.0.0` and drag the icu family back to 2.0, remove those optional icu deps and stub `intl`/`intl_bundled` as empty features; `temporal` likewise loses its `icu_calendar` dep. These features become non-functional in the fork.
 - **Why:** Bevy 0.19's Parley text backend requires `icu_normalizer ^2.1.1`; boa 0.21.1 pins `~2.0.0`, producing an unresolvable conflict. Boa's `main` branch has already relaxed this, but no 0.22 release exists yet. No workspace consumer enables `intl`/`intl_bundled`/`temporal`/`experimental`, so stubbing them is behavior-neutral for superui (verified: no `Intl.` usage anywhere in the JS/TSX/runtime).
 - **Upstream status:** local; drop the whole fork (restore upstream boa + full intl/temporal) when boa publishes an icu-2.1-compatible release (0.22+).
 
-### parser-stacker-grow
+### parser-stacker-grow (removed — crate deleted in `986eba4`)
 - **Crate/file:** `superui_boa_parser` — `src/parser/expression/assignment/mod.rs` (`AssignmentExpression::parse`); `Cargo.toml` (`stacker` dep + `boa_ast`/`boa_interner` dev-deps for the validation test).
 - **What:** Wrap the body of `AssignmentExpression::parse` in `stacker::maybe_grow(512 KiB red zone, 8 MiB new segment)`, adding an on-demand native-stack-growth checkpoint at each level of expression-nesting recursion.
 - **Why:** Boa's recursive-descent parser descends the full operator-precedence ladder — ~15 native `parse()` frames, ~85 KB of stack — for **every** level of expression nesting, and has no native-stack guard of its own (the `RuntimeLimits` recursion limit only bounds the *VM's* heap call-frames). Deeply-nested transpiler output (citadel's `app.js` nests ~24 deep; JSX lowers to nested `$ss.child(a, (()=>{…})())` call-args + arrow IIFEs) overflows small stacks: the ~1 MB Windows **main thread** (crashing a real windowed app at mount) and the ~2 MB default **libtest / bevy TaskPool worker** threads (crashing the headless `examples/citadel` mount tests). `maybe_grow` transparently relocates onto a fresh heap stack segment when the native stack runs low, so any thread stack size suffices and no `/STACK` / `RUST_MIN_STACK` build config is needed. Verified: citadel mount tests pass on a 512 KB thread; the isolated repro goes from overflow-at-depth-12 to depth-3000+ on a 1 MB stack. Works on wasm32 too (psm ships a switchable-stack `wasm32.o`, so `maybe_grow` is a real grow there, not a no-op). Validation test: `tests/deep_nesting_stack.rs` (aborts with a stack overflow if the wrapper is removed).

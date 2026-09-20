@@ -3,9 +3,9 @@ name = "superui_js"
 edition.workspace = true
 version.workspace = true
 license.workspace = true
-description = "JS engine boundary and Boa backend for bevy_superui"
+description = "JS engine boundary for bevy_superui (V8 native, browser web)"
 repository.workspace = true
-keywords = ["bevy", "ui", "javascript", "boa", "gamedev"]
+keywords = ["bevy", "ui", "javascript", "v8", "gamedev"]
 categories = ["game-development"]
 
 [dependencies]

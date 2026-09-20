@@ -1,5 +1,6 @@
-//! `superui_bridge` — the single coupling point between the web world (arena DOM
-//! + Boa JS + flair CSS) and the ECS world. It owns the per-frame reconciler
+//! `superui_bridge` — the single coupling point between the web world (arena
+//! DOM + JS — V8 native, the browser's engine on web — + flair CSS) and the
+//! ECS world. It owns the per-frame reconciler
 //! (DOM -> `bevy_ui` entities), the input -> DOM-event seam, and the `window.bevy`
 //! bridge. Only this crate and `superui` (and `superui_css`) depend on Bevy.
 
