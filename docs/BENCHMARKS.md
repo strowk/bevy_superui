@@ -18,9 +18,9 @@ a historical record — see the provenance note on each.
 
 ## Engine swap: Boa → V8
 
-Native `ui_ms`/`p50_ms`, same harness and sweep on both engines, captured back
-to back on the same machine (`--seed 1 --frames 120 --warmup 30`, debug
-build). Raw captures: `docs/superpowers/bench/raw/{horde,citadel,rows}-boa-baseline*.json`
+Native `ui_ms`/`p50_ms`, same harness and sweep on both engines, captured in
+the same session on the same machine (`--seed 1 --frames 120 --warmup 30`,
+debug build). Raw captures: `docs/superpowers/bench/raw/{horde,citadel,rows}-boa-baseline*.json`
 (Boa) and `{horde,citadel,rows}-v8.json` (V8).
 
 ### horde (`enemy_cap` sweep, `--preset stress`)
@@ -29,7 +29,7 @@ build). Raw captures: `docs/superpowers/bench/raw/{horde,citadel,rows}-boa-basel
 |---:|---:|---:|---:|
 | 60  | 59.09  | 11.48 | 5.1× |
 | 200 | 80.48  | 15.94 | 5.0× |
-| 400 | 81.73  | 15.57 | 5.2× |
+| 400 | 81.73  | 15.57 | 5.3× |
 
 ### citadel (`building_count` sweep)
 
@@ -50,13 +50,19 @@ build). Raw captures: `docs/superpowers/bench/raw/{horde,citadel,rows}-boa-basel
 | `insertEvery2nd` | 1756.40 | 770.52 | 2.28× |
 | `updateText1` | 68.66 | 74.10 | 0.93× |
 | `updateTextEvery2nd` | 223.34 | 88.61 | 2.52× |
-| `updateColor1` | 68.10 | 74.43 | 0.92× |
+| `updateColor1` | 68.10 | 74.43 | 0.91× |
 | `updateColorEvery2nd` | 201.38 | 115.77 | 1.74× |
 | `swap1` | 267.66 | 208.56 | 1.28× |
 | `swapEvery2nd` | 301.61 | 159.06 | 1.90× |
 | `remove1` | 277.49 | 217.69 | 1.27× |
 | `removeEvery2nd` | 281.52 | 181.13 | 1.55× |
 | `clear` | 260.67 | 102.96 | 2.53× |
+
+`rows-bench` rebuilds a fresh `App` (and JS engine) per rep, so every number
+above is dominated by isolate-bootstrap + full-bundle-eval cost, not
+steady-state render/reconcile cost. The Boa-vs-V8 ratios are still fair —
+both engines pay their own per-rep bootstrap — but do not read them as
+steady-state reconcile speedups.
 
 Most ops are faster on V8; `updateText1`/`updateColor1` (single-value touches,
 mostly `bevy_ui`/layout cost rather than JS) are ~8% slower — not every op

@@ -190,8 +190,8 @@ the de-facto standard in the Rust and Bevy ecosystems.
 
 ### Vendored third-party code
 
-This repository vendors forks of two upstream projects. Copyright over those
-portions remains with their original authors; see the upstream projects for
+This repository vendors a fork of one upstream project. Copyright over those
+portions remains with the original authors; see the upstream project for
 details.
 
 - **[`bevy_flair`](https://github.com/eckz/bevy_flair)** — the crates under
