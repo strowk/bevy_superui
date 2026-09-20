@@ -234,13 +234,14 @@ fn typing_into_focused_input_updates_value_and_fires_input() {
     app.update();
 
     for ch in ["h", "i"] {
+        // bevy_ui_widgets 0.19 inserts from KeyboardInput.text, not logical_key.
         app.world_mut().write_message(KeyboardInput {
             key_code: KeyCode::KeyH,
             logical_key: Key::Character(ch.into()),
             state: ButtonState::Pressed,
             repeat: false,
             window: Entity::PLACEHOLDER,
-            text: None,
+            text: Some(ch.into()),
         });
         app.update();
     }
@@ -822,7 +823,7 @@ fn edit_then_blur_fires_change() {
         state: ButtonState::Pressed,
         repeat: false,
         window: Entity::PLACEHOLDER,
-        text: None,
+        text: Some("x".into()), // bevy_ui_widgets 0.19 edits from .text
     });
     app.update(); app.update();
     app.world_mut().resource_mut::<InputFocus>().set(eb, FocusCause::Pressed);
