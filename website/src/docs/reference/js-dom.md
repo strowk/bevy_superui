@@ -58,15 +58,16 @@ supported. Tier T0–T3.
 | `event.type` / `defaultPrevented` | ✅ | T0 | |
 | `event.preventDefault` / `stopPropagation` / `stopImmediatePropagation` | ✅ | T0 | |
 | `click` | ✅ | T0 | on pointer click |
-| `change` (checkbox) | ✅ | T1 | fired on checkbox toggle |
-| `input` (text field) | ✅ | T1 | fired on character typed |
+| `change` | ✅ | T1 | fired on checkbox toggle; for text inputs, fired on blur if the value changed since focus |
+| `input` (text field) | ✅ | T1 | fired on text change; coalesced to one `input` per frame in which the text changed, not one per character |
 | `keydown` / `keyup` | ✅ | T1 | dispatched to focused node |
 | `event.key` | ✅ | T1 | key identity, e.g. `"Enter"`, `"Backspace"`, `"a"` |
 | `event.keyCode` / `code` | 🟡 | T1 | not exposed yet — use `event.key` |
 | `event.clientX/Y` / `offsetX/Y` | 🟡 | T2 | pointer coordinates not exposed yet |
 | `dispatchEvent` / `new CustomEvent` / `new Event` | 🟡 | T2 | |
 | `submit` | 🟡 | T1 | no `<form>` submit wiring yet |
-| `mouseover` / `mouseout` / `focus` / `blur` events | 🟡 | T1 | hover state exists in CSS; JS events roadmap |
+| `focus` / `blur` | ✅ | T1 | dispatched to the node as keyboard focus enters/leaves (via `InputFocus`) |
+| `mouseover` / `mouseout` | 🟡 | T1 | hover state exists in CSS; JS events roadmap |
 | `wheel` event | 🟡 | T2 | mouse-wheel scrolling works natively; the JS `wheel` event — and `preventDefault` on it to block scrolling — is roadmap |
 | `scroll` event | 🟡 | T2 | not fired when a scroll container scrolls yet |
 

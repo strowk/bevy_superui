@@ -30,3 +30,15 @@ At the same time top-level author-script errors are reported in WARN, so there i
 Normally browsers would surface uncaught listener errors to the console, but we currently do not always do that.
 
 Keep an eye on what your handlers do and if something there does not work, there is a chance you might have some simple typo in there that is silently dropped.
+
+## Text input gaps
+
+`<input type="text">` and `<textarea>` support cursor navigation, selection, OS
+clipboard, IME, and multiline editing, but a few things are still missing:
+
+- `el.focus()` / `el.blur()` are not yet JS-callable — focus is set by clicking or
+  pressing Tab, not scriptable.
+- Undo/redo is not implemented.
+- `type="password"` masking is not implemented.
+- `input` events are frame-coalesced: at most one `input` event per frame in which
+  the text changed, not one per keystroke.
