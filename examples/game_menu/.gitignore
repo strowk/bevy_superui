@@ -5,3 +5,5 @@
 # report is a per-run artifact).
 tests/report.html
 superui_modules/
+tests/__snapshots__/**/*.actual.png
+tests/__snapshots__/**/*.diff.png
