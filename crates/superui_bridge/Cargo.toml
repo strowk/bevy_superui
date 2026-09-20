@@ -26,6 +26,8 @@ bevy = { workspace = true, default-features = false, features = [
     "ui_picking",
     "bevy_input_focus",
     "default_font",
+    "bevy_ui_widgets",
+    "system_clipboard",
 ] }
 
 [dev-dependencies]

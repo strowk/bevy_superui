@@ -159,6 +159,10 @@ impl Plugin for SuperUiPlugin {
             .init_asset::<JsSource>()
             .register_asset_loader(HtmlLoader)
             .register_asset_loader(JsLoader);
+        if !app.is_plugin_added::<bevy::input_focus::InputDispatchPlugin>() {
+            app.add_plugins(bevy::input_focus::InputDispatchPlugin);
+        }
+        app.add_plugins(bevy::ui_widgets::EditableTextInputPlugin);
         #[cfg(not(target_arch = "wasm32"))]
         app.register_asset_loader(crate::assets::TsxLoader);
         app

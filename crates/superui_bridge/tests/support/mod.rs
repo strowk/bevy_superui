@@ -33,6 +33,10 @@ pub fn test_app() -> App {
     ));
     app.init_resource::<InputFocus>()
         .init_resource::<InputFocusVisible>();
+    if !app.is_plugin_added::<bevy::input_focus::InputDispatchPlugin>() {
+        app.add_plugins(bevy::input_focus::InputDispatchPlugin);
+    }
+    app.add_plugins(bevy::ui_widgets::EditableTextInputPlugin);
     app.finish();
     app
 }
