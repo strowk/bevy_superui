@@ -7,8 +7,9 @@ use std::rc::Rc;
 use bevy::asset::LoadState;
 use bevy::prelude::*;
 use superui_bridge::{
-    blink_caret_system, drain_bevy_outbox_system, drain_dom_events_system, emit_bevy_inbox_system,
-    keyboard_events_system, on_pointer_click, reconcile_system, PendingDomEvents, UiRuntime,
+    blink_caret_system, clamp_scroll_position_system, drain_bevy_outbox_system,
+    drain_dom_events_system, emit_bevy_inbox_system, keyboard_events_system, on_pointer_click,
+    reconcile_system, wheel_scroll_system, PendingDomEvents, UiRuntime,
 };
 use superui_css::style::StyleSheet;
 use superui_css::SuperUiCssPlugin;
@@ -164,6 +165,16 @@ impl Plugin for SuperUiPlugin {
             .init_resource::<PendingDomEvents>()
             .init_resource::<HotReloadFlags>()
             .add_observer(on_pointer_click)
+            // Wheel scrolling is pure Bevy (no UiRuntime), so it runs plainly in
+            // Update rather than inside the runtime_exists DOM chain below.
+            .add_systems(Update, wheel_scroll_system)
+            // Bevy's own layout pass clamps the scroll offset it renders with
+            // but not the `ScrollPosition` component itself, so this corrects
+            // the component once each frame's layout (`ComputedNode`) is known.
+            .add_systems(
+                PostUpdate,
+                clamp_scroll_position_system.in_set(bevy::ui::UiSystems::PostLayout),
+            )
             .add_systems(Update, mount_when_ready)
             .add_systems(Update, detect_hot_reload.after(mount_when_ready))
             // apply_hot_reload runs OUTSIDE the runtime_exists chain: for an HTML

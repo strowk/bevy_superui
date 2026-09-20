@@ -19,4 +19,4 @@ pub use events::{
 };
 pub use reconcile::reconcile_system;
 pub use runtime::{DomNode, InputValueText, PickingPolicy, UiRuntime};
-pub use scroll::wheel_scroll_system;
+pub use scroll::{clamp_scroll_position_system, wheel_scroll_system};

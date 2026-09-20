@@ -2,16 +2,6 @@
 
 SuperUI is quite a new project, so a certain amount of problems would be documented here until they are fixed.
 
-## No scrolling
-
-In web we've come to expect that we typically can get to content by scrolling overflowing elements.
-
-While `bevy_ui` has a certain machinery for scrolling support, `superui` does not insert `ScrollPosition` to any nodes it renders at the moment, hence scrolling cannot work as such.
-If you need scrolling, you would need to implement it manually and maybe do pagintation instead of that at least until SuperUI would support this.
-
-It's a bit tricky to fix correctly too, because we would need to either insert `ScrollPosition` to all nodes (like for `:hover` we inject `Hovered`) or somehow cleverly detect which need that in runtime (probably when css is computed).
-Either approaches would take some consideration especially in terms of how they would affect performance.
-
 ## No official teardown
 
 Despawning the `SuperUiRoot` entity (idiomatic Bevy) would cause panic about `The entity with ID ... does not exist`.
