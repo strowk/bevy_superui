@@ -287,3 +287,23 @@ fn append_child_reparents_entity_on_reconcile() {
     assert_eq!(child_count(&mut app, a_entity), 0);
     assert_eq!(child_count(&mut app, b_entity), 1);
 }
+
+#[test]
+fn element_nodes_get_a_scroll_position() {
+    use bevy::ui::ScrollPosition;
+
+    let dom = Rc::new(RefCell::new(superui_html::parse_document(
+        "<div class='scroller'><p>content</p></div>",
+    )));
+    let mut app = test_app();
+    let root = mount(&mut app, dom.clone());
+    app.update();
+
+    // The <div> element entity must carry a ScrollPosition so the wheel system
+    // has something to move; layout leaves it inert unless an axis is Scroll.
+    let div = app.world_mut().get::<Children>(root).unwrap()[0];
+    assert!(
+        app.world().get::<ScrollPosition>(div).is_some(),
+        "element node must have a ScrollPosition component"
+    );
+}
