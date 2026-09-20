@@ -8,6 +8,7 @@ mod bevy_bridge;
 mod events;
 mod reconcile;
 mod runtime;
+mod scroll;
 
 pub use bevy_bridge::{
     drain_bevy_outbox_system, emit_bevy_inbox_system, BevyBridgeRegistry, SuperUiApp,
@@ -18,3 +19,4 @@ pub use events::{
 };
 pub use reconcile::reconcile_system;
 pub use runtime::{DomNode, InputValueText, PickingPolicy, UiRuntime};
+pub use scroll::wheel_scroll_system;
