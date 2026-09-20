@@ -15,13 +15,10 @@ fn order_is_topological() {
     // superui_paths (leaf) must precede its dependents
     assert!(pos("superui_paths") < pos("supersolid"));
     assert!(pos("superui_paths") < pos("superui"));
-    // boa forks before their dependents
-    assert!(pos("superui_boa_parser") < pos("superui_boa_engine"));
-    assert!(pos("superui_boa_engine") < pos("superui_js"));
-    // all 18 publishable crates present, each once
-    assert_eq!(order.len(), 18);
+    // all 16 publishable crates present, each once
+    assert_eq!(order.len(), 16);
     let mut sorted = order.clone();
     sorted.sort_unstable();
     sorted.dedup();
-    assert_eq!(sorted.len(), 18, "publish_order has duplicates");
+    assert_eq!(sorted.len(), 16, "publish_order has duplicates");
 }
