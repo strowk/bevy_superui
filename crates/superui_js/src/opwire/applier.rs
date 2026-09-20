@@ -43,12 +43,30 @@ impl OpApplier {
 
     /// Applies every op in `batch`, in order.
     pub fn apply(&mut self, dom: &mut Dom, batch: &OpBatch) {
+        // Ids detached by a `RemoveChild` this batch; unbinding is deferred (below).
+        let mut removed: Vec<JsNodeId> = Vec::new();
         for op in &batch.ops {
-            self.apply_op(dom, batch, op);
+            self.apply_op(dom, batch, op, &mut removed);
+        }
+        // A node a `RemoveChild` detached may be re-attached by a later
+        // `InsertBefore` in the SAME batch: the identity-keyed list reconcile
+        // (`render.js` `reconcileArrays`) moves a node forward via
+        // `replaceChild(new, old)`, detaching `old` even though it reappears later
+        // in the new order. Unbinding on `RemoveChild` stranded that re-insert (its
+        // id no longer resolved, so the op was dropped and the node vanished from
+        // the render mirror). Defer the unbind here and apply it only to nodes left
+        // detached.
+        for js in removed {
+            if let Some(node) = self.map.node(js) {
+                if dom.parent(node).is_none() {
+                    self.map.unbind(js);
+                    self.listeners.remove(&node);
+                }
+            }
         }
     }
 
-    fn apply_op(&mut self, dom: &mut Dom, batch: &OpBatch, op: &Op) {
+    fn apply_op(&mut self, dom: &mut Dom, batch: &OpBatch, op: &Op, removed: &mut Vec<JsNodeId>) {
         match *op {
             Op::CreateElement { id, tag } => {
                 let node = dom.create_element(batch.resolve(tag));
@@ -103,8 +121,8 @@ impl OpApplier {
                 let Some(parent) = self.map.node(parent) else { return };
                 let Some(child) = self.map.node(node) else { return };
                 if dom.remove_child(parent, child).is_ok() {
-                    self.map.unbind(node);
-                    self.listeners.remove(&child);
+                    // Unbind is deferred to batch end so a re-insert this batch survives.
+                    removed.push(node);
                 }
             }
             Op::SetListener { id, has_listener } => {
