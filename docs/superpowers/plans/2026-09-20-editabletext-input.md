@@ -921,12 +921,15 @@ Delete `blink_caret_system` entirely. Add the two observers:
 /// Observer: an entity gained input focus. Dispatch DOM `focus`, snapshot the
 /// current value for change-on-blur, and update the runtime focus mirror.
 pub fn on_focus_gained(
-    ev: On<bevy::input_focus::FocusGained>,
+    mut ev: On<bevy::input_focus::FocusGained>,
     nodes: Query<&DomNode>,
     parents: Query<&ChildOf>,
     rt: Option<NonSendMut<UiRuntime>>,
     mut pending: ResMut<PendingDomEvents>,
 ) {
+    // FocusGained auto-propagates up the hierarchy; a global observer would
+    // otherwise fire once per ancestor. Handle the focused entity exactly once.
+    ev.propagate(false);
     let Some(mut rt) = rt else { return; };
     let Some(node) = resolve_dom_node(ev.entity, &nodes, &parents) else { return; };
     let cur = rt.dom.borrow().value(node);
@@ -940,12 +943,14 @@ pub fn on_focus_gained(
 /// Observer: an entity lost input focus. Fire `change` if its value changed since
 /// focus-gain, dispatch DOM `blur`, and clear the mirror if it pointed here.
 pub fn on_focus_lost(
-    ev: On<bevy::input_focus::FocusLost>,
+    mut ev: On<bevy::input_focus::FocusLost>,
     nodes: Query<&DomNode>,
     parents: Query<&ChildOf>,
     rt: Option<NonSendMut<UiRuntime>>,
     mut pending: ResMut<PendingDomEvents>,
 ) {
+    // FocusLost auto-propagates; handle the blurred entity exactly once.
+    ev.propagate(false);
     let Some(mut rt) = rt else { return; };
     let Some(node) = resolve_dom_node(ev.entity, &nodes, &parents) else { return; };
     if let Some((snap_node, old)) = rt.focus_snapshot.take() {
