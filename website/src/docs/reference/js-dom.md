@@ -66,7 +66,7 @@ supported. Tier T0–T3.
 | `event.clientX/Y` / `offsetX/Y` | 🟡 | T2 | pointer coordinates not exposed yet |
 | `dispatchEvent` / `new CustomEvent` / `new Event` | 🟡 | T2 | |
 | `submit` | 🟡 | T1 | no `<form>` submit wiring yet |
-| `focus` / `blur` | ✅ | T1 | dispatched to the node as keyboard focus enters/leaves (via `InputFocus`) |
+| `focus` / `blur` | ✅ | T1 | dispatched to the node as keyboard focus enters/leaves it |
 | `mouseover` / `mouseout` | 🟡 | T1 | hover state exists in CSS; JS events roadmap |
 | `wheel` event | 🟡 | T2 | mouse-wheel scrolling works natively; the JS `wheel` event — and `preventDefault` on it to block scrolling — is roadmap |
 | `scroll` event | 🟡 | T2 | not fired when a scroll container scrolls yet |
