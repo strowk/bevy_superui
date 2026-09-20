@@ -122,7 +122,7 @@
       set: function (target, prop, value) {
         var v = "" + value;
         target[prop] = v;
-        emit(OP_SET_STYLE, [node.id, intern("" + prop), intern(v)]);
+        emit(OP_SET_STYLE, [node._nid, intern("" + prop), intern(v)]);
         return true;
       },
     });
@@ -131,7 +131,7 @@
   // ---- Node ------------------------------------------------------------------
   function Node(nodeType, id) {
     this.nodeType = nodeType;
-    this.id = id;
+    this._nid = id;
     // Doubly-linked child model: structural ops and sibling traversal are O(1)
     // via these pointers (no flat array to indexOf/splice). All are maintained
     // by detach()/linkBefore() on every mutation.
@@ -209,14 +209,14 @@
   // so an id already rebound to a different node survives. Walks the linked
   // children (the subtree's internal pointers stay intact after an unlink).
   function forget(node) {
-    if (nodesById.get(node.id) === node) nodesById.delete(node.id);
+    if (nodesById.get(node._nid) === node) nodesById.delete(node._nid);
     for (var c = node.firstChild; c; c = c.nextSibling) forget(c);
   }
 
   proto.appendChild = function (child) {
     detach(child);
     linkBefore(this, child, null);
-    emit(OP_INSERT_BEFORE, [this.id, child.id, 0]);
+    emit(OP_INSERT_BEFORE, [this._nid, child._nid, 0]);
     return child;
   };
 
@@ -232,10 +232,10 @@
       // emit reference 0 so Rust appends too. A foreign reference in the op would
       // be dropped by the applier, desyncing JS from the render mirror.
       linkBefore(this, child, null);
-      emit(OP_INSERT_BEFORE, [this.id, child.id, 0]);
+      emit(OP_INSERT_BEFORE, [this._nid, child._nid, 0]);
     } else {
       linkBefore(this, child, reference);
-      emit(OP_INSERT_BEFORE, [this.id, child.id, reference.id]);
+      emit(OP_INSERT_BEFORE, [this._nid, child._nid, reference._nid]);
     }
     return child;
   };
@@ -243,7 +243,7 @@
   proto.removeChild = function (child) {
     if (child.parentNode === this) {
       detach(child);
-      emit(OP_REMOVE_CHILD, [this.id, child.id]);
+      emit(OP_REMOVE_CHILD, [this._nid, child._nid]);
       forget(child);
     }
     return child;
@@ -260,7 +260,7 @@
   proto.setAttribute = function (name, value) {
     var v = "" + value;
     this._attrs.set(name, v);
-    emit(OP_SET_ATTRIBUTE, [this.id, intern("" + name), intern(v)]);
+    emit(OP_SET_ATTRIBUTE, [this._nid, intern("" + name), intern(v)]);
   };
 
   proto.getAttribute = function (name) {
@@ -269,7 +269,7 @@
 
   proto.removeAttribute = function (name) {
     this._attrs.delete(name);
-    emit(OP_REMOVE_ATTRIBUTE, [this.id, intern("" + name)]);
+    emit(OP_REMOVE_ATTRIBUTE, [this._nid, intern("" + name)]);
   };
 
   proto.hasAttribute = function (name) {
@@ -299,7 +299,7 @@
       this._listeners.set(type, arr);
     }
     arr.push({ fn: fn, capture: !!capture });
-    if (!had) emit(OP_SET_LISTENER, [this.id, 1]);
+    if (!had) emit(OP_SET_LISTENER, [this._nid, 1]);
   };
 
   proto.removeEventListener = function (type, fn, capture) {
@@ -310,7 +310,7 @@
     for (var i = 0; i < arr.length; i++) {
       if (arr[i].fn === fn && arr[i].capture === cap) {
         arr.splice(i, 1);
-        if (!hasAnyListener(this)) emit(OP_SET_LISTENER, [this.id, 0]);
+        if (!hasAnyListener(this)) emit(OP_SET_LISTENER, [this._nid, 0]);
         return;
       }
     }
@@ -331,7 +331,7 @@
       if (this.nodeType !== TEXT_NODE) return;
       var v = "" + value;
       this._data = v;
-      emit(OP_SET_TEXT, [this.id, intern(v)]);
+      emit(OP_SET_TEXT, [this._nid, intern(v)]);
     },
   });
 
@@ -362,7 +362,77 @@
       this.firstChild = null;
       this.lastChild = null;
       this._data = v;
-      emit(OP_SET_TEXT, [this.id, intern(v)]);
+      emit(OP_SET_TEXT, [this._nid, intern(v)]);
+    },
+  });
+
+  // ---- reflected attribute properties: id / className ------------------------
+  // Reflect the `id`/`class` attributes so a bare `d.id = x` / `d.className = x`
+  // reaches getElementById, querySelectorAll and the render mirror, instead of
+  // becoming an inert own property the DOM never sees.
+  Object.defineProperty(proto, "id", {
+    get: function () {
+      return this.getAttribute("id") || "";
+    },
+    set: function (v) {
+      this.setAttribute("id", "" + v);
+    },
+  });
+
+  Object.defineProperty(proto, "className", {
+    get: function () {
+      return this.getAttribute("class") || "";
+    },
+    set: function (v) {
+      this.setAttribute("class", "" + v);
+    },
+  });
+
+  // ---- classList: a token view over the `class` attribute --------------------
+  // Recomputed per access; each mutation rewrites the whole attribute via
+  // setAttribute, so the op-wire carries the change.
+  function classTokens(node) {
+    var c = node.getAttribute("class");
+    if (!c) return [];
+    return c.split(/\s+/).filter(function (s) {
+      return s.length > 0;
+    });
+  }
+
+  Object.defineProperty(proto, "classList", {
+    get: function () {
+      var node = this;
+      return {
+        add: function () {
+          var list = classTokens(node);
+          for (var i = 0; i < arguments.length; i++) {
+            var t = "" + arguments[i];
+            if (list.indexOf(t) === -1) list.push(t);
+          }
+          node.setAttribute("class", list.join(" "));
+        },
+        remove: function () {
+          var list = classTokens(node);
+          for (var i = 0; i < arguments.length; i++) {
+            var idx = list.indexOf("" + arguments[i]);
+            if (idx !== -1) list.splice(idx, 1);
+          }
+          node.setAttribute("class", list.join(" "));
+        },
+        toggle: function (token, force) {
+          token = "" + token;
+          var list = classTokens(node);
+          var has = list.indexOf(token) !== -1;
+          var want = force === undefined ? !has : !!force;
+          if (want && !has) list.push(token);
+          else if (!want && has) list.splice(list.indexOf(token), 1);
+          node.setAttribute("class", list.join(" "));
+          return want;
+        },
+        contains: function (token) {
+          return classTokens(node).indexOf("" + token) !== -1;
+        },
+      };
     },
   });
 
@@ -373,7 +443,7 @@
     },
     set: function (v) {
       this._value = "" + v;
-      emit(OP_SET_PROPERTY, [this.id, intern("value"), intern("" + v)]);
+      emit(OP_SET_PROPERTY, [this._nid, intern("value"), intern("" + v)]);
     },
   });
 
@@ -383,7 +453,7 @@
     },
     set: function (b) {
       this._checked = !!b;
-      emit(OP_SET_PROPERTY, [this.id, intern("checked"), intern(b ? "true" : "false")]);
+      emit(OP_SET_PROPERTY, [this._nid, intern("checked"), intern(b ? "true" : "false")]);
     },
   });
 
@@ -402,7 +472,7 @@
   proto.getBoundingClientRect = function () {
     var measure = globalThis.__ss_measure;
     if (typeof measure !== "function") return zeroRect();
-    var r = measure(this.id);
+    var r = measure(this._nid);
     return r || zeroRect();
   };
 
@@ -422,14 +492,14 @@
   function createElement(tag) {
     var node = new Node(ELEMENT_NODE, nextId++);
     node.tagName = "" + tag;
-    emit(OP_CREATE_ELEMENT, [node.id, intern("" + tag)]);
+    emit(OP_CREATE_ELEMENT, [node._nid, intern("" + tag)]);
     return node;
   }
 
   function createTextNode(data) {
     var node = new Node(TEXT_NODE, nextId++);
     node._data = "" + data;
-    emit(OP_CREATE_TEXT, [node.id, intern("" + data)]);
+    emit(OP_CREATE_TEXT, [node._nid, intern("" + data)]);
     return node;
   }
 
@@ -442,6 +512,30 @@
     return null;
   }
 
+  // Single simple selector only: `#id`, `.class`, `tag`, or `*`. Enough for the
+  // querySelectorAll uses in author JS; compound/descendant selectors are not
+  // supported (Rust-side query_selector handles the richer cases the reconciler
+  // needs).
+  function matchesSimple(node, sel) {
+    if (node.nodeType !== ELEMENT_NODE) return false;
+    if (sel === "*") return true;
+    var head = sel.charAt(0);
+    if (head === ".") return classTokens(node).indexOf(sel.slice(1)) !== -1;
+    if (head === "#") return node.getAttribute("id") === sel.slice(1);
+    return !!node.tagName && node.tagName.toLowerCase() === sel.toLowerCase();
+  }
+
+  function queryAll(rootNode, sel) {
+    var out = [];
+    (function walk(n) {
+      for (var c = n.firstChild; c; c = c.nextSibling) {
+        if (matchesSimple(c, sel)) out.push(c);
+        walk(c);
+      }
+    })(rootNode);
+    return out;
+  }
+
   // The pre-bound root (jsId 1). No CreateElement op — the applier already has it.
   var root = new Node(ELEMENT_NODE, ROOT_ID);
   root.tagName = "#root";
@@ -451,6 +545,13 @@
     createTextNode: createTextNode,
     getElementById: function (id) {
       return walkById(root, "" + id);
+    },
+    querySelector: function (sel) {
+      var all = queryAll(root, "" + sel);
+      return all.length ? all[0] : null;
+    },
+    querySelectorAll: function (sel) {
+      return queryAll(root, "" + sel);
     },
     get body() {
       return root;
@@ -544,6 +645,21 @@
   globalThis.__ss_root = root;
   globalThis.__ss_flush = flush;
   globalThis.__ss_dispatch = dispatch;
+
+  // Host->shadow sync of the live IDL properties the host owns (a text field's
+  // `value`, a checkbox's `checked`): keyboard/pointer input mutates the render
+  // mirror, and the host pushes it here before dispatching an event so author
+  // listeners read the current value. No op is emitted — the mirror already holds
+  // these values; this only realigns the shadow. `entries`: [[jsId, value, checked]].
+  globalThis.__ss_set_live = function (entries) {
+    for (var i = 0; i < entries.length; i++) {
+      var e = entries[i];
+      var n = nodesById.get(e[0] >>> 0);
+      if (!n) continue;
+      n._value = "" + e[1];
+      n._checked = !!e[2];
+    }
+  };
 
   // Test hook: whether an id is still registered (see forget()).
   globalThis.__ss_hasNode = function (id) {

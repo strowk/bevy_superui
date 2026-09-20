@@ -201,6 +201,37 @@ impl UiRuntime {
         self.pump();
     }
 
+    /// Push host-owned live IDL state (a text field's `value`, a checkbox's
+    /// `checked`) from the render mirror into the JS shadow.
+    ///
+    /// Keyboard and pointer input mutate the mirror, not the shadow, so author
+    /// listeners would read stale `input.value`/`checked` unless the shadow is
+    /// realigned first. Emits no op — the mirror already holds these values, so
+    /// this is a one-way host->shadow sync, not a shadow mutation.
+    fn sync_live_props_to_shadow(&mut self) {
+        let mut entries: Vec<(u32, String, bool)> = Vec::new();
+        {
+            let d = self.dom.borrow();
+            let mut stack = vec![d.document()];
+            while let Some(n) = stack.pop() {
+                for &c in d.children(n) {
+                    stack.push(c);
+                }
+                if d.tag(n) == Some("input") {
+                    if let Some(js) = self.applier.js(n) {
+                        entries.push((js, d.value(n), d.checked(n)));
+                    }
+                }
+            }
+        }
+        if entries.is_empty() {
+            return;
+        }
+        if let Ok(json) = serde_json::to_string(&entries) {
+            let _ = self.engine.eval(&format!("__ss_set_live({json});"));
+        }
+    }
+
     /// Dispatch a DOM event at the render-mirror `node` by routing it to the
     /// shadow DOM's `jsId`, then flush any DOM mutations the listeners made.
     /// Returns whether `preventDefault()` was called. A node with no shadow
@@ -216,6 +247,7 @@ impl UiRuntime {
         let Some(js) = self.applier.js(node) else {
             return false;
         };
+        self.sync_live_props_to_shadow();
         let prevented = self.engine.dispatch_event(js, ty, key, bubbles, cancelable);
         self.pump();
         prevented

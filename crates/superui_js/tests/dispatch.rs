@@ -91,7 +91,7 @@ fn bubbling_listener_runs_and_prevent_default_is_reported() {
         child.addEventListener('click', function (e) { ran.push('child'); e.preventDefault(); });
         "#,
     );
-    let prevented = eval_bool(&mut ctx, "__ss_dispatch(child.id, 'click', null, true, true)");
+    let prevented = eval_bool(&mut ctx, "__ss_dispatch(child._nid, 'click', null, true, true)");
     assert!(prevented, "preventDefault() should be reported as prevented");
     assert_eq!(eval_string(&mut ctx, "ran.join(',')"), "child,parent");
 }
@@ -107,7 +107,7 @@ fn stop_propagation_prevents_parent() {
         child.addEventListener('click', function (e) { ran.push('child'); e.stopPropagation(); });
         "#,
     );
-    let prevented = eval_bool(&mut ctx, "__ss_dispatch(child.id, 'click', null, true, true)");
+    let prevented = eval_bool(&mut ctx, "__ss_dispatch(child._nid, 'click', null, true, true)");
     assert!(!prevented);
     assert_eq!(eval_string(&mut ctx, "ran.join(',')"), "child");
 }
@@ -124,7 +124,7 @@ fn capture_phase_runs_root_to_target() {
         child.addEventListener('click', function (e) { ran.push('child'); });
         "#,
     );
-    let _ = eval_bool(&mut ctx, "__ss_dispatch(child.id, 'click', null, true, true)");
+    let _ = eval_bool(&mut ctx, "__ss_dispatch(child._nid, 'click', null, true, true)");
     // capture (root->target, excl target) then target then bubble (target->root).
     assert_eq!(
         eval_string(&mut ctx, "ran.join(',')"),
@@ -144,7 +144,7 @@ fn non_bubbling_skips_bubble_phase() {
         child.addEventListener('click', function (e) { ran.push('child'); });
         "#,
     );
-    let _ = eval_bool(&mut ctx, "__ss_dispatch(child.id, 'click', null, false, true)");
+    let _ = eval_bool(&mut ctx, "__ss_dispatch(child._nid, 'click', null, false, true)");
     assert_eq!(eval_string(&mut ctx, "ran.join(',')"), "parent-capture,child");
 }
 
@@ -160,7 +160,7 @@ fn stop_immediate_propagation_halts_remaining_listeners_on_node() {
         parent.addEventListener('click', function (e) { ran.push('parent'); });
         "#,
     );
-    let _ = eval_bool(&mut ctx, "__ss_dispatch(child.id, 'click', null, true, true)");
+    let _ = eval_bool(&mut ctx, "__ss_dispatch(child._nid, 'click', null, true, true)");
     assert_eq!(eval_string(&mut ctx, "ran.join(',')"), "child1");
 }
 
@@ -177,7 +177,7 @@ fn removed_listener_does_not_fire() {
         child.addEventListener('click', function (e) { ran.push('child'); });
         "#,
     );
-    let _ = eval_bool(&mut ctx, "__ss_dispatch(child.id, 'click', null, true, true)");
+    let _ = eval_bool(&mut ctx, "__ss_dispatch(child._nid, 'click', null, true, true)");
     assert_eq!(eval_string(&mut ctx, "ran.join(',')"), "child");
 }
 
@@ -200,7 +200,7 @@ fn event_object_exposes_target_and_type_and_key() {
         });
         "#,
     );
-    let _ = eval_bool(&mut ctx, "__ss_dispatch(child.id, 'keydown', 'Enter', true, true)");
+    let _ = eval_bool(&mut ctx, "__ss_dispatch(child._nid, 'keydown', 'Enter', true, true)");
     assert_eq!(eval_string(&mut ctx, "seen.type"), "keydown");
     assert_eq!(eval_string(&mut ctx, "seen.key"), "Enter");
     assert!(eval_bool(&mut ctx, "seen.targetIsChild"));
@@ -216,6 +216,6 @@ fn prevent_default_ignored_when_not_cancelable() {
         &mut ctx,
         "child.addEventListener('click', function (e) { e.preventDefault(); });",
     );
-    let prevented = eval_bool(&mut ctx, "__ss_dispatch(child.id, 'click', null, true, false)");
+    let prevented = eval_bool(&mut ctx, "__ss_dispatch(child._nid, 'click', null, true, false)");
     assert!(!prevented, "preventDefault on a non-cancelable event has no effect");
 }

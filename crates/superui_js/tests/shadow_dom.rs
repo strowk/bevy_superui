@@ -342,7 +342,7 @@ fn removing_subtree_prunes_the_node_registry() {
         __ss_root.appendChild(p);
         p.appendChild(a);
         a.appendChild(b);
-        globalThis.pid = p.id; globalThis.aid = a.id; globalThis.bid = b.id;
+        globalThis.pid = p._nid; globalThis.aid = a._nid; globalThis.bid = b._nid;
         "#,
     );
     assert!(eval_bool(&mut ctx, "__ss_hasNode(pid) && __ss_hasNode(aid) && __ss_hasNode(bid)"));
@@ -363,7 +363,7 @@ fn text_content_setter_prunes_cleared_children() {
         globalThis.a = document.createElement('a');
         __ss_root.appendChild(p);
         p.appendChild(a);
-        globalThis.aid = a.id;
+        globalThis.aid = a._nid;
         "#,
     );
     assert!(eval_bool(&mut ctx, "__ss_hasNode(aid)"));
