@@ -4,8 +4,10 @@
 use bevy::ecs::message::MessageReader;
 use bevy::input::keyboard::{Key, KeyCode, KeyboardInput};
 use bevy::input::ButtonState;
+use bevy::input_focus::{FocusCause, InputFocus};
 use bevy::picking::events::{Click, Pointer};
 use bevy::prelude::*;
+use bevy::text::EditableText;
 use superui_dom::NodeId;
 
 use crate::runtime::{DomNode, UiRuntime};
@@ -66,6 +68,7 @@ pub fn on_pointer_click(
     parents: Query<&ChildOf>,
     dom: Option<NonSendMut<UiRuntime>>,
     mut pending: ResMut<PendingDomEvents>,
+    mut input_focus: ResMut<InputFocus>,
 ) {
     // No UI is mounted when `UiRuntime` is absent — e.g. the `superui_test --ui`
     // shell (which runs `SuperUiPlugin` in the same world as its egui runner)
@@ -90,7 +93,7 @@ pub fn on_pointer_click(
     // handle the click exactly once. (DOM-level bubbling is done separately by our
     // own W3C dispatch in `click_effect`/`dispatch_event`.)
     ev.propagate(false);
-    focus_and_click(node, &mut dom, &mut pending);
+    focus_and_click(node, &mut dom, &mut pending, &mut input_focus);
 }
 
 /// Walk up from `entity` to the nearest ancestor that carries a [`DomNode`],
@@ -117,10 +120,16 @@ pub fn resolve_dom_node(
 }
 
 /// Focus a resolved node and enqueue its `click` (+ checkbox `change`) DOM event.
-fn focus_and_click(node: NodeId, rt: &mut UiRuntime, pending: &mut PendingDomEvents) {
-    rt.focused = Some(node);
-    rt.caret_visible = true;
-    rt.caret_accum = 0.0;
+fn focus_and_click(
+    node: NodeId,
+    rt: &mut UiRuntime,
+    pending: &mut PendingDomEvents,
+    input_focus: &mut InputFocus,
+) {
+    rt.set_focus(Some(node));
+    if let Some(entity) = rt.entity_for(node) {
+        input_focus.set(entity, FocusCause::Pressed);
+    }
     click_effect(rt, node, pending);
 }
 
@@ -135,9 +144,10 @@ pub fn apply_pointer_click(
     parents: &Query<&ChildOf>,
     rt: &mut UiRuntime,
     pending: &mut PendingDomEvents,
+    input_focus: &mut InputFocus,
 ) {
     if let Some(node) = resolve_dom_node(entity, nodes, parents) {
-        focus_and_click(node, rt, pending);
+        focus_and_click(node, rt, pending, input_focus);
     }
 }
 
@@ -159,8 +169,8 @@ fn tag_of(dom: &superui_dom::Dom, node: NodeId) -> Option<String> {
 }
 
 /// Normal system: route keyboard input to the focused DOM node as `keydown`/`keyup`,
-/// and for printable characters typed into a text input, mutate the DOM `value` and
-/// fire `input` (Phase-1 text entry — TodoMVC needs Enter-to-add and character typing).
+/// plus Tab focus-cycling and Enter/Space activation for buttons and checkboxes.
+/// Text-input editing is `EditableText`'s job now (`editable_input_events_system`).
 ///
 /// `NonSendMut<UiRuntime>` forces main-thread execution.
 pub fn keyboard_events_system(
@@ -223,29 +233,6 @@ pub fn keyboard_events_system(
             let now = !rt.dom.borrow().checked(focused);
             rt.dom.borrow_mut().set_checked(focused, now);
             rt.dispatch_dom_event(focused, "change", None, true, false);
-            continue;
-        }
-
-        // Text input editing: Backspace deletes, printable chars append.
-        // `format!` is fine (Phase-1 caret is always end-of-field).
-        let is_text_input = tag.as_deref() == Some("input") && !is_checkbox;
-        if !is_text_input {
-            continue;
-        }
-        let mut changed = false;
-        if code == KeyCode::Backspace {
-            let mut cur = rt.dom.borrow().value(focused);
-            if cur.pop().is_some() {
-                rt.dom.borrow_mut().set_value(focused, &cur);
-                changed = true;
-            }
-        } else if let Some(text) = key_to_text(&key, code) {
-            let cur = rt.dom.borrow().value(focused);
-            rt.dom.borrow_mut().set_value(focused, &format!("{cur}{text}"));
-            changed = true;
-        }
-        if changed {
-            rt.dispatch_dom_event(focused, "input", None, true, false);
         }
     }
     if any {
@@ -324,4 +311,35 @@ pub fn drain_dom_events_system(world: &mut World) {
     }
     rt.dirty = true;
     world.insert_non_send(rt);
+}
+
+/// Emit DOM `input` (and mirror the buffer to DOM `value`) when a user edit
+/// changes an `EditableText`. Compares against `UiRuntime::editable_synced` (the
+/// value the reconciler last pushed into the buffer), not a live re-read of the
+/// DOM: `Changed<EditableText>` is observed one frame after the mutation, and by
+/// then the live DOM value may have moved again (e.g. a controlled input's next
+/// JS write), which would misread that unrelated move as the edit.
+pub fn editable_input_events_system(
+    q: Query<(&DomNode, &EditableText), Changed<EditableText>>,
+    rt: Option<NonSendMut<UiRuntime>>,
+    mut pending: ResMut<PendingDomEvents>,
+) {
+    let Some(mut rt) = rt else {
+        return;
+    };
+    let edits: Vec<(NodeId, String)> = q
+        .iter()
+        .map(|(d, e)| (d.0, e.value().to_string()))
+        .collect();
+    for (node, val) in edits {
+        let synced = rt.editable_synced.get(&node).cloned().unwrap_or_default();
+        if synced != val {
+            rt.dom.borrow_mut().set_value(node, &val);
+            rt.editable_synced.insert(node, val);
+            let mut ev = PendingDomEvent::new(node, "input");
+            ev.cancelable = false;
+            pending.0.push(ev);
+            rt.dirty = true;
+        }
+    }
 }

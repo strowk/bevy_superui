@@ -8,8 +8,8 @@ use std::collections::HashSet;
 use bevy::picking::hover::Hovered;
 use bevy::picking::Pickable;
 use bevy::prelude::*;
-use bevy::text::FontSize;
-use bevy::ui::{Checked, ComputedNode};
+use bevy::text::{EditableText, TextLayout};
+use bevy::ui::Checked;
 use superui_css::html_type_name;
 use superui_css::prelude::{AttributeList, ClassList, InlineStyle, Styled, TypeName};
 use superui_dom::{NodeId, NodeKind};
@@ -216,7 +216,7 @@ impl UiRuntime {
         // focus) and flair's inherited `color`/`font-size` make it visible,
         // unlike a separate child that intercepted picking and rendered white.
         if Self::is_text_input(dom, parent_node) {
-            self.sync_input_text(world, dom, parent_node, parent_entity);
+            self.sync_editable_input(world, dom, parent_node, parent_entity);
         } else if Self::is_checkbox(dom, parent_node) {
             self.sync_checkbox_mark(world, dom, parent_node, parent_entity);
         }
@@ -291,13 +291,12 @@ impl UiRuntime {
             && dom.get_attribute(node, "type") != Some("checkbox")
     }
 
-    /// Render a text `<input>`'s value/placeholder (with a blinking caret when
-    /// focused). The input element stays a **container** (so flair can give it a
-    /// border/background); the text lives in a managed child which is kept
-    /// non-pickable, so a click lands on the input itself and focuses it. The
-    /// child copies the input's resolved `TextColor`/`TextFont` so it's styled
-    /// like the field (a plain child wouldn't be in flair's cascade reliably).
-    fn sync_input_text(
+    /// A text-entry `<input>` carries `EditableText` on the element itself (flair
+    /// styles the same node). The DOM `value` is pushed into the buffer only when
+    /// it differs (so controlled inputs don't reset the cursor mid-edit); Bevy's
+    /// editor owns the text otherwise. An empty field shows a dim placeholder
+    /// overlay child (EditableText has no placeholder of its own).
+    fn sync_editable_input(
         &mut self,
         world: &mut World,
         dom: &superui_dom::Dom,
@@ -305,102 +304,93 @@ impl UiRuntime {
         input_entity: Entity,
     ) {
         let value = dom.value(input_node);
-        let is_empty = value.is_empty();
-        let focused = self.focused == Some(input_node);
-        let placeholder = || {
-            dom.get_attribute(input_node, "placeholder")
-                .unwrap_or("")
-                .to_string()
-        };
-        let content = if focused {
-            // Toggle the caret glyph between "|" and a same-width space so the
-            // field doesn't jitter as it blinks (the default font is monospace-ish).
-            let caret = if self.caret_visible { '|' } else { ' ' };
-            if value.is_empty() {
-                format!("{caret}{}", placeholder()) // caret at start, placeholder trailing
-            } else {
-                format!("{value}{caret}")
-            }
-        } else if value.is_empty() {
-            placeholder()
-        } else {
-            value
-        };
+        let max_chars = dom
+            .get_attribute(input_node, "maxlength")
+            .and_then(|s| s.parse::<usize>().ok());
 
-        // Single-line field: show only the tail that fits (like a real <input>
-        // scrolling horizontally to keep the caret in view) instead of wrapping
-        // and growing taller. Width comes from last frame's ComputedNode.
-        let content = {
-            // `FontSize` is now an enum (Px/Vw/Vh/Rem). For the rough estimate we
-            // only care about the pixel case; everything else falls back to 16 px.
-            let font_size = world
-                .get::<TextFont>(input_entity)
-                .map(|f| match f.font_size {
-                    FontSize::Px(px) => px,
-                    _ => 16.0,
-                })
-                .unwrap_or(16.0);
-            let avail = world
-                .get::<ComputedNode>(input_entity)
-                // physical size -> logical, minus ~padding(24)+border(4).
-                .map(|cn| (cn.size.x * cn.inverse_scale_factor - 28.0).max(0.0))
-                .unwrap_or(0.0);
-            fit_tail(content, avail, font_size)
-        };
-
-        // The input element must NOT be a Text node (bevy_ui won't draw a border
-        // on a text node). Strip any stray Text from an earlier build.
+        // A text input must not be a plain `Text` node (bevy_ui won't border one),
+        // and any stray managed value-text from the old path is gone.
         if world.get::<Text>(input_entity).is_some() {
             world.entity_mut(input_entity).remove::<Text>();
         }
 
-        // Placeholder renders dimmer than a typed value (like `::placeholder`).
-        // flair puts `TextColor` on DOM text nodes, not on this container, so the
-        // typed color falls back to a dark default when the input has none.
-        let color = if is_empty {
-            TextColor(Color::srgb(0.6, 0.6, 0.6))
-        } else {
+        // Ensure EditableText (single-line) + no-wrap layout on the element.
+        if world.get::<EditableText>(input_entity).is_none() {
+            let mut editable = EditableText::default();
+            editable.allow_newlines = false;
+            editable.editor_mut().set_text(&value);
+            editable.max_characters = max_chars;
             world
-                .get::<TextColor>(input_entity)
-                .copied()
-                .unwrap_or(TextColor(Color::srgb(0.2, 0.2, 0.2)))
-        };
-        let font = world.get::<TextFont>(input_entity).cloned();
+                .entity_mut(input_entity)
+                .insert((editable, TextLayout::no_wrap()));
+        } else {
+            // Keep buffer in sync with the DOM value when JS/JSX changed it.
+            let mut ed = world.get_mut::<EditableText>(input_entity).unwrap();
+            if ed.max_characters != max_chars {
+                ed.max_characters = max_chars;
+            }
+            if ed.value().to_string() != value {
+                ed.editor_mut().set_text(&value);
+            }
+        }
+        // Record what the DOM and buffer now agree on (see `editable_synced`'s
+        // doc comment): this reconcile pass leaves them equal either way.
+        self.editable_synced.insert(input_node, value.clone());
 
-        // Get-or-spawn the managed child.
-        let child = self
+        self.sync_placeholder_overlay(world, dom, input_node, input_entity, value.is_empty());
+    }
+
+    /// Show/hide the dim placeholder overlay: a non-pickable `Text` child present
+    /// only while the field is empty. Tracked in `input_texts` like the old child.
+    fn sync_placeholder_overlay(
+        &mut self,
+        world: &mut World,
+        dom: &superui_dom::Dom,
+        input_node: NodeId,
+        input_entity: Entity,
+        is_empty: bool,
+    ) {
+        let existing = self
             .input_texts
             .get(&input_node)
             .copied()
             .filter(|e| world.get_entity(*e).is_ok());
-        let child = match child {
-            Some(c) => {
-                if let Some(mut t) = world.get_mut::<Text>(c) {
-                    if t.0 != content {
-                        t.0 = content;
+        let placeholder = dom
+            .get_attribute(input_node, "placeholder")
+            .unwrap_or("")
+            .to_string();
+
+        if is_empty && !placeholder.is_empty() {
+            let child = match existing {
+                Some(c) => {
+                    if let Some(mut t) = world.get_mut::<Text>(c) {
+                        if t.0 != placeholder {
+                            t.0 = placeholder.clone();
+                        }
                     }
+                    c
                 }
-                c
+                None => {
+                    let c = world
+                        .spawn((
+                            Text::new(placeholder.clone()),
+                            TextColor(Color::srgb(0.6, 0.6, 0.6)),
+                            TextLayout::no_wrap(),
+                            InputValueText,
+                            Pickable::IGNORE,
+                        ))
+                        .id();
+                    self.input_texts.insert(input_node, c);
+                    c
+                }
+            };
+            world.entity_mut(input_entity).add_child(child);
+        } else if let Some(c) = existing {
+            if let Ok(ec) = world.get_entity_mut(c) {
+                ec.despawn();
             }
-            None => {
-                let c = world
-                    .spawn((Text::new(content), InputValueText, Pickable::IGNORE))
-                    .id();
-                self.input_texts.insert(input_node, c);
-                c
-            }
-        };
-        world.entity_mut(child).insert(color);
-        if let Some(font) = font {
-            world.entity_mut(child).insert(font);
+            self.input_texts.remove(&input_node);
         }
-        // Never wrap — a text field is a single line (belt-and-suspenders with the
-        // tail truncation above and `overflow: hidden` on the input).
-        world
-            .entity_mut(child)
-            .insert(TextLayout::no_wrap());
-        // Re-parent under the input (replace_children cleared it this pass).
-        world.entity_mut(input_entity).add_child(child);
     }
 
     /// Push an element node's identity/attributes/state onto its entity. Called
@@ -527,60 +517,3 @@ fn apply_picking(world: &mut World, entity: Entity, policy: PickingPolicy, inter
     }
 }
 
-/// A text `<input>` is single-line: instead of wrapping (which grows the field
-/// taller, textarea-style), show only the tail of `content` that fits on one
-/// line — the same "scroll horizontally to keep the caret end in view" behavior
-/// a real `<input>` has. `avail_px` is the inner width in logical px; `<= 0`
-/// means "layout hasn't run yet, show everything". `font_size * 0.62` estimates
-/// the average glyph advance for the default (roughly monospace) font.
-pub(crate) fn fit_tail(content: String, avail_px: f32, font_size: f32) -> String {
-    let max_chars = if avail_px <= 0.0 {
-        usize::MAX
-    } else {
-        (avail_px / (font_size * 0.62)).floor().max(1.0) as usize
-    };
-    let n = content.chars().count();
-    if n > max_chars {
-        // Keep the last `max_chars` characters (the caret/typing end).
-        content.chars().skip(n - max_chars).collect()
-    } else {
-        content
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::fit_tail;
-
-    #[test]
-    fn fit_tail_shows_everything_before_layout() {
-        // avail <= 0 => no ComputedNode yet => never truncate.
-        assert_eq!(fit_tail("hello world".into(), 0.0, 16.0), "hello world");
-        assert_eq!(fit_tail("hello world".into(), -1.0, 16.0), "hello world");
-    }
-
-    #[test]
-    fn fit_tail_keeps_the_tail_when_content_overflows() {
-        // font_size 10 -> glyph advance 6.2px; avail 31px -> floor(31/6.2)=5 chars.
-        // "0123456789" (10 chars) must scroll to its last 5: "56789".
-        assert_eq!(fit_tail("0123456789".into(), 31.0, 10.0), "56789");
-    }
-
-    #[test]
-    fn fit_tail_returns_content_unchanged_when_it_fits() {
-        // 5 chars fit in a 5-char budget exactly -> unchanged.
-        assert_eq!(fit_tail("12345".into(), 31.0, 10.0), "12345");
-    }
-
-    #[test]
-    fn fit_tail_shows_at_least_one_char_in_a_tiny_field() {
-        // Sub-glyph width still keeps the last character (max(1)).
-        assert_eq!(fit_tail("abc".into(), 1.0, 10.0), "c");
-    }
-
-    #[test]
-    fn fit_tail_counts_chars_not_bytes() {
-        // Multi-byte chars: 4 accented chars, budget 2 -> last 2 by char, not byte.
-        assert_eq!(fit_tail("áéíó".into(), 12.4, 10.0), "íó");
-    }
-}

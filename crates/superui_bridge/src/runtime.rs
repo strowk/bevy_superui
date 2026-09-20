@@ -83,6 +83,14 @@ pub struct UiRuntime {
     pub(crate) caret_accum: f32,
     /// Text-`<input>` node -> its managed [`InputValueText`] child entity.
     pub(crate) input_texts: HashMap<NodeId, Entity>,
+    /// EditableText `<input>` node -> the value the DOM and the `EditableText`
+    /// buffer last agreed on. `editable_input_events_system` compares against
+    /// this (not a live re-read of the DOM) to tell a real user edit from an
+    /// echo of the reconciler's own DOM->buffer push: Bevy's `Changed<T>` fires
+    /// on the frame *after* a mutation is observed, by which point the live DOM
+    /// value may have moved again (e.g. a controlled input's next JS write),
+    /// making a stale-vs-live comparison unreliable.
+    pub(crate) editable_synced: HashMap<NodeId, String>,
 }
 
 impl UiRuntime {
@@ -143,6 +151,7 @@ impl UiRuntime {
             caret_visible: true,
             caret_accum: 0.0,
             input_texts: HashMap::new(),
+            editable_synced: HashMap::new(),
         }
     }
 

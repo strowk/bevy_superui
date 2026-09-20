@@ -37,10 +37,9 @@ fn set_dirty(app: &mut App) {
     app.world_mut().non_send_mut::<UiRuntime>().dirty = true;
 }
 
-/// A text input's placeholder renders dimmer (grey) than a typed value (dark),
-/// mirroring `::placeholder`. The color lives on the managed text child.
+/// An empty input shows a dim-grey placeholder overlay child; a value removes it.
 #[test]
-fn placeholder_and_value_use_distinct_colors() {
+fn placeholder_overlay_shows_when_empty_and_hides_with_value() {
     let dom = Rc::new(RefCell::new(superui_html::parse_document(
         "<input id='t' type='text' placeholder='hint'>",
     )));
@@ -51,91 +50,30 @@ fn placeholder_and_value_use_distinct_colors() {
     let node = dom.borrow().get_element_by_id("t").unwrap();
     let input = entity_for(&mut app, node);
 
-    // Empty (placeholder shown) -> dim grey.
-    let child = managed_child(&mut app, input).expect("managed child");
-    let placeholder_color = app.world().get::<TextColor>(child).unwrap().0;
+    // Empty -> placeholder overlay present, dim grey.
+    let child = managed_child(&mut app, input).expect("placeholder overlay when empty");
+    assert_eq!(app.world().get::<Text>(child).unwrap().0, "hint");
     assert_eq!(
-        placeholder_color,
+        app.world().get::<TextColor>(child).unwrap().0,
         Color::srgb(0.6, 0.6, 0.6),
-        "empty input should render its placeholder in dim grey"
+        "placeholder renders dim grey"
     );
 
-    // Type a value -> darker text color (distinct from the placeholder grey).
+    // Non-empty -> overlay removed.
     dom.borrow_mut().set_value(node, "typed");
     set_dirty(&mut app);
     app.update();
-
-    let child = managed_child(&mut app, input).expect("managed child");
-    let value_color = app.world().get::<TextColor>(child).unwrap().0;
-    assert_ne!(
-        value_color, placeholder_color,
-        "a typed value must not use the placeholder color"
-    );
-    assert_eq!(
-        value_color,
-        Color::srgb(0.2, 0.2, 0.2),
-        "typed value should fall back to the dark default color"
+    assert!(
+        managed_child(&mut app, input).is_none(),
+        "a value removes the placeholder overlay"
     );
 }
 
-/// While focused, the field shows a caret bar after its value; blinking flips it
-/// to a same-width space. Unfocused fields show no caret. (Assertions target the
-/// caret at the tail — where it sits for a non-empty value — so they're robust to
-/// the single-line tail-truncation that the live layout may apply here.)
+/// A text input is single-line: EditableText on the element with allow_newlines
+/// false and a no-wrap TextLayout (the fix for the field growing like a textarea).
 #[test]
-fn focused_input_shows_and_blinks_a_caret() {
-    let dom = Rc::new(RefCell::new(superui_html::parse_document(
-        "<input id='t' type='text'>",
-    )));
-    let mut app = test_app();
-    let _root = mount(&mut app, dom.clone());
-    app.update();
-
-    let node = dom.borrow().get_element_by_id("t").unwrap();
-    dom.borrow_mut().set_value(node, "hi");
-    let input = entity_for(&mut app, node);
-
-    // Unfocused: no caret bar.
-    set_dirty(&mut app);
-    app.update();
-    let unfocused = child_text(&mut app, input);
-    assert!(
-        !unfocused.ends_with('|'),
-        "an unfocused field shows no caret bar, got {unfocused:?}"
-    );
-
-    // Focus it and re-render: caret is on immediately (set by focus).
-    app.world_mut()
-        .non_send_mut::<UiRuntime>()
-        .set_focus(Some(node));
-    set_dirty(&mut app);
-    app.update();
-    let focused_on = child_text(&mut app, input);
-    assert!(
-        focused_on.ends_with('|'),
-        "a focused field shows the caret bar after its value, got {focused_on:?}"
-    );
-
-    // Advance past the blink interval: caret toggles to a same-width space so the
-    // field doesn't jitter. `advance_caret` returns true when the glyph flipped.
-    let flipped = app
-        .world_mut()
-        .non_send_mut::<UiRuntime>()
-        .advance_caret(1.0);
-    assert!(flipped, "a full second must cross the ~2Hz blink boundary");
-    set_dirty(&mut app);
-    app.update();
-    let focused_off = child_text(&mut app, input);
-    assert!(
-        !focused_off.ends_with('|'),
-        "the blinked-off caret is a space, not a bar, got {focused_off:?}"
-    );
-}
-
-/// The managed text child never wraps — a text field is a single line (the fix
-/// for the input growing taller like a textarea as you type).
-#[test]
-fn input_text_child_is_single_line_no_wrap() {
+fn text_input_is_single_line_editable() {
+    use bevy::text::EditableText;
     let dom = Rc::new(RefCell::new(superui_html::parse_document(
         "<input id='t' type='text'>",
     )));
@@ -145,17 +83,11 @@ fn input_text_child_is_single_line_no_wrap() {
 
     let node = dom.borrow().get_element_by_id("t").unwrap();
     let input = entity_for(&mut app, node);
-    let child = managed_child(&mut app, input).expect("managed child");
 
-    let layout = app
-        .world()
-        .get::<TextLayout>(child)
-        .expect("managed text child has a TextLayout");
-    assert_eq!(
-        layout.linebreak,
-        bevy::text::LineBreak::NoWrap,
-        "input text must not wrap (single-line field)"
-    );
+    let editable = app.world().get::<EditableText>(input).expect("input has EditableText");
+    assert!(!editable.allow_newlines, "a text input does not allow newlines");
+    let layout = app.world().get::<TextLayout>(input).expect("input has TextLayout");
+    assert_eq!(layout.linebreak, bevy::text::LineBreak::NoWrap, "text input does not wrap");
 }
 
 /// A checked checkbox shows a mark as a managed child; unchecking removes it.
@@ -210,11 +142,11 @@ fn click_stops_propagation_and_focuses_the_deepest_dom_node() {
     use bevy::picking::pointer::{Location, PointerButton, PointerId};
     use bevy::window::{PrimaryWindow, WindowRef};
 
-    // A text `<input>` wrapped in a div. The input's managed value text is a
-    // reconciler-internal child with NO DomNode — exactly the entity a real
+    // A text `<input>` wrapped in a div. The empty field's placeholder overlay is
+    // a reconciler-internal child with NO DomNode — exactly the entity a real
     // click lands on. It must resolve up to the input (the ancestor walk).
     let dom = Rc::new(RefCell::new(superui_html::parse_document(
-        "<div id='wrap'><input id='field' type='text'></div>",
+        "<div id='wrap'><input id='field' type='text' placeholder='hint'></div>",
     )));
     let mut app = test_app();
     let _root = mount(&mut app, dom.clone());
@@ -230,8 +162,8 @@ fn click_stops_propagation_and_focuses_the_deepest_dom_node() {
         )
     };
     let field = entity_for(&mut app, field_node);
-    // The managed InputValueText child has no DomNode — the walk must climb to
-    // the input. (A plain text node WOULD carry its own DomNode and resolve to
+    // The placeholder overlay child has no DomNode — the walk must climb to the
+    // input. (A plain text node WOULD carry its own DomNode and resolve to
     // itself, which is why we use the managed child here.)
     let text_child = managed_child(&mut app, field).expect("input has a managed text child");
 

@@ -8,8 +8,9 @@ use bevy::asset::LoadState;
 use bevy::prelude::*;
 use superui_bridge::{
     blink_caret_system, clamp_scroll_position_system, drain_bevy_outbox_system,
-    drain_dom_events_system, emit_bevy_inbox_system, keyboard_events_system, on_pointer_click,
-    reconcile_system, wheel_scroll_system, PendingDomEvents, UiRuntime,
+    drain_dom_events_system, editable_input_events_system, emit_bevy_inbox_system,
+    keyboard_events_system, on_pointer_click, reconcile_system, wheel_scroll_system,
+    PendingDomEvents, UiRuntime,
 };
 use superui_css::style::StyleSheet;
 use superui_css::SuperUiCssPlugin;
@@ -202,6 +203,7 @@ impl Plugin for SuperUiPlugin {
                 // (A game-event → bevy.on callback that itself calls bevy.send
                 // still lags one frame too — acceptable Phase 1 trade-off.)
                 (
+                    editable_input_events_system,
                     drain_dom_events_system,
                     keyboard_events_system,
                     blink_caret_system,

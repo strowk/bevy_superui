@@ -157,7 +157,9 @@ fn syncs_identity_and_updates_in_place() {
 }
 
 #[test]
-fn input_renders_placeholder_then_value_as_text() {
+fn input_reconciles_editable_text_and_placeholder_overlay() {
+    use bevy::text::EditableText;
+
     let dom = Rc::new(RefCell::new(superui_html::parse_document(
         "<input id='new' type='text' placeholder='What needs doing?'>",
     )));
@@ -176,43 +178,42 @@ fn input_renders_placeholder_then_value_as_text() {
             .map(|(e, _)| e)
             .unwrap()
     };
-
-    // The input element is a CONTAINER (so it can render a border): its text lives
-    // in a managed `InputValueText` child, kept non-pickable so clicks focus the
-    // input. Read the child's text.
-    let text_of_input = |app: &mut App, input_ent: Entity| -> String {
-        let kids = app.world().get::<Children>(input_ent).unwrap().to_vec();
-        for k in kids {
-            if app.world().get::<superui_bridge::InputValueText>(k).is_some() {
-                return app.world().get::<Text>(k).unwrap().0.clone();
-            }
-        }
-        panic!("input has no managed InputValueText child");
+    let overlay = |app: &mut App, input_ent: Entity| -> Option<Entity> {
+        app.world().get::<Children>(input_ent).and_then(|kids| {
+            kids.iter()
+                .find(|&k| app.world().get::<superui_bridge::InputValueText>(k).is_some())
+        })
     };
-    // Not focused (no autofocus) -> shows the placeholder.
-    assert_eq!(text_of_input(&mut app, input_ent), "What needs doing?");
+
+    // Empty, not focused: the value lives on the element's own EditableText
+    // buffer, and the placeholder overlay child shows the hint.
+    let editable = app
+        .world()
+        .get::<EditableText>(input_ent)
+        .expect("input has EditableText");
+    assert_eq!(editable.value().to_string(), "");
+    let overlay_child = overlay(&mut app, input_ent).expect("placeholder overlay when empty");
+    assert_eq!(app.world().get::<Text>(overlay_child).unwrap().0, "What needs doing?");
 
     // Type into the DOM value (as the keyboard seam would) and re-reconcile.
     dom.borrow_mut().set_value(input_node, "Buy milk");
-    app.world_mut()
-        .non_send_mut::<UiRuntime>()
-        .dirty = true;
+    app.world_mut().non_send_mut::<UiRuntime>().dirty = true;
     app.update();
-    assert_eq!(text_of_input(&mut app, input_ent), "Buy milk");
+
+    let editable = app.world().get::<EditableText>(input_ent).unwrap();
+    assert_eq!(editable.value().to_string(), "Buy milk");
+    assert!(
+        overlay(&mut app, input_ent).is_none(),
+        "a value removes the placeholder overlay"
+    );
 
     // Fix invariants (why the live app can focus + type into a bordered input):
     // the input element carries `DomNode` and is NOT itself a text node (so
-    // bevy_ui draws its border); the managed child is non-pickable so a click
-    // falls through to the input for focus.
+    // bevy_ui draws its border); `EditableText` renders the value directly on it.
     assert!(app.world().get::<DomNode>(input_ent).is_some());
     assert!(
         app.world().get::<Text>(input_ent).is_none(),
         "input element must be a container (no Text on it) so its border renders"
-    );
-    let child = app.world().get::<Children>(input_ent).unwrap()[0];
-    assert!(
-        app.world().get::<bevy::picking::Pickable>(child).is_some(),
-        "managed text child must be Pickable::IGNORE so clicks focus the input"
     );
 }
 
