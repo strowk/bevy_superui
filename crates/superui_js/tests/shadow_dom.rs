@@ -370,6 +370,78 @@ fn insert_before_foreign_reference_appends_and_emits_zero() {
 }
 
 #[test]
+fn remove_child_updates_sibling_pointers_at_each_position() {
+    let mut ctx = ctx();
+    eval(
+        &mut ctx,
+        r#"
+        globalThis.p = document.createElement('p');
+        globalThis.a = document.createElement('a');
+        globalThis.b = document.createElement('b');
+        globalThis.c = document.createElement('c');
+        __ss_root.appendChild(p);
+        p.appendChild(a); p.appendChild(b); p.appendChild(c);
+        "#,
+    );
+    // Remove the middle: a <-> c must relink both directions.
+    eval(&mut ctx, "p.removeChild(b);");
+    assert!(eval_bool(&mut ctx, "a.nextSibling === c && c.previousSibling === a"));
+    assert!(eval_bool(&mut ctx, "b.parentNode === null && b.nextSibling === null && b.previousSibling === null"));
+    // Remove the first: firstChild advances, new first has no previous.
+    eval(&mut ctx, "p.removeChild(a);");
+    assert!(eval_bool(&mut ctx, "p.firstChild === c && c.previousSibling === null"));
+    // Remove the last: lastChild retreats to null (now empty).
+    eval(&mut ctx, "p.removeChild(c);");
+    assert!(eval_bool(&mut ctx, "p.firstChild === null && p.lastChild === null"));
+}
+
+#[test]
+fn next_sibling_after_mid_list_insert() {
+    let mut ctx = ctx();
+    eval(
+        &mut ctx,
+        r#"
+        globalThis.p = document.createElement('p');
+        globalThis.a = document.createElement('a');
+        globalThis.c = document.createElement('c');
+        globalThis.b = document.createElement('b');
+        __ss_root.appendChild(p);
+        p.appendChild(a); p.appendChild(c);
+        p.insertBefore(b, c);
+        "#,
+    );
+    // Order must be a, b, c with fully consistent forward/backward links.
+    assert!(eval_bool(&mut ctx, "a.nextSibling === b && b.nextSibling === c && c.nextSibling === null"));
+    assert!(eval_bool(&mut ctx, "c.previousSibling === b && b.previousSibling === a && a.previousSibling === null"));
+    assert!(eval_bool(&mut ctx, "p.firstChild === a && p.lastChild === c"));
+}
+
+#[test]
+fn large_build_then_clear_stays_consistent() {
+    // Correctness at scale for the O(1) structural ops, not a perf test. Build and
+    // clear run in one eval, reporting counts on globals: Boa iterates a top-level
+    // for-loop only once when it runs in a later, separate eval.
+    let mut ctx = ctx();
+    eval(
+        &mut ctx,
+        r#"
+        globalThis.p = document.createElement('p');
+        __ss_root.appendChild(p);
+        for (var i = 0; i < 500; i++) p.appendChild(document.createElement('div'));
+        globalThis.builtCount = p.childNodes.length;
+        // clear via childNodes snapshot + removeChild, as render.js's clearChildren does
+        var ks = p.childNodes;
+        for (var j = 0; j < ks.length; j++) p.removeChild(ks[j]);
+        globalThis.clearedCount = p.childNodes.length;
+        globalThis.endsNull = p.firstChild === null && p.lastChild === null;
+        "#,
+    );
+    assert_eq!(eval_string(&mut ctx, "'' + builtCount"), "500");
+    assert_eq!(eval_string(&mut ctx, "'' + clearedCount"), "0");
+    assert!(eval_bool(&mut ctx, "endsNull"));
+}
+
+#[test]
 fn data_property_is_ignored_on_elements() {
     let mut ctx = ctx();
     eval(

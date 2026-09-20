@@ -132,8 +132,14 @@
   function Node(nodeType, id) {
     this.nodeType = nodeType;
     this.id = id;
+    // Doubly-linked child model: structural ops and sibling traversal are O(1)
+    // via these pointers (no flat array to indexOf/splice). All are maintained
+    // by detach()/linkBefore() on every mutation.
     this.parentNode = null;
-    this._children = [];
+    this.firstChild = null;
+    this.lastChild = null;
+    this.previousSibling = null;
+    this.nextSibling = null;
     this._attrs = new Map();
     this._data = "";        // text node data
     this._listeners = null; // { type: [ {fn, capture} ] } — lazily created
@@ -145,52 +151,71 @@
 
   var proto = Node.prototype;
 
-  // childNodes: array-like snapshot (own .length + integer indexing). A copy so
-  // callers iterating while mutating (clearChildren) are not tripped by splices.
+  // childNodes: array-like snapshot (own .length + integer indexing). Built by
+  // walking firstChild->nextSibling so it is a copy: callers iterating while
+  // mutating (clearChildren) are not tripped by concurrent unlinks.
   Object.defineProperty(proto, "childNodes", {
     get: function () {
-      return this._children.slice();
+      var out = [];
+      for (var c = this.firstChild; c; c = c.nextSibling) out.push(c);
+      return out;
     },
   });
 
-  Object.defineProperty(proto, "firstChild", {
-    get: function () {
-      return this._children.length ? this._children[0] : null;
-    },
-  });
-
-  Object.defineProperty(proto, "nextSibling", {
-    get: function () {
-      var p = this.parentNode;
-      if (!p) return null;
-      var idx = p._children.indexOf(this);
-      return idx >= 0 && idx + 1 < p._children.length ? p._children[idx + 1] : null;
-    },
-  });
+  // firstChild, lastChild, previousSibling, nextSibling, parentNode are plain
+  // instance pointers (set in the constructor, maintained below) — O(1) reads.
 
   // ---- structural mutations --------------------------------------------------
   // Unlink from the current parent without emitting an op: a move is one
   // InsertBefore, and Rust's insert_before/append_child re-parent on their side.
+  // O(1): splice the sibling pointers and fix the parent's first/last ends.
   function detach(child) {
     var old = child.parentNode;
-    if (old) {
-      var i = old._children.indexOf(child);
-      if (i >= 0) old._children.splice(i, 1);
-      child.parentNode = null;
+    if (!old) return;
+    var prev = child.previousSibling;
+    var next = child.nextSibling;
+    if (prev) prev.nextSibling = next;
+    else old.firstChild = next;
+    if (next) next.previousSibling = prev;
+    else old.lastChild = prev;
+    child.parentNode = null;
+    child.previousSibling = null;
+    child.nextSibling = null;
+  }
+
+  // Link `child` before `reference` (append when reference is null). O(1).
+  // Assumes `child` is already detached and `reference` (when given) is a child
+  // of `parent`.
+  function linkBefore(parent, child, reference) {
+    child.parentNode = parent;
+    if (reference == null) {
+      var last = parent.lastChild;
+      child.previousSibling = last;
+      child.nextSibling = null;
+      if (last) last.nextSibling = child;
+      else parent.firstChild = child;
+      parent.lastChild = child;
+    } else {
+      var prev = reference.previousSibling;
+      child.previousSibling = prev;
+      child.nextSibling = reference;
+      reference.previousSibling = child;
+      if (prev) prev.nextSibling = child;
+      else parent.firstChild = child;
     }
   }
 
   // Drop a removed node and its descendants from the id registry. Identity-guarded
-  // so an id already rebound to a different node survives.
+  // so an id already rebound to a different node survives. Walks the linked
+  // children (the subtree's internal pointers stay intact after an unlink).
   function forget(node) {
     if (nodesById.get(node.id) === node) nodesById.delete(node.id);
-    for (var i = 0; i < node._children.length; i++) forget(node._children[i]);
+    for (var c = node.firstChild; c; c = c.nextSibling) forget(c);
   }
 
   proto.appendChild = function (child) {
     detach(child);
-    this._children.push(child);
-    child.parentNode = this;
+    linkBefore(this, child, null);
     emit(OP_INSERT_BEFORE, [this.id, child.id, 0]);
     return child;
   };
@@ -202,26 +227,22 @@
     // stale `reference` lookup would re-append it, corrupting reorders.
     if (child === reference) return child;
     detach(child);
-    var idx = reference == null ? -1 : this._children.indexOf(reference);
-    if (idx < 0) {
+    if (reference == null || reference.parentNode !== this) {
       // Null reference, or a reference that is not this node's child: append, and
       // emit reference 0 so Rust appends too. A foreign reference in the op would
       // be dropped by the applier, desyncing JS from the render mirror.
-      this._children.push(child);
+      linkBefore(this, child, null);
       emit(OP_INSERT_BEFORE, [this.id, child.id, 0]);
     } else {
-      this._children.splice(idx, 0, child);
+      linkBefore(this, child, reference);
       emit(OP_INSERT_BEFORE, [this.id, child.id, reference.id]);
     }
-    child.parentNode = this;
     return child;
   };
 
   proto.removeChild = function (child) {
-    var i = this._children.indexOf(child);
-    if (i >= 0) {
-      this._children.splice(i, 1);
-      child.parentNode = null;
+    if (child.parentNode === this) {
+      detach(child);
       emit(OP_REMOVE_CHILD, [this.id, child.id]);
       forget(child);
     }
@@ -319,20 +340,27 @@
       if (this.nodeType === TEXT_NODE) return this._data;
       // An element with children reflects their concatenated text; with none, it
       // reflects any text set directly via the textContent setter (stored in _data).
-      if (this._children.length === 0) return this._data;
+      if (this.firstChild === null) return this._data;
       var acc = "";
-      for (var i = 0; i < this._children.length; i++) acc += this._children[i].textContent;
+      for (var c = this.firstChild; c; c = c.nextSibling) acc += c.textContent;
       return acc;
     },
     set: function (value) {
       var v = "" + value;
       // Clear existing children (no per-child RemoveChild op: SetText on the
-      // parent replaces the subtree on the Rust side).
-      for (var i = 0; i < this._children.length; i++) {
-        this._children[i].parentNode = null;
-        forget(this._children[i]);
+      // parent replaces the subtree on the Rust side). Unlink each and prune its
+      // subtree from the registry; grab nextSibling before clearing pointers.
+      var c = this.firstChild;
+      while (c) {
+        var next = c.nextSibling;
+        c.parentNode = null;
+        c.previousSibling = null;
+        c.nextSibling = null;
+        forget(c);
+        c = next;
       }
-      this._children = [];
+      this.firstChild = null;
+      this.lastChild = null;
       this._data = v;
       emit(OP_SET_TEXT, [this.id, intern(v)]);
     },
@@ -407,8 +435,8 @@
 
   function walkById(node, id) {
     if (node.nodeType === ELEMENT_NODE && node.getAttribute("id") === id) return node;
-    for (var i = 0; i < node._children.length; i++) {
-      var hit = walkById(node._children[i], id);
+    for (var c = node.firstChild; c; c = c.nextSibling) {
+      var hit = walkById(c, id);
       if (hit) return hit;
     }
     return null;
