@@ -44,6 +44,8 @@ supported. Tier T0–T3.
 | `style.<camelCase>` (`el.style.color = …`) | 🟡 | T1 | use `setProperty` for now |
 | `dataset` | 🟡 | T2 | use `getAttribute("data-*")` for now |
 | `getBoundingClientRect()` / `getComputedStyle()` | 🟡 | T2 | needs post-layout read-back |
+| `scrollTop` / `scrollLeft` (get/set) | 🟡 | T2 | programmatic scroll offset — mouse-wheel scrolling works natively |
+| `scrollTo` / `scrollBy` / `scrollIntoView` | 🟡 | T2 | |
 | `focus()` / `blur()` | 🟡 | T1 | focus is set on click today |
 
 ## Events
@@ -65,6 +67,8 @@ supported. Tier T0–T3.
 | `dispatchEvent` / `new CustomEvent` / `new Event` | 🟡 | T2 | |
 | `submit` | 🟡 | T1 | no `<form>` submit wiring yet |
 | `mouseover` / `mouseout` / `focus` / `blur` events | 🟡 | T1 | hover state exists in CSS; JS events roadmap |
+| `wheel` event | 🟡 | T2 | mouse-wheel scrolling works natively; the JS `wheel` event — and `preventDefault` on it to block scrolling — is roadmap |
+| `scroll` event | 🟡 | T2 | not fired when a scroll container scrolls yet |
 
 ## Globals
 
