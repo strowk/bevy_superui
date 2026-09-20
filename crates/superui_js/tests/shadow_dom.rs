@@ -347,10 +347,59 @@ fn removing_subtree_prunes_the_node_registry() {
     );
     assert!(eval_bool(&mut ctx, "__ss_hasNode(pid) && __ss_hasNode(aid) && __ss_hasNode(bid)"));
     eval(&mut ctx, "__ss_root.removeChild(p);");
+    // forget() is deferred to the flush boundary, so the subtree is still
+    // registered until __ss_flush runs.
+    assert!(eval_bool(&mut ctx, "__ss_hasNode(pid)"));
+    let _ = flush(&mut ctx);
     assert!(eval_bool(
         &mut ctx,
         "!__ss_hasNode(pid) && !__ss_hasNode(aid) && !__ss_hasNode(bid)"
     ));
+}
+
+#[test]
+fn reordered_row_with_listener_stays_dispatchable_after_flush() {
+    // A keyed row moved forward is removed then re-inserted in one tick (render.js
+    // `reconcileArrays` via `replaceChild`). Forgetting it on removeChild strands
+    // the re-insert: ids are monotonic, so a later `__ss_dispatch` no-ops forever.
+    let mut ctx = ctx();
+    eval(
+        &mut ctx,
+        r#"
+        globalThis.p = document.createElement('ul');
+        globalThis.a = document.createElement('li'); // keyed row carrying the listener
+        globalThis.b = document.createElement('li');
+        __ss_root.appendChild(p);
+        p.appendChild(a);
+        p.appendChild(b);
+        globalThis.aid = a._nid;
+        globalThis.fired = 0;
+        a.addEventListener('click', function () { fired++; });
+        "#,
+    );
+    let _ = flush(&mut ctx); // reorder starts in a fresh tick
+
+    // replaceChild(b, a) detaches a (insertBefore(b,a) + removeChild(a)); re-append a.
+    eval(
+        &mut ctx,
+        r#"
+        p.replaceChild(b, a); // tree: [b]
+        p.insertBefore(a, null); // tree: [b, a]
+        "#,
+    );
+    assert!(eval_bool(&mut ctx, "a.parentNode === p"));
+    let _ = flush(&mut ctx);
+
+    assert!(
+        eval_bool(&mut ctx, "__ss_hasNode(aid)"),
+        "reordered row must stay registered after flush"
+    );
+    let _ = eval_bool(&mut ctx, "__ss_dispatch(aid, 'click', null, true, true)");
+    assert_eq!(
+        eval_string(&mut ctx, "'' + fired"),
+        "1",
+        "dispatch against the reordered row must still fire its listener"
+    );
 }
 
 #[test]

@@ -49,6 +49,9 @@
   // ---- node registry (jsId -> node) for __ss_dispatch lookups ----------------
   var nodesById = new Map();
   var nextId = 2; // 1 is the pre-bound root
+  // Nodes a removeChild detached this tick; the id unbind is deferred to flush
+  // (see removeChild / flush).
+  var detached = [];
 
   // ---- byte serialization (LE u32; UTF-8 string pool) ------------------------
   function pushU32(out, n) {
@@ -109,6 +112,13 @@
     pendingOps = [];
     strings = [];
     stringIndex = new Map();
+    // End-of-tick id cleanup: forget only nodes still detached from the tree. A
+    // node removed then re-inserted this tick has a parent again, so it is kept
+    // and stays dispatchable; a genuinely removed one is forgotten (no leak).
+    for (var d = 0; d < detached.length; d++) {
+      if (detached[d].parentNode === null) forget(detached[d]);
+    }
+    detached = [];
     return out;
   }
 
@@ -244,7 +254,12 @@
     if (child.parentNode === this) {
       detach(child);
       emit(OP_REMOVE_CHILD, [this._nid, child._nid]);
-      forget(child);
+      // Defer forget() to the flush boundary: an identity-keyed reorder removes a
+      // node and re-inserts it in the same tick (render.js reconcileArrays, via
+      // replaceChild). Forgetting here would strand that node — ids are monotonic,
+      // so its registry entry never returns and __ss_dispatch stops resolving it.
+      // Mirrors the applier's end-of-batch deferred unbind (opwire/applier.rs).
+      detached.push(child);
     }
     return child;
   };
