@@ -1,8 +1,9 @@
 //! `supersolid_runtime` — the Supersolid reactive core: Solid-like fine-grained
-//! signals, effects, memos, lifecycle, and context, authored in JS and run in
-//! Boa. Bevy-free and wasm-clean (unlike the `supersolid` transpiler crate, this
-//! runs on every target — direction spec §5/§6). Only the author API is published
-//! on `globalThis`; the graph internals stay closured.
+//! signals, effects, memos, lifecycle, and context, authored in JS and run via
+//! [`superui_js::JsEngine`]. Bevy-free and wasm-clean (unlike the `supersolid`
+//! transpiler crate, this runs on every target — direction spec §5/§6). Only
+//! the author API is published on `globalThis`; the graph internals stay
+//! closured.
 
 use superui_js::JsEngine;
 
@@ -30,11 +31,11 @@ pub fn install(engine: &mut dyn JsEngine) {
 /// Test-only value readback over the `JsEngine` boundary: the trait exposes no
 /// typed eval result, so evaluate `Number(expr)`/`String(expr)`, ship it out via
 /// `__superui_bevy_send`, and decode the drained JSON.
-#[cfg(all(test, feature = "engine-boa"))]
+#[cfg(test)]
 mod test_read {
-    use superui_js::{BoaEngine, JsEngine};
+    use superui_js::{V8Engine, JsEngine};
 
-    fn read(e: &mut BoaEngine, wrap: &str, expr: &str) -> serde_json::Value {
+    fn read(e: &mut V8Engine, wrap: &str, expr: &str) -> serde_json::Value {
         e.eval(&format!("__superui_bevy_send('__test', {wrap}(({expr})));"))
             .unwrap();
         e.drain_outbox()
@@ -45,7 +46,7 @@ mod test_read {
     }
 
     /// Evaluate `expr`, coerce with JS `Number(...)`, and read it back as f64.
-    pub fn num(e: &mut BoaEngine, expr: &str) -> f64 {
+    pub fn num(e: &mut V8Engine, expr: &str) -> f64 {
         match read(e, "Number", expr) {
             serde_json::Value::Number(n) => n.as_f64().unwrap_or(f64::NAN),
             _ => f64::NAN,
@@ -53,7 +54,7 @@ mod test_read {
     }
 
     /// Evaluate `expr`, coerce with JS `String(...)`, and read it back as a String.
-    pub fn text(e: &mut BoaEngine, expr: &str) -> String {
+    pub fn text(e: &mut V8Engine, expr: &str) -> String {
         match read(e, "String", expr) {
             serde_json::Value::String(s) => s,
             other => other.to_string(),
@@ -61,18 +62,18 @@ mod test_read {
     }
 }
 
-#[cfg(all(test, feature = "engine-boa"))]
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::test_read::{num, text};
     use std::cell::RefCell;
     use std::rc::Rc;
     use superui_dom::Dom;
-    use superui_js::BoaEngine;
+    use superui_js::V8Engine;
 
-    fn engine() -> BoaEngine {
+    fn engine() -> V8Engine {
         let dom = Rc::new(RefCell::new(Dom::new()));
-        let mut e = BoaEngine::new(dom);
+        let mut e = V8Engine::new(dom);
         install(&mut e);
         e
     }
@@ -584,21 +585,21 @@ mod tests {
     }
 }
 
-#[cfg(all(test, feature = "engine-boa"))]
+#[cfg(test)]
 mod render_tests {
     use super::*;
     use crate::test_read::{num, text};
     use std::cell::RefCell;
     use std::rc::Rc;
     use superui_dom::Dom;
-    use superui_js::BoaEngine;
+    use superui_js::V8Engine;
 
-    /// A BoaEngine running the JS shadow DOM plus the reactive+render runtime —
+    /// A V8Engine running the JS shadow DOM plus the reactive+render runtime —
     /// the full surface author `.tsx` runs against. Reads go through the shadow
     /// DOM (`p.childNodes`, `getAttribute`, ...) via the `test_read` helpers.
-    fn render_engine() -> BoaEngine {
+    fn render_engine() -> V8Engine {
         let dom = Rc::new(RefCell::new(Dom::new()));
-        let mut e = BoaEngine::new(dom);
+        let mut e = V8Engine::new(dom);
         install(&mut e);
         e
     }
@@ -779,7 +780,8 @@ mod render_tests {
     #[test]
     fn on_fires_a_registered_click_handler() {
         // Events dispatch from the Rust side (JsEngine::dispatch_event), addressing
-        // the shadow-DOM node by its JsNodeId (the node's `.id`), which we read back.
+        // the shadow-DOM node by its JsNodeId (the node's `._nid`), which we read
+        // back. (Not `.id` — that reflects the HTML `id` attribute.)
         let mut e = render_engine();
         e.eval(
             r#"
@@ -789,7 +791,7 @@ mod render_tests {
             "#,
         )
         .unwrap();
-        let btn = num(&mut e, "globalThis.b.id") as superui_js::JsNodeId;
+        let btn = num(&mut e, "globalThis.b._nid") as superui_js::JsNodeId;
         e.dispatch_event(btn, "click", None, true, true);
         assert_eq!(num(&mut e, "globalThis.clicks"), 1.0);
     }

@@ -1,4 +1,4 @@
-//! JS engine boundary + Boa backend for bevy_superui.
+//! JS engine boundary for bevy_superui.
 //!
 //! The engine runs the framework-free JS shadow DOM (`js/dom.js`): author and
 //! reactive JS mutate a JS-side tree that records primitive ops. Once per frame
@@ -6,59 +6,36 @@
 //! bridge can replay it onto the render mirror. Knows nothing about Bevy.
 //! Headless-testable.
 //!
-//! The backend is chosen at compile time via three mutually-exclusive features:
-//! `engine-boa` (default; the only one implemented), `engine-v8`, `engine-web`.
-//! Build one with [`new_engine`] rather than naming a concrete engine type.
+//! The backend is chosen at compile time via two mutually-exclusive features:
+//! `engine-v8` (default; native, via `deno_core`/V8) and `engine-web` (wasm,
+//! runs in the browser's own JS engine). Build one with [`new_engine`] rather
+//! than naming a concrete engine type.
 
-#[cfg(not(any(feature = "engine-boa", feature = "engine-v8", feature = "engine-web")))]
-compile_error!(
-    "superui_js: select exactly one engine feature: engine-boa | engine-v8 | engine-web"
-);
-
-#[cfg(any(
-    all(feature = "engine-boa", feature = "engine-v8"),
-    all(feature = "engine-boa", feature = "engine-web"),
-    all(feature = "engine-v8", feature = "engine-web"),
-))]
-compile_error!("superui_js: enable exactly one engine feature (found multiple)");
-
+#[cfg(all(feature = "engine-v8", feature = "engine-web"))]
+compile_error!("superui_js: enable exactly one engine feature (engine-v8 XOR engine-web)");
+#[cfg(not(any(feature = "engine-v8", feature = "engine-web")))]
+compile_error!("superui_js: select an engine feature: engine-v8 (native) or engine-web (wasm)");
 #[cfg(all(feature = "engine-v8", target_arch = "wasm32"))]
-compile_error!("engine-v8 is native-only");
-
+compile_error!("superui_js: engine-v8 is native-only");
 #[cfg(all(feature = "engine-web", not(target_arch = "wasm32")))]
-compile_error!("engine-web is wasm-only");
+compile_error!("superui_js: engine-web is wasm-only");
 
-#[cfg(feature = "engine-boa")]
-mod engine;
 #[cfg(feature = "engine-v8")]
 mod engine_v8;
 #[cfg(all(feature = "engine-web", target_arch = "wasm32"))]
 mod engine_web;
 pub mod opwire;
-#[cfg(feature = "engine-boa")]
-mod state;
 
-#[cfg(feature = "engine-boa")]
-pub use engine::BoaEngine;
 #[cfg(feature = "engine-v8")]
 pub use engine_v8::V8Engine;
 #[cfg(all(feature = "engine-web", target_arch = "wasm32"))]
 pub use engine_web::WebEngine;
 pub use opwire::{JsNodeId, OpBatch};
-#[cfg(feature = "engine-boa")]
-pub use state::{with_host_state, with_host_state_mut, HostState, Timer};
 
 use std::cell::RefCell;
 use std::rc::Rc;
 
 use superui_dom::Dom;
-
-/// Build the compile-time-selected [`JsEngine`] backend. The only supported way
-/// for dependents to construct an engine without naming a concrete type.
-#[cfg(feature = "engine-boa")]
-pub fn new_engine(dom: Rc<RefCell<Dom>>) -> Box<dyn JsEngine> {
-    Box::new(BoaEngine::new(dom))
-}
 
 /// Build the compile-time-selected [`JsEngine`] backend on `deno_core`/V8.
 #[cfg(feature = "engine-v8")]
@@ -73,8 +50,9 @@ pub fn new_engine(dom: Rc<RefCell<Dom>>) -> Box<dyn JsEngine> {
     Box::new(WebEngine::new(dom))
 }
 
-/// The coarse boundary the Bevy layers consume so they never name Boa. JS-side
-/// mutations arrive as an [`OpBatch`]; nodes are addressed by [`JsNodeId`].
+/// The coarse boundary the Bevy layers consume so they never name a concrete
+/// engine. JS-side mutations arrive as an [`OpBatch`]; nodes are addressed by
+/// [`JsNodeId`].
 pub trait JsEngine {
     /// Evaluate a script against the current context. `Err` carries a message.
     fn eval(&mut self, script: &str) -> Result<(), String>;
@@ -104,25 +82,4 @@ pub trait JsEngine {
 
     /// JS→Bevy: take the messages `__superui_bevy_send` queued this frame.
     fn drain_outbox(&mut self) -> Vec<(String, serde_json::Value)>;
-}
-
-#[cfg(all(test, feature = "engine-boa"))]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn eval_runs_and_shares_the_dom_handle() {
-        let dom = Rc::new(RefCell::new(Dom::new()));
-        let mut engine = BoaEngine::new(dom.clone());
-        engine.eval("var x = 1 + 2;").expect("eval ok");
-        // The engine holds the same DOM Rc we passed in.
-        assert_eq!(Rc::strong_count(&dom), 3); // caller + engine.dom + HostState.dom
-    }
-
-    #[test]
-    fn eval_reports_syntax_errors_without_panicking() {
-        let dom = Rc::new(RefCell::new(Dom::new()));
-        let mut engine = BoaEngine::new(dom);
-        assert!(engine.eval("this is not valid )(").is_err());
-    }
 }

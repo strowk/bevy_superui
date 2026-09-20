@@ -10,24 +10,16 @@ categories = ["game-development"]
 
 [dependencies]
 superui_dom = { path = "../superui_dom", version = "0.3.3" }
-boa_engine = { workspace = true, optional = true }
-boa_gc = { workspace = true, optional = true }
 serde_json = "1"
 
 [dev-dependencies]
 superui_html = { path = "../superui_html", version = "0.3.3" }
 
-# wasm-only. `getrandom`/`web-time` back the `engine-boa` backend (see below);
-# `wasm-bindgen`/`js-sys` back `engine-web`, the adapter that runs the JS bundle
-# in the BROWSER's own engine and calls into it over the wasm boundary. All are
-# optional and pulled only by their engine feature. Native builds pull none.
-# `getrandom`: Boa pulls getrandom 0.3, which needs the JS backend on wasm (pair
-# with the `.cargo/config.toml` rustflag at the repo root). `web-time`: wall
-# clock for Boa's `Date`; the default `StdClock` (`std::time::SystemTime::now`)
-# panics on wasm.
+# wasm-only. `wasm-bindgen`/`js-sys` back `engine-web`, the adapter that runs
+# the JS bundle in the BROWSER's own engine and calls into it over the wasm
+# boundary. Both are optional and pulled only by the `engine-web` feature.
+# Native builds pull none.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-getrandom = { version = "0.3", features = ["wasm_js"], optional = true }
-web-time = { version = "1", optional = true }
 wasm-bindgen = { version = "0.2", optional = true }
 js-sys = { version = "0.3", optional = true }
 
@@ -42,11 +34,9 @@ deno_core = { version = "0.412", optional = true }
 tokio = { version = "1", default-features = false, features = ["rt"], optional = true }
 
 [features]
-# Boa is the only engine with a real adapter today; v8/web are declared so the
-# feature surface (and dependents' manifests) is stable ahead of their adapters
-# landing, but selecting them fails at compile time (see src/lib.rs guards).
+# Exactly one of these two must be enabled (see src/lib.rs guards): engine-v8
+# for native (deno_core/V8), engine-web for wasm (the browser's own engine).
 default = ["engine-v8"]
-engine-boa = ["dep:boa_engine", "dep:boa_gc", "dep:getrandom", "dep:web-time"]
 engine-v8 = ["dep:deno_core", "dep:tokio"]
 # Runs the JS in the browser's engine (no embedded interpreter); the wasm module
 # calls into it via wasm-bindgen/js-sys. wasm-only (guarded in src/lib.rs).

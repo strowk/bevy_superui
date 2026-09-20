@@ -17,6 +17,5 @@ serde_json = "1"
 
 [features]
 default = ["engine-v8"]
-engine-boa = ["superui_js/engine-boa"]
 engine-v8 = ["superui_js/engine-v8"]
 engine-web = ["superui_js/engine-web"]
