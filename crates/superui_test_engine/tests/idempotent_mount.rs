@@ -36,13 +36,16 @@ fn count_super_ui_roots(app: &mut bevy::prelude::App) -> usize {
     q.iter(app.world()).count()
 }
 
-/// Helper: borrow the UiRuntime and run a closure against its Boa context.
-fn with_ctx<R>(app: &mut bevy::prelude::App, f: impl FnOnce(&mut boa_engine::Context) -> R) -> R {
+/// Helper: borrow the UiRuntime and run a closure against its JS engine.
+fn with_engine<R>(
+    app: &mut bevy::prelude::App,
+    f: impl FnOnce(&mut dyn superui_js::JsEngine) -> R,
+) -> R {
     let mut rt = app
         .world_mut()
         .remove_non_send::<UiRuntime>()
         .expect("UiRuntime must be present");
-    let r = f(rt.engine.context_mut());
+    let r = f(rt.engine.as_mut());
     app.world_mut().insert_non_send(rt);
     r
 }
@@ -117,32 +120,28 @@ fn double_abi_install_does_not_wipe_registered_tests() {
     mount(&mut app);
     install_abi(&mut app);
 
-    // Register one test through the live Boa context.
-    with_ctx(&mut app, |ctx| {
-        ctx.eval(boa_engine::Source::from_bytes(
-            br#"test("sentinel", async () => {});"#,
-        ))
-        .expect("eval must succeed after first install");
+    // Register one test through the live JS engine.
+    with_engine(&mut app, |e| {
+        abi::eval_spec(e, r#"test("sentinel", async () => {});"#)
+            .expect("eval must succeed after first install");
     });
 
     // Verify it was registered.
-    let count_before = with_ctx(&mut app, |ctx| abi::take_registered_tests(ctx).len());
+    let count_before = with_engine(&mut app, |e| abi::take_registered_tests(e).len());
     assert_eq!(count_before, 1, "one test must be registered before second install");
 
     // Register it again (simulating the spec re-running) so we have something
     // to survive the second install.
-    with_ctx(&mut app, |ctx| {
-        ctx.eval(boa_engine::Source::from_bytes(
-            br#"test("sentinel2", async () => {});"#,
-        ))
-        .expect("eval after first take must succeed");
+    with_engine(&mut app, |e| {
+        abi::eval_spec(e, r#"test("sentinel2", async () => {});"#)
+            .expect("eval after first take must succeed");
     });
 
     // Second install — must be a no-op, NOT wipe the registered test.
     install_abi(&mut app);
 
     // (b) The test registered before the second install survived.
-    let count_after = with_ctx(&mut app, |ctx| abi::take_registered_tests(ctx).len());
+    let count_after = with_engine(&mut app, |e| abi::take_registered_tests(e).len());
     assert_eq!(
         count_after, 1,
         "second abi::install must NOT wipe already-registered tests"
@@ -163,12 +162,9 @@ fn double_mount_and_double_install_combined() {
     mount(&mut app);
     install_abi(&mut app);
 
-    // Register a test and run a basic spec eval to confirm the context is sane.
-    with_ctx(&mut app, |ctx| {
-        ctx.eval(boa_engine::Source::from_bytes(
-            br#"test("smoke", async () => {});"#,
-        ))
-        .expect("spec eval must work");
+    // Register a test and run a basic spec eval to confirm the engine is sane.
+    with_engine(&mut app, |e| {
+        abi::eval_spec(e, r#"test("smoke", async () => {});"#).expect("spec eval must work");
     });
 
     assert_eq!(
@@ -176,7 +172,7 @@ fn double_mount_and_double_install_combined() {
         1,
         "combined double path must leave exactly one SuperUiRoot"
     );
-    let tests = with_ctx(&mut app, |ctx| abi::take_registered_tests(ctx));
+    let tests = with_engine(&mut app, |e| abi::take_registered_tests(e));
     assert_eq!(tests.len(), 1, "exactly one test must be registered after combined path");
     assert_eq!(tests[0].name, "smoke");
 }

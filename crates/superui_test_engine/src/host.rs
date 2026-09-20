@@ -148,13 +148,13 @@ pub fn tick(app: &mut App, n: usize) {
     }
 }
 
-/// After mount, install the `$sstest` ABI into the live runtime's Boa context.
+/// After mount, install the `$sstest` ABI into the live runtime's JS engine.
 pub fn install_abi(app: &mut App) {
     let mut rt = app
         .world_mut()
         .remove_non_send::<UiRuntime>()
         .expect("mounted");
-    crate::abi::install(rt.engine.context_mut());
+    crate::abi::install(rt.engine.as_mut());
     app.world_mut().insert_non_send(rt);
 }
 
@@ -163,6 +163,6 @@ pub fn install_abi_world(world: &mut World) {
     let mut rt = world
         .remove_non_send::<UiRuntime>()
         .expect("mounted");
-    crate::abi::install(rt.engine.context_mut());
+    crate::abi::install(rt.engine.as_mut());
     world.insert_non_send(rt);
 }

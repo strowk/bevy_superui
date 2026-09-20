@@ -6,7 +6,7 @@ use bevy::prelude::*;
 use superui_bridge::{PendingDomEvent, PendingDomEvents, UiRuntime};
 use superui_dom::NodeId;
 
-use crate::abi::{self, JsPromiseHandle, RegisteredTest};
+use crate::abi::{self, RegisteredTest};
 use crate::command::Command;
 use crate::locator::{resolve_locator, LocatorSpec};
 use crate::trace::{Step, StepStatus, TestResult};
@@ -75,13 +75,9 @@ pub fn run_spec_with(app: &mut App, spec_js: &str, opts: &RunOptions) -> Vec<Tes
     crate::host::install_abi(app);
 
     // Evaluate the spec to register tests.
-    with_ctx(app, |ctx| {
-        ctx.eval(boa_engine::Source::from_bytes(spec_js.as_bytes()))
-            .map_err(|e| e.to_string())
-    })
-    .expect("spec eval");
+    with_engine(app, |e| abi::eval_spec(e, spec_js)).expect("spec eval");
 
-    let tests = with_ctx(app, abi::take_registered_tests);
+    let tests = with_engine(app, abi::take_registered_tests);
     let mut out = Vec::new();
     for t in &tests {
         out.push(run_one(app, t, opts));
@@ -108,7 +104,7 @@ fn snapshot_body(app: &App) -> String {
 }
 
 fn run_one(app: &mut App, test: &RegisteredTest, opts: &RunOptions) -> TestResult {
-    let handle: JsPromiseHandle = with_ctx(app, |ctx| abi::run_test(ctx, test));
+    with_engine(app, |e| abi::run_test(e, test));
     // Per-test step trace.
     let mut steps: Vec<Step> = Vec::new();
     // In-flight side-effecting commands awaiting settle: (id, remaining ticks, action label).
@@ -120,12 +116,12 @@ fn run_one(app: &mut App, test: &RegisteredTest, opts: &RunOptions) -> TestResul
 
     for _ in 0..MAX_ITERS_PER_TEST {
         // 1. Drain newly enqueued commands and start executing them.
-        let queued = with_ctx(app, abi::drain_queue);
+        let queued = with_engine(app, abi::drain_queue);
         for q in queued {
             match &q.command {
                 Command::Noop => {
-                    with_ctx(app, |ctx| {
-                        abi::resolve(ctx, q.id, r#"{"ok":true,"value":null}"#)
+                    with_engine(app, |e| {
+                        abi::resolve(e, q.id, r#"{"ok":true,"value":null}"#)
                     });
                 }
                 Command::Click { locator } => {
@@ -211,8 +207,8 @@ fn run_one(app: &mut App, test: &RegisteredTest, opts: &RunOptions) -> TestResul
                     .collect()
             };
             for (id, action) in ready {
-                with_ctx(app, |ctx| {
-                    abi::resolve(ctx, id, r#"{"ok":true,"value":null}"#)
+                with_engine(app, |e| {
+                    abi::resolve(e, id, r#"{"ok":true,"value":null}"#)
                 });
                 steps.push(Step {
                     index: steps.len(),
@@ -244,7 +240,7 @@ fn run_one(app: &mut App, test: &RegisteredTest, opts: &RunOptions) -> TestResul
                 );
                 let payload =
                     serde_json::json!({ "ok": false, "error": err }).to_string();
-                with_ctx(app, |ctx| abi::resolve(ctx, a.id, &payload));
+                with_engine(app, |e| abi::resolve(e, a.id, &payload));
                 steps.push(Step {
                     index: steps.len(),
                     action: a.action,
@@ -298,7 +294,7 @@ fn run_one(app: &mut App, test: &RegisteredTest, opts: &RunOptions) -> TestResul
                         serde_json::json!({"ok": false, "error": msg}).to_string(),
                     ),
                 };
-                with_ctx(app, |ctx| abi::resolve(ctx, e.id, &payload));
+                with_engine(app, |eng| abi::resolve(eng, e.id, &payload));
                 steps.push(Step {
                     index: steps.len(),
                     action: e.action,
@@ -310,8 +306,8 @@ fn run_one(app: &mut App, test: &RegisteredTest, opts: &RunOptions) -> TestResul
             }
             match crate::matchers::evaluate(app.world(), &e.matcher, &e.locator, &e.expected) {
                 Ok(()) => {
-                    with_ctx(app, |ctx| {
-                        abi::resolve(ctx, e.id, r#"{"ok":true,"value":null}"#)
+                    with_engine(app, |eng| {
+                        abi::resolve(eng, e.id, r#"{"ok":true,"value":null}"#)
                     });
                     steps.push(Step {
                         index: steps.len(),
@@ -327,7 +323,7 @@ fn run_one(app: &mut App, test: &RegisteredTest, opts: &RunOptions) -> TestResul
                     if e.remaining == 0 {
                         let payload =
                             serde_json::json!({ "ok": false, "error": e.last_err }).to_string();
-                        with_ctx(app, |ctx| abi::resolve(ctx, e.id, &payload));
+                        with_engine(app, |eng| abi::resolve(eng, e.id, &payload));
                         steps.push(Step {
                             index: steps.len(),
                             action: e.action,
@@ -343,16 +339,14 @@ fn run_one(app: &mut App, test: &RegisteredTest, opts: &RunOptions) -> TestResul
         }
         expects = still;
 
-        // Pump the continuations enqueued by the resolves (and the initial
-        // test-body await). This runs the awaiting JS which enqueues the next
-        // command; drained on the following iteration.
-        with_ctx(app, |ctx| {
-            let _ = ctx.run_jobs();
-        });
+        // The continuations enqueued by the resolves above (and the initial
+        // test-body await) are microtasks; they run in the next iteration's
+        // `app.update()`, whose `tick_timers_system` pumps the job queue. Their
+        // newly enqueued commands are drained on the following iteration.
 
         // 4. Done?
         if inflight.is_empty() && expects.is_empty() && pending_actions.is_empty() {
-            if let Some(res) = with_ctx(app, |ctx| abi::promise_settled(ctx, &handle)) {
+            if let Some(res) = with_engine(app, abi::promise_settled) {
                 return match res {
                     Ok(()) => TestResult {
                         name: test.name.clone(),
@@ -378,12 +372,12 @@ fn run_one(app: &mut App, test: &RegisteredTest, opts: &RunOptions) -> TestResul
     }
 }
 
-fn with_ctx<R>(app: &mut App, f: impl FnOnce(&mut boa_engine::Context) -> R) -> R {
+fn with_engine<R>(app: &mut App, f: impl FnOnce(&mut dyn superui_js::JsEngine) -> R) -> R {
     let mut rt = app
         .world_mut()
         .remove_non_send::<UiRuntime>()
         .expect("runtime");
-    let r = f(rt.engine.context_mut());
+    let r = f(rt.engine.as_mut());
     app.world_mut().insert_non_send(rt);
     r
 }

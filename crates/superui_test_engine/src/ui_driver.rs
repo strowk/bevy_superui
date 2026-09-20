@@ -5,15 +5,15 @@
 //! frame at a time inside the egui shell's world. That keeps a single
 //! `RenderPlugin` in the process, avoiding the `init_empty_bind_group_layout`
 //! double-init panic. The under-test UI's reconcile runs via superui's normal
-//! Update systems; `step` (invoked once per frame, after reconcile) pokes the
-//! Boa runtime and reads the live DOM.
+//! Update systems; `step` (invoked once per frame, after reconcile) drives the
+//! JS engine over the `JsEngine` boundary and reads the live render-mirror DOM.
 
 use bevy::prelude::*;
 use bevy::ui::UiTargetCamera;
 use superui_bridge::{PendingDomEvent, PendingDomEvents, UiRuntime};
 use superui_dom::NodeId;
 
-use crate::abi::{self, JsPromiseHandle, RegisteredTest};
+use crate::abi::{self, RegisteredTest};
 use crate::command::Command;
 use crate::driver::RunOptions;
 use crate::locator::{resolve_locator, LocatorSpec};
@@ -35,9 +35,8 @@ const SCREENSHOT_CAPTURE_TIMEOUT_FRAMES: usize = 64;
 /// step far more settled). This gives the render pipeline time to stabilize.
 const SCREENSHOT_SETTLE_FRAMES: usize = 30;
 
-/// Non-send holder for the in-progress run (or `None` when idle). Stored via
-/// `insert_non_send` because `RunState` holds Boa `JsValue`s which
-/// are `!Send + !Sync`.
+/// Non-send holder for the in-progress run (or `None` when idle). Kept
+/// non-send to stay alongside the `!Send` `UiRuntime` it steps.
 #[derive(Default)]
 pub struct ActiveRun(pub Option<RunState>);
 
@@ -97,7 +96,6 @@ struct ScreenshotCapture {
 /// Per-test working state, reset when a new test starts.
 struct TestWork {
     name: String,
-    handle: JsPromiseHandle,
     steps: Vec<Step>,
     /// (id, remaining settle ticks, action label)
     inflight: Vec<(u64, usize, String)>,
@@ -207,14 +205,10 @@ fn step_mounting(world: &mut World, run: &mut RunState) {
     if !world.contains_non_send::<UiRuntime>() {
         return;
     }
-    // Install the test ABI into the fresh Boa context and evaluate the spec.
+    // Install the test ABI into the fresh JS engine and evaluate the spec.
     crate::host::install_abi_world(world);
-    with_ctx(world, |ctx| {
-        ctx.eval(boa_engine::Source::from_bytes(run.spec_js.as_bytes()))
-            .map_err(|e| e.to_string())
-    })
-    .expect("spec eval");
-    run.tests = with_ctx(world, abi::take_registered_tests);
+    with_engine(world, |e| abi::eval_spec(e, &run.spec_js)).expect("spec eval");
+    run.tests = with_engine(world, abi::take_registered_tests);
     run.current = 0;
     if run.tests.is_empty() {
         run.phase = Phase::Done;
@@ -227,10 +221,9 @@ fn step_mounting(world: &mut World, run: &mut RunState) {
 /// Start the current test: invoke its body to get the promise handle.
 fn begin_test(world: &mut World, run: &mut RunState) {
     let test = &run.tests[run.current];
-    let handle = with_ctx(world, |ctx| abi::run_test(ctx, test));
+    with_engine(world, |e| abi::run_test(e, test));
     run.work = Some(TestWork {
         name: test.name.clone(),
-        handle,
         steps: Vec::new(),
         inflight: Vec::new(),
         expects: Vec::new(),
@@ -246,7 +239,7 @@ fn step_running(world: &mut World, run: &mut RunState) {
     // Borrow-check adaptation: we scope the `work` borrow to the main body of
     // the function, then drop it before the done-check section at the bottom.
     // This avoids holding a `&mut TestWork` (via `run.work.as_mut()`) across
-    // the calls to `with_ctx(world, |ctx| abi::promise_settled(...))` and
+    // the calls to `with_engine(world, abi::promise_settled)` and
     // `finish_current_test(world, run, outcome)`, both of which need `&mut run`.
     // Behavior is identical: we read `work.iter` / `work.inflight` etc. in the
     // first scope, and extract only the scalar `idle` flag before dropping.
@@ -268,12 +261,12 @@ fn step_running(world: &mut World, run: &mut RunState) {
         let work = run.work.as_mut().expect("running has work");
 
         // 1. Drain newly enqueued commands and start executing them.
-        let queued = with_ctx(world, abi::drain_queue);
+        let queued = with_engine(world, abi::drain_queue);
         for q in queued {
             match &q.command {
                 Command::Noop => {
-                    with_ctx(world, |ctx| {
-                        abi::resolve(ctx, q.id, r#"{"ok":true,"value":null}"#)
+                    with_engine(world, |e| {
+                        abi::resolve(e, q.id, r#"{"ok":true,"value":null}"#)
                     });
                 }
                 Command::Click { locator } => {
@@ -323,7 +316,7 @@ fn step_running(world: &mut World, run: &mut RunState) {
                 work.inflight.iter().filter(|e| e.1 == 0).map(|e| (e.0, e.2.clone())).collect()
             };
             for (id, action) in ready {
-                with_ctx(world, |ctx| abi::resolve(ctx, id, r#"{"ok":true,"value":null}"#));
+                with_engine(world, |e| abi::resolve(e, id, r#"{"ok":true,"value":null}"#));
                 let dom = snapshot_body(world);
                 work.steps.push(Step { index: work.steps.len(), action, status: StepStatus::Ok, dom_after: dom, screenshot: None });
             }
@@ -342,7 +335,7 @@ fn step_running(world: &mut World, run: &mut RunState) {
             if a.remaining == 0 {
                 let err = format!("locator matched 0 elements: {}", locator_label(&a.locator));
                 let payload = serde_json::json!({ "ok": false, "error": err }).to_string();
-                with_ctx(world, |ctx| abi::resolve(ctx, a.id, &payload));
+                with_engine(world, |e| abi::resolve(e, a.id, &payload));
                 let dom = snapshot_body(world);
                 work.steps.push(Step { index: work.steps.len(), action: a.action, status: StepStatus::Failed(err), dom_after: dom, screenshot: None });
             } else {
@@ -385,7 +378,7 @@ fn step_running(world: &mut World, run: &mut RunState) {
                         Ok(()) => (StepStatus::Ok, r#"{"ok":true,"value":null}"#.to_string()),
                         Err(msg) => (StepStatus::Failed(msg.clone()), serde_json::json!({"ok": false, "error": msg}).to_string()),
                     };
-                    with_ctx(world, |ctx| abi::resolve(ctx, cap.id, &payload));
+                    with_engine(world, |e| abi::resolve(e, cap.id, &payload));
                     let dom = snapshot_body(world);
                     work.steps.push(Step { index: work.steps.len(), action: cap.action, status, dom_after: dom, screenshot: None });
                 } else {
@@ -394,7 +387,7 @@ fn step_running(world: &mut World, run: &mut RunState) {
                         // Give up: capture never fired.
                         let msg = "screenshot capture failed".to_string();
                         let payload = serde_json::json!({"ok": false, "error": msg}).to_string();
-                        with_ctx(world, |ctx| abi::resolve(ctx, cap.id, &payload));
+                        with_engine(world, |e| abi::resolve(e, cap.id, &payload));
                         let dom = snapshot_body(world);
                         work.steps.push(Step { index: work.steps.len(), action: cap.action, status: StepStatus::Failed(msg), dom_after: dom, screenshot: None });
                     } else {
@@ -422,7 +415,7 @@ fn step_running(world: &mut World, run: &mut RunState) {
                     });
                 } else if !opts_render {
                     // Headless: no pixels; pass immediately.
-                    with_ctx(world, |ctx| abi::resolve(ctx, e.id, r#"{"ok":true,"value":null}"#));
+                    with_engine(world, |eng| abi::resolve(eng, e.id, r#"{"ok":true,"value":null}"#));
                     let dom = snapshot_body(world);
                     work.steps.push(Step { index: work.steps.len(), action: e.action, status: StepStatus::Ok, dom_after: dom, screenshot: None });
                 } else {
@@ -434,7 +427,7 @@ fn step_running(world: &mut World, run: &mut RunState) {
             }
             match crate::matchers::evaluate(world, &e.matcher, &e.locator, &e.expected) {
                 Ok(()) => {
-                    with_ctx(world, |ctx| abi::resolve(ctx, e.id, r#"{"ok":true,"value":null}"#));
+                    with_engine(world, |eng| abi::resolve(eng, e.id, r#"{"ok":true,"value":null}"#));
                     let dom = snapshot_body(world);
                     work.steps.push(Step { index: work.steps.len(), action: e.action, status: StepStatus::Ok, dom_after: dom, screenshot: None });
                 }
@@ -443,7 +436,7 @@ fn step_running(world: &mut World, run: &mut RunState) {
                     e.remaining -= 1;
                     if e.remaining == 0 {
                         let payload = serde_json::json!({ "ok": false, "error": e.last_err }).to_string();
-                        with_ctx(world, |ctx| abi::resolve(ctx, e.id, &payload));
+                        with_engine(world, |eng| abi::resolve(eng, e.id, &payload));
                         let dom = snapshot_body(world);
                         work.steps.push(Step { index: work.steps.len(), action: e.action, status: StepStatus::Failed(e.last_err), dom_after: dom, screenshot: None });
                     } else {
@@ -454,10 +447,10 @@ fn step_running(world: &mut World, run: &mut RunState) {
         }
         work.expects = still;
 
-        // Pump the continuations enqueued by the resolves (and the initial await).
-        with_ctx(world, |ctx| {
-            let _ = ctx.run_jobs();
-        });
+        // The continuations enqueued by the resolves above are microtasks; they
+        // run in the next frame's `app.update()` (its `tick_timers_system` pumps
+        // the job queue) before `step` is called again, enqueuing the next
+        // command for the following frame's drain.
 
         // `work` borrow ends here (end of this block). The done-check below
         // re-borrows `run` immutably / mutably without a live `work` reference.
@@ -475,16 +468,9 @@ fn step_running(world: &mut World, run: &mut RunState) {
             && w.capturing.is_none()
     });
     if idle {
-        // Read the promise handle by cloning the JsValue (cheap ref-counted clone).
-        // We need to do this in a separate borrow scope before calling
-        // `finish_current_test`, which takes `&mut run` and calls `run.work.take()`.
-        let settled = {
-            // Clone the handle value so we can release the borrow on `run.work`
-            // before passing `run` to `finish_current_test`.
-            let handle_val = run.work.as_ref().unwrap().handle.0.clone();
-            let handle_clone = JsPromiseHandle(handle_val);
-            with_ctx(world, |ctx| abi::promise_settled(ctx, &handle_clone))
-        };
+        // Poll the JS-side settlement of the running test's promise. No handle to
+        // carry: `__sstest.settled` tracks the current test's outcome.
+        let settled = with_engine(world, abi::promise_settled);
         if let Some(res) = settled {
             let outcome = match res {
                 Ok(()) => TestOutcome::Passed,
@@ -538,9 +524,9 @@ fn advance_after_test(world: &mut World, run: &mut RunState) {
 
 // ---- World-based leaf helpers (duplicated from driver.rs, per plan) --------
 
-fn with_ctx<R>(world: &mut World, f: impl FnOnce(&mut boa_engine::Context) -> R) -> R {
+fn with_engine<R>(world: &mut World, f: impl FnOnce(&mut dyn superui_js::JsEngine) -> R) -> R {
     let mut rt = world.remove_non_send::<UiRuntime>().expect("runtime");
-    let r = f(rt.engine.context_mut());
+    let r = f(rt.engine.as_mut());
     world.insert_non_send(rt);
     r
 }

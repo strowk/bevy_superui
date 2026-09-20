@@ -2,65 +2,64 @@
 //!
 //! The prelude threads `nth` as a real value through `makeLocator`. Before the
 //! fix, `nth(i)` stashed `_nth` on a sliced *array* and `locator()` used
-//! `Array.concat`, which does not carry custom array properties forward — so
+//! `Array.concat`, which does not carry custom array properties forward, so
 //! chaining after `.nth()` serialized with `nth: null`.
 
-use boa_engine::{Context, JsValue, Source};
+use std::cell::RefCell;
+use std::rc::Rc;
 
-/// Install the $sstest ABI + prelude into a fresh Boa context.
-fn ctx_with_prelude() -> Context {
-    let mut context = Context::default();
-    superui_test_engine::abi::install(&mut context);
-    context
+use superui_dom::Dom;
+use superui_js::JsEngine;
+use superui_test_engine::abi;
+
+/// A fresh engine with the `$sstest` ABI + prelude installed.
+fn engine_with_prelude() -> Box<dyn JsEngine> {
+    let mut engine = superui_js::new_engine(Rc::new(RefCell::new(Dom::new())));
+    abi::install(engine.as_mut());
+    engine
 }
 
-/// Evaluate `expr` and return it as a JSON string via `JSON.stringify`.
-fn eval_json(context: &mut Context, expr: &str) -> String {
-    let src = format!("JSON.stringify({expr})");
-    let v = context
-        .eval(Source::from_bytes(src.as_bytes()))
+/// Evaluate `expr` and read its value back over the outbox.
+fn read(engine: &mut dyn JsEngine, expr: &str) -> serde_json::Value {
+    engine
+        .eval(&format!("__superui_bevy_send('r', ({expr}));"))
         .expect("eval");
-    v.as_string()
-        .expect("string")
-        .to_std_string_escaped()
-}
-
-fn eval_val(context: &mut Context, expr: &str) -> JsValue {
-    context
-        .eval(Source::from_bytes(expr.as_bytes()))
-        .expect("eval")
+    engine
+        .drain_outbox()
+        .into_iter()
+        .find(|(n, _)| n == "r")
+        .map(|(_, v)| v)
+        .unwrap_or(serde_json::Value::Null)
 }
 
 #[test]
 fn nth_is_carried_through_chaining() {
-    let mut context = ctx_with_prelude();
+    let mut engine = engine_with_prelude();
+    let e = engine.as_mut();
     // `.nth(0)` then a further `.locator("b")` must keep nth = 0.
-    let json = eval_json(
-        &mut context,
-        r#"page.locator("a").nth(0).locator("b")._nth"#,
+    assert_eq!(
+        read(e, r#"page.locator("a").nth(0).locator("b")._nth"#),
+        serde_json::json!(0),
+        "nth must survive chaining after .nth()"
     );
-    assert_eq!(json, "0", "nth must survive chaining after .nth()");
-
     // And the appended step must be present (steps carried forward too).
-    let steps_len = eval_json(
-        &mut context,
-        r#"page.locator("a").nth(0).locator("b").steps.length"#,
+    assert_eq!(
+        read(e, r#"page.locator("a").nth(0).locator("b").steps.length"#),
+        serde_json::json!(2)
     );
-    assert_eq!(steps_len, "2");
 }
 
 #[test]
 fn nth_and_first_terminal_still_resolve() {
-    let mut context = ctx_with_prelude();
+    let mut engine = engine_with_prelude();
+    let e = engine.as_mut();
     // Terminal `.nth(2)` (as used by game_menu specs).
-    let nth = eval_json(&mut context, r#"page.locator("a").nth(2)._nth"#);
-    assert_eq!(nth, "2");
-
+    assert_eq!(read(e, r#"page.locator("a").nth(2)._nth"#), serde_json::json!(2));
     // Terminal `.first()` is nth(0).
-    let first = eval_json(&mut context, r#"page.locator("a").first()._nth"#);
-    assert_eq!(first, "0");
-
+    assert_eq!(read(e, r#"page.locator("a").first()._nth"#), serde_json::json!(0));
     // A plain locator with no nth serializes to null.
-    let plain = eval_val(&mut context, r#"page.locator("a")._nth === null"#);
-    assert_eq!(plain.as_boolean(), Some(true));
+    assert_eq!(
+        read(e, r#"page.locator("a")._nth === null"#),
+        serde_json::json!(true)
+    );
 }
