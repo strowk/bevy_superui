@@ -32,6 +32,8 @@ compile_error!("engine-web is wasm-only");
 mod engine;
 #[cfg(feature = "engine-v8")]
 mod engine_v8;
+#[cfg(all(feature = "engine-web", target_arch = "wasm32"))]
+mod engine_web;
 pub mod opwire;
 #[cfg(feature = "engine-boa")]
 mod state;
@@ -40,6 +42,8 @@ mod state;
 pub use engine::BoaEngine;
 #[cfg(feature = "engine-v8")]
 pub use engine_v8::V8Engine;
+#[cfg(all(feature = "engine-web", target_arch = "wasm32"))]
+pub use engine_web::WebEngine;
 pub use opwire::{JsNodeId, OpBatch};
 #[cfg(feature = "engine-boa")]
 pub use state::{with_host_state, with_host_state_mut, HostState, Timer};
@@ -62,11 +66,11 @@ pub fn new_engine(dom: Rc<RefCell<Dom>>) -> Box<dyn JsEngine> {
     Box::new(V8Engine::new(dom))
 }
 
-/// No `engine-web` adapter exists yet; see the `engine-v8` version of
-/// `new_engine` for why this is a `compile_error!` rather than a `todo!()`.
+/// Build the compile-time-selected [`JsEngine`] backend on the browser's own JS
+/// engine (wasm-only; guarded above).
 #[cfg(feature = "engine-web")]
-pub fn new_engine(_dom: Rc<RefCell<Dom>>) -> Box<dyn JsEngine> {
-    compile_error!("engine-web adapter not yet implemented")
+pub fn new_engine(dom: Rc<RefCell<Dom>>) -> Box<dyn JsEngine> {
+    Box::new(WebEngine::new(dom))
 }
 
 /// The coarse boundary the Bevy layers consume so they never name Boa. JS-side
