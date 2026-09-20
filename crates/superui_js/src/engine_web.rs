@@ -4,9 +4,17 @@
 //! evaluates scripts and calls the bundle's globals across the wasm boundary via
 //! `wasm-bindgen`/`js-sys`.
 //!
-//! Host functions the bundle needs (`__superui_bevy_send`, `__ss_measure`) are
-//! Rust closures installed on `globalThis`. `console` and the timer globals
-//! (`setTimeout`/`queueMicrotask`/...) are the browser's own — no shim, and the
+//! Each instance owns a private scope object and runs all its JS against it, so
+//! multiple/sequential `SuperUiRoot`s do not clash on the page's shared `window`
+//! (native backends get isolation for free from a fresh Context/isolate). Every
+//! script is wrapped so `globalThis`/`window`/`self` and the bundle's published
+//! names (`document`, `__ss_*`, `$ss`, `render`, `createSignal`, ...) bind to
+//! this instance's scope, while JS built-ins (`Array`, `Math`, `setTimeout`,
+//! `Promise`, ...) still resolve to the real page globals. Host functions
+//! (`__superui_bevy_send`, `__ss_measure`) and `flush`/`dispatch`/`emit` all go
+//! through the instance scope.
+//!
+//! `console` and the timer globals are the browser's own — no shim, and the
 //! reactive scheduler drives microtasks off the page event loop, so
 //! [`run_timers`](JsEngine::run_timers) is a no-op here (unlike Boa/V8, which
 //! must pump timers and microtasks explicitly).
@@ -16,7 +24,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use js_sys::{Array, Function, Reflect, Uint8Array};
+use js_sys::{Array, Function, Object, Reflect, Uint8Array};
 use serde_json::Value;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
@@ -26,34 +34,42 @@ use superui_dom::Dom;
 use crate::{JsEngine, OpBatch};
 
 /// The JS shadow DOM. Defines `document`, `__ss_root`, `__ss_flush`,
-/// `__ss_dispatch` on `globalThis`; guards `__ss_measure`. Byte-for-byte the
-/// bundle the browser runs — identical to the Boa/V8 backends.
+/// `__ss_dispatch` on the scope it runs in; guards `__ss_measure`. Byte-for-byte
+/// the bundle the browser runs — identical to the Boa/V8 backends.
 const DOM_JS: &str = include_str!("../js/dom.js");
 
-/// A [`JsEngine`] that delegates to the browser's own engine. Owns the shared
-/// [`Dom`], the JS→Bevy outbox, and the host closures.
+/// A [`JsEngine`] that delegates to the browser's own engine, isolated to a
+/// private scope. Owns the shared [`Dom`], the scope, the JS→Bevy outbox, and
+/// the host closures.
 pub struct WebEngine {
     /// The render-mirror DOM, shared with the bridge. Held for parity with the
     /// native backends and a future real `__ss_measure`; the browser answers DOM
     /// reads from its JS state today.
     #[allow(dead_code)]
     dom: Rc<RefCell<Dom>>,
+    /// This instance's private global scope. The bundle's `globalThis.* =`
+    /// writes land here and its `__ss_flush`/`__ss_dispatch`/`__ss_emit` live
+    /// here; dropping the engine drops it, leaving no state on the page `window`.
+    scope: Object,
     /// JS→Bevy messages queued by `__superui_bevy_send`, drained per frame.
     /// Shared with the installed closure.
     outbox: Rc<RefCell<Vec<(String, Value)>>>,
-    /// Dropping a `Closure` frees the JS shim referencing it, so the installed
-    /// globals must be held for the engine's lifetime.
+    /// Dropping a `Closure` frees the JS shim referencing it, so the host
+    /// functions installed on the scope must be held for the engine's lifetime.
     _bevy_send: Closure<dyn FnMut(JsValue, JsValue)>,
     _measure: Closure<dyn FnMut(JsValue) -> JsValue>,
 }
 
 impl WebEngine {
-    /// Build an engine sharing `dom`. Installs the host globals the bundle needs,
-    /// then evaluates the shadow DOM in the page so `document`/`__ss_root`/
-    /// `__ss_flush`/`__ss_dispatch` exist. Does not evaluate the reactive runtime
-    /// — that is layered on later via [`eval`](JsEngine::eval).
+    /// Build an engine sharing `dom`. Creates the private scope, installs the
+    /// host functions the bundle needs on it, then evaluates the shadow DOM into
+    /// it so `document`/`__ss_root`/`__ss_flush`/`__ss_dispatch` exist on the
+    /// scope. Does not evaluate the reactive runtime — that is layered on later
+    /// via [`eval`](JsEngine::eval).
     pub fn new(dom: Rc<RefCell<Dom>>) -> Self {
-        let global = global();
+        // A plain object (prototype Object.prototype, not `window`): assigning
+        // `document` on it cannot hit `window`'s read-only `document` accessor.
+        let scope = Object::new();
         let outbox: Rc<RefCell<Vec<(String, Value)>>> = Rc::new(RefCell::new(Vec::new()));
 
         // __superui_bevy_send(name, value): JS→Bevy. Marshal the value through
@@ -66,7 +82,7 @@ impl WebEngine {
             })
         };
         let _ = Reflect::set(
-            &global,
+            scope.as_ref(),
             &JsValue::from_str("__superui_bevy_send"),
             bevy_send.as_ref(),
         );
@@ -76,17 +92,23 @@ impl WebEngine {
         // matching the native backends.
         let measure =
             Closure::<dyn FnMut(JsValue) -> JsValue>::new(|_id: JsValue| -> JsValue { zero_rect() });
-        let _ = Reflect::set(&global, &JsValue::from_str("__ss_measure"), measure.as_ref());
+        let _ = Reflect::set(
+            scope.as_ref(),
+            &JsValue::from_str("__ss_measure"),
+            measure.as_ref(),
+        );
 
-        // dom.js is a self-installing IIFE that publishes its globals, so
-        // indirect `eval` (global scope) is correct. A failure here is
-        // non-fatal: keep the engine so later eval() calls still report errors.
-        if let Err(e) = js_sys::eval(DOM_JS) {
-            web_error("dom.js evaluation failed", &e);
+        // dom.js runs into the scope first — it defines the shadow `document` and
+        // the __ss_* entry points the later runtime/render/app scripts build on.
+        // Non-fatal on failure: keep the engine so later eval() calls still
+        // report errors rather than panicking.
+        if let Err(e) = eval_in_scope(&scope, DOM_JS) {
+            web_error("dom.js evaluation failed", &JsValue::from_str(&e));
         }
 
         WebEngine {
             dom,
+            scope,
             outbox,
             _bevy_send: bevy_send,
             _measure: measure,
@@ -101,14 +123,7 @@ impl WebEngine {
 
 impl JsEngine for WebEngine {
     fn eval(&mut self, script: &str) -> Result<(), String> {
-        // Bind bare `document` to the shadow doc, not the page's real document:
-        // author/render code (`document.createElement`, `getElementById`) must
-        // hit superui's shadow DOM. Runtime/render publish their API via explicit
-        // `globalThis.*`, so only `document` is shadowed. dom.js is eval'd raw in
-        // `new` (it defines __ss_document); wrapping it would hide that.
-        let wrapped =
-            format!("(function(document){{\n{script}\n}}).call(globalThis, globalThis.__ss_document);");
-        js_sys::eval(&wrapped).map(|_| ()).map_err(err_to_string)
+        eval_in_scope(&self.scope, script)
     }
 
     fn dispatch_event(
@@ -119,7 +134,7 @@ impl JsEngine for WebEngine {
         bubbles: bool,
         cancelable: bool,
     ) -> bool {
-        let Some(dispatch) = global_fn("__ss_dispatch") else {
+        let Some(dispatch) = scope_fn(&self.scope, "__ss_dispatch") else {
             return false;
         };
         // __ss_dispatch takes 5 args — past call3 — so apply an argument array.
@@ -146,7 +161,7 @@ impl JsEngine for WebEngine {
     }
 
     fn flush_ops(&mut self) -> OpBatch {
-        let Some(flush) = global_fn("__ss_flush") else {
+        let Some(flush) = scope_fn(&self.scope, "__ss_flush") else {
             web_warn("__ss_flush is not defined");
             return OpBatch::default();
         };
@@ -171,7 +186,7 @@ impl JsEngine for WebEngine {
     }
 
     fn emit(&mut self, name: &str, value: &Value) {
-        let Some(hook) = global_fn("__ss_emit") else {
+        let Some(hook) = scope_fn(&self.scope, "__ss_emit") else {
             return;
         };
         let payload = json_to_js(value);
@@ -183,23 +198,86 @@ impl JsEngine for WebEngine {
     }
 }
 
-// ---- helpers ---------------------------------------------------------------
+// ---- scoped eval -----------------------------------------------------------
 
-/// `globalThis` as a [`JsValue`] for `Reflect` lookups and installs.
-fn global() -> JsValue {
-    js_sys::global().into()
+/// Evaluate `script` against `scope` as its global. The script is wrapped so
+/// `globalThis`/`window`/`self` and every name currently published on `scope`
+/// (`document`, `render`, `$ss`, `createSignal`, ...) bind to `scope`, while
+/// built-ins (`Array`, `Math`, `setTimeout`, ...) fall through to the real page
+/// globals via the lexical scope chain. `globalThis.x = ...` inside the script
+/// therefore writes to `scope`, and later scripts pick up those names.
+///
+/// Param injection (not `with`) so strict-mode bundle code resolves correctly.
+/// `js_sys::eval` catches JS errors — including a SyntaxError in `script` — so a
+/// bad script yields `Err`, never a wasm trap.
+fn eval_in_scope(scope: &Object, script: &str) -> Result<(), String> {
+    let names: Vec<String> = Object::keys(scope)
+        .iter()
+        .filter_map(|k| k.as_string())
+        .filter(|n| is_bindable_ident(n))
+        .collect();
+    let params: String = names.iter().map(|n| format!(", {n}")).collect();
+    // {n:?} emits a quoted, escaped JS string literal for the member read.
+    let args: String = names.iter().map(|n| format!(", __scope__[{n:?}]")).collect();
+
+    // A factory taking the scope, so the scope crosses the boundary as a call
+    // argument rather than a temporary page global — re-entrancy safe.
+    let factory_src = format!(
+        "(function(__scope__){{ return (function(globalThis, window, self{params}){{\n{script}\n}}).apply(__scope__, [__scope__, __scope__, __scope__{args}]); }})"
+    );
+    let factory: Function = js_sys::eval(&factory_src)
+        .map_err(err_to_string)?
+        .dyn_into()
+        .map_err(|_| "scoped-eval factory is not a function".to_string())?;
+    factory
+        .call1(&JsValue::undefined(), scope.as_ref())
+        .map(|_| ())
+        .map_err(err_to_string)
 }
 
-/// A `globalThis` property as a callable, if present and callable.
-fn global_fn(name: &str) -> Option<Function> {
-    Reflect::get(&global(), &JsValue::from_str(name))
+/// Whether `name` is safe to bind as a wrapper parameter: a valid JS identifier,
+/// not a reserved word, and not one of the fixed params (`globalThis`/`window`/
+/// `self`, bound separately).
+fn is_bindable_ident(name: &str) -> bool {
+    if matches!(name, "globalThis" | "window" | "self") || is_reserved_word(name) {
+        return false;
+    }
+    let mut chars = name.chars();
+    match chars.next() {
+        Some(c) if c == '_' || c == '$' || c.is_ascii_alphabetic() => {}
+        _ => return false,
+    }
+    chars.all(|c| c == '_' || c == '$' || c.is_ascii_alphanumeric())
+}
+
+/// Reserved words that cannot be a parameter name. superui's published names
+/// avoid these; the guard keeps a future name from producing an unparseable
+/// factory.
+fn is_reserved_word(name: &str) -> bool {
+    matches!(
+        name,
+        "break" | "case" | "catch" | "class" | "const" | "continue" | "debugger"
+            | "default" | "delete" | "do" | "else" | "enum" | "export" | "extends"
+            | "false" | "finally" | "for" | "function" | "if" | "import" | "in"
+            | "instanceof" | "new" | "null" | "return" | "super" | "switch" | "this"
+            | "throw" | "true" | "try" | "typeof" | "var" | "void" | "while" | "with"
+            | "yield" | "let" | "static" | "await" | "async" | "implements"
+            | "interface" | "package" | "private" | "protected" | "public"
+    )
+}
+
+// ---- helpers ---------------------------------------------------------------
+
+/// A property of `scope` as a callable, if present and callable.
+fn scope_fn(scope: &Object, name: &str) -> Option<Function> {
+    Reflect::get(scope.as_ref(), &JsValue::from_str(name))
         .ok()
         .and_then(|v| v.dyn_into::<Function>().ok())
 }
 
 /// A zero layout rect as a plain JS object, mirroring the native `__ss_measure`.
 fn zero_rect() -> JsValue {
-    let rect = js_sys::Object::new();
+    let rect = Object::new();
     for field in ["x", "y", "width", "height", "top", "left", "right", "bottom"] {
         let _ = Reflect::set(&rect, &JsValue::from_str(field), &JsValue::from_f64(0.0));
     }
@@ -247,8 +325,10 @@ fn web_warn(msg: &str) {
     console_call("warn", msg);
 }
 
+/// Diagnostics go to the real page `console`, not the instance scope.
 fn console_call(method: &str, msg: &str) {
-    if let Ok(console) = Reflect::get(&global(), &JsValue::from_str("console")) {
+    let global: JsValue = js_sys::global().into();
+    if let Ok(console) = Reflect::get(&global, &JsValue::from_str("console")) {
         if let Ok(f) = Reflect::get(&console, &JsValue::from_str(method)) {
             if let Ok(f) = f.dyn_into::<Function>() {
                 let _ = f.call1(&console, &JsValue::from_str(msg));
