@@ -32,7 +32,7 @@ bevy = { workspace = true, default-features = false, features = [
 superui_html = { path = "../superui_html" }
 
 [features]
-default = ["engine-boa"]
+default = ["engine-v8"]
 engine-boa = ["superui_js/engine-boa", "supersolid_runtime/engine-boa"]
 engine-v8 = ["superui_js/engine-v8", "supersolid_runtime/engine-v8"]
 engine-web = ["superui_js/engine-web", "supersolid_runtime/engine-web"]
