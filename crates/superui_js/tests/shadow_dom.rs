@@ -1,56 +1,86 @@
-//! Drives `js/dom.js` through a bare Boa context: runs author JS that mutates
-//! the JS-side shadow DOM, calls `__ss_flush()`, and decodes the returned byte
-//! array with [`OpBatch::decode`] to assert the exact recorded ops. Also checks
-//! that structural/attribute reads are served from JS state and that
-//! `replaceChild` decomposes into insertBefore + removeChild.
+//! Drives `js/dom.js` through a bare `deno_core::JsRuntime`: runs author JS
+//! that mutates the JS-side shadow DOM, calls `__ss_flush()`, and decodes the
+//! returned byte array with [`OpBatch::decode`] to assert the exact recorded
+//! ops. Also checks that structural/attribute reads are served from JS state
+//! and that `replaceChild` decomposes into insertBefore + removeChild.
 
-#![cfg(feature = "engine-boa")]
+#![cfg(feature = "engine-v8")]
 
-use boa_engine::{js_string, Context, JsValue, Source};
+use deno_core::{serde_v8, v8, JsRuntime, RuntimeOptions};
 
 use superui_js::opwire::{Op, OpBatch};
 
 const DOM_JS: &str = include_str!("../js/dom.js");
 
-/// Fresh Boa context with `dom.js` evaluated (globals installed).
-fn ctx() -> Context {
-    let mut ctx = Context::default();
-    ctx.eval(Source::from_bytes(DOM_JS))
-        .expect("dom.js evaluates cleanly");
+/// A bare `deno_core` runtime with no host ops registered. `dom.js` calls no
+/// `console.*`/timer/host function, so it installs cleanly on its own.
+///
+/// A current-thread tokio runtime is entered around every v8 touch: deno_core's
+/// V8 platform posts delayed tasks (e.g. idle GC) through it, same as
+/// [`V8Engine`](superui_js::V8Engine) (see `src/engine_v8.rs`).
+struct Ctx {
+    runtime: JsRuntime,
+    tokio: tokio::runtime::Runtime,
+}
+
+/// Fresh runtime with `dom.js` evaluated (globals installed).
+fn ctx() -> Ctx {
+    let tokio = tokio::runtime::Builder::new_current_thread()
+        .build()
+        .expect("failed to build tokio runtime for engine-v8 test harness");
+    let runtime = {
+        let _guard = tokio.enter();
+        JsRuntime::new(RuntimeOptions::default())
+    };
+    let mut ctx = Ctx { runtime, tokio };
+    eval(&mut ctx, DOM_JS);
     ctx
 }
 
-fn eval(ctx: &mut Context, src: &str) -> JsValue {
-    ctx.eval(Source::from_bytes(src))
-        .unwrap_or_else(|e| panic!("eval failed for `{src}`: {e}"))
+/// Evaluate `src` for its side effects; the result value is discarded.
+fn eval(ctx: &mut Ctx, src: &str) {
+    let handle = ctx.tokio.handle().clone();
+    let _rt = handle.enter();
+    ctx.runtime
+        .execute_script("<eval>", src.to_string())
+        .unwrap_or_else(|e| panic!("eval failed for `{src}`: {e}"));
 }
 
 /// Call `__ss_flush()` and read the returned array-of-bytes into a `Vec<u8>`.
-fn flush(ctx: &mut Context) -> Vec<u8> {
-    let value = eval(ctx, "__ss_flush()");
-    let obj = value.as_object().expect("__ss_flush returns an array/object");
-    let len = obj
-        .get(js_string!("length"), ctx)
-        .unwrap()
-        .to_u32(ctx)
-        .unwrap();
-    let mut bytes = Vec::with_capacity(len as usize);
-    for i in 0..len {
-        let v = obj.get(i, ctx).unwrap();
-        bytes.push(v.to_u32(ctx).unwrap() as u8);
-    }
-    bytes
+fn flush(ctx: &mut Ctx) -> Vec<u8> {
+    let handle = ctx.tokio.handle().clone();
+    let _rt = handle.enter();
+    let global = ctx
+        .runtime
+        .execute_script("<eval>", "__ss_flush()".to_string())
+        .unwrap_or_else(|e| panic!("eval failed for `__ss_flush()`: {e}"));
+    deno_core::scope!(scope, ctx.runtime);
+    let local = v8::Local::new(scope, &global);
+    serde_v8::from_v8::<Vec<u8>>(scope, local).expect("__ss_flush returns an array of bytes")
 }
 
-fn eval_bool(ctx: &mut Context, src: &str) -> bool {
-    eval(ctx, src).as_boolean().expect("boolean result")
+fn eval_bool(ctx: &mut Ctx, src: &str) -> bool {
+    let handle = ctx.tokio.handle().clone();
+    let _rt = handle.enter();
+    let global = ctx
+        .runtime
+        .execute_script("<eval>", src.to_string())
+        .unwrap_or_else(|e| panic!("eval failed for `{src}`: {e}"));
+    deno_core::scope!(scope, ctx.runtime);
+    let local = v8::Local::new(scope, &global);
+    serde_v8::from_v8::<bool>(scope, local).expect("boolean result")
 }
 
-fn eval_string(ctx: &mut Context, src: &str) -> String {
-    eval(ctx, src)
-        .to_string(ctx)
-        .expect("string result")
-        .to_std_string_escaped()
+fn eval_string(ctx: &mut Ctx, src: &str) -> String {
+    let handle = ctx.tokio.handle().clone();
+    let _rt = handle.enter();
+    let global = ctx
+        .runtime
+        .execute_script("<eval>", src.to_string())
+        .unwrap_or_else(|e| panic!("eval failed for `{src}`: {e}"));
+    deno_core::scope!(scope, ctx.runtime);
+    let local = v8::Local::new(scope, &global);
+    serde_v8::from_v8::<String>(scope, local).expect("string result")
 }
 
 /// Position of an already-interned string in a decoded batch's pool.
@@ -418,9 +448,9 @@ fn next_sibling_after_mid_list_insert() {
 
 #[test]
 fn large_build_then_clear_stays_consistent() {
-    // Correctness at scale for the O(1) structural ops, not a perf test. Build and
-    // clear run in one eval, reporting counts on globals: Boa iterates a top-level
-    // for-loop only once when it runs in a later, separate eval.
+    // Correctness at scale for the O(1) structural ops, not a perf test. Build
+    // and clear run in one eval so the loop count is exact regardless of how
+    // many `execute_script` calls the harness makes.
     let mut ctx = ctx();
     eval(
         &mut ctx,

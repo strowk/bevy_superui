@@ -1,6 +1,6 @@
 //! End-to-end tests for [`V8Engine`] running on the JS shadow DOM (`dom.js`)
-//! and the op-wire. The Boa mirror lives in `tests/boa_engine.rs`; both drive
-//! the same JS bundle and assert the same decoded [`OpBatch`] contract.
+//! and the op-wire: create -> flush -> dispatch -> outbox, asserting the
+//! decoded [`OpBatch`] contract.
 
 #![cfg(feature = "engine-v8")]
 

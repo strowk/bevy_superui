@@ -1,38 +1,73 @@
-//! Drives the JS-side W3C event dispatch in `js/dom.js`: builds a shadow tree,
-//! registers listeners, calls `__ss_dispatch`, and asserts phase ordering,
-//! `preventDefault` return value, and `stopPropagation` semantics.
+//! Drives the JS-side W3C event dispatch in `js/dom.js` through a bare
+//! `deno_core::JsRuntime`: builds a shadow tree, registers listeners, calls
+//! `__ss_dispatch`, and asserts phase ordering, `preventDefault` return
+//! value, and `stopPropagation` semantics.
 
-#![cfg(feature = "engine-boa")]
+#![cfg(feature = "engine-v8")]
 
-use boa_engine::{Context, JsValue, Source};
+use deno_core::{serde_v8, v8, JsRuntime, RuntimeOptions};
 
 const DOM_JS: &str = include_str!("../js/dom.js");
 
-fn ctx() -> Context {
-    let mut ctx = Context::default();
-    ctx.eval(Source::from_bytes(DOM_JS))
-        .expect("dom.js evaluates cleanly");
+/// A bare `deno_core` runtime with no host ops registered. `dom.js` calls no
+/// `console.*`/timer/host function, so it installs cleanly on its own.
+///
+/// A current-thread tokio runtime is entered around every v8 touch: deno_core's
+/// V8 platform posts delayed tasks (e.g. idle GC) through it, same as
+/// [`V8Engine`](superui_js::V8Engine) (see `src/engine_v8.rs`).
+struct Ctx {
+    runtime: JsRuntime,
+    tokio: tokio::runtime::Runtime,
+}
+
+fn ctx() -> Ctx {
+    let tokio = tokio::runtime::Builder::new_current_thread()
+        .build()
+        .expect("failed to build tokio runtime for engine-v8 test harness");
+    let runtime = {
+        let _guard = tokio.enter();
+        JsRuntime::new(RuntimeOptions::default())
+    };
+    let mut ctx = Ctx { runtime, tokio };
+    eval(&mut ctx, DOM_JS);
     ctx
 }
 
-fn eval(ctx: &mut Context, src: &str) -> JsValue {
-    ctx.eval(Source::from_bytes(src))
-        .unwrap_or_else(|e| panic!("eval failed for `{src}`: {e}"))
+/// Evaluate `src` for its side effects; the result value is discarded.
+fn eval(ctx: &mut Ctx, src: &str) {
+    let handle = ctx.tokio.handle().clone();
+    let _rt = handle.enter();
+    ctx.runtime
+        .execute_script("<eval>", src.to_string())
+        .unwrap_or_else(|e| panic!("eval failed for `{src}`: {e}"));
 }
 
-fn eval_bool(ctx: &mut Context, src: &str) -> bool {
-    eval(ctx, src).as_boolean().expect("boolean result")
+fn eval_bool(ctx: &mut Ctx, src: &str) -> bool {
+    let handle = ctx.tokio.handle().clone();
+    let _rt = handle.enter();
+    let global = ctx
+        .runtime
+        .execute_script("<eval>", src.to_string())
+        .unwrap_or_else(|e| panic!("eval failed for `{src}`: {e}"));
+    deno_core::scope!(scope, ctx.runtime);
+    let local = v8::Local::new(scope, &global);
+    serde_v8::from_v8::<bool>(scope, local).expect("boolean result")
 }
 
-fn eval_string(ctx: &mut Context, src: &str) -> String {
-    eval(ctx, src)
-        .to_string(ctx)
-        .expect("string result")
-        .to_std_string_escaped()
+fn eval_string(ctx: &mut Ctx, src: &str) -> String {
+    let handle = ctx.tokio.handle().clone();
+    let _rt = handle.enter();
+    let global = ctx
+        .runtime
+        .execute_script("<eval>", src.to_string())
+        .unwrap_or_else(|e| panic!("eval failed for `{src}`: {e}"));
+    deno_core::scope!(scope, ctx.runtime);
+    let local = v8::Local::new(scope, &global);
+    serde_v8::from_v8::<String>(scope, local).expect("string result")
 }
 
 /// parent > child under the root; a shared `globalThis.ran` order log.
-fn tree(ctx: &mut Context) {
+fn tree(ctx: &mut Ctx) {
     eval(
         ctx,
         r#"

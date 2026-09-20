@@ -84,7 +84,7 @@ mod tests {
     use superui_html::parse_document;
 
     use crate::opwire::OpApplier;
-    use crate::{BoaEngine, JsEngine};
+    use crate::{JsEngine, V8Engine};
 
     use super::bootstrap_js;
 
@@ -94,7 +94,7 @@ mod tests {
         let script = bootstrap_js(&src);
 
         let shared = Rc::new(RefCell::new(Dom::new()));
-        let mut engine = BoaEngine::new(shared.clone());
+        let mut engine = V8Engine::new(shared.clone());
         engine.eval(&script).expect("bootstrap script evaluates cleanly");
 
         // Readback via the same outbox the host drains every frame.
@@ -135,7 +135,7 @@ mod tests {
         let script = bootstrap_js(&empty);
 
         let shared = Rc::new(RefCell::new(Dom::new()));
-        let mut engine = BoaEngine::new(shared.clone());
+        let mut engine = V8Engine::new(shared.clone());
         engine.eval(&script).expect("no-op script evaluates cleanly");
 
         let batch = engine.flush_ops();
