@@ -2,7 +2,7 @@
 //! Front-loaded because a negative answer reshapes the published tables.
 
 use rows::bench::{build_bench_app, dom_node_count, Backend};
-use superui_bridge::{PendingDomEvents, UiRuntime};
+use superui::{PendingDomEvents, UiRuntime};
 
 /// Click the button with `id`, by pushing a DOM click the same way the picking
 /// observer would. Returns false when the button is not in the DOM yet.
@@ -20,7 +20,7 @@ fn click(app: &mut bevy::prelude::App, id: &str) -> bool {
     // — the two can't otherwise be borrowed from `World` at the same time.
     world.resource_scope::<PendingDomEvents, _>(|world, mut pending| {
         let rt = world.non_send::<UiRuntime>();
-        superui_bridge::click_effect(rt, node, &mut pending);
+        superui::click_effect(rt, node, &mut pending);
     });
     true
 }

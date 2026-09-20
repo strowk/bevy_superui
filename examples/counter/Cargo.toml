@@ -6,17 +6,12 @@ license.workspace = true
 publish = false
 
 [features]
-default = ["engine-boa"]
 # Native state-preserving hot reload: live `.tsx` via TsxLoader + the asset watcher.
 # `cargo run -p counter --features hmr`.
 hmr = ["superui/hmr", "bevy/file_watcher"]
-# JS engine selection (exactly one active). Web demo uses engine-web.
-engine-boa = ["superui/engine-boa"]
-engine-v8 = ["superui/engine-v8"]
-engine-web = ["superui/engine-web"]
 
 [dependencies]
-superui = { path = "../../crates/superui", default-features = false }
+superui = { path = "../../crates/superui" }
 superui_css = { path = "../../crates/superui_css" }
 bevy = { workspace = true, default-features = true }
 
@@ -24,7 +19,8 @@ bevy = { workspace = true, default-features = true }
 [build-dependencies]
 supersolid = { path = "../../crates/supersolid" }
 
-# Boa (via superui) needs the JS getrandom backend on wasm.
+# `rand`/bevy's wasm entropy backend; `webgl2` selects the broadly-compatible
+# WebGL2 wgpu backend for the web build.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.3", features = ["wasm_js"] }
 bevy = { workspace = true, features = ["webgl2"] }

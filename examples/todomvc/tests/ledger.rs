@@ -2,7 +2,7 @@
 //! a live binding — executing a snippet that uses them must not throw.
 mod support;
 use support::*;
-use superui_bridge::UiRuntime;
+use superui::UiRuntime;
 
 #[test]
 fn sampled_supported_dom_apis_have_live_bindings() {

@@ -23,7 +23,7 @@ use bevy::ui::UiPlugin;
 
 use superui::prelude::{SuperUiPlugin, SuperUiRoot};
 use superui::HtmlSource;
-use superui_bridge::UiRuntime;
+use superui::UiRuntime;
 use superui_css::prelude::TypeName;
 
 use citadel::sim::snapshot::UiSnapshot;

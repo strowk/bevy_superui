@@ -20,7 +20,7 @@ path = "src/bin/bench.rs"
 required-features = ["bench"]
 
 [features]
-default = ["debug-ui", "engine-boa"]
+default = ["debug-ui"]
 ui-native = []
 # Native state-preserving hot reload: live app.tsx via TsxLoader + the asset watcher.
 hmr = ["superui/hmr", "bevy/file_watcher"]
@@ -28,16 +28,11 @@ debug-ui = ["bevy/bevy_dev_tools"]
 mcp_debug = ["dep:bevy_brp_extras", "bevy/bevy_remote"]
 bench = []
 dhat-prof = ["dep:dhat", "superui_bench_support/dhat-prof"]
-# JS engine selection: forward to every engine-carrying dependency. Exactly one must be active.
-engine-boa = ["superui/engine-boa", "superui_bridge/engine-boa"]
-engine-v8 = ["superui/engine-v8", "superui_bridge/engine-v8"]
-engine-web = ["superui/engine-web", "superui_bridge/engine-web"]
 
 [dependencies]
 bevy = { workspace = true, default-features = true }
-superui = { path = "../../crates/superui", default-features = false }
+superui = { path = "../../crates/superui" }
 superui_css = { path = "../../crates/superui_css" }
-superui_bridge = { path = "../../crates/superui_bridge", default-features = false }
 superui_bench_support = { path = "../../crates/superui_bench_support" }
 serde = { version = "1", features = ["derive"] }
 

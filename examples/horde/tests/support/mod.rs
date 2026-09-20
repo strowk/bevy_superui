@@ -16,7 +16,7 @@ use bevy::text::TextPlugin;
 use bevy::ui::UiPlugin;
 use superui::prelude::{SuperUiPlugin, SuperUiRoot};
 use superui::HtmlSource;
-use superui_bridge::{PendingDomEvent, PendingDomEvents, UiRuntime};
+use superui::{PendingDomEvent, PendingDomEvents, UiRuntime};
 use superui_dom::NodeId;
 
 use horde::game_state::GameState;

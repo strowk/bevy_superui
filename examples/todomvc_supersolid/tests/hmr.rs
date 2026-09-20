@@ -13,7 +13,7 @@ use bevy::picking::{InteractionPlugin, PickingPlugin};
 use bevy::prelude::*;
 use bevy::text::TextPlugin;
 use bevy::ui::UiPlugin;
-use superui_bridge::{reconcile_system, PendingDomEvent, PendingDomEvents, UiRuntime};
+use superui::{reconcile_system, PendingDomEvent, PendingDomEvents, UiRuntime};
 use superui_css::style::StyleSheet;
 use superui_css::SuperUiCssPlugin;
 use superui_dom::{Dom, NodeId};
@@ -62,7 +62,7 @@ fn mount_hmr(app: &mut App) -> Rc<RefCell<Dom>> {
     app.world_mut().insert_non_send(rt);
     app.add_systems(
         Update,
-        (superui_bridge::drain_dom_events_system, reconcile_system).chain(),
+        (superui::drain_dom_events_system, reconcile_system).chain(),
     );
     dom
 }

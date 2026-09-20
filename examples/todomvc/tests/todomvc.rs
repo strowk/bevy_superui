@@ -25,7 +25,7 @@ fn li_labels(app: &bevy::prelude::App) -> Vec<String> {
         })
         .collect()
 }
-use superui_bridge::UiRuntime;
+use superui::UiRuntime;
 
 #[test]
 fn add_button_appends_a_todo() {
@@ -120,7 +120,7 @@ fn filters_show_active_and_completed_subsets() {
 fn adding_a_todo_fires_bevy_send_into_ecs() {
     use bevy::prelude::*;
     use serde::Deserialize;
-    use superui_bridge::SuperUiApp;
+    use superui::prelude::SuperUiApp;
 
     #[derive(Event, Deserialize, Clone, Debug, PartialEq)]
     struct TodoAdded {

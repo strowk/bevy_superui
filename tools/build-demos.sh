@@ -24,22 +24,16 @@ TARGET=wasm32-unknown-unknown
 CARGO_TARGET_ROOT="${CARGO_TARGET_DIR:-target}"
 OUT_ROOT=website/src/examples
 
-# JS engine for the web demos. The browser's own JS engine (engine-web) is the
-# intended web path — no interpreter shipped in the wasm. Override for the old
-# Boa-in-wasm path with:  ENGINE=engine-boa bash tools/build-demos.sh
-ENGINE="${ENGINE:-engine-web}"
-
-# Every demo builds with `--no-default-features --features $ENGINE` (added in the
-# cargo line below), which selects the JS engine AND drops the FPS overlay
-# (bevy_dev_tools needs GPU vertex-storage WebGL2 lacks). BUILD_ARGS holds any
-# remaining per-slug extras — none are needed currently.
+# `superui` auto-selects engine-web on this target — no feature flag needed.
+# `citadel`/`horde` still need `--no-default-features` to drop their `debug-ui`
+# default (`bevy_dev_tools`' FPS overlay needs GPU vertex-storage WebGL2 lacks).
 declare -A BUILD_ARGS=(
   [counter]=""
   [todomvc]=""
   [todomvc_supersolid]=""
   [game_menu]=""
-  [citadel]=""
-  [horde]=""
+  [citadel]="--no-default-features"
+  [horde]="--no-default-features"
 )
 
 # Which slugs to build: the args, or all of them.
@@ -80,9 +74,9 @@ cp -r tools/gallery/vendor "$OUT_ROOT/vendor"
 
 for slug in "${slugs[@]}"; do
   args="${BUILD_ARGS[$slug]-}"
-  echo "==> building $slug [$ENGINE] ${args:+($args) }(release wasm — this can take a while)"
+  echo "==> building $slug ${args:+($args) }(release wasm — this can take a while)"
   # shellcheck disable=SC2086  # $args is intentionally word-split (empty or a flag)
-  cargo build -p "$slug" --release --target "$TARGET" --no-default-features --features "$ENGINE" $args
+  cargo build -p "$slug" --release --target "$TARGET" $args
 
   out="$OUT_ROOT/$slug"
   mkdir -p "$out"

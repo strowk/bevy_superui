@@ -2,7 +2,7 @@
 //! transpiled by the native TsxLoader), driven headlessly through `superui`.
 mod support;
 use support::*;
-use superui_bridge::UiRuntime;
+use superui::UiRuntime;
 
 #[test]
 fn mounts_and_shows_title() {

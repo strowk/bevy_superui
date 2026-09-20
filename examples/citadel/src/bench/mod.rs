@@ -409,7 +409,7 @@ mod report_tests {
         // Count nodes via the DOM (mirrors horde's count_ui_nodes approach).
         let dom_nodes = app
             .world()
-            .get_non_send::<superui_bridge::UiRuntime>()
+            .get_non_send::<superui::UiRuntime>()
             .map(|rt| {
                 let d = rt.dom.borrow();
                 d.query_selector_all(d.document(), "*").len()

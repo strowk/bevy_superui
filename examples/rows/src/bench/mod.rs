@@ -114,7 +114,7 @@ pub fn build_bench_app(backend: Backend) -> App {
 /// Number of DOM elements the app contains, via the live `UiRuntime`.
 pub fn dom_node_count(app: &App) -> usize {
     app.world()
-        .get_non_send::<superui_bridge::UiRuntime>()
+        .get_non_send::<superui::UiRuntime>()
         .map(|rt| {
             let d = rt.dom.borrow();
             d.query_selector_all(d.document(), "*").len()
@@ -137,7 +137,7 @@ pub fn chrome_node_count(backend: Backend) -> usize {
 }
 
 use std::time::Instant;
-use superui_bridge::{PendingDomEvents, UiRuntime};
+use superui::{PendingDomEvents, UiRuntime};
 
 /// The frozen op set (spec §2). Names and order are the comparability contract.
 pub const OPS: [&str; 14] = [
@@ -219,12 +219,9 @@ pub fn first_row_ids(app: &App, n: usize) -> Vec<i64> {
 /// Dispatch a real DOM click at `#op-<op>`, exactly as the picking observer would.
 /// Returns false when the button is not mounted.
 ///
-/// Two API notes, both confirmed the hard way in Task 1:
-/// - `click_effect` is re-exported at the crate root; `superui_bridge::events` is
-///   private, so `superui_bridge::events::click_effect` does not compile.
-/// - `UiRuntime` is NonSend and `PendingDomEvents` is a resource, and `World` will
-///   not hand out both borrows at once. `resource_scope` temporarily removes the
-///   resource so the closure can hold it mutably beside the runtime borrow.
+/// `UiRuntime` is NonSend and `PendingDomEvents` is a resource, and `World` will
+/// not hand out both borrows at once. `resource_scope` temporarily removes the
+/// resource so the closure can hold it mutably beside the runtime borrow.
 pub fn click_op(app: &mut App, op: &str) -> bool {
     let world = app.world_mut();
     let Some(rt) = world.get_non_send::<UiRuntime>() else { return false };
@@ -236,7 +233,7 @@ pub fn click_op(app: &mut App, op: &str) -> bool {
 
     world.resource_scope::<PendingDomEvents, _>(|world, mut pending| {
         let rt = world.non_send::<UiRuntime>();
-        superui_bridge::click_effect(rt, node, &mut pending);
+        superui::click_effect(rt, node, &mut pending);
     });
     true
 }
