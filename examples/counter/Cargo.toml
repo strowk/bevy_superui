@@ -6,12 +6,17 @@ license.workspace = true
 publish = false
 
 [features]
+default = ["engine-boa"]
 # Native state-preserving hot reload: live `.tsx` via TsxLoader + the asset watcher.
 # `cargo run -p counter --features hmr`.
 hmr = ["superui/hmr", "bevy/file_watcher"]
+# JS engine selection (exactly one active). Web demo uses engine-web.
+engine-boa = ["superui/engine-boa"]
+engine-v8 = ["superui/engine-v8"]
+engine-web = ["superui/engine-web"]
 
 [dependencies]
-superui = { path = "../../crates/superui" }
+superui = { path = "../../crates/superui", default-features = false }
 superui_css = { path = "../../crates/superui_css" }
 bevy = { workspace = true, default-features = true }
 

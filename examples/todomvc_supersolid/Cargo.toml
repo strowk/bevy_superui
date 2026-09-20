@@ -6,6 +6,7 @@ license.workspace = true
 publish = false
 
 [features]
+default = ["engine-boa"]
 # Native state-preserving hot reload: live `.tsx` via TsxLoader + the asset watcher.
 # `cargo run -p todomvc_supersolid --features hmr`.
 hmr = ["superui/hmr", "bevy/file_watcher"]
@@ -13,12 +14,17 @@ hmr = ["superui/hmr", "bevy/file_watcher"]
 debug-ui = []
 # Bevy Remote Protocol + BRP extras so bevy_brp_mcp can drive/inspect the app.
 mcp_debug = ["dep:bevy_brp_extras", "bevy/bevy_remote"]
+# JS engine selection (exactly one active). Web demo uses engine-web. Forward to
+# every engine-carrying dep (superui + the directly-depended superui_bridge).
+engine-boa = ["superui/engine-boa", "superui_bridge/engine-boa"]
+engine-v8 = ["superui/engine-v8", "superui_bridge/engine-v8"]
+engine-web = ["superui/engine-web", "superui_bridge/engine-web"]
 
 [dependencies]
-superui = { path = "../../crates/superui" }
+superui = { path = "../../crates/superui", default-features = false }
 superui_css = { path = "../../crates/superui_css" }
 # Pulled transitively via `superui`; named directly for the mcp_debug click injector.
-superui_bridge = { path = "../../crates/superui_bridge" }
+superui_bridge = { path = "../../crates/superui_bridge", default-features = false }
 bevy = { workspace = true, default-features = true }
 
 [dependencies.bevy_brp_extras]

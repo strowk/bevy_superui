@@ -6,19 +6,25 @@ license.workspace = true
 publish = false
 
 [features]
+default = ["engine-boa"]
 # Opt-in diagnostics: logs every rendered text + color and each click/key press.
 # Run with `cargo run -p todomvc --features debug-ui`.
 debug-ui = []
 # Bevy Remote Protocol + BRP extras (screenshots, send_keys) so the bevy_brp_mcp
 # server can drive/inspect the running app. Run with `--features mcp_debug`.
 mcp_debug = ["dep:bevy_brp_extras", "bevy/bevy_remote"]
+# JS engine selection (exactly one active). Web demo uses engine-web. Forward to
+# every engine-carrying dep (superui + the directly-depended superui_bridge).
+engine-boa = ["superui/engine-boa", "superui_bridge/engine-boa"]
+engine-v8 = ["superui/engine-v8", "superui_bridge/engine-v8"]
+engine-web = ["superui/engine-web", "superui_bridge/engine-web"]
 
 [dependencies]
-superui = { path = "../../crates/superui" }
+superui = { path = "../../crates/superui", default-features = false }
 superui_css = { path = "../../crates/superui_css" }
 # Already pulled transitively via `superui`; named directly so `main.rs` can use
 # its types for the mcp_debug click injector.
-superui_bridge = { path = "../../crates/superui_bridge" }
+superui_bridge = { path = "../../crates/superui_bridge", default-features = false }
 # Full Bevy (windowing + rendering) — this is the runnable app, not a headless lib.
 bevy = { workspace = true, default-features = true }
 serde = { version = "1", features = ["derive"] }

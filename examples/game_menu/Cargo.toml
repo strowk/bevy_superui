@@ -6,15 +6,21 @@ license.workspace = true
 publish = false
 
 [features]
+default = ["engine-boa"]
 # Native state-preserving hot reload: live `.tsx` via TsxLoader + the asset watcher.
 # `cargo run -p game_menu --features hmr`.
 hmr = ["superui/hmr", "bevy/file_watcher"]
 debug-ui = ["bevy/bevy_dev_tools"]
 # Bevy Remote Protocol + BRP extras so bevy_brp_mcp can drive/screenshot the app.
 mcp_debug = ["dep:bevy_brp_extras", "bevy/bevy_remote"]
+# JS engine selection: forward to superui (which forwards to superui_js/superui_bridge).
+# Exactly one must be active. Native V8: `--no-default-features --features engine-v8`.
+engine-boa = ["superui/engine-boa"]
+engine-v8 = ["superui/engine-v8"]
+engine-web = ["superui/engine-web"]
 
 [dependencies]
-superui = { path = "../../crates/superui" }
+superui = { path = "../../crates/superui", default-features = false }
 superui_css = { path = "../../crates/superui_css" }
 bevy = { workspace = true, default-features = true }
 
