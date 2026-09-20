@@ -225,3 +225,52 @@ fn overscroll_is_clamped_by_layout() {
         "layout must clamp within content bounds, got {y}"
     );
 }
+
+#[test]
+fn wheel_over_child_scrolls_nearest_scrollable_ancestor() {
+    let mut app = test_app();
+    // A scroll container with a (non-scrollable) child, like a clickable row.
+    let container = app
+        .world_mut()
+        .spawn((
+            Node {
+                overflow: Overflow::scroll_y(),
+                ..default()
+            },
+            ScrollPosition::default(),
+        ))
+        .id();
+    let child = app
+        .world_mut()
+        .spawn((Node::default(), ScrollPosition::default(), ChildOf(container)))
+        .id();
+
+    // Hover the CHILD (rows with onClick are picking blockers → the hit target
+    // is the row, not the container), not the container itself.
+    let mut inner = bevy::ecs::entity::EntityHashMap::default();
+    inner.insert(child, HitData::new(Entity::PLACEHOLDER, 0.0, None, None));
+    let mut map = HashMap::default();
+    map.insert(PointerId::Mouse, inner);
+    app.world_mut().insert_resource(HoverMap(map));
+
+    app.world_mut().write_message(MouseWheel {
+        unit: MouseScrollUnit::Line,
+        x: 0.0,
+        y: 1.0,
+        window: Entity::PLACEHOLDER,
+        phase: bevy::input::touch::TouchPhase::Moved,
+    });
+    app.world_mut().run_system_once(wheel_scroll_system).unwrap();
+
+    // The nearest scrollable ancestor (the container) scrolled; the child did not.
+    assert_eq!(
+        app.world().get::<ScrollPosition>(container).unwrap().0,
+        Vec2::new(0.0, -20.0),
+        "hovering a child must scroll its nearest scrollable ancestor"
+    );
+    assert_eq!(
+        app.world().get::<ScrollPosition>(child).unwrap().0,
+        Vec2::ZERO,
+        "the non-scrollable child must not scroll"
+    );
+}

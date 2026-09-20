@@ -7,6 +7,7 @@
 //! from drifting past the scrollable range. Native-only: the wheel never
 //! reaches JS, and no DOM event is dispatched.
 
+use bevy::ecs::hierarchy::ChildOf;
 use bevy::ecs::message::MessageReader;
 use bevy::input::keyboard::KeyCode;
 use bevy::input::mouse::{MouseScrollUnit, MouseWheel};
@@ -29,7 +30,8 @@ pub fn wheel_scroll_system(
     mut wheel: MessageReader<MouseWheel>,
     hover_map: Res<HoverMap>,
     keys: Res<ButtonInput<KeyCode>>,
-    mut scrollables: Query<(&Node, &mut ScrollPosition)>,
+    nodes: Query<(&Node, Option<&ChildOf>)>,
+    mut scroll_q: Query<&mut ScrollPosition>,
 ) {
     // Sum the frame's deltas into logical pixels.
     let shift = keys.pressed(KeyCode::ShiftLeft) || keys.pressed(KeyCode::ShiftRight);
@@ -55,15 +57,67 @@ pub fn wheel_scroll_system(
     let Some(hovered) = hover_map.get(&PointerId::Mouse) else {
         return;
     };
+
+    // The pointer's hit target may be a non-scrollable descendant (e.g. a
+    // clickable row inside a scroll box). Resolve each hovered entity to its
+    // nearest scrollable ancestor on each axis — the browser rule "scroll the
+    // closest scrollable area" — and dedup so a container hit via several of
+    // its descendants is not scrolled more than once per tick.
+    let mut y_targets: Vec<Entity> = Vec::new();
+    let mut x_targets: Vec<Entity> = Vec::new();
     for (&entity, _hit) in hovered.iter() {
-        if let Ok((node, mut scroll)) = scrollables.get_mut(entity) {
-            if node.overflow.y == OverflowAxis::Scroll {
-                scroll.0.y -= dy;
-            }
-            if node.overflow.x == OverflowAxis::Scroll {
-                scroll.0.x -= dx;
+        if dy != 0.0 {
+            if let Some(t) = nearest_scrollable(entity, &nodes, Axis::Y) {
+                if !y_targets.contains(&t) {
+                    y_targets.push(t);
+                }
             }
         }
+        if dx != 0.0 {
+            if let Some(t) = nearest_scrollable(entity, &nodes, Axis::X) {
+                if !x_targets.contains(&t) {
+                    x_targets.push(t);
+                }
+            }
+        }
+    }
+    for t in y_targets {
+        if let Ok(mut scroll) = scroll_q.get_mut(t) {
+            scroll.0.y -= dy;
+        }
+    }
+    for t in x_targets {
+        if let Ok(mut scroll) = scroll_q.get_mut(t) {
+            scroll.0.x -= dx;
+        }
+    }
+}
+
+/// Which axis a walk is looking for a `Scroll` overflow on.
+#[derive(Clone, Copy)]
+enum Axis {
+    X,
+    Y,
+}
+
+/// Walk up from `start` (inclusive) to the nearest ancestor whose overflow is
+/// `Scroll` on `axis`, returning that entity, or `None` if none scrolls.
+fn nearest_scrollable(
+    start: Entity,
+    nodes: &Query<(&Node, Option<&ChildOf>)>,
+    axis: Axis,
+) -> Option<Entity> {
+    let mut cur = start;
+    loop {
+        let (node, parent) = nodes.get(cur).ok()?;
+        let scrolls = match axis {
+            Axis::X => node.overflow.x == OverflowAxis::Scroll,
+            Axis::Y => node.overflow.y == OverflowAxis::Scroll,
+        };
+        if scrolls {
+            return Some(cur);
+        }
+        cur = parent?.parent();
     }
 }
 
@@ -77,8 +131,13 @@ pub fn clamp_scroll_position_system(
     mut scrollables: Query<(&Node, &ComputedNode, &mut ScrollPosition)>,
 ) {
     for (node, computed, mut scroll) in &mut scrollables {
+        if node.overflow.x != OverflowAxis::Scroll && node.overflow.y != OverflowAxis::Scroll {
+            continue;
+        }
         let visible_size = computed.size() * computed.inverse_scale_factor();
         let content_size = computed.content_size() * computed.inverse_scale_factor();
+        // Omits bevy_ui's internal `+ scrollbar_size` term (inert while
+        // `scrollbar_width` is 0), matching `bevy_ui_widgets::ScrollArea`.
         let max_range = (content_size - visible_size).max(Vec2::ZERO);
 
         let mut clamped = scroll.0;
