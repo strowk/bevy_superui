@@ -9,7 +9,7 @@ use bevy::picking::hover::Hovered;
 use bevy::picking::Pickable;
 use bevy::prelude::*;
 use bevy::text::FontSize;
-use bevy::ui::{Checked, ComputedNode, ScrollPosition};
+use bevy::ui::{Checked, ComputedNode};
 use superui_css::html_type_name;
 use superui_css::prelude::{AttributeList, ClassList, InlineStyle, Styled, TypeName};
 use superui_dom::{NodeId, NodeKind};
@@ -148,11 +148,6 @@ impl UiRuntime {
                                 html_type_name(&el.tag),
                                 DomNode(child),
                                 Hovered::default(),
-                                // `ScrollPosition::default()`: the wheel-scroll system moves this
-                                // offset on hovered scrollable nodes. It is inert on any node whose
-                                // overflow is not `Scroll`, so attaching it to every element here
-                                // (the one spawn chokepoint, like `Hovered`) is safe and cheap.
-                                ScrollPosition::default(),
                             ))
                             .id(),
                         // `Pickable::IGNORE`: a text node is never a meaningful

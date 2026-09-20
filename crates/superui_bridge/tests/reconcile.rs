@@ -299,8 +299,9 @@ fn element_nodes_get_a_scroll_position() {
     let root = mount(&mut app, dom.clone());
     app.update();
 
-    // The <div> element entity must carry a ScrollPosition so the wheel system
-    // has something to move; layout leaves it inert unless an axis is Scroll.
+    // Bevy's Node requires ScrollPosition (ui_node.rs), so every element entity
+    // carries one automatically. The wheel-scroll system depends on this being
+    // present; this test guards that invariant.
     let div = app.world_mut().get::<Children>(root).unwrap()[0];
     assert!(
         app.world().get::<ScrollPosition>(div).is_some(),
