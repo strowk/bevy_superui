@@ -30,11 +30,17 @@ fn parse_line_height(parser: &mut Parser) -> Result<LineHeight, CssError> {
             match_ignore_ascii_case! { unit.as_ref(),
                 "px" => LineHeight::Px(*value),
                 "em" => LineHeight::RelativeToFont(*value),
+                // >>> SUPERUI-FORK-PATCH: css-rem-unit  (docs/fork-patches.md#css-rem-unit)
+                // LineHeight has no Rem variant, so resolve rem to px at a 16px root.
+                "rem" => LineHeight::Px(*value * 16.0),
+                // <<< SUPERUI-FORK-PATCH: css-rem-unit
                 _ => {
                     return Err(CssError::new_located(
                         &next,
                         error_codes::ui::UNEXPECTED_LINE_HEIGHT_TOKEN,
-                        format!("Dimension '{unit}' is not recognized for LineHeight. Valid dimensions are 'em' | 'px'")
+                        // >>> SUPERUI-FORK-PATCH: css-rem-unit  (docs/fork-patches.md#css-rem-unit)
+                        format!("Dimension '{unit}' is not recognized for LineHeight. Valid dimensions are 'em' | 'px' | 'rem'")
+                        // <<< SUPERUI-FORK-PATCH: css-rem-unit
                     ));
                 }
             }
@@ -162,6 +168,11 @@ mod tests {
         assert_eq!(
             test_parse_reflect::<LineHeight>("120%"),
             LineHeight::RelativeToFont(1.2),
+        );
+        // css-rem-unit: rem resolves to px at a 16px root (LineHeight has no Rem variant).
+        assert_eq!(
+            test_parse_reflect::<LineHeight>("1.5rem"),
+            LineHeight::Px(24.0),
         );
     }
     #[test]

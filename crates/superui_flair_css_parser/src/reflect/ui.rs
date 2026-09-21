@@ -69,6 +69,7 @@ pub(crate) fn parse_rect(parser: &mut Parser) -> Result<Rect, CssError> {
 ///   - `"vh"` → [`Val::Vh`]
 ///   - `"vmin"` → [`Val::VMin`]
 ///   - `"vmax"` → [`Val::VMax`]
+///   - `"rem"` → [`Val::Px`] (converted at a 16px root: `1rem` = `16px`)
 ///
 /// # Example
 ///
@@ -96,11 +97,16 @@ pub fn parse_val(parser: &mut Parser) -> Result<Val, CssError> {
                 "vh" => Val::Vh(*value),
                 "vmin" => Val::VMin(*value),
                 "vmax" => Val::VMax(*value),
+                // >>> SUPERUI-FORK-PATCH: css-rem-unit  (docs/fork-patches.md#css-rem-unit)
+                "rem" => Val::Px(*value * 16.0),
+                // <<< SUPERUI-FORK-PATCH: css-rem-unit
                 _ => {
                     return Err(CssError::new_located(
                         &next,
                         error_codes::UNEXPECTED_VAL_TOKEN,
-                        format!("Dimension '{unit}' is not recognized for Val. Valid dimensions are 'px' | 'vw' | 'vh' | 'vmin' | 'vmax'")
+                        // >>> SUPERUI-FORK-PATCH: css-rem-unit  (docs/fork-patches.md#css-rem-unit)
+                        format!("Dimension '{unit}' is not recognized for Val. Valid dimensions are 'px' | 'vw' | 'vh' | 'vmin' | 'vmax' | 'rem'")
+                        // <<< SUPERUI-FORK-PATCH: css-rem-unit
                     ));
                 }
             }
@@ -414,12 +420,17 @@ mod tests {
         assert_eq!(test_parse_reflect::<Val>("987vmin"), Val::VMin(987.0));
         assert_eq!(test_parse_reflect::<Val>("9999vmax"), Val::VMax(9999.0));
 
-        assert_eq!(test_err_parse_reflect::<Val>("2rem"), "[60] Warning: Unexpected token for a Val type
+        // css-rem-unit: rem resolves to px at a 16px root.
+        assert_eq!(test_parse_reflect::<Val>("1rem"), Val::Px(16.0));
+        assert_eq!(test_parse_reflect::<Val>("0.5rem"), Val::Px(8.0));
+        assert_eq!(test_parse_reflect::<Val>("2rem"), Val::Px(32.0));
+
+        assert_eq!(test_err_parse_reflect::<Val>("2foo"), "[60] Warning: Unexpected token for a Val type
    ,-[ test.css:1:1 ]
    |
- 1 | 2rem
+ 1 | 2foo
    | |^^^\x20\x20
-   | `----- Dimension 'rem' is not recognized for Val. Valid dimensions are 'px' | 'vw' | 'vh' | 'vmin' | 'vmax'
+   | `----- Dimension 'foo' is not recognized for Val. Valid dimensions are 'px' | 'vw' | 'vh' | 'vmin' | 'vmax' | 'rem'
 ---'
 "
         );

@@ -33,3 +33,17 @@ Upstream bases:
 - **Why:** Graceful degradation of malformed CSS (design §1). Regression test: `malformed_trailing_rule_degrades_without_panic` in `crates/superui_css/tests/selectors.rs`.
 - **Upstream status:** local (not yet submitted).
 
+
+### css-import-relative-resolution
+- **Crate/file:** `superui_flair_css_parser` — `src/loader.rs`
+- **Upstream location:** `CssStyleSheetLoader::load`, the `@import` load loop (the `load_value::<StyleSheet>` call).
+- **What:** Resolve each `@import` target relative to the importing stylesheet before handing it to the asset server: `load_context.path().resolve_embed_str(&import_path)` (RFC-1808 embedded semantics — base is the sheet file, so the import resolves against its *directory*), falling back to the raw string on a parse error. The original import string is still used as the `imports` map key (`imports.insert(import_path, …)`); only the path passed to `load_value` changes.
+- **Why:** CSS-spec compliance: `@import` URLs are defined relative to the importing stylesheet, but upstream passes the raw import string straight to the `AssetServer`, which loads it asset-root-relative. This breaks portable/generated stylesheets (e.g. a `style.css` that `@import`s a sibling `.superui/build/utilities.generated.css`) and any subdirectory-relative import. Regression test: `crates/superui_css/tests/imports_relative.rs`.
+- **Upstream status:** local (not yet submitted; to be offered to bevy_flair).
+
+### css-rem-unit
+- **Crate/file:** `superui_flair_css_parser` — `src/reflect/ui.rs` (`parse_val`); `src/reflect/text.rs` (`parse_line_height`).
+- **Upstream location:** the `Token::Dimension` `match_ignore_ascii_case!` arm in each of `parse_val` and `parse_line_height`.
+- **What:** Accept the CSS `rem` unit as `value * 16.0` px at these length sites: `parse_val` adds `"rem" => Val::Px(*value * 16.0)`; `parse_line_height` adds `"rem" => LineHeight::Px(*value * 16.0)` (LineHeight has no `Rem` variant). The corresponding error-message unit lists are extended to include `'rem'`. Font-size (`parse_font_size`) and letter-spacing (`parse_letter_spacing`) already accept `rem` upstream via the native `FontSize::Rem` / `LetterSpacing::Rem` variants, so they need no patch.
+- **Why:** CSS `rem` is a standard length unit that bevy_ui's `Val` (and bevy_text's `LineHeight`) lacks, so upstream flair rejects it (`UNEXPECTED_VAL_TOKEN` / `UNEXPECTED_LINE_HEIGHT_TOKEN`). It is needed so Tailwind-compatible class-utility scales resolve: encre-css emits `rem` for spacing/sizing/text utilities (`pt-4`, `gap-2`, `text-sm`, etc.). A 16px root (`1rem` = `16px`) is the CSS and Tailwind default.
+- **Upstream status:** local — to be offered to bevy_flair alongside `css-import-relative-resolution`.

@@ -21,6 +21,11 @@ use superui_dom::NodeId;
 pub const HTML: &str = include_str!("../../assets/ui/todomvc_supersolid/index.html");
 pub const CSS: &str = include_str!("../../assets/ui/todomvc_supersolid/style.css");
 pub const TSX: &str = include_str!("../../assets/ui/todomvc_supersolid/app.tsx");
+// The class-utilities sheet `style.css` `@import`s. Generated at build time from
+// the utility classes used in `app.tsx`; included here so the (file-relative)
+// import resolves inside the in-memory asset source.
+pub const UTILS_CSS: &str =
+    include_str!("../../assets/ui/todomvc_supersolid/.superui/build/utilities.generated.css");
 // Pre-transpiled JS: the non-HMR mount seam resolves `app.tsx` →
 // `.superui/build/app.js` (see `superui_paths::generated_js`).
 pub const JS: &str = include_str!("../../assets/ui/todomvc_supersolid/.superui/build/app.js");
@@ -31,6 +36,10 @@ pub fn app() -> App {
     let dir = Dir::new("assets".into());
     dir.insert_asset("ui/todomvc_supersolid/index.html".as_ref(), HTML.as_bytes());
     dir.insert_asset("ui/todomvc_supersolid/style.css".as_ref(), CSS.as_bytes());
+    dir.insert_asset(
+        "ui/todomvc_supersolid/.superui/build/utilities.generated.css".as_ref(),
+        UTILS_CSS.as_bytes(),
+    );
     dir.insert_asset("ui/todomvc_supersolid/app.tsx".as_ref(), TSX.as_bytes());
     dir.insert_asset("ui/todomvc_supersolid/.superui/build/app.js".as_ref(), JS.as_bytes());
 
@@ -76,6 +85,13 @@ pub fn tick(app: &mut App, n: usize) {
     for _ in 0..n {
         app.update();
     }
+}
+
+/// The bevy_ui entity flair styles for a DOM node (via the reconciler's binding).
+pub fn entity_for(app: &App, node: NodeId) -> Entity {
+    let rt = app.world().non_send::<UiRuntime>();
+    rt.entity_for(node)
+        .expect("DOM node must be bound to a bevy entity")
 }
 
 pub fn node_by_selector(app: &App, sel: &str) -> NodeId {

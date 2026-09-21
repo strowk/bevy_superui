@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 use std::path::Path;
 
-/// Returns the 16 publishable crates in dependency-topological order.
+/// Returns the 17 publishable crates in dependency-topological order.
 pub fn publish_order() -> Vec<&'static str> {
     vec![
         "superui_dom",
@@ -15,6 +15,7 @@ pub fn publish_order() -> Vec<&'static str> {
         "superui_flair_style",
         "superui_flair_css_parser",
         "superui_css",
+        "superui_css_utilities",
         "supersolid",
         "superui_bridge",
         "superui",
