@@ -88,6 +88,11 @@ fn text_input_is_single_line_editable() {
     assert!(!editable.allow_newlines, "a text input does not allow newlines");
     let layout = app.world().get::<TextLayout>(input).expect("input has TextLayout");
     assert_eq!(layout.linebreak, bevy::text::LineBreak::NoWrap, "text input does not wrap");
+    // Bevy's caret renderer only draws a cursor for entities carrying TextCursorStyle.
+    assert!(
+        app.world().get::<bevy::text::TextCursorStyle>(input).is_some(),
+        "input must carry TextCursorStyle so the caret renders"
+    );
 }
 
 /// A checked checkbox shows a mark as a managed child; unchecking removes it.

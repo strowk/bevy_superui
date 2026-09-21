@@ -9,7 +9,7 @@ use bevy::input_focus::AutoFocus;
 use bevy::picking::hover::Hovered;
 use bevy::picking::Pickable;
 use bevy::prelude::*;
-use bevy::text::{EditableText, TextLayout};
+use bevy::text::{EditableText, TextCursorStyle, TextLayout};
 use bevy::ui::Checked;
 use superui_css::html_type_name;
 use superui_css::prelude::{AttributeList, ClassList, InlineStyle, Styled, TypeName};
@@ -363,7 +363,11 @@ impl UiRuntime {
             };
             editable.editor_mut().set_text(&seed);
             editable.visible_lines = visible_lines.or(editable.visible_lines);
-            world.entity_mut(input_entity).insert((editable, layout));
+            // `EditableText` does not require `TextCursorStyle`, but Bevy's caret
+            // renderer only draws a cursor for entities that carry it.
+            world
+                .entity_mut(input_entity)
+                .insert((editable, layout, TextCursorStyle::default()));
             seed
         } else {
             // Keep buffer in sync with the live DOM value when JS/JSX changed it.
