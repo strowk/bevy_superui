@@ -18,6 +18,7 @@ use superui_css_utilities::{probe_each, CatalogFamily, ClassOutcome, CATALOG};
 fn main() {
     let mut md = String::new();
     write_header(&mut md);
+    write_family_index(&mut md);
 
     let mut total_supported = 0usize;
     let mut total_dropped = 0usize;
@@ -31,15 +32,42 @@ fn main() {
 
     write_footer(&mut md, total_supported, total_dropped);
 
-    let target = doc_path();
-    std::fs::write(&target, &md).expect("failed to write class-utilities.md");
-    println!(
-        "wrote {} ({} supported, {} dropped across {} families)",
-        target.display(),
-        total_supported,
-        total_dropped,
-        CATALOG.len()
-    );
+    for target in doc_paths() {
+        std::fs::write(&target, &md)
+            .unwrap_or_else(|e| panic!("failed to write {}: {e}", target.display()));
+        println!(
+            "wrote {} ({} supported, {} dropped across {} families)",
+            target.display(),
+            total_supported,
+            total_dropped,
+            CATALOG.len()
+        );
+    }
+}
+
+/// Jump list of the family sections below, each linking to its mdbook heading anchor.
+fn write_family_index(md: &mut String) {
+    md.push_str("## Utility families\n\n");
+    for family in CATALOG {
+        let _ = writeln!(md, "- [{}](#{})", family.name, anchor(family.name));
+    }
+    md.push_str("\n---\n\n");
+}
+
+/// mdbook heading-anchor slug: lowercase, whitespace to `-`, other punctuation dropped.
+fn anchor(heading: &str) -> String {
+    heading
+        .chars()
+        .filter_map(|c| {
+            if c.is_alphanumeric() || c == '_' || c == '-' {
+                Some(c.to_ascii_lowercase())
+            } else if c.is_whitespace() {
+                Some('-')
+            } else {
+                None
+            }
+        })
+        .collect()
 }
 
 /// `(supported: Vec<(class, [decls])>, dropped: Vec<(class, property, reason)>)`.
@@ -93,8 +121,6 @@ no-HMR) — and use the class names below in `class="..."` / `class={...}`.
 - **Only class names written literally in your source are applied.** A class
   built at runtime — e.g. `` class={`w-[${x}px]`} `` — is not picked up; use a
   static class or an inline `style` for runtime-computed values.
-
----
 
 "#,
     );
@@ -155,14 +181,13 @@ fn one_line(s: &str) -> String {
     s.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-fn doc_path() -> PathBuf {
+/// Both destinations for the generated reference: the website and the
+/// self-contained supersolid plugin skill.
+fn doc_paths() -> Vec<PathBuf> {
     // CARGO_MANIFEST_DIR = crates/superui_css_utilities
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("..")
-        .join("..")
-        .join("website")
-        .join("src")
-        .join("docs")
-        .join("reference")
-        .join("class-utilities.md")
+    let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("..");
+    vec![
+        repo.join("website/src/docs/reference/class-utilities.md"),
+        repo.join("plugins/bevy_superui/skills/supersolid/references/class-utilities.md"),
+    ]
 }

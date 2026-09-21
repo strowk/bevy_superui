@@ -33,7 +33,8 @@ normal document flow, no `float`, no inline text flow.
 | custom props `--x` / `var(--x)` | ✅ | define on `:root`, read with `var()` |
 | units `px`, `%`, `auto`, `vw`, `vh`, `vmin`, `vmax` | ✅ | |
 | `calc()` | 🟡 | **single-unit only** (`calc(10px + 5px)`, `calc(100% - 10%)`); mixed units like `calc(100% - 20px)` NOT supported |
-| units `rem`, `em` | 🟡 | font-relative units not supported — use `px` |
+| unit `rem` | ✅ | 16px root (`1rem` = `16px`) for lengths/line-height; native for `font-size`/`letter-spacing` |
+| unit `em` | 🟡 | supported for `line-height`; not general lengths yet — use `px` |
 | color: named + hex + `rgb()` + `oklch()` | ✅ | |
 
 ## Layout properties

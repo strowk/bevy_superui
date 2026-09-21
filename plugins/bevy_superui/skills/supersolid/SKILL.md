@@ -80,9 +80,10 @@ ignored** (no error), so unsupported code fails quietly. Before reaching for a C
 property, HTML element, or JS/DOM API, confirm it in the ledger. High-frequency gotchas:
 
 - **CSS:** `border: 1px #ccc` (NOT `1px solid` — no style keyword). No `opacity`,
-  `visibility` (use `display: none`), `cursor`, `rem`/`em`, bold/italic yet. `transform`
+  `visibility` (use `display: none`), `cursor`, `em`, bold/italic yet. `transform`
   is 2D only, functions in order `translate scale rotate`. `calc()` single-unit only.
-  Layout is flex/grid. Full table → `references/css.md`.
+  Layout is flex/grid. Tailwind-style utility classes (`flex`, `pt-4`, `w-[220px]`)
+  work opt-in → `references/class-utilities.md`. Full table → `references/css.md`.
 - **HTML:** only `<input type=text>` and `type=checkbox`; text editing is append +
   backspace-at-end only. No `<img>`, `<svg>`, `<select>` yet. Tags are flex boxes (no
   list markers, no inline bold). Full table → `references/html-dom.md`.
@@ -119,6 +120,7 @@ modes → `references/project-setup.md`.
 | `references/authoring.md` | components, signals, effects, memos, context, lifecycle |
 | `references/control-flow.md` | Show / For / Index / Keyed / Switch — and which to pick |
 | `references/css.md` | CSS property / selector / value / at-rule support ledger |
+| `references/class-utilities.md` | Tailwind-compatible utility classes: supported catalog + how to enable |
 | `references/html-dom.md` | HTML elements + JS/DOM/Web API ledger + reserved globals |
 | `references/bevy-bridge.md` | bevy.send / bevy.on + the Rust side + the full loop |
 | `references/project-setup.md` | project layout, build modes, hot reload, editor setup |
