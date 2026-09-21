@@ -65,19 +65,15 @@ fn write_header(md: &mut String) {
     md.push_str(
         r#"# Class utilities — supported catalog
 
-> GENERATED FILE — do not edit by hand.
-> Regenerate with: `cargo run -p superui_css_utilities --bin gen_utilities_doc`
+<!-- GENERATED — do not edit by hand. Regenerate: cargo run -p superui_css_utilities --bin gen_utilities_doc -->
 
 superui supports a **Tailwind-compatible** subset of utility classes for `.tsx`
-UIs. You author with familiar class names (`flex`, `pt-4`, `bg-slate-800`,
-`w-[220px]`); a build/asset-time content-scan generates a CSS sheet that flair
-folds into the cascade.
+UIs. Author with familiar class names (`flex`, `pt-4`, `bg-slate-800`,
+`w-[220px]`) and the supported ones are compiled into your UI's stylesheet.
 
-**flair is the oracle.** Every row below was produced by generating the class's
-CSS with [`encre-css`](https://docs.rs/encre-css) and parsing it through flair's
-own CSS engine. Only classes flair accepts are listed — this doc cannot claim
-support flair does not have. Re-running the generator after a flair upgrade
-surfaces newly-supported utilities automatically.
+Every class listed below renders as shown. The list reflects exactly what the UI
+can render, so it never claims support that isn't there, and it picks up newly
+supported utilities automatically as rendering improves.
 
 ## How to use them
 
@@ -94,13 +90,13 @@ no-HMR) — and use the class names below in `class="..."` / `class={...}`.
 
 ### Limitations
 
-- This catalog is a **curated, representative subset**, not everything that
-  works. The per-build content-scan already handles arbitrary concrete classes
-  your app uses (e.g. `w-[220px]`, `bg-[#b83f45]`) — the oracle drops any that
-  flair rejects, with a build warning.
-- **Computed class names are not scanned.** A class assembled at runtime — e.g.
-  `` class={`w-[${x}px]`} `` — is invisible to the content-scan and will not be
-  styled. Use a static class or an inline `style` for runtime-computed values.
+- **This list is a representative subset, not a limit.** Use any utility class,
+  including arbitrary values like `w-[220px]` or `bg-[#b83f45]`; supported ones
+  are applied. An unsupported class has no effect, and you get a build warning
+  naming it and why it was skipped.
+- **Only class names written literally in your source are applied.** A class
+  built at runtime — e.g. `` class={`w-[${x}px]`} `` — is not picked up; use a
+  static class or an inline `style` for runtime-computed values.
 
 ---
 
