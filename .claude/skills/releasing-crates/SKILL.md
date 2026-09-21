@@ -1,6 +1,6 @@
 ---
 name: releasing-crates
-description: Use when adding, removing, or renaming a crate under crates/ in bevy_superui, editing a vendored superui_* fork, or preparing a crates.io release (cargo publish, version bump).
+description: Use when adding, removing, or renaming a crate under crates/ in bevy_superui, editing a vendored superui_* fork, changing the supersolid plugin skill under plugins/bevy_superui/, or preparing a crates.io or plugin-marketplace release (cargo publish, version bump).
 ---
 
 # Releasing bevy_superui crates
@@ -29,6 +29,10 @@ The `superui_flair_*` and `superui_boa_*` crates are forks. Any deviation from u
 2. Dry run: `cargo run -p xtask -- publish` (runs `cargo package` per crate in order).
 3. Publish: `cargo run -p xtask -- publish --execute`.
 
+## Releasing the plugin
+
+The Claude Code plugin under `plugins/bevy_superui/` versions separately from the crates. When you change anything under `plugins/bevy_superui/skills/`, bump `version` in `plugins/bevy_superui/.claude-plugin/plugin.json`. The marketplace manifest (`.claude-plugin/marketplace.json`) carries no version, so `plugin.json` is the only place to update.
+
 ## Quick reference
 
 | Change | Files to update |
@@ -36,3 +40,4 @@ The `superui_flair_*` and `superui_boa_*` crates are forks. Any deviation from u
 | New published crate | `xtask/src/lib.rs` (publish_order + count), `xtask/tests/publish_order.rs` (counts + position assert) |
 | New version | root `Cargo.toml` `[workspace.package].version`, then intra-workspace `version =` pins |
 | Fork edit | source `SUPERUI-FORK-PATCH` markers + `docs/fork-patches.md` entry |
+| Skill / plugin edit | bump `version` in `plugins/bevy_superui/.claude-plugin/plugin.json` |
