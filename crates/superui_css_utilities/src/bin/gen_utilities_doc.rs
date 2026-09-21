@@ -71,10 +71,6 @@ superui supports a **Tailwind-compatible** subset of utility classes for `.tsx`
 UIs. Author with familiar class names (`flex`, `pt-4`, `bg-slate-800`,
 `w-[220px]`) and the supported ones are compiled into your UI's stylesheet.
 
-Every class listed below renders as shown. The list reflects exactly what the UI
-can render, so it never claims support that isn't there, and it picks up newly
-supported utilities automatically as rendering improves.
-
 ## How to use them
 
 Add this import at the top of your app's global stylesheet (mirrors Tailwind's
