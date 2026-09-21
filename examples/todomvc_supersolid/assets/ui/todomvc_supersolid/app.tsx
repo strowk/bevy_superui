@@ -7,7 +7,8 @@ function Header(props) {
   return (
     <div id="new-todo-row">
       <input id="new-todo" type="text" placeholder="What needs to be done?"
-             value={props.draft} onInput={(e) => props.onInput(e.target.value)} />
+             value={props.draft} onInput={(e) => props.onInput(e.target.value)}
+             onKeyDown={(e) => { if (e.key === "Enter") props.onAdd(); }} />
       <button id="add" onClick={() => props.onAdd()}>Add</button>
     </div>
   );
