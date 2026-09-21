@@ -25,6 +25,10 @@ body { padding-top: var(--menu-bar-height, 64px); }
   gap: clamp(16px, 2.4vw, 24px); margin-top: 18px; align-items: start;
 }
 .demo-grid.is-full { display: flex; flex-direction: column; }
+/* The base .demo-grid uses `align-items: start` for the two-column layout, which in the
+   full-sheet flex column would leave the stage and spec at their natural width. Stretch
+   them to the content width so full sheet actually fills the sheet. */
+.demo-grid.is-full > * { width: 100%; }
 @media (max-width: 900px) {
   .demo-grid { display: flex; flex-direction: column; }
 }
@@ -82,7 +86,21 @@ body { padding-top: var(--menu-bar-height, 64px); }
 .demo-frame-label--tl { top: 14px; left: 32px; color: var(--su-teal); }
 .demo-frame-label--br { bottom: 14px; right: 32px; color: var(--su-dim); }
 
-#superui-canvas { width: 100%; height: 100%; display: block; }
+/* Once the WASM app has mounted (host page adds `.is-loaded`), hide the placeholder
+   chrome — corner brackets and labels — so it doesn't overlap the app's own content. */
+.demo-frame.is-loaded::before,
+.demo-frame.is-loaded::after,
+.demo-frame.is-loaded .demo-frame-label { display: none; }
+
+/* Absolutely positioned inside the `position: relative` .demo-frame so the canvas
+   fills the frame WITHOUT contributing to layout. Bevy's `fit_canvas_to_parent`
+   sizes the canvas backing store to cssWidth × devicePixelRatio; as an in-flow
+   element that intrinsic width feeds the flex column's min-content in full mode, so
+   the frame grows to it, the canvas (width:100%) follows, the backing store grows
+   again — a width ratchet that, at a fractional DPR, slowly inflates the stage.
+   Taking the canvas out of flow breaks that loop; the frame is sized purely by the
+   grid/flex layout and the canvas just paints into it. */
+#superui-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: block; }
 
 .demo-loader {
   position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center;

@@ -197,7 +197,13 @@ cargo run -p {{SLUG}} <span class="s">--features hmr</span></pre>
       if (!(e instanceof Error) || !String(e.message).includes('Using exceptions for control flow')) {
         console.error(e);
       }
-    }).finally(() => { if (loader) loader.remove(); });
+    }).finally(() => {
+      if (loader) loader.remove();
+      // The frame chrome (corner brackets + labels) orients the empty viewport while
+      // the WASM loads; once the app has mounted it would overlap the app's own
+      // content, so mark the frame loaded and let the stylesheet hide the chrome.
+      document.getElementById('app-pane')?.classList.add('is-loaded');
+    });
   </script>
 </body>
 </html>
