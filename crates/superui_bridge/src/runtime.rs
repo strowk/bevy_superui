@@ -25,6 +25,12 @@ pub struct DomNode(pub NodeId);
 #[derive(Component, Clone, Copy, Debug)]
 pub struct InputValueText;
 
+/// Marks the placeholder overlay specifically (a subset of [`InputValueText`],
+/// which also tags checkbox marks). `dim_placeholder_text_system` recolors these
+/// to a faded version of the input's resolved text color each frame.
+#[derive(Component, Clone, Copy, Debug)]
+pub struct PlaceholderText;
+
 /// How a mounted UI's nodes take part in `bevy_picking`. Put it on the root
 /// entity next to `SuperUiRoot`; the reconciler reads it once per pass.
 ///

@@ -7,10 +7,10 @@ use std::rc::Rc;
 use bevy::asset::LoadState;
 use bevy::prelude::*;
 use superui_bridge::{
-    clamp_scroll_position_system, drain_bevy_outbox_system, drain_dom_events_system,
-    editable_input_events_system, emit_bevy_inbox_system, keyboard_events_system,
-    on_focus_gained, on_focus_lost, on_pointer_click, reconcile_system, wheel_scroll_system,
-    PendingDomEvents, UiRuntime,
+    clamp_scroll_position_system, dim_placeholder_text_system, drain_bevy_outbox_system,
+    drain_dom_events_system, editable_input_events_system, emit_bevy_inbox_system,
+    keyboard_events_system, on_focus_gained, on_focus_lost, on_pointer_click, reconcile_system,
+    wheel_scroll_system, PendingDomEvents, UiRuntime,
 };
 use superui_css::style::StyleSheet;
 use superui_css::SuperUiCssPlugin;
@@ -190,6 +190,13 @@ impl Plugin for SuperUiPlugin {
             .add_systems(
                 PostUpdate,
                 clamp_scroll_position_system.in_set(bevy::ui::UiSystems::PostLayout),
+            )
+            // Recolor placeholder overlays after flair applies `color` (its
+            // `ApplyComputedProperties` runs before `UiSystems::Content`), so the
+            // faded placeholder isn't overwritten by the inherited text color.
+            .add_systems(
+                PostUpdate,
+                dim_placeholder_text_system.after(bevy::ui::UiSystems::Content),
             )
             .add_systems(Update, mount_when_ready)
             .add_systems(Update, detect_hot_reload.after(mount_when_ready))

@@ -219,3 +219,26 @@ fn click_stops_propagation_and_focuses_the_deepest_dom_node() {
     assert_eq!(focused, Some(field_node), "focus is the clicked input");
     assert_ne!(focused, Some(body_node), "focus did not bubble to <body>");
 }
+
+/// The placeholder overlay is recolored to a translucent version of the input's
+/// resolved text color (browser-like faded placeholder), since superui has no
+/// `::placeholder` selector to carry the style.
+#[test]
+fn placeholder_overlay_is_dimmed_from_input_text_color() {
+    use superui_bridge::{dim_placeholder_text_system, PlaceholderText};
+
+    let mut app = App::new();
+    app.add_systems(Update, dim_placeholder_text_system);
+    let parent = app.world_mut().spawn(TextColor(Color::srgb(0.1, 0.2, 0.3))).id();
+    let child = app
+        .world_mut()
+        .spawn((TextColor(Color::WHITE), PlaceholderText))
+        .id();
+    app.world_mut().entity_mut(parent).add_child(child);
+
+    app.update();
+
+    let c = app.world().get::<TextColor>(child).unwrap().0;
+    assert_eq!(c, Color::srgb(0.1, 0.2, 0.3).with_alpha(0.5),
+        "placeholder is the input's text color at half alpha");
+}

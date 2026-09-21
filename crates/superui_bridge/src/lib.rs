@@ -14,10 +14,10 @@ pub use bevy_bridge::{
     drain_bevy_outbox_system, emit_bevy_inbox_system, BevyBridgeRegistry, SuperUiApp,
 };
 pub use events::{
-    apply_pointer_click, click_effect, drain_dom_events_system, editable_input_events_system,
-    keyboard_events_system, on_focus_gained, on_focus_lost, on_pointer_click, resolve_dom_node,
-    PendingDomEvent, PendingDomEvents,
+    apply_pointer_click, click_effect, dim_placeholder_text_system, drain_dom_events_system,
+    editable_input_events_system, keyboard_events_system, on_focus_gained, on_focus_lost,
+    on_pointer_click, resolve_dom_node, PendingDomEvent, PendingDomEvents,
 };
 pub use reconcile::reconcile_system;
-pub use runtime::{DomNode, InputValueText, PickingPolicy, UiRuntime};
+pub use runtime::{DomNode, InputValueText, PickingPolicy, PlaceholderText, UiRuntime};
 pub use scroll::{clamp_scroll_position_system, wheel_scroll_system};

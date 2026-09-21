@@ -15,7 +15,7 @@ use superui_css::html_type_name;
 use superui_css::prelude::{AttributeList, ClassList, InlineStyle, Styled, TypeName};
 use superui_dom::{NodeId, NodeKind};
 
-use crate::runtime::{DomNode, InputValueText, PickingPolicy, UiRuntime};
+use crate::runtime::{DomNode, InputValueText, PickingPolicy, PlaceholderText, UiRuntime};
 
 /// Exclusive system: reconcile when dirty. Pulls the NonSend runtime out, syncs,
 /// re-inserts (the NonSend resource has no `resource_scope`, so move it out/in).
@@ -431,6 +431,7 @@ impl UiRuntime {
                             TextColor(Color::srgb(0.6, 0.6, 0.6)),
                             TextLayout::no_wrap(),
                             InputValueText,
+                            PlaceholderText,
                             Pickable::IGNORE,
                         ))
                         .id();

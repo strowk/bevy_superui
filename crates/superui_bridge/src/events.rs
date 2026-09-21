@@ -10,7 +10,7 @@ use bevy::prelude::*;
 use bevy::text::EditableText;
 use superui_dom::NodeId;
 
-use crate::runtime::{DomNode, UiRuntime};
+use crate::runtime::{DomNode, PlaceholderText, UiRuntime};
 
 /// One pending DOM event to dispatch into JS on the next drain.
 #[derive(Clone, Debug)]
@@ -383,6 +383,26 @@ pub fn editable_input_events_system(
             ev.cancelable = false;
             pending.0.push(ev);
             rt.dirty = true;
+        }
+    }
+}
+
+/// Fade each placeholder overlay to a translucent version of its input's resolved
+/// text color. Runs after flair's cascade, which would otherwise give the overlay
+/// the same inherited `color` as the typed value; superui has no `::placeholder`
+/// selector, so this is the placeholder's only styling.
+pub fn dim_placeholder_text_system(
+    inputs: Query<&TextColor, Without<PlaceholderText>>,
+    mut overlays: Query<(&ChildOf, &mut TextColor), With<PlaceholderText>>,
+) {
+    for (child_of, mut color) in &mut overlays {
+        let Ok(input_color) = inputs.get(child_of.parent()) else {
+            continue;
+        };
+        let base = input_color.0;
+        let faded = base.with_alpha(base.alpha() * 0.5);
+        if color.0 != faded {
+            color.0 = faded;
         }
     }
 }
