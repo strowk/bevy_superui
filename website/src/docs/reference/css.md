@@ -34,7 +34,8 @@ Unknown properties and rules are ignored, never fatal.
 | custom properties (`--x`, `var(--x)`) | ✅ | T2 | define on `:root`, read with `var()` |
 | `calc()` | 🟡 | T2 | only single-unit arithmetic works (`calc(10px + 5px)`, `calc(100% - 10%)`); mixed units like `calc(100% - 20px)` aren't supported yet |
 | units: `px`, `%`, `auto`, `vw`, `vh`, `vmin`, `vmax` | ✅ | T0 | |
-| units: `rem`, `em` | 🟡 | T2 | font-relative units not supported yet |
+| unit: `rem` | ✅ | T2 | resolved at a 16px root (`1rem` = `16px`) for lengths and line-height; native rem for `font-size` / `letter-spacing` |
+| unit: `em` | 🟡 | T2 | supported for `line-height`; not for general lengths yet |
 
 ## Properties (layout)
 
@@ -93,5 +94,5 @@ Unknown properties and rules are ignored, never fatal.
 |---|---|---|---|
 | `@media` | ✅ | T2 | |
 | `@keyframes` | ✅ | T2 | |
-| `@import` | ✅ | T2 | |
+| `@import` | ✅ | T2 | resolves relative to the importing stylesheet |
 | `@layer` | ✅ | T2 | |

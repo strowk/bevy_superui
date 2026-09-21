@@ -6,8 +6,7 @@
 superui supports a **Tailwind-compatible** subset of utility classes for `.tsx`
 UIs. You author with familiar class names (`flex`, `pt-4`, `bg-slate-800`,
 `w-[220px]`); a build/asset-time content-scan generates a CSS sheet that flair
-folds into the cascade. See the design in
-`../superpowers/specs/2026-07-27-class-utilities-design.md`.
+folds into the cascade.
 
 **flair is the oracle.** Every row below was produced by generating the class's
 CSS with [`encre-css`](https://docs.rs/encre-css) and parsing it through flair's
@@ -17,18 +16,16 @@ surfaces newly-supported utilities automatically.
 
 ## How to use them
 
-1. Add this line at the top of your app's global stylesheet (mirrors Tailwind's
-   `@tailwind utilities;`):
+Add this import at the top of your app's global stylesheet (mirrors Tailwind's
+`@tailwind utilities;`):
 
-   ```css
-   @import ".superui/build/utilities.generated.css";
-   ```
+```css
+@import ".superui/build/utilities.generated.css";
+```
 
-2. Enable generation — either the `superui` `utilities` feature (live/HMR) or a
-   `superui_css_utilities::write_generated(ui_dir)` call from your example's
-   `build.rs` (wasm / no-HMR).
-
-3. Use the class names below in `class="..."` / `class={...}` in your `.tsx`.
+Then enable generation — the `superui` `utilities` feature (live/HMR) or a
+`superui_css_utilities::write_generated(ui_dir)` call from `build.rs` (wasm /
+no-HMR) — and use the class names below in `class="..."` / `class={...}`.
 
 ### Limitations
 

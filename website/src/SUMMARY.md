@@ -24,6 +24,7 @@
 # Reference
 
 - [CSS](docs/reference/css.md)
+- [Class utilities](docs/reference/class-utilities.md)
 - [HTML](docs/reference/html.md)
 - [JS / DOM](docs/reference/js-dom.md)
 - [Supersolid framework](docs/reference/supersolid.md)
