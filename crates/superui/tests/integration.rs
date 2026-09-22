@@ -3,6 +3,7 @@ mod support;
 use support::*;
 
 use bevy::prelude::*;
+use superui::UiRuntime;
 use superui_css::prelude::TypeName;
 
 #[test]
@@ -131,6 +132,70 @@ fn html_hot_reload_despawns_old_entities_no_leak() {
         count_li(&mut app),
         1,
         "after HTML hot-reload exactly 1 li must exist (old 3 must be despawned)"
+    );
+}
+
+#[test]
+fn despawning_root_tears_down_runtime_and_subtree() {
+    // Idiomatic teardown: `commands.entity(root).despawn()` must remove the
+    // UiRuntime and the reconciled subtree, without the "entity does not exist"
+    // panic the bridge chain would otherwise hit next frame on a stale runtime.
+    put("td.css", b"li { }");
+    put(
+        "td.js",
+        b"var h=document.getElementById('h'); \
+          for(var i=0;i<3;i++){var li=document.createElement('li');h.appendChild(li);}",
+    );
+
+    let mut app = app();
+    let root = spawn_root(&mut app, "<ul id='h'></ul>", "td.css", "td.js");
+    tick(&mut app, 32);
+
+    assert!(app.world().contains_non_send::<UiRuntime>(), "UI should mount");
+    let count_li = |app: &mut App| {
+        let mut q = app.world_mut().query::<&superui_css::prelude::TypeName>();
+        q.iter(app.world()).filter(|t| t.0 == "li").count()
+    };
+    assert_eq!(count_li(&mut app), 3, "initial JS should create 3 lis");
+
+    app.world_mut().entity_mut(root).despawn();
+    tick(&mut app, 8);
+
+    assert!(
+        !app.world().contains_non_send::<UiRuntime>(),
+        "despawning the root must remove the UiRuntime"
+    );
+    assert_eq!(count_li(&mut app), 0, "the reconciled subtree must be despawned");
+}
+
+#[test]
+fn a_fresh_root_mounts_after_teardown() {
+    // Menu switch: the mount guard is keyed on the UiRuntime, which teardown
+    // releases, so a newly spawned SuperUiRoot mounts on its own.
+    put("sw.css", b"li { }");
+    put(
+        "sw.js",
+        b"var h=document.getElementById('h'); var li=document.createElement('li'); \
+          li.textContent='a'; h.appendChild(li);",
+    );
+
+    let mut app = app();
+    let root = spawn_root(&mut app, "<ul id='h'></ul>", "sw.css", "sw.js");
+    tick(&mut app, 32);
+    assert!(app.world().contains_non_send::<UiRuntime>(), "first UI should mount");
+
+    app.world_mut().entity_mut(root).despawn();
+    tick(&mut app, 8);
+    assert!(
+        !app.world().contains_non_send::<UiRuntime>(),
+        "teardown should release the runtime"
+    );
+
+    let _root2 = spawn_root(&mut app, "<ul id='h'></ul>", "sw.css", "sw.js");
+    tick(&mut app, 32);
+    assert!(
+        app.world().contains_non_send::<UiRuntime>(),
+        "a fresh root must mount after teardown"
     );
 }
 

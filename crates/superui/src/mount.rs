@@ -181,6 +181,7 @@ impl Plugin for SuperUiPlugin {
             .add_observer(on_pointer_click)
             .add_observer(on_focus_gained)
             .add_observer(on_focus_lost)
+            .add_observer(on_superui_root_removed)
             // Wheel scrolling is pure Bevy (no UiRuntime), so it runs plainly in
             // Update rather than inside the runtime_exists DOM chain below.
             .add_systems(Update, wheel_scroll_system)
@@ -250,6 +251,28 @@ impl Plugin for SuperUiPlugin {
 /// Run condition: only run the bridge systems when a `UiRuntime` is present.
 fn runtime_exists(world: &World) -> bool {
     world.contains_non_send::<UiRuntime>()
+}
+
+/// Tear the mounted UI down when its `SuperUiRoot` is removed or despawned, so
+/// `commands.entity(root).despawn()` is all a caller needs.
+///
+/// Dropping the `UiRuntime` flips `runtime_exists` false, so next frame the bridge
+/// chain skips instead of dereferencing the now-dead root through its stale entity
+/// map (the panic the manual workaround existed to avoid). Bevy's recursive despawn
+/// already takes the reconciled subtree parented under the root; despawning any
+/// still-bound entity mirrors the hot-reload teardown and is idempotent. Deferred
+/// through a command because removing a `NonSend` needs `&mut World`. `Remove` fires
+/// for both an explicit `remove::<SuperUiRoot>()` and a `despawn()`.
+fn on_superui_root_removed(_ev: On<Remove, SuperUiRoot>, mut commands: Commands) {
+    commands.queue(|world: &mut World| {
+        if let Some(rt) = world.remove_non_send::<UiRuntime>() {
+            for e in rt.bound_non_root_entities() {
+                if let Ok(ec) = world.get_entity_mut(e) {
+                    ec.despawn();
+                }
+            }
+        }
+    });
 }
 
 /// Drive JS timers each frame from Bevy's clock, then flush any DOM mutations the
