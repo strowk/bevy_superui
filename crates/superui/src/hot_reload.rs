@@ -3,10 +3,9 @@
 //! fires these automatically; on wasm the watcher is inactive (no-op), same seam.
 //!
 //! Implementation: split into a normal `detect_hot_reload` system that reads
-//! `MessageReader<AssetEvent<T>>` for each asset type (the only working form in
-//! Bevy 0.17.3 — confirmed by `bevy_flair_style/src/systems.rs` which uses the
-//! exact same pattern), and an exclusive `apply_hot_reload` system that consumes
-//! the flags and performs the actual rebuild / re-exec.
+//! `MessageReader<AssetEvent<T>>` for each asset type (the pattern
+//! `bevy_flair_style/src/systems.rs` uses), and an exclusive `apply_hot_reload`
+//! system that consumes the flags and performs the actual rebuild / re-exec.
 
 use bevy::ecs::message::MessageReader;
 use bevy::prelude::*;

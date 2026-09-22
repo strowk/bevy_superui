@@ -2,9 +2,9 @@
 
 ## Branches & Bevy versions
 
-- `main` tracks the **newest** supported Bevy. Its crate versions are `0.3.x` (bevy 0.19).
-- `release/bevy-0.18` is a long-lived maintenance branch: crate versions `0.2.x` (bevy 0.18).
-- `release/bevy-0.17` is a long-lived maintenance branch: crate versions `0.1.x` (bevy 0.17).
+- `main` tracks the **newest** current supported Bevy. Its crate versions are `0.3.x` (bevy 0.19).
+- `release/bevy-0.18` is a maintenance branch (non actively developed): crate versions `0.2.x` (bevy 0.18).
+- `release/bevy-0.17` is a maintenance branch (non actively developed): crate versions `0.1.x` (bevy 0.17).
 
 ### Where fixes land
 Land fixes on `main` first. To backport, cherry-pick onto each maintenance branch
