@@ -13,10 +13,6 @@ Marker grammar (both lines required; use `//` in `.rs` files, `#` in `Cargo.toml
 Upstream bases:
 - bevy_flair 0.8.0 (bevy 0.19) (https://github.com/eckz/bevy_flair)
   - bevy_flair_core_macros 0.8.0
-- ~~boa_engine / boa_parser 0.21.1 (https://github.com/boa-dev/boa)~~ — the
-  `superui_boa_engine`/`superui_boa_parser` forks were deleted in `986eba4`
-  (native JS moved to V8 via `deno_core`); the two patches below are kept for
-  history, not because the fork still exists.
 
 ## Patches
 
