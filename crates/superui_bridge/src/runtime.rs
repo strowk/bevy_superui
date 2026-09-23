@@ -273,6 +273,14 @@ impl UiRuntime {
         self.entity_to_node.get(&entity).copied()
     }
 
+    /// The DOM-agreed value `sync_range_input` last recorded for a range
+    /// `<input>` node (the echo guard's bookkeeping). `range_synced` is
+    /// `pub(crate)`; this accessor lets integration tests pin it directly,
+    /// not just its effects.
+    pub fn range_synced_value(&self, node: NodeId) -> Option<f32> {
+        self.range_synced.get(&node).copied()
+    }
+
     /// Insert/refresh the bidirectional map entry (used by the reconciler).
     #[allow(dead_code)]
     pub(crate) fn bind(&mut self, node: NodeId, entity: Entity) {

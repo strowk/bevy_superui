@@ -61,15 +61,16 @@ fn range_value_absent_defaults_to_midpoint() {
     assert_eq!(app.world().get::<SliderValue>(e).copied(), Some(SliderValue(20.0)));
 }
 
-// Regression for a `value=0` reconcile: `Slider`'s `#[require(SliderValue)]`
+// Regression for a `value=0` mount: `Slider`'s `#[require(SliderValue)]`
 // auto-inserts the matching `SliderValue(0.0)` default in the same `insert`
-// call that adds `Slider`, so this exercises the path where the component
-// already reads 0.0 before `sync_range_input`'s own `SliderValue` write would
-// run. `range_synced` (the bookkeeping this guards) is `pub(crate)` and not
-// reachable from this integration test; this only asserts the observable
-// component value does not regress.
+// call that adds `Slider`, so `sync_range_input` sees the component already
+// reading 0.0 before its own write would run — the masking case Task 2 fixed.
+// Pinned directly via `range_synced_value`: the old AND-guard wrote
+// `range_synced` only inside the same `if` that wrote `SliderValue`, so the
+// already-matching default skipped that `if` and left `range_synced` at
+// `None` (an external `value=0` change would then misread as its own echo).
 #[test]
-fn range_value_zero_reconciles_without_panicking() {
+fn range_value_zero_reconciles_and_records_range_synced() {
     let dom = Rc::new(RefCell::new(superui_html::parse_document(
         "<input id='r' type='range' min='0' max='40' value='0'>",
     )));
@@ -79,6 +80,11 @@ fn range_value_zero_reconciles_without_panicking() {
     let node = dom.borrow().get_element_by_id("r").unwrap();
     let e = slider_entity(&mut app, node);
     assert_eq!(app.world().get::<SliderValue>(e).copied(), Some(SliderValue(0.0)));
+    assert_eq!(
+        app.world().non_send::<UiRuntime>().range_synced_value(node),
+        Some(0.0),
+        "range_synced must record 0.0 even though SliderValue's require-default already matched"
+    );
 }
 
 // A malformed `min > max` must not produce an inverted `SliderRange`; both
@@ -247,6 +253,11 @@ fn js_set_value_moves_thumb_without_reemitting() {
     app.update();
 
     assert_eq!(app.world().get::<SliderValue>(e).copied(), Some(SliderValue(30.0)));
+    assert_eq!(
+        app.world().non_send::<UiRuntime>().range_synced_value(node),
+        Some(30.0),
+        "range_synced must track the JS-driven value so the next reconcile reads it as an echo, not a new external change"
+    );
     app.world_mut().non_send_mut::<UiRuntime>().run_script(
         "document.getElementById('r').setAttribute('data-n', String(globalThis.n));",
     );
@@ -254,14 +265,13 @@ fn js_set_value_moves_thumb_without_reemitting() {
         "a JS-driven value must not re-emit input/change");
 }
 
-// Same loop as above, but with a target value of exactly 0.0 — the case
-// Task 2's `#[require(SliderValue)]`-default masking made fragile: `Slider`'s
-// required default already reads `SliderValue(0.0)`, so a naive echo guard
-// that only updates `range_synced` when the component write itself happens
-// could skip the bookkeeping precisely when the value lands on 0.0. Starting
-// from a nonzero mounted value means `Slider` (and its default) are already
-// in place before this JS write, so the write must be the thing that lands
-// `SliderValue(0.0)` and records it in `range_synced` — not a leftover default.
+// Same loop as above, but landing on exactly 0.0: `SliderValue`'s zero is also
+// `Slider`'s `#[require]` default, so this pins that the echo guard still
+// treats a real JS write as a real write (updates `SliderValue`/`range_synced`,
+// no re-emit) rather than special-casing 0.0. It does NOT exercise the
+// mount-time masking case (`Slider` inserted for the first time with an
+// already-zero DOM value) — see `range_value_zero_reconciles_without_panicking`
+// for that.
 #[test]
 fn js_set_value_zero_moves_thumb_without_reemitting() {
     use bevy::ui_widgets::SliderValue;
