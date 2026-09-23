@@ -11,6 +11,7 @@ use bevy::picking::Pickable;
 use bevy::prelude::*;
 use bevy::text::{EditableText, TextCursorStyle, TextLayout};
 use bevy::ui::Checked;
+use bevy::ui_widgets::{Slider, SliderOrientation, SliderRange, SliderStep, SliderValue, TrackClick};
 use superui_css::html_type_name;
 use superui_css::prelude::{AttributeList, ClassList, InlineStyle, Styled, TypeName};
 use superui_dom::{NodeId, NodeKind};
@@ -98,6 +99,7 @@ impl UiRuntime {
             self.unbind(node, entity);
             self.input_texts.remove(&node);
             self.editable_synced.remove(&node);
+            self.range_synced.remove(&node);
         }
     }
 
@@ -219,7 +221,9 @@ impl UiRuntime {
         // `DomNode` + flair styling — means clicks pick the input (→ keyboard
         // focus) and flair's inherited `color`/`font-size` make it visible,
         // unlike a separate child that intercepted picking and rendered white.
-        if Self::is_text_input(dom, parent_node) {
+        if Self::is_range(dom, parent_node) {
+            self.sync_range_input(world, dom, parent_node, parent_entity);
+        } else if Self::is_text_input(dom, parent_node) {
             self.sync_editable_input(world, dom, parent_node, parent_entity, false);
         } else if Self::is_textarea(dom, parent_node) {
             self.sync_editable_input(world, dom, parent_node, parent_entity, true);
@@ -290,9 +294,19 @@ impl UiRuntime {
         }
     }
 
+    /// Is `node` a range `<input>`?
+    fn is_range(dom: &superui_dom::Dom, node: NodeId) -> bool {
+        matches!(dom.tag(node), Some("input"))
+            && dom.get_attribute(node, "type") == Some("range")
+    }
+
     /// Does `node` name a text-entry `<input>` (i.e. an `input` whose `type`
     /// is not `checkbox`)? Such inputs carry `EditableText` plus a
     /// placeholder-only overlay child.
+    ///
+    /// Range inputs also match this (`type` is neither `checkbox` nor
+    /// excluded here); the `sync_children` dispatch checks `is_range` first
+    /// so they never reach `sync_editable_input`.
     fn is_text_input(dom: &superui_dom::Dom, node: NodeId) -> bool {
         matches!(dom.tag(node), Some("input"))
             && dom.get_attribute(node, "type") != Some("checkbox")
@@ -391,6 +405,58 @@ impl UiRuntime {
         // single-line placeholder overlay.
         if !multiline {
             self.sync_placeholder_overlay(world, dom, input_node, input_entity, synced.is_empty());
+        }
+    }
+
+    /// A range `<input>` carries the headless `bevy_ui_widgets` slider on the
+    /// element itself. Attributes map to the immutable slider components with the
+    /// standard `<input type=range>` defaults; `value` is clamped into range.
+    fn sync_range_input(
+        &mut self,
+        world: &mut World,
+        dom: &superui_dom::Dom,
+        node: NodeId,
+        entity: Entity,
+    ) {
+        let attr_f32 = |name: &str| dom.get_attribute(node, name).and_then(|s| s.parse::<f32>().ok());
+        let min = attr_f32("min").unwrap_or(0.0);
+        let max = attr_f32("max").unwrap_or(100.0);
+        let step = attr_f32("step").unwrap_or(1.0);
+        // `dom.value()` falls back to the `value` attribute before any interaction.
+        let raw_value = dom
+            .value(node)
+            .parse::<f32>()
+            .ok()
+            .unwrap_or((min + max) / 2.0);
+        let value = raw_value.clamp(min.min(max), min.max(max));
+
+        // A range input must not be a plain `Text` node.
+        if world.get::<Text>(entity).is_some() {
+            world.entity_mut(entity).remove::<Text>();
+        }
+
+        let mut ec = world.entity_mut(entity);
+        if !ec.contains::<Slider>() {
+            ec.insert(Slider {
+                track_click: TrackClick::Snap,
+                orientation: SliderOrientation::Horizontal,
+            });
+        }
+        let new_range = SliderRange::new(min, max);
+        if ec.get::<SliderRange>().copied() != Some(new_range) {
+            ec.insert(new_range);
+        }
+        let new_step = SliderStep(step);
+        if ec.get::<SliderStep>() != Some(&new_step) {
+            ec.insert(new_step);
+        }
+        // Only push `value` when it's an external change, not an echo of our own
+        // last write (`range_synced`, mirroring `editable_synced`'s role for text
+        // inputs); the value observer wired in a later task updates this map too.
+        let synced = self.range_synced.get(&node).copied();
+        if synced != Some(value) && ec.get::<SliderValue>().copied() != Some(SliderValue(value)) {
+            ec.insert(SliderValue(value));
+            self.range_synced.insert(node, value);
         }
     }
 

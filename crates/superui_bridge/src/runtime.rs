@@ -96,6 +96,10 @@ pub struct UiRuntime {
     /// value may have moved again (e.g. a controlled input's next JS write),
     /// making a stale-vs-live comparison unreliable.
     pub(crate) editable_synced: HashMap<NodeId, String>,
+    /// Range `<input>` node -> the `SliderValue` the DOM and the slider component
+    /// last agreed on. Mirrors `editable_synced`'s role: tells an external DOM
+    /// write (JS/attribute change) from an echo of the reconciler's own push.
+    pub(crate) range_synced: HashMap<NodeId, f32>,
 }
 
 impl UiRuntime {
@@ -156,6 +160,7 @@ impl UiRuntime {
             focus_snapshot: None,
             input_texts: HashMap::new(),
             editable_synced: HashMap::new(),
+            range_synced: HashMap::new(),
         }
     }
 
