@@ -6,7 +6,7 @@
 
 **Architecture:** Reuse the headless `bevy_ui_widgets::Slider` for all input math. `superui_bridge` reconciles `<input type=range>` into the Bevy widget structure (host entity + track/fill/thumb child parts), parses attributes, keeps value in sync both ways, and turns the widget's `ValueChange<f32>` into DOM events. The vendored `superui_flair_*` forks own the visual side: new `::slider-track`/`::slider-fill`/`::slider-thumb` pseudo-elements, a `SliderPart` marker that exposes those parts to the cascade, a value-driven positioning system, and a default look shipped as low-priority `@layer` rules.
 
-**Tech Stack:** Rust, Bevy 0.19, `bevy_ui_widgets` 0.19.1, vendored bevy_flair 0.8.0 forks (`superui_flair_core`, `superui_flair_style`, `superui_flair_css_parser`), Boa/V8 JS engines, `superui_test_engine` (Playwright-shaped E2E).
+**Tech Stack:** Rust, Bevy 0.19, `bevy_ui_widgets` 0.19.1, vendored bevy_flair 0.8.0 forks (`superui_flair_core`, `superui_flair_style`, `superui_flair_css_parser`), JS engines `engine_v8` (native) and `engine_web` (browser/wasm), `superui_test_engine` (Playwright-shaped E2E).
 
 **Spec:** `docs/superpowers/specs/2026-09-23-input-range-slider-design.md`
 
