@@ -13,6 +13,10 @@ pub use superui_flair_style as style;
 mod tag;
 pub use tag::{html_type_name, intern_tag};
 
+// Also at the crate root (not just `prelude`) for the bridge reconciler.
+pub use superui_flair_style::components::StyleData;
+pub use superui_flair_style::SliderPart;
+
 bevy_app::plugin_group! {
     /// The one plugin Plan 5's `SuperUiPlugin` adds to get the full CSS engine:
     /// property registry, the style/selector systems, default animations, and

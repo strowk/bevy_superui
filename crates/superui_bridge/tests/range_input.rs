@@ -4,7 +4,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use bevy::prelude::*;
 use bevy::ui_widgets::{SliderRange, SliderStep, SliderValue};
-use superui_bridge::DomNode;
+use superui_bridge::{DomNode, UiRuntime};
 
 fn slider_entity(app: &mut App, node: superui_dom::NodeId) -> Entity {
     let mut q = app.world_mut().query::<(Entity, &DomNode)>();
@@ -95,4 +95,48 @@ fn range_min_greater_than_max_normalizes() {
     let e = slider_entity(&mut app, node);
     let range = app.world().get::<SliderRange>(e).copied().unwrap();
     assert_eq!((range.start(), range.end()), (0.0, 100.0));
+}
+
+#[test]
+fn range_spawns_three_parts_absent_from_dom_map_and_persisting() {
+    use bevy::ui_widgets::SliderThumb;
+    use superui_css::SliderPart;
+
+    let dom = Rc::new(RefCell::new(superui_html::parse_document(
+        "<input id='r' type='range'>",
+    )));
+    let mut app = test_app();
+    let _root = mount(&mut app, dom.clone());
+    app.update();
+
+    let node = dom.borrow().get_element_by_id("r").unwrap();
+    let host = slider_entity(&mut app, node);
+
+    // Exactly three children, one of each part; thumb also carries SliderThumb.
+    let children: Vec<Entity> =
+        app.world().get::<Children>(host).map(|c| c.iter().collect()).unwrap_or_default();
+    assert_eq!(children.len(), 3);
+    let parts: Vec<SliderPart> =
+        children.iter().filter_map(|&c| app.world().get::<SliderPart>(c).copied()).collect();
+    assert!(parts.contains(&SliderPart::Track));
+    assert!(parts.contains(&SliderPart::Fill));
+    assert!(parts.contains(&SliderPart::Thumb));
+    let thumb = children.iter().copied()
+        .find(|&c| app.world().get::<SliderPart>(c) == Some(&SliderPart::Thumb)).unwrap();
+    assert!(app.world().get::<SliderThumb>(thumb).is_some());
+
+    // Parts are not registered as DOM nodes.
+    let rt = app.world().non_send::<UiRuntime>();
+    for &c in &children {
+        assert!(rt.node_for(c).is_none(), "part entity leaked into the DOM map");
+    }
+
+    // A second reconcile reuses the same part entities (no respawn). `dirty`
+    // is `pub` and this is the pattern other bridge tests use to force a pass
+    // without a real DOM mutation.
+    app.world_mut().non_send_mut::<UiRuntime>().dirty = true;
+    app.update();
+    let children2: Vec<Entity> =
+        app.world().get::<Children>(host).map(|c| c.iter().collect()).unwrap_or_default();
+    assert_eq!(children2, children, "parts must persist across reconciles");
 }

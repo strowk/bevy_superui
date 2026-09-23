@@ -31,6 +31,16 @@ pub struct InputValueText;
 #[derive(Component, Clone, Copy, Debug)]
 pub struct PlaceholderText;
 
+/// The three reconciler-owned visual children of a range `<input>`: track,
+/// fill, and thumb (`superui_css::SliderPart`-tagged, `bevy::ui_widgets`
+/// slider parts). Spawned once per node and reused across reconciles.
+#[derive(Clone, Copy)]
+pub(crate) struct RangeParts {
+    pub track: Entity,
+    pub fill: Entity,
+    pub thumb: Entity,
+}
+
 /// How a mounted UI's nodes take part in `bevy_picking`. Put it on the root
 /// entity next to `SuperUiRoot`; the reconciler reads it once per pass.
 ///
@@ -100,6 +110,8 @@ pub struct UiRuntime {
     /// last agreed on. Mirrors `editable_synced`'s role: tells an external DOM
     /// write (JS/attribute change) from an echo of the reconciler's own push.
     pub(crate) range_synced: HashMap<NodeId, f32>,
+    /// Range `<input>` node -> its managed track/fill/thumb part entities.
+    pub(crate) range_parts: HashMap<NodeId, RangeParts>,
 }
 
 impl UiRuntime {
@@ -161,6 +173,7 @@ impl UiRuntime {
             input_texts: HashMap::new(),
             editable_synced: HashMap::new(),
             range_synced: HashMap::new(),
+            range_parts: HashMap::new(),
         }
     }
 

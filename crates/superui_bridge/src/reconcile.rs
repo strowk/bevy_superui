@@ -11,12 +11,15 @@ use bevy::picking::Pickable;
 use bevy::prelude::*;
 use bevy::text::{EditableText, TextCursorStyle, TextLayout};
 use bevy::ui::Checked;
-use bevy::ui_widgets::{Slider, SliderOrientation, SliderRange, SliderStep, SliderValue, TrackClick};
+use bevy::ui_widgets::{
+    Slider, SliderOrientation, SliderRange, SliderStep, SliderThumb, SliderValue, TrackClick,
+};
 use superui_css::html_type_name;
 use superui_css::prelude::{AttributeList, ClassList, InlineStyle, Styled, TypeName};
+use superui_css::{SliderPart, StyleData};
 use superui_dom::{NodeId, NodeKind};
 
-use crate::runtime::{DomNode, InputValueText, PickingPolicy, PlaceholderText, UiRuntime};
+use crate::runtime::{DomNode, InputValueText, PickingPolicy, PlaceholderText, RangeParts, UiRuntime};
 
 /// Exclusive system: reconcile when dirty. Pulls the NonSend runtime out, syncs,
 /// re-inserts (the NonSend resource has no `resource_scope`, so move it out/in).
@@ -100,6 +103,13 @@ impl UiRuntime {
             self.input_texts.remove(&node);
             self.editable_synced.remove(&node);
             self.range_synced.remove(&node);
+            if let Some(parts) = self.range_parts.remove(&node) {
+                for part in [parts.track, parts.fill, parts.thumb] {
+                    if let Ok(ec) = world.get_entity_mut(part) {
+                        ec.despawn();
+                    }
+                }
+            }
         }
     }
 
@@ -461,6 +471,37 @@ impl UiRuntime {
             }
             self.range_synced.insert(node, value);
         }
+
+        // Track/fill/thumb: direct children of the host, spawned once and
+        // reused across reconciles (parts are not DOM nodes, so they never
+        // enter the node<->entity map). `is_range` gates a void `<input>`, so
+        // `sync_children`'s `replace_children(&[])` for it has already run
+        // this pass; re-adding them here is what keeps them attached.
+        let parts = match self
+            .range_parts
+            .get(&node)
+            .copied()
+            .filter(|p| world.get_entity(p.track).is_ok())
+        {
+            Some(p) => p,
+            None => {
+                let track = world
+                    .spawn((Node::default(), StyleData::default(), SliderPart::Track, Pickable::IGNORE))
+                    .id();
+                let fill = world
+                    .spawn((Node::default(), StyleData::default(), SliderPart::Fill, Pickable::IGNORE))
+                    .id();
+                let thumb = world
+                    .spawn((Node::default(), StyleData::default(), SliderPart::Thumb, SliderThumb))
+                    .id();
+                let p = RangeParts { track, fill, thumb };
+                self.range_parts.insert(node, p);
+                p
+            }
+        };
+        world
+            .entity_mut(entity)
+            .add_children(&[parts.track, parts.fill, parts.thumb]);
     }
 
     /// Show/hide the dim placeholder overlay: a non-pickable `Text` child present
