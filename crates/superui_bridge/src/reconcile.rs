@@ -421,19 +421,16 @@ impl UiRuntime {
         let attr_f32 = |name: &str| dom.get_attribute(node, name).and_then(|s| s.parse::<f32>().ok());
         let min = attr_f32("min").unwrap_or(0.0);
         let max = attr_f32("max").unwrap_or(100.0);
+        // A malformed `min > max` must not invert the range or clamp against
+        // unordered bounds; normalize once and derive both from `lo`/`hi`.
+        let (lo, hi) = (min.min(max), min.max(max));
         let step = attr_f32("step").unwrap_or(1.0);
         // `dom.value()` falls back to the `value` attribute before any interaction.
-        let raw_value = dom
-            .value(node)
-            .parse::<f32>()
-            .ok()
-            .unwrap_or((min + max) / 2.0);
-        let value = raw_value.clamp(min.min(max), min.max(max));
+        let raw_value = dom.value(node).parse::<f32>().ok().unwrap_or((lo + hi) / 2.0);
+        let value = raw_value.clamp(lo, hi);
 
         // A range input must not be a plain `Text` node.
-        if world.get::<Text>(entity).is_some() {
-            world.entity_mut(entity).remove::<Text>();
-        }
+        world.entity_mut(entity).remove::<Text>();
 
         let mut ec = world.entity_mut(entity);
         if !ec.contains::<Slider>() {
@@ -442,7 +439,7 @@ impl UiRuntime {
                 orientation: SliderOrientation::Horizontal,
             });
         }
-        let new_range = SliderRange::new(min, max);
+        let new_range = SliderRange::new(lo, hi);
         if ec.get::<SliderRange>().copied() != Some(new_range) {
             ec.insert(new_range);
         }
@@ -450,12 +447,18 @@ impl UiRuntime {
         if ec.get::<SliderStep>() != Some(&new_step) {
             ec.insert(new_step);
         }
-        // Only push `value` when it's an external change, not an echo of our own
-        // last write (`range_synced`, mirroring `editable_synced`'s role for text
-        // inputs); the value observer wired in a later task updates this map too.
+        // Push `value` and record it in `range_synced` whenever it differs from
+        // the last DOM-agreed value — not only when the component write also
+        // happens, since `Slider`'s `#[require(SliderValue)]` can already have
+        // auto-inserted the matching default (e.g. `value == 0.0`), which would
+        // otherwise short-circuit the bookkeeping. `range_synced` must always
+        // reflect the last DOM-derived value so a later value-change observer
+        // can tell a live drag from the reconciler's own echo.
         let synced = self.range_synced.get(&node).copied();
-        if synced != Some(value) && ec.get::<SliderValue>().copied() != Some(SliderValue(value)) {
-            ec.insert(SliderValue(value));
+        if synced != Some(value) {
+            if ec.get::<SliderValue>().copied() != Some(SliderValue(value)) {
+                ec.insert(SliderValue(value));
+            }
             self.range_synced.insert(node, value);
         }
     }

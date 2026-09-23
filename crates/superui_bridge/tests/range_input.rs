@@ -60,3 +60,39 @@ fn range_value_absent_defaults_to_midpoint() {
     let e = slider_entity(&mut app, node);
     assert_eq!(app.world().get::<SliderValue>(e).copied(), Some(SliderValue(20.0)));
 }
+
+// Regression for a `value=0` reconcile: `Slider`'s `#[require(SliderValue)]`
+// auto-inserts the matching `SliderValue(0.0)` default in the same `insert`
+// call that adds `Slider`, so this exercises the path where the component
+// already reads 0.0 before `sync_range_input`'s own `SliderValue` write would
+// run. `range_synced` (the bookkeeping this guards) is `pub(crate)` and not
+// reachable from this integration test; this only asserts the observable
+// component value does not regress.
+#[test]
+fn range_value_zero_reconciles_without_panicking() {
+    let dom = Rc::new(RefCell::new(superui_html::parse_document(
+        "<input id='r' type='range' min='0' max='40' value='0'>",
+    )));
+    let mut app = test_app();
+    let _root = mount(&mut app, dom.clone());
+    app.update();
+    let node = dom.borrow().get_element_by_id("r").unwrap();
+    let e = slider_entity(&mut app, node);
+    assert_eq!(app.world().get::<SliderValue>(e).copied(), Some(SliderValue(0.0)));
+}
+
+// A malformed `min > max` must not produce an inverted `SliderRange`; both
+// bounds are normalized before construction.
+#[test]
+fn range_min_greater_than_max_normalizes() {
+    let dom = Rc::new(RefCell::new(superui_html::parse_document(
+        "<input id='r' type='range' min='100' max='0' value='50'>",
+    )));
+    let mut app = test_app();
+    let _root = mount(&mut app, dom.clone());
+    app.update();
+    let node = dom.borrow().get_element_by_id("r").unwrap();
+    let e = slider_entity(&mut app, node);
+    let range = app.world().get::<SliderRange>(e).copied().unwrap();
+    assert_eq!((range.start(), range.end()), (0.0, 100.0));
+}
