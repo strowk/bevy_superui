@@ -104,31 +104,32 @@ pub fn build_render_app(project: &HostProject, width: u32, height: u32) -> App {
 /// tick enough frames for the DOM to render into the target.
 pub fn build_render_app_and_mount(project: &HostProject, width: u32, height: u32) -> App {
     let mut app = build_render_app(project, width, height);
-    host::mount(&mut app);
-    host::install_abi(&mut app);
 
-    // CRITICAL for non-blank screenshots: bevy_ui does NOT auto-associate a root
-    // UI node's percentage/viewport sizing with a camera that renders to an
-    // *Image* target (only the implicit Window camera gets that association).
-    // Without this, the `SuperUiRoot` node's `width/height: 100%` resolves
-    // against an *unknown* viewport and collapses to 0x0, which in turn makes
-    // every `inset:0`/`position:absolute`/`100%` descendant collapse — the whole
-    // UI lays out at negative/zero coordinates off-screen and the frame is blank
-    // (only the flat backdrop fill is captured). Tagging the root with the
-    // offscreen camera makes `100%` resolve to the target size (e.g. 1280x720).
+    // CRITICAL for non-blank screenshots, and to avoid a layout panic: bevy_ui
+    // does NOT auto-associate a root UI node's percentage/viewport sizing with
+    // a camera that renders to an *Image* target (only the implicit Window
+    // camera gets that association). Tag the root with the offscreen camera
+    // *before* the mount loop's first tick — not after `host::mount` returns —
+    // so `100%` resolves against the target size (e.g. 1280x720) from the very
+    // first reconcile+layout pass. Tagging it late leaves that first pass with
+    // an unknown (0x0) viewport: usually just a blank frame, but a bordered,
+    // auto-height container with margin (a `margin: 40px` card, say) can
+    // compute a *negative* size against it, which panics in
+    // `bevy_ui::ui_node::BorderRadius::resolve` instead of rendering blank.
     let cam = {
         let world = app.world_mut();
         let mut cq = world.query_filtered::<Entity, With<Camera>>();
         cq.iter(world).next()
     };
-    if let Some(cam) = cam {
-        let world = app.world_mut();
-        let mut rq = world.query_filtered::<Entity, With<superui::prelude::SuperUiRoot>>();
-        let roots: Vec<Entity> = rq.iter(world).collect();
-        for root in roots {
-            world.entity_mut(root).insert(bevy::ui::UiTargetCamera(cam));
+    match cam {
+        Some(cam) => {
+            host::mount_with_camera(&mut app, cam);
+        }
+        None => {
+            host::mount(&mut app);
         }
     }
+    host::install_abi(&mut app);
 
     // Let layout + render settle so the target actually has pixels.
     host::tick(&mut app, 8);

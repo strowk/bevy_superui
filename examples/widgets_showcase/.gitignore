@@ -1,0 +1,5 @@
+# Generated HTML report from `superui_test` runs (baselines are committed; the
+# report is a per-run artifact).
+tests/report.html
+tests/__snapshots__/**/*.actual.png
+tests/__snapshots__/**/*.diff.png

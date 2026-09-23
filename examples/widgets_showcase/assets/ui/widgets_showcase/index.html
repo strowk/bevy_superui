@@ -1,0 +1,26 @@
+<html>
+  <head>
+    <link rel="stylesheet" href="style.css">
+    <script type="module" src="app.js"></script>
+  </head>
+  <body>
+    <div id="app">
+      <h1>Widgets showcase</h1>
+
+      <div class="field">
+        <span class="field-label">Name</span>
+        <input id="name" type="text" placeholder="Type your name">
+      </div>
+
+      <div class="field field-row">
+        <input id="subscribe" type="checkbox">
+        <span class="field-label">Subscribe to updates: <span id="subscribe-readout">off</span></span>
+      </div>
+
+      <div class="field">
+        <span class="field-label">Volume: <span id="volume-readout">25</span></span>
+        <input id="volume" type="range" min="0" max="100" value="25">
+      </div>
+    </div>
+  </body>
+</html>

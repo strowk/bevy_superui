@@ -10,7 +10,7 @@
 
 use bevy::prelude::*;
 use bevy::ui::UiTargetCamera;
-use superui_bridge::{PendingDomEvent, PendingDomEvents, UiRuntime};
+use superui_bridge::{click_effect, PendingDomEvent, PendingDomEvents, UiRuntime};
 use superui_dom::NodeId;
 
 use crate::abi::{self, RegisteredTest};
@@ -596,9 +596,21 @@ fn perform_action(world: &mut World, spec: &LocatorSpec, kind: &PendingActionKin
 }
 
 fn dispatch(world: &mut World, spec: &LocatorSpec, event: &str) {
-    if let Some(&node) = resolve_nodes(world, spec).first() {
-        world.resource_mut::<PendingDomEvents>().0.push(PendingDomEvent::new(node, event));
+    let Some(&node) = resolve_nodes(world, spec).first() else {
+        return;
+    };
+    // See the matching comment in `driver::dispatch`: route through
+    // `click_effect` so a checkbox toggles on a synthetic `.click()`.
+    if event == "click" {
+        let rt = world.remove_non_send::<UiRuntime>().expect("runtime");
+        {
+            let mut pending = world.resource_mut::<PendingDomEvents>();
+            click_effect(&rt, node, &mut pending);
+        }
+        world.insert_non_send(rt);
+        return;
     }
+    world.resource_mut::<PendingDomEvents>().0.push(PendingDomEvent::new(node, event));
 }
 
 fn fill(world: &mut World, spec: &LocatorSpec, text: &str) {

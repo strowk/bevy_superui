@@ -128,6 +128,29 @@ pub fn mount(app: &mut App) -> Entity {
     root
 }
 
+/// Like [`mount`], but tags the root with `UiTargetCamera(camera)` *before*
+/// the first tick, so `100%` sizing resolves against the offscreen render
+/// target from the very first reconcile+layout pass instead of an unknown
+/// (0x0) viewport. `ui_driver::start_run`'s incremental stepper already does
+/// this; `render::build_render_app_and_mount` used to tag the camera only
+/// after `mount` returned, so that first pass could compute a negative size
+/// for a bordered, auto-height container with margin (e.g. a `margin: 40px`
+/// card) — negative sizes panic in `bevy_ui::ui_node::BorderRadius::resolve`
+/// rather than just rendering blank.
+pub fn mount_with_camera(app: &mut App, camera: Entity) -> Entity {
+    let root = spawn_root(app.world_mut());
+    app.world_mut()
+        .entity_mut(root)
+        .insert(bevy::ui::UiTargetCamera(camera));
+    for _ in 0..256 {
+        app.update();
+        if app.world().contains_non_send::<UiRuntime>() {
+            break;
+        }
+    }
+    root
+}
+
 /// Reset the mounted UI: despawn every `SuperUiRoot` (and its descendants) and
 /// remove the `UiRuntime`, so the next `mount_when_ready` rebuilds a fresh DOM.
 /// Used by the `--ui` stepper to give each Run isolated state.

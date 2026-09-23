@@ -1,0 +1,5 @@
+project = "assets/ui/widgets_showcase"
+specDir = "tests"
+width = 1280
+height = 720
+maxDiffRatio = 0.02

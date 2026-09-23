@@ -1,0 +1,11 @@
+[package]
+name = "widgets_showcase"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+superui = { path = "../../crates/superui" }
+# Full Bevy (windowing + rendering) — this is a runnable app, not a headless lib.
+bevy = { workspace = true, default-features = true }

@@ -3,7 +3,7 @@
 //! frame settles.
 
 use bevy::prelude::*;
-use superui_bridge::{PendingDomEvent, PendingDomEvents, UiRuntime};
+use superui_bridge::{click_effect, PendingDomEvent, PendingDomEvents, UiRuntime};
 use superui_dom::NodeId;
 
 use crate::abi::{self, RegisteredTest};
@@ -428,12 +428,27 @@ fn perform_action(app: &mut App, spec: &LocatorSpec, kind: &PendingActionKind) {
 }
 
 fn dispatch(app: &mut App, spec: &LocatorSpec, event: &str) {
-    if let Some(&node) = resolve_nodes(app, spec).first() {
-        app.world_mut()
-            .resource_mut::<PendingDomEvents>()
-            .0
-            .push(PendingDomEvent::new(node, event));
+    let Some(&node) = resolve_nodes(app, spec).first() else {
+        return;
+    };
+    // `click_effect` is the shared click behavior (checkbox native toggle +
+    // its `change` event) the real pointer-click observer runs — see its doc
+    // comment: "so both the observer and the test harness can call it". Route
+    // a synthetic `click` through it instead of a bare DOM event so a test's
+    // `.click()` on a checkbox toggles it, matching a real click.
+    if event == "click" {
+        let rt = app.world_mut().remove_non_send::<UiRuntime>().expect("runtime");
+        {
+            let mut pending = app.world_mut().resource_mut::<PendingDomEvents>();
+            click_effect(&rt, node, &mut pending);
+        }
+        app.world_mut().insert_non_send(rt);
+        return;
     }
+    app.world_mut()
+        .resource_mut::<PendingDomEvents>()
+        .0
+        .push(PendingDomEvent::new(node, event));
 }
 
 fn fill(app: &mut App, spec: &LocatorSpec, text: &str) {

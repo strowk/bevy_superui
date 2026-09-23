@@ -60,16 +60,22 @@ pub fn discover_specs(spec_dir: &Path) -> Vec<PathBuf> {
 
 /// Read a project directory into a [`crate::host::HostProject`].
 ///
-/// Accepts `app.tsx` (preferred, signals to the transpiler that TS stripping is
-/// needed) or `.superui/build/app.js` (pre-transpiled build output).  CSS falls
-/// back from `style.css` to `theme.css`; missing CSS is silently ignored
-/// (defaults to empty string).
+/// Accepts, in order: `app.tsx` (preferred, signals to the transpiler that TS
+/// stripping is needed), a plain `app.js` at the project root (the same file
+/// a non-supersolid app's `<script src="app.js">` loads, per
+/// `superui::mount::resolve_script`'s "plain .js passes through regardless"
+/// rule), or `.superui/build/app.js` (pre-transpiled build output, for a
+/// project whose manifest points `<script>` there directly). CSS falls back
+/// from `style.css` to `theme.css`; missing CSS is silently ignored (defaults
+/// to empty string).
 pub fn load_project(project_dir: &Path) -> Result<crate::host::HostProject, String> {
     let read =
         |name: &str| std::fs::read_to_string(project_dir.join(name)).map_err(|e| format!("{name}: {e}"));
 
     let (js, tsx) = if project_dir.join("app.tsx").exists() {
         (read("app.tsx")?, true)
+    } else if project_dir.join("app.js").exists() {
+        (read("app.js")?, false)
     } else {
         (read(".superui/build/app.js")?, false)
     };
@@ -86,7 +92,18 @@ pub fn load_project(project_dir: &Path) -> Result<crate::host::HostProject, Stri
 
 #[cfg(test)]
 mod tests {
-    use super::load_config;
+    use super::{load_config, load_project};
+
+    #[test]
+    fn load_project_falls_back_to_plain_app_js() {
+        let dir = std::env::temp_dir().join("superui_test_cfg_plain_js");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("index.html"), "<html></html>").unwrap();
+        std::fs::write(dir.join("app.js"), "var x = 1;").unwrap();
+        let project = load_project(&dir).unwrap();
+        assert!(!project.tsx);
+        assert_eq!(project.js_or_tsx, "var x = 1;");
+    }
 
     #[test]
     fn parses_toml() {

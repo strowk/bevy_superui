@@ -1,0 +1,67 @@
+#app {
+  display: flex;
+  flex-direction: column;
+  width: 420px;
+  margin: 40px;
+  padding: 16px;
+  row-gap: 16px;
+  background-color: #ffffff;
+  border: 1px #e0e0e0;
+  border-radius: 8px;
+}
+
+h1 {
+  color: #2c3e50;
+  font-size: 28px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  row-gap: 6px;
+}
+
+.field-row {
+  flex-direction: row;
+  align-items: center;
+  column-gap: 8px;
+}
+
+.field-label {
+  color: #333333;
+  font-size: 16px;
+}
+
+#name {
+  padding: 10px 12px;
+  background-color: #f7f7f7;
+  border: 1px #888888;
+  border-radius: 4px;
+  color: #333333;
+  font-size: 16px;
+}
+
+#subscribe {
+  width: 20px;
+  height: 20px;
+  background-color: #ffffff;
+  border: 2px #cccccc;
+  border-radius: 4px;
+}
+
+#subscribe:checked {
+  background-color: #2c7be5;
+  border: 2px #2c7be5;
+}
+
+/* Author override: an unlayered rule always beats the framework's
+   `superui-defaults` layer (docs/fork-patches.md#slider-default-layer), so a
+   visibly different thumb here proves author CSS wins. */
+input[type=range]::slider-thumb {
+  width: 22px;
+  height: 22px;
+  margin-left: -11px;
+  background-color: #e8622c;
+  border-radius: 11px;
+}
+
