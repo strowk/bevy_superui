@@ -216,6 +216,87 @@ fn value_change_rounds_fractional_step_in_dom() {
     assert_eq!(dom.borrow().value(node), "0.3");
 }
 
+// Pins the full two-way loop: a JS-side `.value=` write must move the ECS
+// `SliderValue` (thumb) on the following reconcile, but must NOT be mistaken
+// for a widget-driven change and re-emit `input`/`change` — that would be an
+// infinite echo (JS write -> DOM event -> JS write -> ...).
+#[test]
+fn js_set_value_moves_thumb_without_reemitting() {
+    use bevy::ui_widgets::SliderValue;
+    use superui_bridge::{drain_dom_events_system, on_slider_value_change, PendingDomEvents};
+
+    let dom = Rc::new(RefCell::new(superui_html::parse_document(
+        "<input id='r' type='range' min='0' max='100' value='0'>",
+    )));
+    let mut app = test_app();
+    let _root = mount(&mut app, dom.clone());
+    app.init_resource::<PendingDomEvents>();
+    app.add_observer(on_slider_value_change);
+    app.add_systems(Update, drain_dom_events_system.before(superui_bridge::reconcile_system));
+    app.update();
+    let node = dom.borrow().get_element_by_id("r").unwrap();
+    let e = slider_entity(&mut app, node);
+
+    app.world_mut().non_send_mut::<UiRuntime>().run_script(
+        "globalThis.n=0; let el=document.getElementById('r'); \
+         el.addEventListener('input', ()=>globalThis.n++); \
+         el.addEventListener('change', ()=>globalThis.n++); \
+         el.value='30';",
+    );
+    app.update(); // reconcile picks up the JS value change
+    app.update();
+
+    assert_eq!(app.world().get::<SliderValue>(e).copied(), Some(SliderValue(30.0)));
+    app.world_mut().non_send_mut::<UiRuntime>().run_script(
+        "document.getElementById('r').setAttribute('data-n', String(globalThis.n));",
+    );
+    assert_eq!(dom.borrow().get_attribute(node, "data-n").as_deref(), Some("0"),
+        "a JS-driven value must not re-emit input/change");
+}
+
+// Same loop as above, but with a target value of exactly 0.0 — the case
+// Task 2's `#[require(SliderValue)]`-default masking made fragile: `Slider`'s
+// required default already reads `SliderValue(0.0)`, so a naive echo guard
+// that only updates `range_synced` when the component write itself happens
+// could skip the bookkeeping precisely when the value lands on 0.0. Starting
+// from a nonzero mounted value means `Slider` (and its default) are already
+// in place before this JS write, so the write must be the thing that lands
+// `SliderValue(0.0)` and records it in `range_synced` — not a leftover default.
+#[test]
+fn js_set_value_zero_moves_thumb_without_reemitting() {
+    use bevy::ui_widgets::SliderValue;
+    use superui_bridge::{drain_dom_events_system, on_slider_value_change, PendingDomEvents};
+
+    let dom = Rc::new(RefCell::new(superui_html::parse_document(
+        "<input id='r' type='range' min='0' max='100' value='50'>",
+    )));
+    let mut app = test_app();
+    let _root = mount(&mut app, dom.clone());
+    app.init_resource::<PendingDomEvents>();
+    app.add_observer(on_slider_value_change);
+    app.add_systems(Update, drain_dom_events_system.before(superui_bridge::reconcile_system));
+    app.update();
+    let node = dom.borrow().get_element_by_id("r").unwrap();
+    let e = slider_entity(&mut app, node);
+    assert_eq!(app.world().get::<SliderValue>(e).copied(), Some(SliderValue(50.0)));
+
+    app.world_mut().non_send_mut::<UiRuntime>().run_script(
+        "globalThis.n=0; let el=document.getElementById('r'); \
+         el.addEventListener('input', ()=>globalThis.n++); \
+         el.addEventListener('change', ()=>globalThis.n++); \
+         el.value='0';",
+    );
+    app.update(); // reconcile picks up the JS value change
+    app.update();
+
+    assert_eq!(app.world().get::<SliderValue>(e).copied(), Some(SliderValue(0.0)));
+    app.world_mut().non_send_mut::<UiRuntime>().run_script(
+        "document.getElementById('r').setAttribute('data-n', String(globalThis.n));",
+    );
+    assert_eq!(dom.borrow().get_attribute(node, "data-n").as_deref(), Some("0"),
+        "a JS-driven value of 0 must not re-emit input/change");
+}
+
 #[test]
 fn fractional_step_rounds_value() {
     assert_eq!(superui_bridge::format_slider_value(0.30000004, 0.1), "0.3");
