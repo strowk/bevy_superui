@@ -81,6 +81,27 @@ mod tests {
     }
 
     #[test]
+    fn positioning_wins_over_prior_left_value() {
+        let mut app = App::new();
+        app.add_systems(Update, position_slider_parts);
+        let thumb = app
+            .world_mut()
+            .spawn((
+                Node {
+                    left: Val::Percent(0.0),
+                    ..Node::default()
+                },
+                SliderThumb,
+            ))
+            .id();
+        app.world_mut()
+            .spawn((Node::default(), SliderValue(80.0), SliderRange::new(0.0, 100.0)))
+            .add_child(thumb);
+        app.update();
+        assert_eq!(app.world().get::<Node>(thumb).unwrap().left, Val::Percent(80.0));
+    }
+
+    #[test]
     fn zero_span_does_not_nan() {
         let mut app = App::new();
         app.add_systems(Update, position_slider_parts);
