@@ -162,7 +162,7 @@ fn value_change_mirrors_value_and_emits_input_then_change() {
     app.world_mut().non_send_mut::<UiRuntime>().run_script(
         "globalThis.log=[]; \
          let el=document.getElementById('r'); \
-         el.addEventListener('input', ()=>globalThis.log.push('input:'+el.value)); \
+         el.addEventListener('input', (e)=>globalThis.log.push('input:'+el.value+':'+e.cancelable)); \
          el.addEventListener('change', ()=>globalThis.log.push('change:'+el.value));",
     );
     app.update();
@@ -181,7 +181,39 @@ fn value_change_mirrors_value_and_emits_input_then_change() {
         "document.getElementById('r').setAttribute('data-log', globalThis.log.join(','));",
     );
     let log = dom.borrow().get_attribute(node, "data-log").unwrap_or("").to_string();
-    assert_eq!(log, "input:30,input:42,change:42");
+    // `:false` on both `input`s confirms the non-cancelable requirement.
+    assert_eq!(log, "input:30:false,input:42:false,change:42");
+}
+
+// `range_synced` (the echo-guard bookkeeping `on_slider_value_change` also writes)
+// is `pub(crate)` and unreachable from this integration test, so this only asserts
+// the observable DOM value rounds correctly for a fractional step. The fix this
+// guards — recording the reparsed/formatted value in `range_synced`, not the raw
+// float — is a code-level correctness fix (same situation as Task 2's finding-1):
+// this test exercises the same formatting path but can't distinguish "stored raw
+// 0.30000004" from "stored reparsed 0.3" without a reconcile round-trip.
+#[test]
+fn value_change_rounds_fractional_step_in_dom() {
+    use bevy::ui_widgets::ValueChange;
+    use superui_bridge::{drain_dom_events_system, on_slider_value_change, PendingDomEvents};
+
+    let dom = Rc::new(RefCell::new(superui_html::parse_document(
+        "<input id='r' type='range' min='0' max='1' step='0.1' value='0'>",
+    )));
+    let mut app = test_app();
+    let _root = mount(&mut app, dom.clone());
+    app.init_resource::<PendingDomEvents>();
+    app.add_observer(on_slider_value_change);
+    app.add_systems(Update, drain_dom_events_system.before(superui_bridge::reconcile_system));
+    app.update();
+
+    let node = dom.borrow().get_element_by_id("r").unwrap();
+    let e = slider_entity(&mut app, node);
+
+    app.world_mut().trigger(ValueChange::<f32> { source: e, value: 0.30000004, is_final: true });
+    app.update();
+
+    assert_eq!(dom.borrow().value(node), "0.3");
 }
 
 #[test]

@@ -239,8 +239,13 @@ pub fn on_slider_value_change(
 
     let step = steps.get(source).map(|s| s.0).unwrap_or(1.0);
     let text = format_slider_value(value, step);
+    // `range_synced` guards the next reconcile's `sync_range_input`, which reparses
+    // the DOM's *formatted* string — so this must record that reparsed value, not
+    // the raw `value`, or float drift beyond step precision (e.g. 0.30000004 vs the
+    // "0.3" reconcile reads back) makes the echo guard misfire.
+    let mirrored = text.parse::<f32>().unwrap_or(value);
     rt.dom.borrow_mut().set_value(node, &text);
-    rt.range_synced.insert(node, value);
+    rt.range_synced.insert(node, mirrored);
 
     let mut input = PendingDomEvent::new(node, "input");
     input.cancelable = false;
