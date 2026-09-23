@@ -270,7 +270,7 @@ fn js_set_value_moves_thumb_without_reemitting() {
 // treats a real JS write as a real write (updates `SliderValue`/`range_synced`,
 // no re-emit) rather than special-casing 0.0. It does NOT exercise the
 // mount-time masking case (`Slider` inserted for the first time with an
-// already-zero DOM value) — see `range_value_zero_reconciles_without_panicking`
+// already-zero DOM value) — see `range_value_zero_reconciles_and_records_range_synced`
 // for that.
 #[test]
 fn js_set_value_zero_moves_thumb_without_reemitting() {

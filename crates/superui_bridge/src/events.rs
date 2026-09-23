@@ -251,7 +251,9 @@ pub fn on_slider_value_change(
     input.cancelable = false;
     pending.0.push(input);
     if ev.is_final {
-        pending.0.push(PendingDomEvent::new(node, "change"));
+        let mut c = PendingDomEvent::new(node, "change");
+        c.cancelable = false;
+        pending.0.push(c);
     }
     rt.dirty = true;
 }

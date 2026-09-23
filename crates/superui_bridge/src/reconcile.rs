@@ -457,6 +457,8 @@ impl UiRuntime {
         if ec.get::<SliderStep>() != Some(&new_step) {
             ec.insert(new_step);
         }
+        // Step rounding happens only at the DOM boundary (`format_slider_value` in
+        // the value-change observer), not here — `SliderValue` stays the raw float.
         // Push `value` and record it in `range_synced` whenever it differs from
         // the last DOM-agreed value — not only when the component write also
         // happens, since `Slider`'s `#[require(SliderValue)]` can already have
