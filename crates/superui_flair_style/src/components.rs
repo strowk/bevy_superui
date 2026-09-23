@@ -406,6 +406,14 @@ pub(crate) enum PseudoElement {
     Before,
     /// Last child of the element
     After,
+    // >>> SUPERUI-FORK-PATCH: slider-part-pseudo-elements  (docs/fork-patches.md#slider-part-pseudo-elements)
+    /// Track part of a `bevy_ui_widgets` slider
+    SliderTrack,
+    /// Filled portion of a `bevy_ui_widgets` slider's track
+    SliderFill,
+    /// Draggable handle of a `bevy_ui_widgets` slider
+    SliderThumb,
+    // <<< SUPERUI-FORK-PATCH: slider-part-pseudo-elements
 }
 
 impl PseudoElement {
@@ -419,6 +427,37 @@ impl PseudoElement {
         style_data.is_pseudo_element = Some(new_pseudo_element);
     }
 }
+
+// >>> SUPERUI-FORK-PATCH: slider-part-pseudo-elements  (docs/fork-patches.md#slider-part-pseudo-elements)
+/// Tags an entity as a part of a `bevy_ui_widgets` slider so `::slider-track`,
+/// `::slider-fill`, and `::slider-thumb` selectors match it.
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Component, Reflect)]
+#[reflect(Debug, Clone, PartialEq, Component)]
+#[component(immutable, on_insert)]
+pub enum SliderPart {
+    /// The slider's track.
+    Track,
+    /// The filled portion of the track.
+    Fill,
+    /// The draggable handle.
+    Thumb,
+}
+
+impl SliderPart {
+    fn on_insert(mut world: DeferredWorld, context: HookContext) {
+        let entity = context.entity;
+        let part = *world.get::<SliderPart>(entity).unwrap();
+        let mut style_data = world
+            .get_mut::<StyleData>(entity)
+            .expect("SliderPart without StyleData");
+        style_data.is_pseudo_element = Some(match part {
+            SliderPart::Track => PseudoElement::SliderTrack,
+            SliderPart::Fill => PseudoElement::SliderFill,
+            SliderPart::Thumb => PseudoElement::SliderThumb,
+        });
+    }
+}
+// <<< SUPERUI-FORK-PATCH: slider-part-pseudo-elements
 
 /// Adds support for both ::before and ::after pseudo-elements.
 /// This works different depending on if the element is a block or text entity.

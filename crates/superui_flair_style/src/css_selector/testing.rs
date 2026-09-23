@@ -229,6 +229,11 @@ impl Element for TestNodeRef<'_> {
         match pe {
             CssPseudoElement::Before => is_pseudo_element == Some(PseudoElement::Before),
             CssPseudoElement::After => is_pseudo_element == Some(PseudoElement::After),
+            // >>> SUPERUI-FORK-PATCH: slider-part-pseudo-elements  (docs/fork-patches.md#slider-part-pseudo-elements)
+            CssPseudoElement::SliderTrack => is_pseudo_element == Some(PseudoElement::SliderTrack),
+            CssPseudoElement::SliderFill => is_pseudo_element == Some(PseudoElement::SliderFill),
+            CssPseudoElement::SliderThumb => is_pseudo_element == Some(PseudoElement::SliderThumb),
+            // <<< SUPERUI-FORK-PATCH: slider-part-pseudo-elements
         }
     }
 }

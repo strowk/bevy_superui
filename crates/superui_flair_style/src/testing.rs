@@ -21,6 +21,20 @@ macro_rules! entity {
         $entity.is_pseudo_element = Some(crate::components::PseudoElement::After);
         entity!(@consume ($entity) $($rest)*);
     };
+    // >>> SUPERUI-FORK-PATCH: slider-part-pseudo-elements  (docs/fork-patches.md#slider-part-pseudo-elements)
+    (@consume ($entity:expr) ::slider-track $($rest:tt)*) => {
+        $entity.is_pseudo_element = Some(crate::components::PseudoElement::SliderTrack);
+        entity!(@consume ($entity) $($rest)*);
+    };
+    (@consume ($entity:expr) ::slider-fill $($rest:tt)*) => {
+        $entity.is_pseudo_element = Some(crate::components::PseudoElement::SliderFill);
+        entity!(@consume ($entity) $($rest)*);
+    };
+    (@consume ($entity:expr) ::slider-thumb $($rest:tt)*) => {
+        $entity.is_pseudo_element = Some(crate::components::PseudoElement::SliderThumb);
+        entity!(@consume ($entity) $($rest)*);
+    };
+    // <<< SUPERUI-FORK-PATCH: slider-part-pseudo-elements
     (@consume ($entity:expr) :hover $($rest:tt)*) => {
         $entity.pseudo_state.hovered = true;
         entity!(@consume ($entity) $($rest)*);

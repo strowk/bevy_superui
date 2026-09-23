@@ -35,7 +35,7 @@ pub mod prelude {
     pub use superui_flair_style::components::{
         AttributeList, ClassList, StyleData, Styled, TypeName,
     };
-    pub use superui_flair_style::{NodePseudoState, StyleSheet};
+    pub use superui_flair_style::{NodePseudoState, SliderPart, StyleSheet};
 }
 
 #[cfg(test)]
@@ -58,6 +58,7 @@ mod tests {
             let _: Option<TypeName> = None;
             let _: Option<NodePseudoState> = None;
             let _: Option<InlineStyle> = None;
+            let _: Option<SliderPart> = None;
             let _plugin = SuperUiCssPlugin;
         }
         // Nothing to assert at runtime; resolution is the test.

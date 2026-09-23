@@ -147,17 +147,27 @@ impl precomputed_hash::PrecomputedHash for CssString {
     }
 }
 
+// >>> SUPERUI-FORK-PATCH: slider-part-pseudo-elements  (docs/fork-patches.md#slider-part-pseudo-elements)
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub(crate) enum CssPseudoElement {
     Before,
     After,
+    SliderTrack,
+    SliderFill,
+    SliderThumb,
 }
+// <<< SUPERUI-FORK-PATCH: slider-part-pseudo-elements
 
 impl cssparser::ToCss for CssPseudoElement {
     fn to_css<W: Write>(&self, dest: &mut W) -> std::fmt::Result {
         match self {
             CssPseudoElement::Before => dest.write_str("::before"),
             CssPseudoElement::After => dest.write_str("::after"),
+            // >>> SUPERUI-FORK-PATCH: slider-part-pseudo-elements  (docs/fork-patches.md#slider-part-pseudo-elements)
+            CssPseudoElement::SliderTrack => dest.write_str("::slider-track"),
+            CssPseudoElement::SliderFill => dest.write_str("::slider-fill"),
+            CssPseudoElement::SliderThumb => dest.write_str("::slider-thumb"),
+            // <<< SUPERUI-FORK-PATCH: slider-part-pseudo-elements
         }
     }
 }
@@ -251,6 +261,17 @@ impl<'i> selectors::Parser<'i> for CssSelectorParser {
             "after" => {
                 Ok(CssPseudoElement::After)
             },
+            // >>> SUPERUI-FORK-PATCH: slider-part-pseudo-elements  (docs/fork-patches.md#slider-part-pseudo-elements)
+            "slider-track" => {
+                Ok(CssPseudoElement::SliderTrack)
+            },
+            "slider-fill" => {
+                Ok(CssPseudoElement::SliderFill)
+            },
+            "slider-thumb" => {
+                Ok(CssPseudoElement::SliderThumb)
+            },
+            // <<< SUPERUI-FORK-PATCH: slider-part-pseudo-elements
             _ => {
                  Err(
                     location.new_custom_error(SelectorParseErrorKind::UnsupportedPseudoClassOrElement(
@@ -799,4 +820,25 @@ mod tests {
         );
         assert_eq!(id_matches!(selector, tree), vec!["after"]);
     }
+
+    // >>> SUPERUI-FORK-PATCH: slider-part-pseudo-elements  (docs/fork-patches.md#slider-part-pseudo-elements)
+    #[test]
+    fn pseudo_element_slider_thumb_matches_tagged_child() {
+        let selector = css_selector! { "input::slider-thumb" };
+        let tree = tree!(
+            entity!(:root) => {
+                entity!(#slider input) => {
+                    entity!(#thumb::slider-thumb),
+                    entity!(#fill::slider-fill),
+                },
+            }
+        );
+        assert_eq!(id_matches!(selector, tree), vec!["thumb"]);
+    }
+
+    #[test]
+    fn unknown_webkit_pseudo_element_still_errors() {
+        assert!(CssSelector::parse_single("input::-webkit-slider-thumb").is_err());
+    }
+    // <<< SUPERUI-FORK-PATCH: slider-part-pseudo-elements
 }

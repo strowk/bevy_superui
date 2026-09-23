@@ -48,6 +48,10 @@ pub use style_sheet::*;
 pub use to_css::*;
 pub use vars::*;
 
+// >>> SUPERUI-FORK-PATCH: slider-part-pseudo-elements  (docs/fork-patches.md#slider-part-pseudo-elements)
+pub use crate::components::SliderPart;
+// <<< SUPERUI-FORK-PATCH: slider-part-pseudo-elements
+
 pub(crate) type IdName = std::borrow::Cow<'static, str>;
 pub(crate) type ClassName = std::borrow::Cow<'static, str>;
 pub(crate) type AttributeKey = std::borrow::Cow<'static, str>;
