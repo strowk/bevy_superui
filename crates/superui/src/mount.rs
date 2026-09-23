@@ -9,8 +9,8 @@ use bevy::prelude::*;
 use superui_bridge::{
     clamp_scroll_position_system, dim_placeholder_text_system, drain_bevy_outbox_system,
     drain_dom_events_system, editable_input_events_system, emit_bevy_inbox_system,
-    keyboard_events_system, on_focus_gained, on_focus_lost, on_pointer_click, reconcile_system,
-    wheel_scroll_system, PendingDomEvents, UiRuntime,
+    keyboard_events_system, on_focus_gained, on_focus_lost, on_pointer_click,
+    on_slider_value_change, reconcile_system, wheel_scroll_system, PendingDomEvents, UiRuntime,
 };
 use superui_css::style::StyleSheet;
 use superui_css::SuperUiCssPlugin;
@@ -182,6 +182,7 @@ impl Plugin for SuperUiPlugin {
             .init_resource::<PendingDomEvents>()
             .init_resource::<HotReloadFlags>()
             .add_observer(on_pointer_click)
+            .add_observer(on_slider_value_change)
             .add_observer(on_focus_gained)
             .add_observer(on_focus_lost)
             .add_observer(on_superui_root_removed)

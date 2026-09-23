@@ -140,3 +140,53 @@ fn range_spawns_three_parts_absent_from_dom_map_and_persisting() {
         app.world().get::<Children>(host).map(|c| c.iter().collect()).unwrap_or_default();
     assert_eq!(children2, children, "parts must persist across reconciles");
 }
+
+#[test]
+fn value_change_mirrors_value_and_emits_input_then_change() {
+    use bevy::ui_widgets::{SliderValue, ValueChange};
+    use superui_bridge::{drain_dom_events_system, on_slider_value_change, PendingDomEvents};
+
+    let dom = Rc::new(RefCell::new(superui_html::parse_document(
+        "<input id='r' type='range' min='0' max='100' step='1' value='0'>",
+    )));
+    let mut app = test_app();
+    let _root = mount(&mut app, dom.clone());
+    app.init_resource::<PendingDomEvents>();
+    app.add_observer(on_slider_value_change);
+    app.add_systems(Update, drain_dom_events_system.before(superui_bridge::reconcile_system));
+    app.update();
+
+    let node = dom.borrow().get_element_by_id("r").unwrap();
+    let e = slider_entity(&mut app, node);
+
+    app.world_mut().non_send_mut::<UiRuntime>().run_script(
+        "globalThis.log=[]; \
+         let el=document.getElementById('r'); \
+         el.addEventListener('input', ()=>globalThis.log.push('input:'+el.value)); \
+         el.addEventListener('change', ()=>globalThis.log.push('change:'+el.value));",
+    );
+    app.update();
+
+    // Mid-drag (not final): input only.
+    app.world_mut().trigger(ValueChange::<f32> { source: e, value: 30.0, is_final: false });
+    app.update();
+    // Commit (final): input + change.
+    app.world_mut().trigger(ValueChange::<f32> { source: e, value: 42.0, is_final: true });
+    app.update();
+
+    assert_eq!(dom.borrow().value(node), "42");
+    assert_eq!(app.world().get::<SliderValue>(e).copied(), Some(SliderValue(42.0)));
+
+    app.world_mut().non_send_mut::<UiRuntime>().run_script(
+        "document.getElementById('r').setAttribute('data-log', globalThis.log.join(','));",
+    );
+    let log = dom.borrow().get_attribute(node, "data-log").unwrap_or("").to_string();
+    assert_eq!(log, "input:30,input:42,change:42");
+}
+
+#[test]
+fn fractional_step_rounds_value() {
+    assert_eq!(superui_bridge::format_slider_value(0.30000004, 0.1), "0.3");
+    assert_eq!(superui_bridge::format_slider_value(42.0, 1.0), "42");
+    assert_eq!(superui_bridge::format_slider_value(0.126, 0.01), "0.13");
+}

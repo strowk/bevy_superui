@@ -15,8 +15,9 @@ pub use bevy_bridge::{
 };
 pub use events::{
     apply_pointer_click, click_effect, dim_placeholder_text_system, drain_dom_events_system,
-    editable_input_events_system, keyboard_events_system, on_focus_gained, on_focus_lost,
-    on_pointer_click, resolve_dom_node, PendingDomEvent, PendingDomEvents,
+    editable_input_events_system, format_slider_value, keyboard_events_system, on_focus_gained,
+    on_focus_lost, on_pointer_click, on_slider_value_change, resolve_dom_node, PendingDomEvent,
+    PendingDomEvents,
 };
 pub use reconcile::reconcile_system;
 pub use runtime::{DomNode, InputValueText, PickingPolicy, PlaceholderText, UiRuntime};

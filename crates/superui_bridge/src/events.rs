@@ -201,6 +201,56 @@ pub fn on_focus_lost(
     }
 }
 
+/// Format `value` to the decimal precision implied by `step`, so `.value` reads
+/// back a clean number (e.g. "0.3", not "0.30000004").
+pub fn format_slider_value(value: f32, step: f32) -> String {
+    let decimals = step_decimals(step);
+    let s = format!("{value:.decimals$}");
+    if decimals == 0 { s } else { s.trim_end_matches('0').trim_end_matches('.').to_string() }
+}
+
+fn step_decimals(step: f32) -> usize {
+    if step <= 0.0 || step.fract() == 0.0 {
+        return 0;
+    }
+    let s = format!("{step}");
+    s.split_once('.').map(|(_, frac)| frac.len()).unwrap_or(0)
+}
+
+/// The single seam turning `bevy_ui_widgets` slider input into DOM events. On each
+/// `ValueChange`: self-update `SliderValue` (`SliderPlugin` doesn't do this itself —
+/// it's the app's job), mirror the value into DOM `value` (recording it in
+/// `range_synced`, the echo-guard's last-agreed value), and emit `input` (always)
+/// plus `change` (on commit).
+pub fn on_slider_value_change(
+    ev: On<bevy::ui_widgets::ValueChange<f32>>,
+    steps: Query<&bevy::ui_widgets::SliderStep>,
+    nodes: Query<&DomNode>,
+    rt: Option<NonSendMut<UiRuntime>>,
+    mut commands: Commands,
+    mut pending: ResMut<PendingDomEvents>,
+) {
+    let source = ev.source;
+    let Some(mut rt) = rt else { return };
+    let Some(node) = nodes.get(source).ok().map(|d| d.0) else { return };
+    let value = ev.value;
+
+    commands.entity(source).insert(bevy::ui_widgets::SliderValue(value));
+
+    let step = steps.get(source).map(|s| s.0).unwrap_or(1.0);
+    let text = format_slider_value(value, step);
+    rt.dom.borrow_mut().set_value(node, &text);
+    rt.range_synced.insert(node, value);
+
+    let mut input = PendingDomEvent::new(node, "input");
+    input.cancelable = false;
+    pending.0.push(input);
+    if ev.is_final {
+        pending.0.push(PendingDomEvent::new(node, "change"));
+    }
+    rt.dirty = true;
+}
+
 fn tag_of(dom: &superui_dom::Dom, node: NodeId) -> Option<String> {
     match dom.get(node).map(|n| &n.kind) {
         Some(superui_dom::NodeKind::Element(e)) => Some(e.tag.clone()),
