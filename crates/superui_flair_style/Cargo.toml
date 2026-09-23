@@ -88,6 +88,11 @@ workspace = true
 workspace = true
 features = ["bevy_picking"]
 
+# >>> SUPERUI-FORK-PATCH: slider-positioning-system  (docs/fork-patches.md#slider-positioning-system)
+[dependencies.bevy_ui_widgets]
+workspace = true
+# <<< SUPERUI-FORK-PATCH: slider-positioning-system
+
 [dependencies.bevy_utils]
 workspace = true
 

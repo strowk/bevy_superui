@@ -26,5 +26,8 @@ bevy_reflect = "0.19"
 bevy_text = "0.19"
 bevy_time = "0.19"
 bevy_ui = "0.19"
+# >>> SUPERUI-FORK-PATCH: slider-positioning-system  (docs/fork-patches.md#slider-positioning-system)
+bevy_ui_widgets = "0.19"
+# <<< SUPERUI-FORK-PATCH: slider-positioning-system
 bevy_utils = "0.19"
 bevy_window = "0.19"
