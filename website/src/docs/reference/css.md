@@ -26,6 +26,7 @@ Unknown properties and rules are ignored, never fatal.
 | `:active` / `:disabled` | 🟡 | T1 | selectors parse but never match yet — pressed/disabled state isn't tracked |
 | `:is()` / `:where()` | 🟡 | T2 | |
 | `::before` / `::after` | 🟡 | T2 | generated content not produced yet |
+| `::slider-track` / `::slider-fill` / `::slider-thumb` | ✅ | T1 | style range-slider parts |
 
 ## Values
 
@@ -84,6 +85,7 @@ Unknown properties and rules are ignored, never fatal.
 | `filter` / `backdrop-filter` | 🟡 | T3 | blur / color effects |
 | `list-style` | 🟡 | T2 | no list markers |
 | `user-select` / `pointer-events` | 🟡 | T3 | |
+| `appearance` | 🟡 | T2 | `appearance: slider-vertical` (vertical range) not supported yet; range is horizontal only |
 | `background-image: url()` | 🟡 | T2 | needs image assets |
 | `background-position` / `-size` / `-repeat` | 🟡 | T2 | pairs with `background-image: url()` |
 | `object-fit` | 🟡 | T2 | pairs with `<img>` |
