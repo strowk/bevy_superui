@@ -104,18 +104,23 @@ pub fn spawn_root(world: &mut World) -> Entity {
         .id()
 }
 
+/// Idempotency guard shared by [`mount`] and [`mount_with_camera`]: if a
+/// `UiRuntime` is already present the UI has already been mounted, so return
+/// its `SuperUiRoot` entity instead of letting the caller spawn (and, for
+/// `mount_with_camera`, camera-tag) a second, orphaned one. `None` means not
+/// mounted yet, or the degenerate case (runtime present, root gone/ambiguous)
+/// — either way the caller should fall through to its normal spawn-and-tick.
+fn existing_root(app: &mut App) -> Option<Entity> {
+    if !app.world().contains_non_send::<UiRuntime>() {
+        return None;
+    }
+    let mut q = app.world_mut().query::<(Entity, &SuperUiRoot)>();
+    q.single(app.world()).ok().map(|(entity, _)| entity)
+}
+
 pub fn mount(app: &mut App) -> Entity {
-    // Idempotency guard: if a UiRuntime is already present the UI has already
-    // been mounted.  Return the existing SuperUiRoot entity rather than
-    // spawning a second one (which would be a stray, orphaned entity).
-    if app.world().contains_non_send::<UiRuntime>() {
-        let mut q = app.world_mut().query::<(Entity, &SuperUiRoot)>();
-        if let Ok((entity, _)) = q.single(app.world()) {
-            return entity;
-        }
-        // Degenerate: runtime exists but root entity is gone/ambiguous.
-        // Fall through to the normal spawn path so the caller always gets a
-        // valid entity back.
+    if let Some(entity) = existing_root(app) {
+        return entity;
     }
 
     let root = spawn_root(app.world_mut());
@@ -138,6 +143,13 @@ pub fn mount(app: &mut App) -> Entity {
 /// card) — negative sizes panic in `bevy_ui::ui_node::BorderRadius::resolve`
 /// rather than just rendering blank.
 pub fn mount_with_camera(app: &mut App, camera: Entity) -> Entity {
+    if let Some(entity) = existing_root(app) {
+        return entity;
+    }
+
+    // Tags the one root `spawn_root` just returned, not a query over every
+    // `SuperUiRoot` — relies on the current single-root-per-app invariant; a
+    // future multi-root feature needs to tag each root here, not just this one.
     let root = spawn_root(app.world_mut());
     app.world_mut()
         .entity_mut(root)
