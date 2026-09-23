@@ -36,6 +36,9 @@ pub mod placeholder;
 // >>> SUPERUI-FORK-PATCH: slider-positioning-system  (docs/fork-patches.md#slider-positioning-system)
 mod slider;
 // <<< SUPERUI-FORK-PATCH: slider-positioning-system
+// >>> SUPERUI-FORK-PATCH: slider-default-layer  (docs/fork-patches.md#slider-default-layer)
+pub mod slider_defaults;
+// <<< SUPERUI-FORK-PATCH: slider-default-layer
 mod style_block;
 mod systems;
 mod to_css;

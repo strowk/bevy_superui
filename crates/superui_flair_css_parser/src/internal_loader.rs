@@ -95,6 +95,17 @@ impl InternalStylesheetLoader<'_> {
         contents: &str,
     ) -> Result<StyleSheetBuilder, CssStyleLoaderError> {
         let mut builder = StyleSheetBuilder::new();
+
+        // >>> SUPERUI-FORK-PATCH: slider-default-layer  (docs/fork-patches.md#slider-default-layer)
+        // Inject before any author rule is parsed, so `superui-defaults` is
+        // the first layer defined and no author `@layer` can rank below it.
+        // Unlayered author rules always win regardless of definition order
+        // (the anonymous layer's priority is always highest), but a named
+        // author layer's priority depends on definition order relative to
+        // this one.
+        superui_flair_style::slider_defaults::add_slider_defaults(&mut builder);
+        // <<< SUPERUI-FORK-PATCH: slider-default-layer
+
         let mut report_generator =
             ErrorReportGenerator::new_with_config(path_name, contents, NO_COLOR_REPORT_CONFIG);
 
