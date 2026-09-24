@@ -34,3 +34,7 @@
 # Examples
 
 - [Gallery](examples/README.md)
+
+-----------
+
+[Changelog](docs/changelog.md)

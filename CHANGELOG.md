@@ -1,8 +1,7 @@
 # Changelog
 
 All notable changes to bevy_superui are recorded here. The format is based on
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project follows
-[Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 bevy_superui ships one release line per supported Bevy version. `main` tracks the
 actively developed Bevy 0.19 line (the `0.3.x` series); the `0.1.x` (Bevy 0.17)
