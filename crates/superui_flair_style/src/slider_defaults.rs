@@ -111,10 +111,11 @@ pub fn add_slider_defaults(builder: &mut StyleSheetBuilder) {
         .new_ruleset()
         .with_css_selector(defaults_selector("input[type=range]::slider-thumb"))
         .with_property(prop(node_property(".position_type"), PositionType::Absolute))
-        .with_property(prop(node_property(".top"), Val::Px(2.0)))
+        .with_property(prop(node_property(".top"), Val::Percent(50.0)))
         .with_property(prop(node_property(".width"), Val::Px(16.0)))
         .with_property(prop(node_property(".height"), Val::Px(16.0)))
         .with_property(prop(node_property(".margin.left"), Val::Px(-8.0)))
+        .with_property(prop(node_property(".margin.top"), Val::Px(-8.0)))
         .with_property(prop(
             background_color_property(),
             Color::srgb_u8(0x1e, 0x90, 0xff), // dodgerblue

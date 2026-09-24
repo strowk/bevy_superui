@@ -27,6 +27,14 @@ import { test, expect } from "superui/test";
 // NOTE on locators: `crates/superui_dom/src/selector.rs`'s selector engine
 // (which locators resolve through) supports only tag/class/id + descendant
 // combinators, no `[attr=value]` selectors — so every locator here is by id.
+//
+// NOTE on `#message` (the `<textarea>`): unlike `#volume`, neither it nor
+// `#name` has a JS `input`/`change` listener in `app.js` binding a readout, so
+// there is no `toHaveText` seam to read the typed value back through (see the
+// `.value` note above — the DOM value isn't attribute- or text_content-
+// reflected either). `toHaveScreenshot` is the only remaining existing
+// matcher that can observe a `fill()` actually landing, so "editable" is
+// asserted visually, the same way `#volume`'s thumb movement is.
 
 test("initial widgets render", async ({ page }) => {
   await expect(page.locator("#name")).toBeVisible();
@@ -55,4 +63,10 @@ test("slider thumb visibly moves between two positions", async ({ page }) => {
 
   await slider.fill("90");
   await expect(page).toHaveScreenshot("volume-90.png");
+});
+
+test("message textarea is editable", async ({ page }) => {
+  const message = page.locator("#message");
+  await message.fill("Hello there");
+  await expect(page).toHaveScreenshot("message-filled.png");
 });
