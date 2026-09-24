@@ -438,3 +438,34 @@ fn enter_dispatches_keydown_in_single_line_input() {
         "Enter dispatches a keydown with key Enter"
     );
 }
+
+// A focusable `<input>` blocks lower picks even with no listener: otherwise a
+// release-click falls through to the layer behind it and re-focuses that node,
+// blurring the input the instant the mouse is released.
+#[test]
+fn listenerless_input_blocks_lower_for_picking() {
+    use bevy::picking::Pickable;
+
+    let dom = Rc::new(RefCell::new(superui_html::parse_document(
+        "<input id='t' type='text'>",
+    )));
+    let mut app = test_app();
+    let _root = mount(&mut app, dom.clone());
+    app.update();
+
+    let node = dom.borrow().get_element_by_id("t").unwrap();
+    let e = {
+        let mut q = app
+            .world_mut()
+            .query::<(Entity, &superui_bridge::DomNode)>();
+        q.iter(app.world())
+            .find(|(_, d)| d.0 == node)
+            .map(|(x, _)| x)
+            .unwrap()
+    };
+    let pick = app
+        .world()
+        .get::<Pickable>(e)
+        .expect("input entity should carry Pickable under the default policy");
+    assert!(pick.should_block_lower);
+}

@@ -186,7 +186,13 @@ impl UiRuntime {
                     }
                 }
             }
-            let interactive = parent_interactive || !dom.listeners(child).is_empty();
+            // `input`/`textarea` are edited via `EditableText` and hold focus
+            // regardless of a JS listener, so they must block lower like any
+            // interactive node — else a release-click also lands on the layer
+            // behind them and re-focuses it, blurring the field on mouse-up.
+            let interactive = parent_interactive
+                || !dom.listeners(child).is_empty()
+                || matches!(dom.tag(child), Some("input" | "textarea"));
             if matches!(kind, NodeKind::Element(_)) {
                 self.sync_identity(world, dom, child, entity);
                 apply_picking(world, entity, picking, interactive);
