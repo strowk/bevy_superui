@@ -186,13 +186,21 @@ impl UiRuntime {
                     }
                 }
             }
-            // `input`/`textarea` are edited via `EditableText` and hold focus
-            // regardless of a JS listener, so they must block lower like any
-            // interactive node — else a release-click also lands on the layer
-            // behind them and re-focuses it, blurring the field on mouse-up.
+            // Editable/stateful form controls act without a JS listener (a field
+            // takes focus and edits; a checkbox/range changes value), so they must
+            // block lower picks like any interactive node -- else a release-click
+            // also lands on the layer behind and re-focuses it, blurring the field
+            // on mouse-up. Button-family controls do nothing without a handler, so
+            // `<button>` and `<input type=button|submit|reset|image>` stay
+            // listener-gated (the deliberate HUD pass-through case).
             let interactive = parent_interactive
                 || !dom.listeners(child).is_empty()
-                || matches!(dom.tag(child), Some("input" | "textarea"));
+                || dom.tag(child) == Some("textarea")
+                || (dom.tag(child) == Some("input")
+                    && !matches!(
+                        dom.get_attribute(child, "type"),
+                        Some("button" | "submit" | "reset" | "image")
+                    ));
             if matches!(kind, NodeKind::Element(_)) {
                 self.sync_identity(world, dom, child, entity);
                 apply_picking(world, entity, picking, interactive);

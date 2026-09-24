@@ -132,6 +132,23 @@ fn removing_the_last_listener_makes_the_node_transparent_again() {
 }
 
 #[test]
+fn editable_controls_block_but_button_inputs_stay_transparent() {
+    let dom = Rc::new(RefCell::new(superui_html::parse_document(
+        "<div id='root'><input id='text' type='text'><textarea id='ta'></textarea>\
+         <input id='btn' type='button'></div>",
+    )));
+    let mut app = test_app();
+    mount(&mut app, dom.clone());
+    app.update();
+
+    // Editable/stateful controls capture clicks with no listener.
+    assert_eq!(pickable_of(&mut app, "text"), Some(BLOCKS));
+    assert_eq!(pickable_of(&mut app, "ta"), Some(BLOCKS));
+    // A button-family <input> is inert without a handler, like <button>.
+    assert_eq!(pickable_of(&mut app, "btn"), Some(TRANSPARENT));
+}
+
+#[test]
 fn text_nodes_never_take_part_in_picking() {
     let dom = Rc::new(RefCell::new(superui_html::parse_document(
         "<div id='root'>plain text</div>",
