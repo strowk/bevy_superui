@@ -112,6 +112,8 @@ pub struct UiRuntime {
     pub(crate) range_synced: HashMap<NodeId, f32>,
     /// Range `<input>` node -> its managed track/fill/thumb part entities.
     pub(crate) range_parts: HashMap<NodeId, RangeParts>,
+    /// Uncaught JS eval errors captured since the last `take_errors` drain.
+    errors: Vec<String>,
 }
 
 impl UiRuntime {
@@ -174,6 +176,7 @@ impl UiRuntime {
             editable_synced: HashMap::new(),
             range_synced: HashMap::new(),
             range_parts: HashMap::new(),
+            errors: Vec::new(),
         }
     }
 
@@ -208,6 +211,7 @@ impl UiRuntime {
         let wrapped = format!("(function () {{\n{src}\n}})();");
         if let Err(e) = self.engine.eval(&wrapped) {
             warn!("superui: JS error: {e}");
+            self.errors.push(format!("{e}"));
         }
         self.dirty = true;
         self.pump();
@@ -320,6 +324,11 @@ impl UiRuntime {
     /// tests (and automation) can assert where a click/Tab landed focus.
     pub fn focused(&self) -> Option<NodeId> {
         self.focused
+    }
+
+    /// Return and clear JS eval errors captured since the last call.
+    pub fn take_errors(&mut self) -> Vec<String> {
+        core::mem::take(&mut self.errors)
     }
 }
 
