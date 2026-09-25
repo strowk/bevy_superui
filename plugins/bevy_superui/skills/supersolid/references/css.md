@@ -22,9 +22,9 @@ normal document flow, no `float`, no inline text flow.
 | `:hover` | ✅ | on pointer hover |
 | `:checked` | ✅ | checkbox state |
 | `:focus` | ✅ | matches the focused element (click or Tab sets focus); no default focus-ring — style it yourself |
-| `:active` / `:disabled` | ✅ | `:active` = pressed; `:disabled` = disabled state |
+| `:active` / `:disabled` | 🟡 | parse but don't match yet — pressed / disabled state isn't tracked on elements |
 | `:is()` / `:where()` | ✅ | |
-| `::before` / `::after` | ✅ | `content: "…"` sets the generated text; on non-text elements they're empty style-able boxes |
+| `::before` / `::after` | 🟡 | selector parses, but generated content isn't produced yet |
 | `::slider-track` / `::slider-fill` / `::slider-thumb` | ✅ | style range-slider parts |
 
 ## Values

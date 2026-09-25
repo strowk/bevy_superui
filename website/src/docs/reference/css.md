@@ -22,10 +22,10 @@ Unknown properties and rules are ignored, never fatal.
 | `:not()` | ✅ | T2 | 0.1 | |
 | `:hover` | ✅ | T1 | 0.1 | on pointer hover |
 | `:checked` | ✅ | T1 | 0.1 | checkbox state |
-| `:focus` | ✅ | T1 | 0.1 | matches the focused element (click or Tab sets focus). No default focus-ring — style it yourself |
-| `:active` / `:disabled` | ✅ | T1 | 0.1 | `:active` = pressed; `:disabled` = disabled state |
+| `:focus` | ✅ | T1 | 0.3.5 | matches the focused element (click or Tab sets focus). No default focus-ring — style it yourself |
+| `:active` / `:disabled` | 🟡 | T1 | — | parse but don't match yet — pressed / disabled state isn't tracked on elements |
 | `:is()` / `:where()` | ✅ | T2 | 0.1 | |
-| `::before` / `::after` | ✅ | T2 | 0.1 | `content: "…"` sets the generated text. On non-text elements they're empty style-able boxes (no `content` string) |
+| `::before` / `::after` | 🟡 | T2 | — | selector parses, but generated content isn't produced — pseudo-element boxes aren't created on elements yet |
 | `::slider-track` / `::slider-fill` / `::slider-thumb` | ✅ | T1 | 0.3.5 | style range-slider parts |
 
 ## Values
