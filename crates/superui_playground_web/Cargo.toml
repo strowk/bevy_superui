@@ -1,0 +1,32 @@
+[package]
+name = "superui_playground_web"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+superui = { path = "../superui", version = "0.3.5", features = ["transpiler", "hmr"] }
+superui_bridge = { path = "../superui_bridge", version = "0.3.5" }
+superui_css = { path = "../superui_css", version = "0.3.5" }
+supersolid = { path = "../supersolid", version = "0.3.5" }
+bevy = { workspace = true, default-features = false, features = [
+    "std",
+    "bevy_ui",
+    "bevy_text",
+    "bevy_picking",
+    "ui_picking",
+    "bevy_input_focus",
+    "default_font",
+    "bevy_ui_widgets",
+    "system_clipboard",
+] }
+serde_json = "1"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
+
+[dev-dependencies]
+# native integration harness mirrors crates/superui/tests/support
+superui_html = { path = "../superui_html", version = "0.3.5" }
+superui_dom = { path = "../superui_dom", version = "0.3.5" }
