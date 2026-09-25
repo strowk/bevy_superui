@@ -44,6 +44,26 @@ The `:hover` row, before and after:
 | `:hover` | ✅ | on pointer hover |
 ```
 
+## Two copies — edit both
+
+Each capability ledger lives in **two** places that must stay in sync:
+
+- **Canonical:** `website/src/docs/reference/*.md` — the published docs. Carries a
+  `Tier` column and any "since version" markers.
+- **Mirror:** `plugins/bevy_superui/skills/supersolid/references/*.md` — the condensed
+  copy the supersolid plugin skill reads. No tier column, no "since" prose.
+
+A change to one is only half done. The website is canonical; edit it first, then port
+the capability/status/caveat changes to the mirror (dropping tiers and version markers).
+Each mirror's header names its source with a `> Mirrors …` line — follow it to find the
+counterpart. One website page can map to several mirror files or vice-versa:
+
+| Website page | Skill mirror |
+|---|---|
+| `reference/html.md` + `reference/js-dom.md` | `references/html-dom.md` |
+| `reference/css.md` | `references/css.md` |
+| `reference/class-utilities.md` | `references/class-utilities.md` (both GENERATED — regenerate, don't hand-edit) |
+
 ## Quick test
 
 > Would this detail change what the reader **writes or expects**? Keep it.
