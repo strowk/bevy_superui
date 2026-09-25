@@ -211,7 +211,7 @@ impl UiRuntime {
         let wrapped = format!("(function () {{\n{src}\n}})();");
         if let Err(e) = self.engine.eval(&wrapped) {
             warn!("superui: JS error: {e}");
-            self.errors.push(format!("{e}"));
+            self.errors.push(e);
         }
         self.dirty = true;
         self.pump();

@@ -42,6 +42,10 @@ pub fn poll_diagnostics_inner() -> String {
 
 /// Classify an edited file, transpile `.tsx`/`.ts` synchronously, enqueue one Edit,
 /// and return `{ok, diagnostics}` JSON. CSS/HTML parse errors surface later via poll.
+///
+/// Routes by file extension, not path, and overwrites the single mounted asset of
+/// that kind — correct only under the current single-entry, no-module-resolution
+/// constraint.
 pub fn apply_source_inner(path: &str, src: &str) -> String {
     let lower = path.to_ascii_lowercase();
     if lower.ends_with(".tsx") || lower.ends_with(".ts") {
@@ -57,7 +61,7 @@ pub fn apply_source_inner(path: &str, src: &str) -> String {
             .iter()
             .map(|d| serde_json::json!({ "severity": format!("{:?}", d.severity), "message": d.message }))
             .collect();
-        let ok = diags.is_empty();
+        let ok = !result.diagnostics.iter().any(|d| d.severity == supersolid::Severity::Error);
         QUEUE.with(|q| q.borrow_mut().push(Edit::Js(result.code)));
         serde_json::json!({ "ok": ok, "diagnostics": diags }).to_string()
     } else if lower.ends_with(".js") || lower.ends_with(".mjs") {
@@ -100,7 +104,8 @@ fn drain_runtime_errors(rt: Option<bevy::prelude::NonSendMut<superui_bridge::UiR
 
 /// Pop queued edits and apply them to the mounted `SuperUiRoot`'s subresources.
 /// If nothing is mounted yet (no `SuperUiRoot` + `SuperUiSubresources` pair), the
-/// edits are dropped silently — there is nothing to hot-reload into.
+/// edits are dropped — there is nothing to hot-reload into — and a diagnostic is
+/// recorded so the console isn't silent about it.
 fn drain_playground_edits(world: &mut World) {
     let edits = drain_queue();
     if edits.is_empty() {
@@ -112,7 +117,10 @@ fn drain_playground_edits(world: &mut World) {
             .next()
             .map(|(root, sub)| (root.html.clone(), sub.js.clone(), sub.css.clone()))
     };
-    let Some((html_h, js_h, css_h_opt)) = handles else { return };
+    let Some((html_h, js_h, css_h_opt)) = handles else {
+        crate::push_diag("edit ignored: UI not mounted yet".into());
+        return;
+    };
 
     for edit in edits {
         match edit {
@@ -190,11 +198,13 @@ mod apply_source_tests {
     }
 
     #[test]
-    fn broken_tsx_returns_not_ok_without_panicking() {
+    fn broken_tsx_reports_diagnostics_without_panicking() {
         let _ = drain_queue();
         let out = apply_source_inner("app.tsx", "const a = <div>{  ;");
-        // Never panics; reports the problem. (supersolid degrades gracefully, so
-        // it may still enqueue partial JS — the contract is only: no panic + a report.)
+        // Never panics; reports the problem as a diagnostic. supersolid's transpiler
+        // is warn-only today (no Severity::Error path), so `ok` stays true and it
+        // may still enqueue partial JS — the contract is: no panic + a report.
+        assert!(out.contains("\"ok\":true"), "warn-only diagnostics keep ok:true: {out}");
         assert!(out.contains("\"diagnostics\""), "diagnostics present: {out}");
         assert!(
             serde_json::from_str::<serde_json::Value>(&out).is_ok(),

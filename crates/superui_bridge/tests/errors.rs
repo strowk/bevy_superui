@@ -2,7 +2,6 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use bevy::prelude::*;
 use superui_bridge::UiRuntime;
 
 mod support;

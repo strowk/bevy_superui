@@ -3,7 +3,6 @@ mod support;
 use support::*;
 
 use bevy::prelude::Assets;
-use superui_bridge::UiRuntime;
 use superui_css::style::StyleSheet;
 use superui_playground_web::apply_source_inner;
 
