@@ -18,6 +18,7 @@
   - [Keyed lists & performance](docs/concepts/keyed.md)
 - [Lifecycle](docs/concepts/lifecycle.md)
 - [Context](docs/concepts/context.md)
+- [Styling](docs/concepts/styling.md)
 - [The Bevy Bridge](docs/concepts/bevy-bridge.md)
 - [Picking & the world behind the UI](docs/concepts/picking.md)
 

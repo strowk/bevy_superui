@@ -101,20 +101,11 @@ superui supports a **Tailwind-compatible** subset of utility classes for `.tsx`
 UIs. Author with familiar class names (`flex`, `pt-4`, `bg-slate-800`,
 `w-[220px]`) and the supported ones are compiled into your UI's stylesheet.
 
-## How to use them
+See [Styling → Utility classes](../concepts/styling.md#utility-classes) for how
+utilities work and how to enable them. This page is the catalog of what's
+supported.
 
-Add this import at the top of your app's global stylesheet (mirrors Tailwind's
-`@tailwind utilities;`):
-
-```css
-@import ".superui/build/utilities.generated.css";
-```
-
-Then enable generation — the `superui` `utilities` feature (live/HMR) or a
-`superui_css_utilities::write_generated(ui_dir)` call from `build.rs` (wasm /
-no-HMR) — and use the class names below in `class="..."` / `class={...}`.
-
-### Limitations
+## Limitations
 
 - **This list is a representative subset, not a limit.** Use any utility class,
   including arbitrary values like `w-[220px]` or `bg-[#b83f45]`; supported ones
