@@ -6,7 +6,7 @@
 
 **Architecture:** Add a `transpiler` feature that lets `oxc` (via `supersolid`) into a wasm build; a new wasm-capable crate `superui_playground_web` that takes edited source from JS, transpiles/parses it, and drives the *existing* `detect_hot_reload`/`apply_hot_reload` seam by overwriting the mounted asset and firing `AssetEvent::Modified`. All new logic lives in native-testable functions/systems; wasm-bindgen exports are thin wrappers.
 
-**Tech Stack:** Rust, Bevy 0.19, `oxc` 0.140 (via `supersolid`), the vendored `superui_flair_*` 0.8 CSS engine, `wasm-bindgen`, Boa (JS engine).
+**Tech Stack:** Rust, Bevy 0.19, `oxc` 0.140 (via `supersolid`), the vendored `superui_flair_*` 0.8 CSS engine, `wasm-bindgen`, the superui JS engine (V8 on native / engine-web on wasm).
 
 **Spec:** `docs/superpowers/specs/2026-07-24-web-playground-01-transpile-hotreload-seam-design.md`
 
@@ -97,14 +97,21 @@ pub(crate) fn live_source() -> bool {
 }
 ```
 
-- [ ] **Step 5: Declare the feature + wasm dep in `crates/superui/Cargo.toml`.** Under `[features]` add `transpiler = ["dep:supersolid"]`. Add a wasm-target optional dep (the native `supersolid` dep stays as-is, unconditional):
+- [ ] **Step 5: Declare the feature + wasm dep in `crates/superui/Cargo.toml`.** This exact layout is **verified** (controller ran `cargo tree` on it): keep the existing native entry `[target.'cfg(not(target_arch = "wasm32"))'.dependencies] supersolid = { path = "../supersolid", version = "0.3.5" }` **unchanged**. Add to the `[target.'cfg(target_arch = "wasm32")'.dependencies]` block (alongside the existing `getrandom`/`superui_js`/`superui_bridge` wasm entries):
 
 ```toml
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-supersolid = { path = "../supersolid", optional = true }
+supersolid = { path = "../supersolid", version = "0.3.5", optional = true }
 ```
 
-Note: if `supersolid` is currently only a `[target.'cfg(not(target_arch = "wasm32"))'.dependencies]` entry, keep that entry unchanged and add the wasm one above it. `dep:supersolid` in the feature refers to whichever target-scoped dep is active.
+Add to `[features]` (this mirrors the crate's existing `utilities = ["dep:superui_css_utilities"]` optional-dep pattern):
+
+```toml
+# Compile oxc (via supersolid) into a wasm build so the web playground can
+# transpile TSX in-browser. No-op on native (supersolid is always linked there).
+transpiler = ["dep:supersolid"]
+```
+
+Verified outcome: `cargo tree -p superui --target wasm32-unknown-unknown --features transpiler -i supersolid` lists supersolid; without `--features transpiler` it prints "nothing to print" (supersolid absent).
 
 - [ ] **Step 6: Verify native is unchanged and still builds.**
 
