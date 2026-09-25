@@ -25,7 +25,7 @@ Unknown properties and rules are ignored, never fatal.
 | `:focus` | 🟡 | T1 | not styled yet — focus is tracked for keyboard/event routing (click + Tab set it), but `:focus` selectors don't match, so there's no focus ring / focus styling today |
 | `:active` / `:disabled` | 🟡 | T1 | selectors parse but never match yet — pressed/disabled state isn't tracked |
 | `:is()` / `:where()` | 🟡 | T2 | |
-| `::before` / `::after` | 🟡 | T2 | generated content not produced yet |
+| `::before` / `::after` | ✅ | T2 | `content: "…"` sets the generated text. On non-text elements they're empty style-able boxes (no `content` string) |
 | `::slider-track` / `::slider-fill` / `::slider-thumb` | ✅ | T1 | style range-slider parts |
 
 ## Values
@@ -76,7 +76,7 @@ Unknown properties and rules are ignored, never fatal.
 | `transform` | ✅ | T2 | 2D only: `translate[X/Y]`, `scale[X/Y]`, `rotate`/`rotateZ`. No 3D (`rotateX/Y`, `rotate3d`, `translateZ`, `perspective`) or `matrix`/`skew`. Functions must appear in order `translate scale rotate` |
 | `background-image` (gradient) | ✅ | T2 | linear / radial gradients |
 | `font-weight` / `font-style` | 🟡 | T2 | bold / italic not supported — text uses a single font asset |
-| `text-decoration` | 🟡 | T2 | underline / strikethrough |
+| `text-decoration` | ✅ | T2 | line values `underline`, `line-through`, `none`, plus optional color (`text-decoration: underline red`). No `overline`, no combined lines, no `text-decoration-style` / `-thickness` |
 | `text-transform` / `letter-spacing` | 🟡 | T2 | |
 | `white-space` / `text-overflow` | 🟡 | T2 | `nowrap`, `ellipsis` truncation |
 | `cursor` | 🟡 | T2 | pointer cursor doesn't change yet |

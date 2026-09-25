@@ -24,7 +24,7 @@ normal document flow, no `float`, no inline text flow.
 | `:focus` | 🟡 | not styled yet (no focus ring); focus is tracked for events only |
 | `:active` / `:disabled` | 🟡 | parse but never match yet |
 | `:is()` / `:where()` | 🟡 | |
-| `::before` / `::after` | 🟡 | no generated content yet |
+| `::before` / `::after` | ✅ | `content: "…"` sets the generated text; on non-text elements they're empty style-able boxes |
 | `::slider-track` / `::slider-fill` / `::slider-thumb` | ✅ | style range-slider parts |
 
 ## Values
@@ -74,7 +74,8 @@ normal document flow, no `float`, no inline text flow.
 | `transform` | ✅ | **2D only:** `translate[X/Y]`, `scale[X/Y]`, `rotate`/`rotateZ`. No 3D, no `matrix`/`skew`. Functions must appear in order `translate scale rotate` |
 | `background-image` (gradient) | ✅ | linear / radial |
 | `font-weight` / `font-style` | 🟡 | no bold / italic — single font asset |
-| `text-decoration` / `text-transform` / `letter-spacing` | 🟡 | |
+| `text-decoration` | ✅ | `underline`, `line-through`, `none` + optional color (`underline red`). No `overline`, combined lines, or `text-decoration-style` / `-thickness` |
+| `text-transform` / `letter-spacing` | 🟡 | |
 | `white-space` / `text-overflow` | 🟡 | no `nowrap` / ellipsis yet |
 | `cursor` | 🟡 | pointer cursor doesn't change yet |
 | `visibility` | 🟡 | **use `display: none` for now** |
