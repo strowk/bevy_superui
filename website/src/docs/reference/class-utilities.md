@@ -2,6 +2,8 @@
 
 <!-- GENERATED — do not edit by hand. Regenerate: cargo run -p superui_css_utilities --bin gen_utilities_doc -->
 
+<div class="since-note"><strong>0.3.5</strong></div>
+
 superui supports a **Tailwind-compatible** subset of utility classes for `.tsx`
 UIs. Author with familiar class names (`flex`, `pt-4`, `bg-slate-800`,
 `w-[220px]`) and the supported ones are compiled into your UI's stylesheet.

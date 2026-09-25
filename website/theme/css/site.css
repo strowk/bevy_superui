@@ -366,3 +366,35 @@ mark { background: rgba(255, 196, 107, 0.22); color: var(--su-amber); padding: 0
   font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; padding: 3px 8px;
   border: 1px solid rgba(52, 230, 214, 0.35); color: var(--su-teal);
 }
+
+/* --- "since version" notes ------------------------------------------------ */
+/* Block availability callout placed under a page's H1 or a section heading.
+   Default variant = shipped ("Available since 0.3.5"); the --unreleased variant
+   = present on main but not yet in any release. Release workflow: grep for
+   `since-note--unreleased` and swap each to a plain `since-note` with the
+   version. */
+.since-note {
+  display: inline-flex; align-items: center; gap: 0.55em;
+  width: fit-content; max-width: 100%;
+  margin: 0.2em 0 0.5em;
+  padding: 0.3em 0.7em;
+  border: 1px solid rgba(52, 230, 214, 0.3);
+  border-inline-start: 3px solid var(--su-teal);
+  border-radius: 6px;
+  background: rgba(52, 230, 214, 0.06);
+  font-size: 0.85em; line-height: 1.35; color: var(--su-body);
+}
+.since-note::before {
+  content: "since"; flex: none;
+  font-family: var(--font-mono); font-size: 0.78em; font-weight: 600;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--su-teal);
+}
+.since-note strong { color: var(--su-heading); font-weight: 600; }
+.since-note code { font-size: 0.9em; }
+.since-note--unreleased {
+  margin: 0.6em 0 1.1em;
+  border-color: rgba(255, 196, 107, 0.35);
+  border-inline-start-color: var(--su-amber);
+  background: rgba(255, 196, 107, 0.08);
+}
+.since-note--unreleased::before { content: "unreleased"; color: var(--su-amber); }

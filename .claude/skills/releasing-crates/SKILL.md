@@ -26,8 +26,11 @@ The `superui_flair_*` and `superui_boa_*` crates are forks. Any deviation from u
 ## Releasing
 
 1. Bump `[workspace.package].version` in the root `Cargo.toml`.
-2. Dry run: `cargo run -p xtask -- publish` (runs `cargo package` per crate in order).
-3. Publish: `cargo run -p xtask -- publish --execute`.
+2. Fill in the docs "since version" markers: replace every unreleased note with
+   the new version. `grep -rn 'since-note--unreleased' website/src/docs` must come
+   back empty before tagging. See the documenting-new-features skill.
+3. Dry run: `cargo run -p xtask -- publish` (runs `cargo package` per crate in order).
+4. Publish: `cargo run -p xtask -- publish --execute`.
 
 ## Releasing the plugin
 
@@ -39,5 +42,6 @@ The Claude Code plugin under `plugins/bevy_superui/` versions separately from th
 | --- | --- |
 | New published crate | `xtask/src/lib.rs` (publish_order + count), `xtask/tests/publish_order.rs` (counts + position assert) |
 | New version | root `Cargo.toml` `[workspace.package].version`, then intra-workspace `version =` pins |
+| Release docs | swap every `since-note--unreleased` in `website/src/docs` to the versioned note (documenting-new-features skill) |
 | Fork edit | source `SUPERUI-FORK-PATCH` markers + `docs/fork-patches.md` entry |
 | Skill / plugin edit | bump `version` in `plugins/bevy_superui/.claude-plugin/plugin.json` |
