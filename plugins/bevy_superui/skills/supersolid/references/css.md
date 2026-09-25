@@ -25,6 +25,7 @@ normal document flow, no `float`, no inline text flow.
 | `:active` / `:disabled` | 🟡 | parse but never match yet |
 | `:is()` / `:where()` | 🟡 | |
 | `::before` / `::after` | 🟡 | no generated content yet |
+| `::slider-track` / `::slider-fill` / `::slider-thumb` | ✅ | style range-slider parts |
 
 ## Values
 
@@ -81,6 +82,7 @@ normal document flow, no `float`, no inline text flow.
 | `filter` / `backdrop-filter` | 🟡 | no blur / color effects yet |
 | `list-style` | 🟡 | no list markers |
 | `user-select` / `pointer-events` | 🟡 | |
+| `appearance` | 🟡 | vertical range (`appearance: slider-vertical`) not supported; range is horizontal only |
 | `background-image: url()` + `background-position/-size/-repeat` | 🟡 | needs image assets |
 | `object-fit` | 🟡 | pairs with `<img>` |
 

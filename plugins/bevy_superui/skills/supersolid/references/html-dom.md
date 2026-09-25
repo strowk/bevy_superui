@@ -17,17 +17,19 @@ read-back, no browser chrome.
 | `ul` / `ol` / `li` | ✅ | plain flex boxes, **no list markers** |
 | `button` | ✅ | clickable |
 | semantic/block tags (`nav`, `header`, `footer`, `section`, `article`, `main`, `aside`, `blockquote`, `figure`) | ✅ | render like `div` |
-| `input type=text` | ✅ | single-line; **editing is append + backspace-at-end only** (caret pinned to end) — no click-to-place caret, arrows, or mid-string edit yet |
-| `input type=checkbox` | ✅ | toggles `checked`, drives `:checked` |
+| `input type=text` | ✅ | single-line; full cursor navigation, selection, OS clipboard, IME, unicode |
+| `input type=checkbox` | ✅ | toggles `checked`, drives `:checked`; shows a mark when checked |
+| `input type=range` | ✅ | draggable + keyboard (arrows/Home/End) slider; fires `input` while dragging, `change` on commit; styleable via `::slider-track`/`::slider-fill`/`::slider-thumb`; horizontal only |
+| `textarea` | ✅ | multiline; full cursor navigation, selection, OS clipboard, IME, unicode |
 | `label` | ✅ | plain box, no implicit `for` focus |
 | text nodes | ✅ | rendered as text |
 | inline text (`strong`, `em`, `b`, `i`, `u`, `small`, `code`) | 🟡 | render as boxes; **no bold/italic or inline flow yet** |
 | `br` / `hr` / `pre` | 🟡 | |
-| `input type=radio / number / password / …` | 🟡 | only `text` / `checkbox` today |
+| `input type=radio / number / password / …` | 🟡 | only `text` / `checkbox` / `range` today |
 | `a` (anchor) | 🟡 | renders; no navigation (no network) |
 | `img` | 🟡 | needs image asset wiring |
 | `form` | 🟡 | renders; no `submit` semantics |
-| `select` / `option` / `textarea` | 🟡 | not yet |
+| `select` / `option` | 🟡 | not yet |
 | `table` / `tr` / `td` | 🟡 | approximate with flex/grid |
 | `svg` + children | 🟡 | planned, not yet |
 | `canvas` | 🟡 | |
@@ -39,12 +41,16 @@ read-back, no browser chrome.
 |---|---|---|
 | `id` / `class` | ✅ | |
 | `type` / `value` / `checked` / `placeholder` (input) | ✅ | |
+| `min` / `max` / `step` (input range) | ✅ | range only; defaults `min=0` `max=100` `step=1`, value defaults to midpoint and is clamped into range |
+| `maxlength` (input/textarea) | ✅ | caps character count |
+| `rows` (textarea) | ✅ | visible line count; defaults to 3 |
+| `autofocus` | ✅ | focuses the element on mount |
 | `style` (inline) | ✅ | string value |
 | `data-*` | ✅ | readable via `getAttribute` |
 | `href` | 🟡 | stored, no navigation |
 | `disabled` | 🟡 | stored, not enforced |
 | `for` (label) | 🟡 | no label→input focus yet |
-| `readonly` / `required` / `maxlength` / `min` / `max` / `step` / `name` | 🟡 | |
+| `readonly` / `required` / `name` | 🟡 | |
 | `tabindex` / `hidden` | 🟡 | use `display: none` for hidden |
 | `src` (img) | 🟡 | |
 | inline `on*` (`onclick=`) | 🟡 | in event handlers use JSX `onClick` / `addEventListener` |
@@ -80,6 +86,8 @@ read-back, no browser chrome.
 | `innerHTML` | 🟡 | parse-on-set is roadmap |
 | `dataset` | 🟡 | use `getAttribute("data-*")` |
 | `getBoundingClientRect` / `getComputedStyle` | 🟡 | no post-layout read-back yet |
+| `scrollTop` / `scrollLeft` (get/set) | 🟡 | mouse-wheel scrolling works natively |
+| `scrollTo` / `scrollBy` / `scrollIntoView` | 🟡 | |
 | `focus()` / `blur()` | 🟡 | focus is set on click today |
 
 Note: in supersolid you rarely touch the DOM directly — bindings and control-flow
@@ -93,13 +101,16 @@ components manage it. Direct DOM APIs are for escape hatches.
 | `event.target` / `currentTarget` / `type` / `defaultPrevented` | ✅ |
 | `preventDefault` / `stopPropagation` / `stopImmediatePropagation` | ✅ |
 | `click` | ✅ |
-| `change` (checkbox) / `input` (text) | ✅ |
+| `change` (checkbox toggle; text field on blur if changed) / `input` (text) | ✅ |
 | `keydown` / `keyup` + `event.key` (e.g. `"Enter"`, `"Backspace"`) | ✅ |
+| `focus` / `blur` (JS events) | ✅ dispatched as keyboard focus enters/leaves |
 | `event.keyCode` / `code` | 🟡 use `event.key` |
 | `event.clientX/Y` / `offsetX/Y` | 🟡 not exposed yet |
 | `dispatchEvent` / `new CustomEvent` / `new Event` | 🟡 |
 | `submit` | 🟡 no `<form>` submit wiring |
-| `mouseover` / `mouseout` / `focus` / `blur` (JS events) | 🟡 hover exists in CSS only |
+| `mouseover` / `mouseout` | 🟡 hover exists in CSS only |
+| `wheel` event | 🟡 wheel scrolling works natively; JS `wheel` event is roadmap |
+| `scroll` event | 🟡 not fired on scroll-container scroll yet |
 
 ## Globals
 
