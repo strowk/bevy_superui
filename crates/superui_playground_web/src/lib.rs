@@ -83,7 +83,18 @@ pub struct PlaygroundBridgePlugin;
 
 impl Plugin for PlaygroundBridgePlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, drain_playground_edits);
+        app.add_systems(Update, (drain_playground_edits, drain_runtime_errors).chain());
+    }
+}
+
+/// Forward any uncaught JS errors captured by the runtime this frame into the
+/// diagnostics sink for the playground console. `Option` because the runtime may
+/// not be mounted yet (no UI spawned).
+fn drain_runtime_errors(rt: Option<bevy::prelude::NonSendMut<superui_bridge::UiRuntime>>) {
+    if let Some(mut rt) = rt {
+        for e in rt.take_errors() {
+            crate::push_diag(e);
+        }
     }
 }
 
