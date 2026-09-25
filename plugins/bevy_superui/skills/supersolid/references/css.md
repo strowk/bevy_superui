@@ -21,9 +21,9 @@ normal document flow, no `float`, no inline text flow.
 | `:root`, `:not()` | ✅ | |
 | `:hover` | ✅ | on pointer hover |
 | `:checked` | ✅ | checkbox state |
-| `:focus` | 🟡 | not styled yet (no focus ring); focus is tracked for events only |
-| `:active` / `:disabled` | 🟡 | parse but never match yet |
-| `:is()` / `:where()` | 🟡 | |
+| `:focus` | ✅ | matches the focused element (click or Tab sets focus); no default focus-ring — style it yourself |
+| `:active` / `:disabled` | ✅ | `:active` = pressed; `:disabled` = disabled state |
+| `:is()` / `:where()` | ✅ | |
 | `::before` / `::after` | ✅ | `content: "…"` sets the generated text; on non-text elements they're empty style-able boxes |
 | `::slider-track` / `::slider-fill` / `::slider-thumb` | ✅ | style range-slider parts |
 
@@ -73,12 +73,13 @@ normal document flow, no `float`, no inline text flow.
 | `animation` | ✅ | drives `@keyframes` |
 | `transform` | ✅ | **2D only:** `translate[X/Y]`, `scale[X/Y]`, `rotate`/`rotateZ`. No 3D, no `matrix`/`skew`. Functions must appear in order `translate scale rotate` |
 | `background-image` (gradient) | ✅ | linear / radial |
-| `font-weight` / `font-style` | 🟡 | no bold / italic — single font asset |
+| `font-weight` / `font-style` | ✅ | map to `TextFont` weight/style; visible bold/italic needs a font asset with those faces |
 | `text-decoration` | ✅ | `underline`, `line-through`, `none` + optional color (`underline red`). No `overline`, combined lines, or `text-decoration-style` / `-thickness` |
-| `text-transform` / `letter-spacing` | 🟡 | |
+| `letter-spacing` | ✅ | `px` / `rem` |
+| `visibility` | ✅ | `visible` / `hidden` |
+| `text-transform` | 🟡 | |
 | `white-space` / `text-overflow` | 🟡 | no `nowrap` / ellipsis yet |
 | `cursor` | 🟡 | pointer cursor doesn't change yet |
-| `visibility` | 🟡 | **use `display: none` for now** |
 | `opacity` | 🟡 | not supported yet |
 | `filter` / `backdrop-filter` | 🟡 | no blur / color effects yet |
 | `list-style` | 🟡 | no list markers |

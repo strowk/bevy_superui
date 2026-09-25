@@ -1,7 +1,7 @@
 # Supersolid framework API
 
 **Legend:** ✅ supported today · 🟡 not supported yet, but planned · ⛔ won't be
-supported. Tier T0–T3.
+supported. Tier T0–T3. **Since** = the superui version a capability first shipped in.
 
 These globals are the Supersolid reactive framework. They are installed into every
 runtime and are available to authored `.js` and to transpiled `.tsx` (whose
@@ -11,25 +11,25 @@ that.
 
 ## Reactive core
 
-| Global | Status | Since | Notes |
-|---|---|---|---|
-| `createSignal(v, {equals?})` → `[get, set]` | ✅ | T0 | fine-grained signal; updater-form set; `equals` gates notifications |
-| `createEffect(fn, seed?)` | ✅ | T0 | tracks reads, re-runs on change; disposed with owner |
-| `createMemo(fn, seed?, {equals?})` | ✅ | T0 | lazy, memoized derived value; is itself a source |
-| `createRoot(fn => …)` | ✅ | T0 | disposable reactive scope |
-| `onMount(fn)` / `onCleanup(fn)` | ✅ | T0 | run-once-after-setup / owner teardown |
-| `createContext(default?)` / `useContext(ctx)` | ✅ | T0 | context via the owner tree |
-| `untrack(fn)` / `batch(fn)` | ✅ | T0 | read without subscribing / coalesce writes |
+| Global | Status | Tier | Since | Notes |
+|---|---|---|---|---|
+| `createSignal(v, {equals?})` → `[get, set]` | ✅ | T0 | 0.1 | fine-grained signal; updater-form set; `equals` gates notifications |
+| `createEffect(fn, seed?)` | ✅ | T0 | 0.1 | tracks reads, re-runs on change; disposed with owner |
+| `createMemo(fn, seed?, {equals?})` | ✅ | T0 | 0.1 | lazy, memoized derived value; is itself a source |
+| `createRoot(fn => …)` | ✅ | T0 | 0.1 | disposable reactive scope |
+| `onMount(fn)` / `onCleanup(fn)` | ✅ | T0 | 0.1 | run-once-after-setup / owner teardown |
+| `createContext(default?)` / `useContext(ctx)` | ✅ | T0 | 0.1 | context via the owner tree |
+| `untrack(fn)` / `batch(fn)` | ✅ | T0 | 0.1 | read without subscribing / coalesce writes |
 
 ## Render + control flow
 
-| Global | Status | Since | Notes |
-|---|---|---|---|
-| `render(code, mountEl)` | ✅ | T0 | root entry; returns `dispose` |
-| `<Show>` | ✅ | T0 | conditional; branch disposal via memo recompute |
-| `<For>` | ✅ | T0 | keyed by item identity; per-row disposable roots; state preserved on reorder |
-| `<Index>` | ✅ | T0 | keyed by position; item is an in-place-updated signal |
-| `<Switch>` / `<Match>` | ✅ | T0 | first truthy branch, else fallback |
+| Global | Status | Tier | Since | Notes |
+|---|---|---|---|---|
+| `render(code, mountEl)` | ✅ | T0 | 0.1 | root entry; returns `dispose` |
+| `<Show>` | ✅ | T0 | 0.1 | conditional; branch disposal via memo recompute |
+| `<For>` | ✅ | T0 | 0.1 | keyed by item identity; per-row disposable roots; state preserved on reorder |
+| `<Index>` | ✅ | T0 | 0.1 | keyed by position; item is an in-place-updated signal |
+| `<Switch>` / `<Match>` | ✅ | T0 | 0.1 | first truthy branch, else fallback |
 
 ## State-preserving hot reload
 

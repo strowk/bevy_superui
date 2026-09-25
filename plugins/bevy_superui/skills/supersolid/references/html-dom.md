@@ -65,7 +65,8 @@ read-back, no browser chrome.
 | API | Status |
 |---|---|
 | `getElementById`, `querySelector`, `querySelectorAll` (returns a real array), `createElement`, `createTextNode` | ✅ |
-| `document.body` / `head` | 🟡 (reach via `querySelector("body")`) |
+| `document.body` | ✅ |
+| `document.head` | 🟡 (no `head` element today) |
 | `getElementsByClassName` / `getElementsByTagName` / `createDocumentFragment` | 🟡 |
 
 ## Node / Element
@@ -118,7 +119,8 @@ components manage it. Direct DOM APIs are for escape hatches.
 |---|---|---|
 | ES built-ins: `JSON`, `Math`, `Date`, `Promise`, `Array`, `Map`, `Set`, `RegExp`, `async`/`await` | ✅ | full ECMAScript |
 | `console.log` / `warn` / `error` / `info` | ✅ | |
-| `console.debug` / `trace` / `table` / `group` | 🟡 | **not installed — calls THROW `TypeError`.** Use `log`/`warn`/`error` |
+| `console.debug` | ✅ | native engine aliases it to `log` |
+| `console.trace` / `table` / `group` | 🟡 | **not installed on the native engine — calls THROW `TypeError`.** Use `log`/`warn`/`error` |
 | `setTimeout` / `setInterval` / `clearTimeout` / `clearInterval` | ✅ | driven by Bevy's clock |
 | `requestAnimationFrame` / `cancelAnimationFrame` | 🟡 | use `setInterval` for now |
 | `window` (alias of `globalThis`) | ✅ | |
