@@ -128,6 +128,7 @@ running app beside its authored source (TSX where applicable).
 | TodoMVC (HTML/CSS/JS) | [Open](https://strowk.github.io/bevy_superui/examples/todomvc/) | Classic TodoMVC in plain HTML/CSS/JS |
 | TodoMVC (supersolid TSX) | [Open](https://strowk.github.io/bevy_superui/examples/todomvc_supersolid/) | The same app authored in reactive `.tsx` |
 | Game Menu | [Open](https://strowk.github.io/bevy_superui/examples/game_menu/) | Multi-screen sci-fi game menu in supersolid TSX |
+| Widgets Showcase | [Open](https://strowk.github.io/bevy_superui/examples/widgets_showcase/) | Basic HTML form controls — input, textarea, checkbox, range slider — in plain HTML/CSS/JS |
 
 **Stress tests** (deliberately heavy — may run slowly in-browser)
 

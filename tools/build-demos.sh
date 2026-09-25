@@ -32,6 +32,7 @@ declare -A BUILD_ARGS=(
   [todomvc]=""
   [todomvc_supersolid]=""
   [game_menu]=""
+  [widgets_showcase]=""
   [citadel]="--no-default-features"
   [horde]="--no-default-features"
 )
@@ -40,7 +41,7 @@ declare -A BUILD_ARGS=(
 if [ "$#" -gt 0 ]; then
   slugs=("$@")
 else
-  slugs=(counter todomvc todomvc_supersolid game_menu citadel horde)
+  slugs=(counter todomvc todomvc_supersolid game_menu widgets_showcase citadel horde)
 fi
 
 echo "==> ensuring the wasm target is installed"
