@@ -8,7 +8,7 @@ import { createSignal, render } from "supersolid";
 function Counter() {
   const [count, setCount] = createSignal(0);
   return (
-    <button class="counter" onClick={() => setCount(count() + 1)}>
+    <button class="counter p-4" onClick={() => setCount(count() + 1)}>
       clicked {count()} times
     </button>
   );

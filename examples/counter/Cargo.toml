@@ -13,7 +13,7 @@ hmr = ["superui/hmr", "bevy/file_watcher"]
 # Web playground: transpile TSX in-browser + live edit via the bridge crate.
 # NOTE: deliberately does NOT pull bevy/file_watcher (no watcher on wasm); the
 # app sets watch_for_changes_override itself (see main.rs).
-playground = ["superui/transpiler", "superui/hmr", "dep:superui_playground_web"]
+playground = ["superui/transpiler", "superui/hmr", "dep:superui_playground_web", "superui_playground_web/utilities"]
 
 [dependencies]
 superui = { path = "../../crates/superui" }

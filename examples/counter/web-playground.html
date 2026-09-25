@@ -5,16 +5,22 @@
   <button id="run">Run</button>
   <pre id="diag"></pre>
   <script type="module">
-    import init, { apply_source, poll_diagnostics } from "./counter.js";
+    import init, { apply_source, apply_utilities, poll_diagnostics } from "./counter.js";
     await init();
     const tsx = document.getElementById("tsx");
     const css = document.getElementById("css");
     tsx.value = await (await fetch("assets/ui/counter/app.tsx")).text();
     css.value = await (await fetch("assets/ui/counter/style.css")).text();
-    document.getElementById("run").onclick = () => {
+    function runAll() {
       const d = document.getElementById("diag");
-      d.textContent = apply_source("app.tsx", tsx.value) + "\n" + apply_source("style.css", css.value);
-    };
+      // Seed authored CSS + regenerate utilities from the current .tsx, then re-exec.
+      const out1 = apply_source("style.css", css.value);
+      const out2 = apply_utilities(JSON.stringify([tsx.value]));
+      const out3 = apply_source("app.tsx", tsx.value);
+      d.textContent = [out1, out2, out3].join("\n");
+    }
+    document.getElementById("run").onclick = runAll;
+    runAll(); // initial seed, so first paint isn't authored-CSS-only.
     setInterval(() => {
       const p = poll_diagnostics();
       if (p && p !== "[]") document.getElementById("diag").textContent += "\n" + p;
