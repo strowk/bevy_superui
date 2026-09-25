@@ -10,7 +10,7 @@ mod utilities;
 pub use assets::{HtmlLoader, HtmlSource, JsLoader, JsSource};
 #[cfg(any(not(target_arch = "wasm32"), feature = "transpiler"))]
 pub use assets::TsxLoader;
-pub use mount::{SuperUiPlugin, SuperUiRoot};
+pub use mount::{SuperUiPlugin, SuperUiRoot, SuperUiSubresources};
 
 // Re-exported so callers don't need a direct `superui_bridge` dependency (which
 // would also need its own engine feature picked to match `superui`'s).

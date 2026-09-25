@@ -56,7 +56,7 @@ fn fill_node() -> Node {
 /// The subresources discovered from the entry HTML's `<head>` (inserted in mount
 /// Phase 1; consumed in Phase 2 and by hot reload).
 #[derive(Component)]
-pub(crate) struct SuperUiSubresources {
+pub struct SuperUiSubresources {
     /// First `<link rel=stylesheet>`, or `None` when the document declares none.
     pub css: Option<Handle<StyleSheet>>,
     /// The `<script src>` resolved through the tsx/js seam.

@@ -4,6 +4,10 @@
 
 use std::cell::RefCell;
 
+use bevy::asset::AssetEvent;
+use bevy::prelude::*;
+use superui::{HtmlSource, JsSource, SuperUiRoot, SuperUiSubresources};
+
 #[derive(Debug)]
 pub enum Edit {
     Js(String),
@@ -53,6 +57,10 @@ pub fn apply_source_inner(path: &str, src: &str) -> String {
         let ok = diags.is_empty();
         QUEUE.with(|q| q.borrow_mut().push(Edit::Js(result.code)));
         serde_json::json!({ "ok": ok, "diagnostics": diags }).to_string()
+    } else if lower.ends_with(".js") || lower.ends_with(".mjs") {
+        // Classic JS passes through the seam verbatim (no transpile).
+        QUEUE.with(|q| q.borrow_mut().push(Edit::Js(src.to_string())));
+        serde_json::json!({ "ok": true, "diagnostics": [] }).to_string()
     } else if lower.ends_with(".css") {
         QUEUE.with(|q| q.borrow_mut().push(Edit::Css(src.to_string())));
         serde_json::json!({ "ok": true, "diagnostics": [] }).to_string()
@@ -61,6 +69,53 @@ pub fn apply_source_inner(path: &str, src: &str) -> String {
         serde_json::json!({ "ok": true, "diagnostics": [] }).to_string()
     } else {
         serde_json::json!({ "ok": false, "diagnostics": [{ "severity": "Error", "message": format!("unsupported file: {path}") }] }).to_string()
+    }
+}
+
+/// Bevy-side half of the seam: drains queued edits each frame and drives them
+/// through superui's existing hot-reload machinery (overwrite the mounted asset +
+/// fire an explicit `AssetEvent::Modified`, which `detect_hot_reload`/
+/// `apply_hot_reload` pick up).
+pub struct PlaygroundBridgePlugin;
+
+impl Plugin for PlaygroundBridgePlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(Update, drain_playground_edits);
+    }
+}
+
+/// Pop queued edits and apply them to the mounted `SuperUiRoot`'s subresources.
+/// If nothing is mounted yet (no `SuperUiRoot` + `SuperUiSubresources` pair), the
+/// edits are dropped silently — there is nothing to hot-reload into.
+fn drain_playground_edits(world: &mut World) {
+    let edits = drain_queue();
+    if edits.is_empty() {
+        return;
+    }
+    let handles = {
+        let mut q = world.query::<(&SuperUiRoot, &SuperUiSubresources)>();
+        q.iter(world)
+            .next()
+            .map(|(root, sub)| (root.html.clone(), sub.js.clone(), sub.css.clone()))
+    };
+    let Some((html_h, js_h, _css_h_opt)) = handles else { return };
+
+    for edit in edits {
+        match edit {
+            Edit::Js(code) => {
+                if let Some(mut a) = world.resource_mut::<Assets<JsSource>>().get_mut(&js_h) {
+                    a.0 = code;
+                }
+                world.write_message(AssetEvent::Modified { id: js_h.id() });
+            }
+            Edit::Html(text) => {
+                if let Some(mut a) = world.resource_mut::<Assets<HtmlSource>>().get_mut(&html_h) {
+                    a.0 = text;
+                }
+                world.write_message(AssetEvent::Modified { id: html_h.id() });
+            }
+            Edit::Css(_text) => { /* Task 5 */ }
+        }
     }
 }
 
