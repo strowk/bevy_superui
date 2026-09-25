@@ -3,7 +3,15 @@
 All notable changes to bevy_superui are recorded here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-bevy_superui ships one release line per supported Bevy version. `main` tracks the
+`bevy_superui` does not follow semantic versioning. 
+Major and minor versions would follow bevy versions with these rules:
+Major is 0 as long as bevy is `0.x`. Minor is the bevy minor version minus 16, i.e `bevy 0.19` -> `superui 0.3.x`.
+When bevy reaches 1.0, superui will follow Major/Minor versioning exactly copying bevy's version.
+Patch version is the only one incremented when superui releases changes that do not require a bevy version bump.
+This means increase in major/minor version in superui will always indicate a bevy version bump and no other changes, except that needed to support the new bevy version.
+Increase in patch version in superui will indicate all other changes, i.e new superui features, bug fixes, etc, that do not require a bevy version bump.
+
+`bevy_superui` ships one release line per supported Bevy version. `main` tracks the
 actively developed Bevy 0.19 line (the `0.3.x` series); the `0.1.x` (Bevy 0.17)
 and `0.2.x` (Bevy 0.18) lines are frozen maintenance mirrors. This file follows
 the `main` lineage only; see the [GitHub releases](https://github.com/strowk/bevy_superui/releases)
