@@ -1,5 +1,7 @@
 # Picking & the world behind the UI
 
+<div class="since-note"><strong>0.3.3</strong></div>
+
 A superui root is a Bevy UI tree, so it takes part in `bevy_picking` like any
 other UI. That matters the moment a UI is drawn *over* something interactive: a
 HUD on top of live gameplay, a quest tracker over a clickable world, a toolbar
