@@ -8,7 +8,7 @@ mod mount;
 mod utilities;
 
 pub use assets::{HtmlLoader, HtmlSource, JsLoader, JsSource};
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(any(not(target_arch = "wasm32"), feature = "transpiler"))]
 pub use assets::TsxLoader;
 pub use mount::{SuperUiPlugin, SuperUiRoot};
 

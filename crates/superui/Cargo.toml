@@ -38,6 +38,7 @@ superui_css_utilities = { path = "../superui_css_utilities", version = "0.3.5", 
 getrandom = { version = "0.3", features = ["wasm_js"] }
 superui_js     = { path = "../superui_js", version = "0.3.5", default-features = false, features = ["engine-web"] }
 superui_bridge = { path = "../superui_bridge", version = "0.3.5", default-features = false, features = ["engine-web"] }
+supersolid = { path = "../supersolid", version = "0.3.5", optional = true }
 
 [features]
 # State-preserving hot reload (Plan 5). Enable ALONGSIDE `bevy/file_watcher`.
@@ -46,6 +47,10 @@ hmr = []
 
 # Regenerate the class-utilities stylesheet from the app's sources while watching (dev/HMR).
 utilities = ["dep:superui_css_utilities"]
+
+# Compile oxc (via supersolid) into a wasm build so the web playground can
+# transpile TSX in-browser. No-op on native (supersolid is always linked there).
+transpiler = ["dep:supersolid"]
 
 [dev-dependencies]
 serde = { version = "1", features = ["derive"] }

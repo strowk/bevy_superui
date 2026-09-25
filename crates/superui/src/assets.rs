@@ -67,11 +67,11 @@ impl AssetLoader for JsLoader {
 /// Loads `.tsx`/`.ts`, transpiles via `supersolid`, and yields a `JsSource`
 /// (so mount/hot-reload treat it identically to hand-written `.js`). Native-only:
 /// `oxc` must not enter the wasm binary (direction spec §11.3).
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(any(not(target_arch = "wasm32"), feature = "transpiler"))]
 #[derive(Default, TypePath)]
 pub struct TsxLoader;
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(any(not(target_arch = "wasm32"), feature = "transpiler"))]
 impl AssetLoader for TsxLoader {
     type Asset = JsSource;
     type Settings = ();

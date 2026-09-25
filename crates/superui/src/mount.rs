@@ -66,6 +66,7 @@ pub(crate) struct SuperUiSubresources {
 /// Live authoring: native + the `hmr` feature. Every other build loads generated JS.
 pub(crate) fn live_source() -> bool {
     cfg!(all(not(target_arch = "wasm32"), feature = "hmr"))
+        || cfg!(all(target_arch = "wasm32", feature = "transpiler"))
 }
 
 /// Map a `<script src>` to the asset path to load, applying the tsx/js seam.
@@ -176,7 +177,7 @@ impl Plugin for SuperUiPlugin {
         if !app.is_plugin_added::<bevy::ui_widgets::SliderPlugin>() {
             app.add_plugins(bevy::ui_widgets::SliderPlugin);
         }
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(any(not(target_arch = "wasm32"), feature = "transpiler"))]
         app.register_asset_loader(crate::assets::TsxLoader);
         app
             .init_resource::<PendingDomEvents>()
