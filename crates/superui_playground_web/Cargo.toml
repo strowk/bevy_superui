@@ -5,9 +5,13 @@ version.workspace = true
 license.workspace = true
 publish = false
 
+[features]
+utilities = ["dep:superui_css_utilities"]
+
 [dependencies]
 superui = { path = "../superui", version = "0.3.5", features = ["transpiler", "hmr"] }
 superui_css = { path = "../superui_css", version = "0.3.5" }
+superui_css_utilities = { path = "../superui_css_utilities", version = "0.3.5", default-features = false, optional = true }
 supersolid = { path = "../supersolid", version = "0.3.5" }
 bevy = { workspace = true, default-features = false, features = [
     "std",

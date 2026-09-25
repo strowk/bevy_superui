@@ -23,6 +23,42 @@ thread_local! {
     static DIAGS: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
 }
 
+#[cfg(feature = "utilities")]
+thread_local! {
+    static AUTHORED_CSS: RefCell<Option<String>> = const { RefCell::new(None) };
+    static UTILITIES_CSS: RefCell<Option<String>> = const { RefCell::new(None) };
+}
+
+/// Utilities-first so authored rules win the cascade; either half defaults to
+/// empty until its own edit arrives (see the wipe-hazard note on
+/// `apply_utilities_inner`).
+#[cfg(feature = "utilities")]
+fn combined_css() -> String {
+    let util = UTILITIES_CSS.with(|c| c.borrow().clone()).unwrap_or_default();
+    let authored = AUTHORED_CSS.with(|c| c.borrow().clone()).unwrap_or_default();
+    format!("{util}\n{authored}")
+}
+
+/// Scan `sources_json` (a JSON array of source strings) for utility classes,
+/// generate their CSS, and enqueue it combined with the last-seen authored
+/// stylesheet. Called before any `.css` edit, this still enqueues — just with
+/// an empty authored half — so the caller must seed authored CSS first.
+#[cfg(feature = "utilities")]
+pub fn apply_utilities_inner(sources_json: &str) -> String {
+    let sources: Vec<String> = match serde_json::from_str(sources_json) {
+        Ok(v) => v,
+        Err(e) => {
+            return serde_json::json!({ "ok": false, "diagnostics": [{ "message": format!("apply_utilities: bad JSON: {e}") }] })
+                .to_string()
+        }
+    };
+    let refs: Vec<&str> = sources.iter().map(|s| s.as_str()).collect();
+    let css = superui_css_utilities::generate(&refs);
+    UTILITIES_CSS.with(|c| *c.borrow_mut() = Some(css));
+    QUEUE.with(|q| q.borrow_mut().push(Edit::Css(combined_css())));
+    serde_json::json!({ "ok": true, "diagnostics": [] }).to_string()
+}
+
 /// Drain the pending edits (used by the Bevy drain system and by tests).
 pub fn drain_queue() -> Vec<Edit> {
     QUEUE.with(|q| core::mem::take(&mut *q.borrow_mut()))
@@ -69,7 +105,15 @@ pub fn apply_source_inner(path: &str, src: &str) -> String {
         QUEUE.with(|q| q.borrow_mut().push(Edit::Js(src.to_string())));
         serde_json::json!({ "ok": true, "diagnostics": [] }).to_string()
     } else if lower.ends_with(".css") {
-        QUEUE.with(|q| q.borrow_mut().push(Edit::Css(src.to_string())));
+        #[cfg(feature = "utilities")]
+        {
+            AUTHORED_CSS.with(|c| *c.borrow_mut() = Some(src.to_string()));
+            QUEUE.with(|q| q.borrow_mut().push(Edit::Css(combined_css())));
+        }
+        #[cfg(not(feature = "utilities"))]
+        {
+            QUEUE.with(|q| q.borrow_mut().push(Edit::Css(src.to_string())));
+        }
         serde_json::json!({ "ok": true, "diagnostics": [] }).to_string()
     } else if lower.ends_with(".html") {
         QUEUE.with(|q| q.borrow_mut().push(Edit::Html(src.to_string())));
@@ -175,6 +219,12 @@ mod wasm_exports {
     #[wasm_bindgen]
     pub fn poll_diagnostics() -> String {
         super::poll_diagnostics_inner()
+    }
+
+    #[cfg(feature = "utilities")]
+    #[wasm_bindgen]
+    pub fn apply_utilities(sources_json: &str) -> String {
+        super::apply_utilities_inner(sources_json)
     }
 }
 
