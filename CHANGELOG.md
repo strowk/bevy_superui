@@ -17,7 +17,7 @@ and `0.2.x` (Bevy 0.18) lines are frozen maintenance mirrors. This file follows
 the `main` lineage only; see the [GitHub releases](https://github.com/strowk/bevy_superui/releases)
 for the maintenance lines.
 
-## [Unreleased]
+## [0.3.5] - 2026-09-25
 
 ### Added
 
@@ -96,7 +96,8 @@ for the maintenance lines.
 
 - Target Bevy 0.19; rebased the Flair fork onto bevy_flair 0.8.0.
 
-[Unreleased]: https://github.com/strowk/bevy_superui/compare/v0.3.4...HEAD
+[Unreleased]: https://github.com/strowk/bevy_superui/compare/v0.3.5...HEAD
+[0.3.5]: https://github.com/strowk/bevy_superui/compare/v0.3.4...v0.3.5
 [0.3.4]: https://github.com/strowk/bevy_superui/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/strowk/bevy_superui/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/strowk/bevy_superui/compare/v0.3.0...v0.3.2

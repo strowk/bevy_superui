@@ -9,11 +9,11 @@ keywords = ["bevy", "ui", "html", "css", "gamedev"]
 categories = ["game-development"]
 
 [dependencies]
-superui_dom = { path = "../superui_dom", version = "0.3.4" }
-superui_html = { path = "../superui_html", version = "0.3.4" }
-superui_api = { path = "../superui_api", version = "0.3.4" }
-superui_css = { path = "../superui_css", version = "0.3.4" }
-superui_paths = { path = "../superui_paths", version = "0.3.4" }
+superui_dom = { path = "../superui_dom", version = "0.3.5" }
+superui_html = { path = "../superui_html", version = "0.3.5" }
+superui_api = { path = "../superui_api", version = "0.3.5" }
+superui_css = { path = "../superui_css", version = "0.3.5" }
+superui_paths = { path = "../superui_paths", version = "0.3.5" }
 
 bevy = { workspace = true, default-features = false, features = [
     "std",
@@ -28,16 +28,16 @@ bevy = { workspace = true, default-features = false, features = [
 ] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-supersolid = { path = "../supersolid", version = "0.3.4" }
-superui_js     = { path = "../superui_js", version = "0.3.4", default-features = false, features = ["engine-v8"] }
-superui_bridge = { path = "../superui_bridge", version = "0.3.4", default-features = false, features = ["engine-v8"] }
+supersolid = { path = "../supersolid", version = "0.3.5" }
+superui_js     = { path = "../superui_js", version = "0.3.5", default-features = false, features = ["engine-v8"] }
+superui_bridge = { path = "../superui_bridge", version = "0.3.5", default-features = false, features = ["engine-v8"] }
 # Optional + native-only so default and wasm builds pull in neither it nor encre-css.
-superui_css_utilities = { path = "../superui_css_utilities", version = "0.3.4", optional = true }
+superui_css_utilities = { path = "../superui_css_utilities", version = "0.3.5", optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.3", features = ["wasm_js"] }
-superui_js     = { path = "../superui_js", version = "0.3.4", default-features = false, features = ["engine-web"] }
-superui_bridge = { path = "../superui_bridge", version = "0.3.4", default-features = false, features = ["engine-web"] }
+superui_js     = { path = "../superui_js", version = "0.3.5", default-features = false, features = ["engine-web"] }
+superui_bridge = { path = "../superui_bridge", version = "0.3.5", default-features = false, features = ["engine-web"] }
 
 [features]
 # State-preserving hot reload (Plan 5). Enable ALONGSIDE `bevy/file_watcher`.
