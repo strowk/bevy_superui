@@ -5,10 +5,24 @@
 - **Scope:** `superui` (new `transpiler` feature), `superui_bridge` (surface JS runtime
   errors), a new wasm-only crate `superui_playground_web`, and the `counter` example (a
   playground wasm build + a throwaway proof harness).
-- **Assumes:** the "HTML-as-manifest" boilerplate refactor
-  (`2026-07-24-supersolid-example-boilerplate-design.md`, **Model 2**) is already
-  implemented — `SuperUiRoot` carries a single `html` handle and CSS/JS are discovered
-  subresources tracked in `SuperUiSubresources { css, js }`.
+- **Builds on (now landed):** the "HTML-as-manifest" boilerplate refactor
+  (`2026-07-24-supersolid-example-boilerplate-design.md`, **Model 2**) is **implemented on
+  `main`** — `SuperUiRoot { html }`, discovered subresources in
+  `SuperUiSubresources { css, js }`, two-phase `mount_when_ready`, and `detect_hot_reload`
+  sourcing js/css ids from the subresources (verified `crates/superui/src/mount.rs` +
+  `hot_reload.rs`). `counter` already uses `SuperUiRoot::from_asset_dir("ui/counter", …)`
+  with an `index.html` manifest. This spec now *extends* that landed code, not a pending
+  design.
+- **Repo drift since this spec was drafted (verified, no design impact):** the tree moved
+  to **bevy 0.19** (non-send API is `insert_non_send` / `remove_non_send` /
+  `contains_non_send`); the flair fork was renamed `bevy_flair_*` → **`superui_flair_*`**
+  and bumped to **0.8** — the CSS-string parser is `InlineCssStyleSheetParser`
+  (a `#[derive(SystemParam)]`) with `load_stylesheet(&str) -> Result<StyleSheet, _>`,
+  re-exported as `superui_css::parser::InlineCssStyleSheetParser`; `StyleSheet` is
+  `superui_css::style::StyleSheet`. `oxc` is still `0.140` (the wasm-compile proof stands).
+  A recent fix (commit `2c3de81`) wraps the author script in an **IIFE** so an HMR re-exec
+  does not collide with the previous top-level bindings — this hardens the exact
+  `run_script` re-exec path A drives.
 
 ## Why
 
@@ -112,21 +126,27 @@ sanctioned exception, used only by playground builds.
 
 With `TsxLoader` registered on wasm, a playground build should load `app.tsx` **live**
 (transpile at load) rather than the host-generated `.superui/build/app.js`, so the file the
-editor shows is the file that runs. This is one change to the boilerplate spec's script
-seam, which today decides:
+editor shows is the file that runs. Model 2 already expresses this decision as a concrete
+function — `live_source()` in `crates/superui/src/mount.rs` (used by `resolve_script`):
 
-```
-live = cfg!(all(not(target_arch = "wasm32"), feature = "hmr"))
-// live      → load the .tsx as-is (TsxLoader transpiles)
-// !live     → load superui_paths::generated_js(src)
+```rust
+pub(crate) fn live_source() -> bool {
+    cfg!(all(not(target_arch = "wasm32"), feature = "hmr"))
+}
+// true  → resolve_script loads the .tsx as-is (TsxLoader transpiles)
+// false → resolve_script loads superui_paths::generated_js(src)
 ```
 
-The `transpiler` feature adds a disjunct so wasm-playground builds are also `live`:
+The `transpiler` feature adds one disjunct so wasm-playground builds are also live:
 
+```rust
+pub(crate) fn live_source() -> bool {
+    cfg!(all(not(target_arch = "wasm32"), feature = "hmr"))
+        || cfg!(all(target_arch = "wasm32", feature = "transpiler"))
+}
 ```
-live = cfg!(all(not(target_arch = "wasm32"), feature = "hmr"))
-     || cfg!(all(target_arch = "wasm32", feature = "transpiler"))
-```
+
+This is the **only** change to the landed Model 2 script seam.
 
 Consequences: playground demos need **no** generated-JS artifact (they transpile their
 `.tsx` in-browser at mount); normal gallery wasm demos are unchanged (`!live` → generated
@@ -198,11 +218,13 @@ and JS runtime errors both flow through `poll_diagnostics`.
 
 ## `superui_bridge` change: surface JS runtime errors
 
-`UiRuntime::run_script(&mut self, src: &str)` returns `()` today — uncaught Boa eval errors
-are logged, not returned, so the console cannot show them. Add a runtime error sink:
+`UiRuntime::run_script(&mut self, src: &str)` returns `()` today, and the Boa eval error is
+**already caught** — `crates/superui_bridge/src/runtime.rs:210` does
+`warn!("superui: JS error: {e}")`. It is only logged, never surfaced, so the console cannot
+show it. The change is therefore small: capture instead of only warn.
 
-- `UiRuntime` accumulates uncaught JS eval errors (from `run_script` and per-frame
-  callback execution) into a `Vec<String>`.
+- `UiRuntime` accumulates uncaught JS eval errors (at that existing catch site, plus
+  per-frame callback execution) into a `Vec<String>`.
 - `pub fn take_errors(&mut self) -> Vec<String>` returns and clears them.
 
 The bridge drains these into its `thread_local` sink each frame (or reads them directly in
