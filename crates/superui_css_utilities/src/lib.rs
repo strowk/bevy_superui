@@ -1,44 +1,61 @@
-//! `superui_css_utilities` — the pure, native-only core of superui's **class
-//! utilities** (Tailwind-compatible utility classes).
+//! `superui_css_utilities` — superui's **class utilities** (Tailwind-compatible
+//! utility classes): turns a set of utility class names into generated CSS via
+//! [`encre-css`](https://docs.rs/encre-css).
 //!
-//! It turns a set of utility class names into a generated CSS string, using
-//! **flair's own parser as the oracle** for what is supported: each class is
-//! rendered to CSS by [`encre-css`](https://docs.rs/encre-css), then probed
-//! through a headless [`SuperUiCssPlugin`] app. Classes flair accepts are kept;
-//! the rest are dropped with a [`Diagnostic`]. We never hand-maintain a
-//! property allow-list — flair decides.
+//! Two generation paths, gated by the default `oracle` feature:
 //!
-//! This crate is native-only by construction (the wasm-gating happens at the
-//! consumers, not here) and carries no wasm-specific dependencies.
+//! - **Bevy-free** ([`generate`], always available, wasm-safe): encre-css only,
+//!   no validation against what flair actually renders.
+//! - **Oracle** (`oracle` feature, native-only — pulls in Bevy): each class's
+//!   generated CSS is additionally probed through a headless `SuperUiCssPlugin`
+//!   app; classes flair rejects are dropped with a `Diagnostic` instead of kept.
+//!   We never hand-maintain a property allow-list — flair decides.
 //!
 //! ## Public surface
 //!
-//! - [`expand`] — the pure core: classes → `(css, diagnostics)`.
+//! - [`generate`] — bevy-free core: sources → CSS, no flair validation.
 //! - [`scan_source`] — liberal candidate-token extraction from `.tsx`/`.ts` text.
-//! - [`generate_for_dir`] — scan every top-level `.tsx`/`.ts` in a UI dir, expand.
-//! - [`write_generated`] — `generate_for_dir` + write the generated sheet.
+//! - `expand` — oracle core: classes → `(css, diagnostics)` (requires `oracle`).
+//! - `generate_for_dir` — scan every top-level `.tsx`/`.ts` in a UI dir, expand
+//!   (requires `oracle`).
+//! - `write_generated` — `generate_for_dir` + write the generated sheet (requires
+//!   `oracle`).
 //! - [`CATALOG`] — a curated subset of candidate utilities (per family) that the
 //!   reference docs are generated from.
 
 use std::collections::BTreeSet;
+#[cfg(feature = "oracle")]
 use std::path::Path;
 
+#[cfg(feature = "oracle")]
 use bevy::asset::io::memory::{Dir, MemoryAssetReader};
+#[cfg(feature = "oracle")]
 use bevy::asset::io::{AssetSourceBuilder, AssetSourceId};
+#[cfg(feature = "oracle")]
 use bevy::asset::AssetPlugin;
+#[cfg(feature = "oracle")]
 use bevy::ecs::system::SystemState;
+#[cfg(feature = "oracle")]
 use bevy::input::InputPlugin;
+#[cfg(feature = "oracle")]
 use bevy::input_focus::{InputFocus, InputFocusVisible};
+#[cfg(feature = "oracle")]
 use bevy::picking::{InteractionPlugin, PickingPlugin};
+#[cfg(feature = "oracle")]
 use bevy::prelude::*;
+#[cfg(feature = "oracle")]
 use bevy::ui::UiPlugin;
+#[cfg(feature = "oracle")]
 use bevy::app::{TaskPoolOptions, TaskPoolPlugin};
 
 use encre_css::{Config, Preflight};
+#[cfg(feature = "oracle")]
 use superui_css::SuperUiCssPlugin;
+#[cfg(feature = "oracle")]
 use superui_css::parser::{CssStyleLoaderError, InlineCssStyleSheetParser};
 
 /// A dropped utility class, with the flair-reported reason it was dropped.
+#[cfg(feature = "oracle")]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Diagnostic {
     /// The utility class that was dropped (e.g. `shadow-lg`).
@@ -50,6 +67,7 @@ pub struct Diagnostic {
 }
 
 /// Generated CSS plus the diagnostics for classes that were dropped.
+#[cfg(feature = "oracle")]
 #[derive(Debug, Clone, Default)]
 pub struct GenerateOutput {
     /// The concatenated, flair-accepted CSS (one rule per supported class).
@@ -177,6 +195,7 @@ pub const CATALOG: &[CatalogFamily] = &[
 /// let out = superui_css_utilities::expand(["flex", "pt-4", "w-[220px]"]);
 /// assert!(out.css.contains("display: flex"));
 /// ```
+#[cfg(feature = "oracle")]
 pub fn expand<I, S>(classes: I) -> GenerateOutput
 where
     I: IntoIterator<Item = S>,
@@ -200,6 +219,7 @@ where
 }
 
 /// The verdict for a single candidate class.
+#[cfg(feature = "oracle")]
 #[derive(Debug, Clone)]
 pub enum ClassOutcome {
     /// encre-css produced CSS and flair accepted it. Carries the generated rule.
@@ -217,6 +237,7 @@ pub enum ClassOutcome {
 /// preserving the class↔CSS attribution that [`expand`] discards. Output is
 /// deterministic — classes are deduped and sorted. This is what the reference-doc
 /// generator uses to list each supported class alongside the CSS it produces.
+#[cfg(feature = "oracle")]
 pub fn probe_each<I, S>(classes: I) -> Vec<(String, ClassOutcome)>
 where
     I: IntoIterator<Item = S>,
@@ -301,9 +322,23 @@ pub fn scan_source(src: &str) -> Vec<String> {
     tokens
 }
 
+/// Generate utility CSS for every class token found across `sources`, without flair
+/// validation. Deduped and order-independent. Pure encre-css — no Bevy, wasm-safe.
+pub fn generate(sources: &[&str]) -> String {
+    let tokens: BTreeSet<String> = sources
+        .iter()
+        .flat_map(|s| scan_source(s))
+        .collect();
+    if tokens.is_empty() {
+        return String::new();
+    }
+    encre_css::generate(tokens.iter().map(|s| s.as_str()), &encre_config())
+}
+
 /// Scan every top-level `.tsx`/`.ts` file in `ui_dir`, collect candidate class
 /// tokens, and [`expand`] them. Shared by both callers (build.rs and the HMR
 /// system). Non-existent / unreadable directories yield an empty output.
+#[cfg(feature = "oracle")]
 pub fn generate_for_dir(ui_dir: &str) -> GenerateOutput {
     let mut tokens: Vec<String> = Vec::new();
 
@@ -334,6 +369,7 @@ pub fn generate_for_dir(ui_dir: &str) -> GenerateOutput {
 /// `<ui_dir>/.superui/build/utilities.generated.css`. The file is **always**
 /// written (empty when no utilities are used) so a downstream `@import` never
 /// dangles. Returns the diagnostics for the caller to format to its own sink.
+#[cfg(feature = "oracle")]
 pub fn write_generated(ui_dir: &str) -> Vec<Diagnostic> {
     let out = generate_for_dir(ui_dir);
 
@@ -376,11 +412,13 @@ pub fn write_generated(ui_dir: &str) -> Vec<Diagnostic> {
 /// The flair oracle: a headless Bevy app with the full CSS engine installed,
 /// plus a cached [`SystemState`] to invoke the [`InlineCssStyleSheetParser`]
 /// `SystemParam` outside of a system. Built once, reused for every probe.
+#[cfg(feature = "oracle")]
 struct Oracle {
     app: App,
     state: SystemState<InlineCssStyleSheetParser<'static>>,
 }
 
+#[cfg(feature = "oracle")]
 impl Oracle {
     fn new() -> Self {
         let mut app = probe_app();
@@ -407,6 +445,7 @@ impl Oracle {
 /// no render, no GPU. Mirrors `superui_css`'s own integration-test harness; the
 /// property registries + `AssetServer` are all the [`InlineCssStyleSheetParser`]
 /// probe needs.
+#[cfg(feature = "oracle")]
 fn probe_app() -> App {
     let mut app = App::new();
 
@@ -456,6 +495,7 @@ fn encre_config() -> Config {
 /// error carries the sentence `Property '<name>' is not recognized …`; failing
 /// that, we fall back to the first declaration's property name from the CSS we
 /// generated, so a value/unit error still names a property.
+#[cfg(feature = "oracle")]
 fn diagnostic_from_report(class: &str, css: &str, report: &str) -> Diagnostic {
     let (property, reason) = parse_report(report, css);
     Diagnostic {
@@ -465,6 +505,7 @@ fn diagnostic_from_report(class: &str, css: &str, report: &str) -> Diagnostic {
     }
 }
 
+#[cfg(feature = "oracle")]
 fn parse_report(report: &str, css: &str) -> (Option<String>, String) {
     let mut property = None;
     let mut sentence = None;
@@ -494,6 +535,7 @@ fn parse_report(report: &str, css: &str) -> (Option<String>, String) {
 
 /// Extract the property name of the first `name: value;` declaration inside the
 /// first `{ … }` block of a rule.
+#[cfg(feature = "oracle")]
 fn first_declared_property(css: &str) -> Option<String> {
     let open = css.find('{')?;
     let close = css[open..].find('}').map(|i| open + i).unwrap_or(css.len());
@@ -514,6 +556,7 @@ fn first_declared_property(css: &str) -> Option<String> {
 }
 
 /// Pull the human message out of flair's `[NN] Warning: <message>` header line.
+#[cfg(feature = "oracle")]
 fn header_message(report: &str) -> Option<String> {
     for line in report.lines() {
         for marker in ["Warning: ", "Error: "] {
@@ -528,6 +571,26 @@ fn header_message(report: &str) -> Option<String> {
     None
 }
 
+#[cfg(feature = "oracle")]
 fn collapse_ws(s: &str) -> String {
     s.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+#[cfg(test)]
+mod generate_tests {
+    use super::*;
+
+    #[test]
+    fn generate_emits_rules_for_scanned_classes() {
+        let css = generate(&["<div class=\"flex pt-4\">hi</div>"]);
+        assert!(css.contains("display: flex"), "flex rule present:\n{css}");
+        assert!(!css.contains("preflight") && !css.to_lowercase().contains("margin: 0"),
+            "no preflight base dump:\n{css}");
+    }
+
+    #[test]
+    fn unknown_tokens_yield_no_panic() {
+        let _ = generate(&["<div class=\"totally-not-a-class xyzzy\">"]);
+        assert!(generate(&[]).is_empty(), "empty input -> empty CSS");
+    }
 }

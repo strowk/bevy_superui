@@ -8,20 +8,22 @@ repository.workspace = true
 keywords = ["bevy", "ui", "css", "tailwind", "gamedev"]
 categories = ["game-development"]
 
-# Native-only pure core. The wasm-gating happens at the CONSUMERS (build.rs /
-# the `superui` `utilities` feature), not here — this crate is never compiled
-# into the wasm binary, so it carries no wasm-specific deps.
+# The bevy-free core (`generate`, `scan_source`, `encre_config`) is wasm-safe:
+# no Bevy, no filesystem-oracle deps. The `oracle` feature (default-on) adds the
+# flair-validated headless-Bevy path (`expand`, `generate_for_dir`,
+# `write_generated`) for native builds; wasm consumers build with
+# `--no-default-features` to keep Bevy out of the graph entirely.
 [dependencies]
 encre-css = "0.20"
-superui_css = { path = "../superui_css", version = "0.3.5" }
-superui_paths = { path = "../superui_paths", version = "0.3.5" }
+superui_css = { path = "../superui_css", version = "0.3.5", optional = true }
+superui_paths = { path = "../superui_paths", version = "0.3.5", optional = true }
 
 # The flair oracle needs a headless Bevy app with the property registries
 # installed. default-features = false keeps it headless (no winit/render); the
 # feature list mirrors `superui_css`'s own integration-test harness — the minimum
 # for AssetPlugin + UiPlugin + text + picking + input-focus so `SuperUiCssPlugin`
 # builds cleanly.
-bevy = { workspace = true, default-features = false, features = [
+bevy = { workspace = true, optional = true, default-features = false, features = [
     "std",
     "bevy_ui",
     "bevy_text",
@@ -31,6 +33,19 @@ bevy = { workspace = true, default-features = false, features = [
     "default_font",
 ] }
 
+[features]
+default = ["oracle"]
+# The flair-validated (headless-Bevy) generation path. Off => encre-css only, wasm-safe.
+oracle = ["dep:bevy", "dep:superui_css", "dep:superui_paths"]
+
 [dev-dependencies]
 # Integration tests reference GENERATED_DIR directly.
 superui_paths = { path = "../superui_paths", version = "0.3.5" }
+
+[[bin]]
+name = "gen_utilities_doc"
+required-features = ["oracle"]
+
+[[test]]
+name = "expand"
+required-features = ["oracle"]
