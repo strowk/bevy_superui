@@ -5,8 +5,11 @@
 use std::cell::RefCell;
 
 use bevy::asset::AssetEvent;
+use bevy::ecs::system::SystemState;
 use bevy::prelude::*;
 use superui::{HtmlSource, JsSource, SuperUiRoot, SuperUiSubresources};
+use superui_css::parser::InlineCssStyleSheetParser;
+use superui_css::style::StyleSheet;
 
 #[derive(Debug)]
 pub enum Edit {
@@ -98,7 +101,7 @@ fn drain_playground_edits(world: &mut World) {
             .next()
             .map(|(root, sub)| (root.html.clone(), sub.js.clone(), sub.css.clone()))
     };
-    let Some((html_h, js_h, _css_h_opt)) = handles else { return };
+    let Some((html_h, js_h, css_h_opt)) = handles else { return };
 
     for edit in edits {
         match edit {
@@ -114,7 +117,29 @@ fn drain_playground_edits(world: &mut World) {
                 }
                 world.write_message(AssetEvent::Modified { id: html_h.id() });
             }
-            Edit::Css(_text) => { /* Task 5 */ }
+            Edit::Css(text) => {
+                let Some(css_h) = css_h_opt.clone() else {
+                    push_diag("edit targets CSS but the document declares no stylesheet".into());
+                    continue;
+                };
+                // Parse in a scoped block: `InlineCssStyleSheetParser` borrows `world` to
+                // read flair's registries, and that borrow must end (returning an owned
+                // `StyleSheet`) before `Assets<StyleSheet>` is mutably borrowed below.
+                let parsed = {
+                    let mut state: SystemState<InlineCssStyleSheetParser> = SystemState::new(world);
+                    let parser = state.get(world).expect("InlineCssStyleSheetParser system params must be available");
+                    parser.load_stylesheet(&text)
+                };
+                match parsed {
+                    Ok(sheet) => {
+                        if let Some(mut slot) = world.resource_mut::<Assets<StyleSheet>>().get_mut(&css_h) {
+                            *slot = sheet;
+                        }
+                        world.write_message(AssetEvent::Modified { id: css_h.id() });
+                    }
+                    Err(e) => push_diag(format!("CSS parse error: {e}")),
+                }
+            }
         }
     }
 }
