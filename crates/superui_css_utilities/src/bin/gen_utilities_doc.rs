@@ -16,9 +16,10 @@ use std::path::PathBuf;
 use superui_css_utilities::{probe_each, CatalogFamily, ClassOutcome, CATALOG};
 
 fn main() {
-    let mut md = String::new();
-    write_header(&mut md);
-    write_family_index(&mut md);
+    // The catalog body (family index, tables, footer) is identical everywhere;
+    // only the header differs per target — see `write_header`.
+    let mut body = String::new();
+    write_family_index(&mut body);
 
     let mut total_supported = 0usize;
     let mut total_dropped = 0usize;
@@ -27,12 +28,15 @@ fn main() {
         let (supported, dropped) = probe_family(family);
         total_supported += supported.len();
         total_dropped += dropped.len();
-        write_family(&mut md, family, &supported, &dropped);
+        write_family(&mut body, family, &supported, &dropped);
     }
 
-    write_footer(&mut md, total_supported, total_dropped);
+    write_footer(&mut body, total_supported, total_dropped);
 
-    for target in doc_paths() {
+    for (target, kind) in doc_paths() {
+        let mut md = String::new();
+        write_header(&mut md, kind);
+        md.push_str(&body);
         std::fs::write(&target, &md)
             .unwrap_or_else(|e| panic!("failed to write {}: {e}", target.display()));
         println!(
@@ -89,33 +93,64 @@ fn probe_family(family: &CatalogFamily) -> (Supported, Dropped) {
     (supported, dropped)
 }
 
-fn write_header(md: &mut String) {
+/// Which copy of the reference we're emitting. The catalog body is shared; the
+/// header differs — see [`write_header`].
+#[derive(Clone, Copy)]
+enum Target {
+    /// `website/src/docs` — links out to the Styling concept for the how-to and
+    /// carries the "since version" note.
+    Website,
+    /// The supersolid plugin skill — self-contained (no website links), so it
+    /// keeps the "how to enable" steps inline and drops the version note.
+    Skill,
+}
+
+fn write_header(md: &mut String, target: Target) {
     md.push_str(
-        r#"# Class utilities — supported catalog
+        "# Class utilities — supported catalog\n\n\
+         <!-- GENERATED — do not edit by hand. Regenerate: cargo run -p superui_css_utilities --bin gen_utilities_doc -->\n\n",
+    );
 
-<!-- GENERATED — do not edit by hand. Regenerate: cargo run -p superui_css_utilities --bin gen_utilities_doc -->
+    if let Target::Website = target {
+        md.push_str("<div class=\"since-note\"><strong>0.3.5</strong></div>\n\n");
+    }
 
-<div class="since-note"><strong>0.3.5</strong></div>
+    md.push_str(
+        "superui supports a **Tailwind-compatible** subset of utility classes for `.tsx`\n\
+         UIs. Author with familiar class names (`flex`, `pt-4`, `bg-slate-800`,\n\
+         `w-[220px]`) and the supported ones are compiled into your UI's stylesheet.\n\n",
+    );
 
-superui supports a **Tailwind-compatible** subset of utility classes for `.tsx`
-UIs. Author with familiar class names (`flex`, `pt-4`, `bg-slate-800`,
-`w-[220px]`) and the supported ones are compiled into your UI's stylesheet.
+    match target {
+        // The website hosts the how-to in the Styling concept; link there.
+        Target::Website => md.push_str(
+            "See [Styling → Utility classes](../concepts/styling.md#utility-classes) for how\n\
+             utilities work and how to enable them. This page is the catalog of what's\n\
+             supported.\n\n",
+        ),
+        // The skill can't follow a website link, so it carries the steps inline.
+        Target::Skill => md.push_str(
+            "## How to enable\n\n\
+             Add the import at the top of your global stylesheet (mirrors Tailwind's\n\
+             `@tailwind utilities;`):\n\n\
+             ```css\n\
+             @import \".superui/build/utilities.generated.css\";\n\
+             ```\n\n\
+             Then enable generation — the `superui` `utilities` feature (live/HMR) or a\n\
+             `superui_css_utilities::write_generated(ui_dir)` call from `build.rs` (wasm /\n\
+             no-HMR) — and use the class names below in `class=\"...\"` / `class={...}`.\n\n",
+        ),
+    }
 
-See [Styling → Utility classes](../concepts/styling.md#utility-classes) for how
-utilities work and how to enable them. This page is the catalog of what's
-supported.
-
-## Limitations
-
-- **This list is a representative subset, not a limit.** Use any utility class,
-  including arbitrary values like `w-[220px]` or `bg-[#b83f45]`; supported ones
-  are applied. An unsupported class has no effect, and you get a build warning
-  naming it and why it was skipped.
-- **Only class names written literally in your source are applied.** A class
-  built at runtime — e.g. `` class={`w-[${x}px]`} `` — is not picked up; use a
-  static class or an inline `style` for runtime-computed values.
-
-"#,
+    md.push_str(
+        "## Limitations\n\n\
+         - **This list is a representative subset, not a limit.** Use any utility class,\n  \
+         including arbitrary values like `w-[220px]` or `bg-[#b83f45]`; supported ones\n  \
+         are applied. An unsupported class has no effect, and you get a build warning\n  \
+         naming it and why it was skipped.\n\
+         - **Only class names written literally in your source are applied.** A class\n  \
+         built at runtime — e.g. `` class={`w-[${x}px]`} `` — is not picked up; use a\n  \
+         static class or an inline `style` for runtime-computed values.\n\n",
     );
 }
 
@@ -176,11 +211,17 @@ fn one_line(s: &str) -> String {
 
 /// Both destinations for the generated reference: the website and the
 /// self-contained supersolid plugin skill.
-fn doc_paths() -> Vec<PathBuf> {
+fn doc_paths() -> Vec<(PathBuf, Target)> {
     // CARGO_MANIFEST_DIR = crates/superui_css_utilities
     let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("..");
     vec![
-        repo.join("website/src/docs/reference/class-utilities.md"),
-        repo.join("plugins/bevy_superui/skills/supersolid/references/class-utilities.md"),
+        (
+            repo.join("website/src/docs/reference/class-utilities.md"),
+            Target::Website,
+        ),
+        (
+            repo.join("plugins/bevy_superui/skills/supersolid/references/class-utilities.md"),
+            Target::Skill,
+        ),
     ]
 }

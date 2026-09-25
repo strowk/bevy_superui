@@ -2,15 +2,22 @@
 
 <!-- GENERATED — do not edit by hand. Regenerate: cargo run -p superui_css_utilities --bin gen_utilities_doc -->
 
-<div class="since-note"><strong>0.3.5</strong></div>
-
 superui supports a **Tailwind-compatible** subset of utility classes for `.tsx`
 UIs. Author with familiar class names (`flex`, `pt-4`, `bg-slate-800`,
 `w-[220px]`) and the supported ones are compiled into your UI's stylesheet.
 
-See [Styling → Utility classes](../concepts/styling.md#utility-classes) for how
-utilities work and how to enable them. This page is the catalog of what's
-supported.
+## How to enable
+
+Add the import at the top of your global stylesheet (mirrors Tailwind's
+`@tailwind utilities;`):
+
+```css
+@import ".superui/build/utilities.generated.css";
+```
+
+Then enable generation — the `superui` `utilities` feature (live/HMR) or a
+`superui_css_utilities::write_generated(ui_dir)` call from `build.rs` (wasm /
+no-HMR) — and use the class names below in `class="..."` / `class={...}`.
 
 ## Limitations
 
