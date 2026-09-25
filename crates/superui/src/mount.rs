@@ -63,7 +63,8 @@ pub(crate) struct SuperUiSubresources {
     pub js: Handle<JsSource>,
 }
 
-/// Live authoring: native + the `hmr` feature. Every other build loads generated JS.
+/// Live authoring: native + the `hmr` feature, or wasm + the `transpiler` feature
+/// (in-browser transpile for the web playground). Every other build loads generated JS.
 pub(crate) fn live_source() -> bool {
     cfg!(all(not(target_arch = "wasm32"), feature = "hmr"))
         || cfg!(all(target_arch = "wasm32", feature = "transpiler"))
