@@ -30,18 +30,25 @@ fn web_asset_plugin(plugin: AssetPlugin) -> AssetPlugin {
         meta_check: bevy::asset::AssetMetaCheck::Never,
         ..plugin
     };
+    // Playground builds drive edits through the bridge and need the HMR gate active,
+    // which requires watching = true. No file watcher runs on wasm; the bridge fires
+    // AssetEvent::Modified itself.
+    #[cfg(feature = "playground")]
+    let plugin = AssetPlugin { watch_for_changes_override: Some(true), ..plugin };
     plugin
 }
 
 fn main() {
-    App::new()
-        .add_plugins(DefaultPlugins.set(web_asset_plugin(default())).set(WindowPlugin {
-            primary_window: Some(web_window(Window::default())),
-            ..default()
-        }))
-        .add_plugins(SuperUiPlugin)
-        .add_systems(Startup, setup)
-        .run();
+    let mut app = App::new();
+    app.add_plugins(DefaultPlugins.set(web_asset_plugin(default())).set(WindowPlugin {
+        primary_window: Some(web_window(Window::default())),
+        ..default()
+    }));
+    app.add_plugins(SuperUiPlugin);
+    #[cfg(feature = "playground")]
+    app.add_plugins(superui_playground_web::PlaygroundBridgePlugin);
+    app.add_systems(Startup, setup);
+    app.run();
 }
 
 fn setup(mut commands: Commands, assets: Res<AssetServer>) {

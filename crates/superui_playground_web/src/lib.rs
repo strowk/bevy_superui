@@ -155,6 +155,21 @@ fn drain_playground_edits(world: &mut World) {
     }
 }
 
+#[cfg(target_arch = "wasm32")]
+mod wasm_exports {
+    use wasm_bindgen::prelude::*;
+
+    #[wasm_bindgen]
+    pub fn apply_source(path: &str, src: &str) -> String {
+        super::apply_source_inner(path, src)
+    }
+
+    #[wasm_bindgen]
+    pub fn poll_diagnostics() -> String {
+        super::poll_diagnostics_inner()
+    }
+}
+
 #[cfg(test)]
 mod apply_source_tests {
     use super::*;

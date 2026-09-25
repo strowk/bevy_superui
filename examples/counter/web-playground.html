@@ -1,0 +1,23 @@
+<!doctype html><html><head><meta charset="utf-8"><title>superui playground proof</title></head>
+<body>
+  <canvas id="superui-canvas" width="480" height="320"></canvas>
+  <div><textarea id="tsx" rows="16" cols="60"></textarea><textarea id="css" rows="16" cols="40"></textarea></div>
+  <button id="run">Run</button>
+  <pre id="diag"></pre>
+  <script type="module">
+    import init, { apply_source, poll_diagnostics } from "./counter.js";
+    await init();
+    const tsx = document.getElementById("tsx");
+    const css = document.getElementById("css");
+    tsx.value = await (await fetch("assets/ui/counter/app.tsx")).text();
+    css.value = await (await fetch("assets/ui/counter/style.css")).text();
+    document.getElementById("run").onclick = () => {
+      const d = document.getElementById("diag");
+      d.textContent = apply_source("app.tsx", tsx.value) + "\n" + apply_source("style.css", css.value);
+    };
+    setInterval(() => {
+      const p = poll_diagnostics();
+      if (p && p !== "[]") document.getElementById("diag").textContent += "\n" + p;
+    }, 500);
+  </script>
+</body></html>

@@ -10,9 +10,15 @@ publish = false
 # `cargo run -p counter --features hmr`.
 hmr = ["superui/hmr", "bevy/file_watcher"]
 
+# Web playground: transpile TSX in-browser + live edit via the bridge crate.
+# NOTE: deliberately does NOT pull bevy/file_watcher (no watcher on wasm); the
+# app sets watch_for_changes_override itself (see main.rs).
+playground = ["superui/transpiler", "superui/hmr", "dep:superui_playground_web"]
+
 [dependencies]
 superui = { path = "../../crates/superui" }
 superui_css = { path = "../../crates/superui_css" }
+superui_playground_web = { path = "../../crates/superui_playground_web", version = "0.3.5", optional = true }
 bevy = { workspace = true, default-features = true }
 
 # Host-only: pre-transpile app.tsx -> app.generated.js for wasm / no-HMR native.
