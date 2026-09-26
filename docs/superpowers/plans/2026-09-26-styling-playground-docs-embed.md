@@ -27,7 +27,7 @@
 - **Authored styles flash away for a frame** when `apply_utilities` runs before the authored CSS is seeded — the single most likely bug. Pinned in Task 3 (`playground.js` call-order test) and Task 7 (browser: no flash of unstyled Chip B on first paint).
 - **Signal state lost across a `.css` edit** — CSS edits must be a live restyle, not a remount. Pinned in Task 7 (increment signal → CSS Run → value unchanged).
 - **A utility class not in the catalog silently no-ops** (Chip C looks unstyled). Pinned in Task 2 (build with `--features playground`/`utilities` and assert no "skipped class" warning for the classes used).
-- **oxc leaks into a normal (non-playground) wasm build**, bloating every gallery demo. Pinned in Task 1 (`cargo tree -i oxc` empty without the feature).
+- **oxc leaks into a normal (non-playground) wasm build**, bloating every gallery demo. Pinned in Task 1 (`cargo tree --target wasm32-unknown-unknown -e normal -i oxc` prints nothing without the feature, oxc with it — `-e normal` excludes the harmless host-only build-dep edge).
 - **`playground.html` references a shared asset by a wrong relative path**, 404-ing CodeMirror or `playground.js` so the editor never appears. Pinned in Task 4 (generated-HTML assertions on every referenced path) and Task 7 (editor visible, no console 404).
 
 ---
@@ -52,7 +52,7 @@
 
 - [ ] **Step 4: Verify the crate builds natively.** Run: `cargo build -p styling_showcase`. Expected: PASS (compiles; it will render nothing meaningful until Task 2 adds assets, which is fine).
 
-- [ ] **Step 5: Verify the oxc guard (Review Focus).** Run: `cargo tree -p styling_showcase --target wasm32-unknown-unknown -i oxc`. Expected: **empty / errors with "package ID specification `oxc` did not match"** (oxc absent from a normal build). Then run: `cargo tree -p styling_showcase --target wasm32-unknown-unknown --features playground -i oxc`. Expected: **oxc present**.
+- [ ] **Step 5: Verify the oxc guard (Review Focus).** Use `-e normal` (runtime edges only) — a plain `-i oxc` also reports the host-only `[build-dependencies]` edge (build.rs pre-transpile via supersolid), which never enters the wasm binary and is present on every example including `counter`. Run: `cargo tree -p styling_showcase --target wasm32-unknown-unknown -e normal -i oxc`. Expected: **"nothing to print"** (oxc absent from the runtime graph → not in the wasm binary). Then run: `cargo tree -p styling_showcase --target wasm32-unknown-unknown --features playground -e normal -i oxc`. Expected: **oxc present** (runtime edge via supersolid → superui / superui_playground_web).
 
 - [ ] **Step 6: Commit.**
 
