@@ -118,7 +118,7 @@ function Row() {
           <span class="chip-tag">authored CSS</span>
         </div>
         {/* C: utility classes — regenerated in-browser by apply_utilities */}
-        <div class="chip flex items-center justify-center px-4 py-2 rounded bg-slate-800">
+        <div class="chip flex items-center justify-center px-4 py-2 rounded-md bg-slate-800">
           <span class="chip-tag">utility classes</span>
         </div>
       </div>
@@ -182,7 +182,7 @@ render(() => <Row />, document.getElementById("root"));
 }
 ```
 
-- [ ] **Step 4: Verify utility classes exist in the catalog (Review Focus).** Read `website/src/docs/reference/class-utilities.md`. Confirm each class on Chip C (`flex`, `items-center`, `justify-center`, `px-4`, `py-2`, `rounded`, `bg-slate-800`) is listed. If any is absent, replace it with the nearest listed equivalent and update `app.tsx`.
+- [ ] **Step 4: Verify utility classes exist in the catalog (Review Focus).** The classes on Chip C (`flex`, `items-center`, `justify-center`, `px-4`, `py-2`, `rounded-md`, `bg-slate-800`) were confirmed present in `website/src/docs/reference/class-utilities.md` during planning. Re-confirm none was dropped; if any is absent, replace it with the nearest listed equivalent and update `app.tsx`. (Note: bare `rounded` is NOT in the catalog — use `rounded-md`.)
 
 - [ ] **Step 5: Build with the playground feature and check for skipped-class warnings.** Run: `cargo build -p styling_showcase --features playground 2>&1 | grep -i "skip\|unsupported class"`. Expected: **no output** (no utility class was skipped). If a class is named, replace it (Step 4) and rebuild.
 
