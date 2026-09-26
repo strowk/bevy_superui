@@ -10,9 +10,35 @@
 use bevy::prelude::*;
 use superui::prelude::{SuperUiPlugin, SuperUiRoot};
 
+/// On the web, bind the primary window to the host page's canvas. Identity on native.
+fn web_window(window: bevy::window::Window) -> bevy::window::Window {
+    #[cfg(target_arch = "wasm32")]
+    let window = bevy::window::Window {
+        canvas: Some("#superui-canvas".into()),
+        fit_canvas_to_parent: true,
+        ..window
+    };
+    window
+}
+
+/// Bevy probes for a `<asset>.meta` sidecar next to every asset it loads. Those
+/// files are not shipped, which on native is a silent miss but on the web is a
+/// 404 per asset in the browser console. Skip the probe on wasm. Identity on native.
+fn web_asset_plugin(plugin: AssetPlugin) -> AssetPlugin {
+    #[cfg(target_arch = "wasm32")]
+    let plugin = AssetPlugin {
+        meta_check: bevy::asset::AssetMetaCheck::Never,
+        ..plugin
+    };
+    plugin
+}
+
 fn main() {
     App::new()
-        .add_plugins(DefaultPlugins)
+        .add_plugins(DefaultPlugins.set(web_asset_plugin(default())).set(WindowPlugin {
+            primary_window: Some(web_window(Window::default())),
+            ..default()
+        }))
         .add_plugins(SuperUiPlugin)
         .add_systems(Startup, setup)
         .run();
