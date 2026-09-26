@@ -1,0 +1,57 @@
+//! The smallest Supersolid app: a single button that counts its own clicks,
+//! authored in Solid-style `.tsx` and mounted from a web-like `index.html`.
+//!
+//! - `cargo run -p styling_showcase --features hmr` — native, live `.tsx` via the
+//!   transpiling asset loader, state-preserving hot reload.
+//! - `cargo run -p styling_showcase` — native, loads the pre-transpiled
+//!   `.superui/build/app.js` (build.rs output); no HMR.
+//! - `cargo build -p styling_showcase --target wasm32-unknown-unknown` — web build.
+
+use bevy::prelude::*;
+use superui::prelude::{SuperUiPlugin, SuperUiRoot};
+
+/// On the web, bind the primary window to the host page's canvas. Identity on native.
+fn web_window(window: bevy::window::Window) -> bevy::window::Window {
+    #[cfg(target_arch = "wasm32")]
+    let window = bevy::window::Window {
+        canvas: Some("#superui-canvas".into()),
+        fit_canvas_to_parent: true,
+        ..window
+    };
+    window
+}
+
+/// Bevy probes for a `<asset>.meta` sidecar next to every asset it loads. Those
+/// files are not shipped, which on native is a silent miss but on the web is a
+/// 404 per asset in the browser console. Skip the probe on wasm. Identity on native.
+fn web_asset_plugin(plugin: AssetPlugin) -> AssetPlugin {
+    #[cfg(target_arch = "wasm32")]
+    let plugin = AssetPlugin {
+        meta_check: bevy::asset::AssetMetaCheck::Never,
+        ..plugin
+    };
+    // Playground builds drive edits through the bridge and need the HMR gate active,
+    // which requires watching = true. No file watcher runs on wasm; the bridge fires
+    // AssetEvent::Modified itself.
+    #[cfg(feature = "playground")]
+    let plugin = AssetPlugin { watch_for_changes_override: Some(true), ..plugin };
+    plugin
+}
+
+fn main() {
+    let mut app = App::new();
+    app.add_plugins(DefaultPlugins.set(web_asset_plugin(default())).set(WindowPlugin {
+        primary_window: Some(web_window(Window::default())),
+        ..default()
+    }));
+    app.add_plugins(SuperUiPlugin);
+    #[cfg(feature = "playground")]
+    app.add_plugins(superui_playground_web::PlaygroundBridgePlugin);
+    app.add_systems(Startup, setup);
+    app.run();
+}
+
+fn setup(mut commands: Commands, assets: Res<AssetServer>) {
+    commands.spawn(Camera2d);
+    commands.spawn(SuperUiRoot::from_asset_dir("ui/styling_showcase", &assets));
+}
