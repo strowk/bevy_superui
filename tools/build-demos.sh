@@ -33,15 +33,23 @@ declare -A BUILD_ARGS=(
   [todomvc_supersolid]=""
   [game_menu]=""
   [widgets_showcase]=""
+  [styling_showcase]="--features playground"
   [citadel]="--no-default-features"
   [horde]="--no-default-features"
+)
+
+# Playground demos build with --features playground and generate an editable
+# host page (playground.html) via `xtask playground-page` instead of the
+# gallery code-viewer host page. They need no gallery.json entry.
+declare -A PLAYGROUND=(
+  [styling_showcase]=1
 )
 
 # Which slugs to build: the args, or all of them.
 if [ "$#" -gt 0 ]; then
   slugs=("$@")
 else
-  slugs=(counter todomvc todomvc_supersolid game_menu widgets_showcase citadel horde)
+  slugs=(counter todomvc todomvc_supersolid game_menu widgets_showcase styling_showcase citadel horde)
 fi
 
 echo "==> ensuring the wasm target is installed"
@@ -84,7 +92,11 @@ for slug in "${slugs[@]}"; do
   wasm-bindgen --no-typescript --target web \
     --out-dir "$out" --out-name "$slug" \
     "$CARGO_TARGET_ROOT/$TARGET/release/$slug.wasm"
-  cargo run -q -p xtask -- host-page --slug "$slug" --out "$out"
+  if [ "${PLAYGROUND[$slug]-}" = "1" ]; then
+    cargo run -q -p xtask -- playground-page --slug "$slug" --out "$out"
+  else
+    cargo run -q -p xtask -- host-page --slug "$slug" --out "$out"
+  fi
   rm -rf "$out/assets"
   cp -r "examples/$slug/assets" "$out/assets"
   # The landing page embeds counter via a canvas-only host page (no code viewer).
