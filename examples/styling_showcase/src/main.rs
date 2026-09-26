@@ -1,5 +1,7 @@
-//! The smallest Supersolid app: a single button that counts its own clicks,
-//! authored in Solid-style `.tsx` and mounted from a web-like `index.html`.
+//! A demo of the three ways to style a superui UI — inline `style`, authored
+//! CSS, and utility classes — shown side by side as three "chips" sharing one
+//! reactive signal, authored in Solid-style `.tsx` and mounted from a
+//! web-like `index.html`.
 //!
 //! - `cargo run -p styling_showcase --features hmr` — native, live `.tsx` via the
 //!   transpiling asset loader, state-preserving hot reload.

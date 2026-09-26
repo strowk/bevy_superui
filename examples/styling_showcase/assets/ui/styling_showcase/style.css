@@ -1,0 +1,48 @@
+/* Utilities import is inert in the playground (the inline CSS parser has no
+   @import); it exists for native/HMR builds. Playground utilities come from
+   apply_utilities. Kept on line 1 per the utilities convention. */
+@import ".superui/build/utilities.generated.css";
+
+#root {
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background-color: #0b1220;
+}
+
+.row { flex-direction: column; align-items: center; }
+
+.controls { flex-direction: row; align-items: center; margin-bottom: 16px; }
+.readout { color: #9feee6; font-size: 14px; padding: 0 12px; }
+.step {
+  color: #04120f;
+  background-image: linear-gradient(135deg, #4ff0e0, #2bd0c0);
+  border-width: 0;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.chips { flex-direction: row; align-items: center; }
+
+.chip {
+  width: 140px;
+  height: 64px;
+  margin: 6px;
+  border-radius: 8px;
+  justify-content: center;
+  align-items: center;
+  background-color: #1b2536;
+  border-width: 1px;
+  border-color: #2b3a52;
+}
+.chip-tag { color: #cfe9e5; font-size: 12px; }
+
+/* The live-restyle target: edit these three lines in the playground and Run. */
+.chip-authored {
+  background-image: linear-gradient(135deg, #b83f45, #7a2a2f);
+  border-width: 0;
+  box-shadow: 0 0 12px rgba(184, 63, 69, 0.35);
+}
