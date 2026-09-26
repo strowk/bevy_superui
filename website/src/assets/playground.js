@@ -15,8 +15,11 @@ const editors = {};
 const contents = {}; // path-suffix -> text (kept for non-editable files, e.g. index.html)
 
 async function fetchText(path) {
-  try { return await (await fetch(path)).text(); }
-  catch (e) { log("failed to load " + path + ": " + e); return ""; }
+  try {
+    const res = await fetch(path);
+    if (!res.ok) { log("failed to load " + path + ": HTTP " + res.status); return ""; }
+    return await res.text();
+  } catch (e) { log("failed to load " + path + ": " + e); return ""; }
 }
 
 async function boot() {
