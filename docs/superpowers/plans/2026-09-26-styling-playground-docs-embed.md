@@ -26,7 +26,7 @@
 
 - **Authored styles flash away for a frame** when `apply_utilities` runs before the authored CSS is seeded — the single most likely bug. Pinned in Task 3 (`playground.js` call-order test) and Task 7 (browser: no flash of unstyled Chip B on first paint).
 - **Signal state lost across a `.css` edit** — CSS edits must be a live restyle, not a remount. Pinned in Task 7 (increment signal → CSS Run → value unchanged).
-- **A utility class not in the catalog silently no-ops** (Chip C looks unstyled). Pinned in Task 2 (build with `--features playground`/`utilities` and assert no "skipped class" warning for the classes used).
+- **A utility class not accepted by flair silently no-ops** (Chip C looks unstyled) — including catalog-listed names that lower to unsupported *logical* properties (e.g. `px-4`→`padding-inline`). Pinned in Task 2 (verify via `superui_css_utilities::expand()` that each class emits flair-accepted CSS) and Task 7 (browser: Chip C is padded/rounded/dark).
 - **oxc leaks into a normal (non-playground) wasm build**, bloating every gallery demo. Pinned in Task 1 (`cargo tree --target wasm32-unknown-unknown -e normal -i oxc` prints nothing without the feature, oxc with it — `-e normal` excludes the harmless host-only build-dep edge).
 - **`playground.html` references a shared asset by a wrong relative path**, 404-ing CodeMirror or `playground.js` so the editor never appears. Pinned in Task 4 (generated-HTML assertions on every referenced path) and Task 7 (editor visible, no console 404).
 
@@ -118,7 +118,7 @@ function Row() {
           <span class="chip-tag">authored CSS</span>
         </div>
         {/* C: utility classes — regenerated in-browser by apply_utilities */}
-        <div class="chip flex items-center justify-center px-4 py-2 rounded-md bg-slate-800">
+        <div class="chip flex items-center justify-center pl-4 pr-4 pt-2 pb-2 rounded-md bg-slate-800">
           <span class="chip-tag">utility classes</span>
         </div>
       </div>
@@ -182,9 +182,9 @@ render(() => <Row />, document.getElementById("root"));
 }
 ```
 
-- [ ] **Step 4: Verify utility classes exist in the catalog (Review Focus).** The classes on Chip C (`flex`, `items-center`, `justify-center`, `px-4`, `py-2`, `rounded-md`, `bg-slate-800`) were confirmed present in `website/src/docs/reference/class-utilities.md` during planning. Re-confirm none was dropped; if any is absent, replace it with the nearest listed equivalent and update `app.tsx`. (Note: bare `rounded` is NOT in the catalog — use `rounded-md`.)
+- [ ] **Step 4: Verify utility classes actually generate flair-accepted CSS (Review Focus).** Classes on Chip C: `flex items-center justify-center pl-4 pr-4 pt-2 pb-2 rounded-md bg-slate-800`. **Confirming a class name is in the catalog is not enough — it must lower to a property flair 0.6 accepts.** In particular flair 0.6 rejects the *logical* padding shorthands, so `px-4`/`py-2` (→ `padding-inline`/`padding-block`) are dropped — use the physical `pl-4 pr-4 pt-2 pb-2` instead (each → `padding-left/right/top/bottom`). Verify by running `superui_css_utilities::expand([...])` / `generate_for_dir(...)` on the actual classes (a throwaway unit test in `superui_css_utilities`, deleted before commit) and confirming zero "not recognized"/"dropped" diagnostics. If a class is dropped, swap for the nearest accepted equivalent and update `app.tsx`.
 
-- [ ] **Step 5: Build with the playground feature and check for skipped-class warnings.** Run: `cargo build -p styling_showcase --features playground 2>&1 | grep -i "skip\|unsupported class"`. Expected: **no output** (no utility class was skipped). If a class is named, replace it (Step 4) and rebuild.
+- [ ] **Step 5: Build with the playground feature.** Run: `cargo build -p styling_showcase --features playground`. Expected: clean compile. (Note: a `cargo build | grep skip` check is a no-op — the utility oracle runs only as a runtime Startup/watch system behind `superui/utilities`, never at compile; Step 4's `expand()` call and Task 7's browser render are the real skipped-class gates.)
 
 - [ ] **Step 6: Smoke the native render.** Run: `cargo run -p styling_showcase --features hmr` briefly (it opens a window; confirm it launches without panic, then close). Expected: a window with the three chips and the +/- control. (This is a manual launch; if running headless, skip and rely on Task 7's browser check.)
 
