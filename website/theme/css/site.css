@@ -400,3 +400,8 @@ h1 + .since-note { margin-top: 1.1em; }
   background: rgba(255, 196, 107, 0.08);
 }
 .since-note--unreleased::before { content: "unreleased"; color: var(--su-amber); }
+
+.su-playground-embed { margin: 2rem 0; border: 1px solid var(--su-line-soft, #2b3a52); }
+.su-playground-embed iframe { width: 100%; height: 560px; border: 0; display: block;
+  background: var(--su-bg-deep, #0b1220); }
+@media (max-width: 720px) { .su-playground-embed iframe { height: 720px; } }

@@ -72,6 +72,17 @@ This is the escape hatch for the literal-class-name constraint above: since the
 value isn't known until the UI runs, no utility class or stylesheet rule can carry
 it.
 
+## Try it
+
+Edit the `.tsx` or `.css` below and press Run — the three chips restyle in your
+browser. The `n` counter keeps its value across a CSS edit, because a stylesheet
+change is a live re-cascade, not a reload.
+
+<div class="su-playground-embed">
+  <iframe src="../../examples/styling_showcase/playground.html"
+          title="Live styling playground" loading="lazy"></iframe>
+</div>
+
 ## See also
 
 - [CSS reference](../reference/css.md) — supported selectors and properties.
