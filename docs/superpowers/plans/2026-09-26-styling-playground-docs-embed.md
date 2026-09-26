@@ -299,6 +299,12 @@ function srcFor(p) { return PG.sources.find((s) => s.path.endsWith(p)); }
 
 const consoleEl = document.getElementById("pg-console");
 function log(msg) { consoleEl.textContent += msg + "\n"; consoleEl.scrollTop = consoleEl.scrollHeight; }
+// Log every diagnostic, not just ok:false: oxc recovers from most syntax
+// errors and reports them as Warning with ok:true.
+function logDiags(diags) {
+  if (!Array.isArray(diags)) return;
+  for (const d of diags) log((d.severity ? d.severity + ": " : "") + d.message);
+}
 
 const editors = {};
 const contents = {}; // path-suffix -> text (kept for non-editable files, e.g. index.html)
@@ -335,8 +341,7 @@ async function boot() {
   show(EDITABLE[0]);
   runAll(); // first paint: seed CSS + utilities + tsx (UI is already mounted)
   setInterval(() => {
-    const p = PG.poll_diagnostics();
-    if (p && p !== "[]") log(p);
+    try { logDiags(JSON.parse(PG.poll_diagnostics())); } catch (_) {}
   }, 500);
 }
 
@@ -358,15 +363,8 @@ function runAll() {
     PG.apply_utilities(JSON.stringify([tsxVal(), htmlVal()])), // 2. regen utilities
     PG.apply_source("app.tsx", tsxVal()),                      // 3. re-transpile + hot-swap
   ];
-  // Log every diagnostic, not just ok:false: oxc recovers from most syntax
-  // errors and reports them as Warning with ok:true.
   for (const r of out) {
-    try {
-      const j = JSON.parse(r);
-      if (j && Array.isArray(j.diagnostics)) {
-        for (const d of j.diagnostics) log((d.severity ? d.severity + ": " : "") + d.message);
-      }
-    } catch (_) {}
+    try { const j = JSON.parse(r); logDiags(j && j.diagnostics); } catch (_) {}
   }
 }
 
