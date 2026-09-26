@@ -24,7 +24,7 @@
 
 ## Review Focus
 
-- **Authored styles flash away for a frame** when `apply_utilities` runs before the authored CSS is seeded — the single most likely bug. Pinned in Task 4 (`playground.js` call-order test) and Task 7 (browser: no flash of unstyled Chip B on first paint).
+- **Authored styles flash away for a frame** when `apply_utilities` runs before the authored CSS is seeded — the single most likely bug. Pinned in Task 3 (`playground.js` call-order test) and Task 7 (browser: no flash of unstyled Chip B on first paint).
 - **Signal state lost across a `.css` edit** — CSS edits must be a live restyle, not a remount. Pinned in Task 7 (increment signal → CSS Run → value unchanged).
 - **A utility class not in the catalog silently no-ops** (Chip C looks unstyled). Pinned in Task 2 (build with `--features playground`/`utilities` and assert no "skipped class" warning for the classes used).
 - **oxc leaks into a normal (non-playground) wasm build**, bloating every gallery demo. Pinned in Task 1 (`cargo tree -i oxc` empty without the feature).
@@ -211,10 +211,26 @@ git commit -m "feat(styling_showcase): three-chips demo of inline/authored/utili
 - Reference: `website/src/examples/vendor/highlight.min.js` (existing vendoring pattern), `website/src/assets/blueprint.css` (theme vars like `--su-teal`)
 
 **Interfaces:**
-- Consumes: the landed exports handed on `window.__PLAYGROUND__` by Task 4's generated page: `{ slug, sources, apply_source, apply_utilities, poll_diagnostics }`, where `sources` is an array of `{ path, contents }`. **This `{ path, contents }` shape is the fixed contract**; Task 4's generator maps `sources.rs`'s output into it, so `playground.js` can hardcode `s.path` / `s.contents` regardless of `sources.rs`'s internal field names.
-- Produces: `playground.js` (an ES module) that, on load, builds CodeMirror editors from `window.__PLAYGROUND__.sources`, wires the Run button, and polls diagnostics. Exposes nothing globally beyond side effects.
+- Consumes: the landed exports handed on `window.__PLAYGROUND__` by Task 4's generated page: `{ slug, sources, apply_source, apply_utilities, poll_diagnostics }`, where `sources` is the `sources.rs` `SourceFile` array — objects of shape `{ name, path, lang }` (**no contents inlined**; `path` is a fetch path like `assets/ui/<slug>/app.tsx` that resolves against the page's `<base href="./">`). `playground.js` **fetches** each file's contents at runtime, mirroring the existing PARTS viewer (`host.html.tmpl`).
+- Produces: `playground.js` (an ES module) that, on load, fetches the source contents, builds CodeMirror editors, wires the Run button, and polls diagnostics. Exposes nothing globally beyond side effects.
 
-- [ ] **Step 1: Vendor CodeMirror 5 as static files.** Download CodeMirror 5.65.x `lib/codemirror.js` (min), `lib/codemirror.css`, `mode/javascript/javascript.js`, `mode/css/css.js`, `mode/xml/xml.js`, `mode/jsx/jsx.js`, and `theme/material-darker.css` into `tools/gallery/vendor/codemirror/` with the filenames above. (Use the same fetch approach used to vendor `highlight.js`; if offline, copy from a local CodeMirror install.) These are static assets, no build step.
+- [ ] **Step 1: Vendor CodeMirror 5 as static files.** Fetch from cdnjs (5.65.16) into `tools/gallery/vendor/codemirror/` with the target filenames the template expects:
+
+```bash
+mkdir -p tools/gallery/vendor/codemirror
+B=https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16
+curl -fsSL $B/codemirror.min.js            -o tools/gallery/vendor/codemirror/codemirror.min.js
+curl -fsSL $B/codemirror.min.css           -o tools/gallery/vendor/codemirror/codemirror.min.css
+curl -fsSL $B/mode/xml/xml.min.js          -o tools/gallery/vendor/codemirror/mode-xml.js
+curl -fsSL $B/mode/javascript/javascript.min.js -o tools/gallery/vendor/codemirror/mode-javascript.js
+curl -fsSL $B/mode/css/css.min.js          -o tools/gallery/vendor/codemirror/mode-css.js
+curl -fsSL $B/mode/jsx/jsx.min.js          -o tools/gallery/vendor/codemirror/mode-jsx.js
+curl -fsSL $B/theme/material-darker.min.css -o tools/gallery/vendor/codemirror/theme-material-darker.css
+# sanity: each file is non-empty
+for f in tools/gallery/vendor/codemirror/*; do test -s "$f" || echo "EMPTY: $f"; done
+```
+
+These are static assets, no build step. If the network is unavailable, this is a BLOCKED escalation (report it — the controller will supply the files).
 
 - [ ] **Step 2: Write `playground.css`.** Split-pane layout using blueprint theme vars. Concrete rules:
 
@@ -269,66 +285,77 @@ test("Run seeds authored CSS before regenerating utilities before swapping tsx",
 
 ```js
 // Reusable playground editor. The generated page sets window.__PLAYGROUND__ =
-// { slug, sources:[{path,contents}], apply_source, apply_utilities, poll_diagnostics }.
+// { slug, sources:[{name,path,lang}], apply_source, apply_utilities, poll_diagnostics }.
+// Source contents are NOT inlined; fetch them from `path` (resolves against the
+// page's <base href="./">), same as the PARTS viewer.
 const PG = window.__PLAYGROUND__;
 const EDITABLE = ["app.tsx", "style.css"];
 const MODE = { "app.tsx": "jsx", "style.css": "css" };
 
-function byPath(p) { return PG.sources.find((s) => s.path.endsWith(p)); }
-
-const editors = {};
-const host = document.getElementById("pg-editors");
-for (const path of EDITABLE) {
-  const src = byPath(path);
-  if (!src) continue;
-  const wrap = document.createElement("div");
-  wrap.className = "pg-editor is-off";
-  wrap.dataset.path = path;
-  host.appendChild(wrap);
-  editors[path] = window.CodeMirror(wrap, {
-    value: src.contents, mode: MODE[path], theme: "material-darker",
-    lineNumbers: true, lineWrapping: true,
-  });
-}
-
-let active = EDITABLE[0];
-function show(path) {
-  active = path;
-  for (const p of EDITABLE) {
-    host.querySelector(`[data-path="${p}"]`)?.classList.toggle("is-off", p !== path);
-    document.querySelector(`.pg-tab[data-path="${p}"]`)?.classList.toggle("is-active", p === path);
-  }
-  editors[path]?.refresh();
-}
-document.querySelectorAll(".pg-tab").forEach((t) =>
-  t.addEventListener("click", () => show(t.dataset.path)));
+function srcFor(p) { return PG.sources.find((s) => s.path.endsWith(p)); }
 
 const consoleEl = document.getElementById("pg-console");
 function log(msg) { consoleEl.textContent += msg + "\n"; consoleEl.scrollTop = consoleEl.scrollHeight; }
 
-function tsxVal() { return editors["app.tsx"]?.getValue() ?? byPath("app.tsx")?.contents ?? ""; }
-function cssVal() { return editors["style.css"]?.getValue() ?? byPath("style.css")?.contents ?? ""; }
-function htmlVal() { return byPath("index.html")?.contents ?? ""; }
+const editors = {};
+const contents = {}; // path-suffix -> text (kept for non-editable files, e.g. index.html)
+
+async function fetchText(path) {
+  try { return await (await fetch(path)).text(); }
+  catch (e) { log("failed to load " + path + ": " + e); return ""; }
+}
+
+async function boot() {
+  // Fetch every source once (editable + index.html for utilities scanning).
+  for (const s of PG.sources) contents[s.name] = await fetchText(s.path);
+
+  const host = document.getElementById("pg-editors");
+  for (const path of EDITABLE) {
+    if (!srcFor(path)) continue;
+    const wrap = document.createElement("div");
+    wrap.className = "pg-editor is-off";
+    wrap.dataset.path = path;
+    host.appendChild(wrap);
+    editors[path] = window.CodeMirror(wrap, {
+      value: contents[path] ?? "", mode: MODE[path], theme: "material-darker",
+      lineNumbers: true, lineWrapping: true,
+    });
+  }
+
+  document.querySelectorAll(".pg-tab").forEach((t) =>
+    t.addEventListener("click", () => show(t.dataset.path)));
+  document.getElementById("pg-run").addEventListener("click", runAll);
+
+  show(EDITABLE[0]);
+  runAll(); // first paint: seed CSS + utilities + tsx (UI is already mounted)
+  setInterval(() => {
+    const p = PG.poll_diagnostics();
+    if (p && p !== "[]") log(p);
+  }, 500);
+}
+
+function show(path) {
+  for (const p of EDITABLE) {
+    document.querySelector(`.pg-editor[data-path="${p}"]`)?.classList.toggle("is-off", p !== path);
+    document.querySelector(`.pg-tab[data-path="${p}"]`)?.classList.toggle("is-active", p === path);
+  }
+  editors[path]?.refresh();
+}
+
+function tsxVal() { return editors["app.tsx"]?.getValue() ?? contents["app.tsx"] ?? ""; }
+function cssVal() { return editors["style.css"]?.getValue() ?? contents["style.css"] ?? ""; }
+function htmlVal() { return contents["index.html"] ?? ""; }
 
 function runAll() {
   const out = [
-    PG.apply_source("style.css", cssVal()),          // 1. seed authored CSS
+    PG.apply_source("style.css", cssVal()),                    // 1. seed authored CSS
     PG.apply_utilities(JSON.stringify([tsxVal(), htmlVal()])), // 2. regen utilities
-    PG.apply_source("app.tsx", tsxVal()),            // 3. re-transpile + hot-swap
+    PG.apply_source("app.tsx", tsxVal()),                      // 3. re-transpile + hot-swap
   ];
   for (const r of out) { try { const j = JSON.parse(r); if (j && j.ok === false) log(r); } catch (_) {} }
 }
-document.getElementById("pg-run").addEventListener("click", runAll);
 
-// First paint: auto-run once after the app has mounted (init() already resolved
-// by the time this module runs, but the UI mounts a frame or two later).
-setTimeout(runAll, 300);
-setInterval(() => {
-  const p = PG.poll_diagnostics();
-  if (p && p !== "[]") log(p);
-}, 500);
-
-show(active);
+boot();
 ```
 
 - [ ] **Step 6: Run the test to verify it passes.** Run: `node --test tools/gallery/tests/playground-js.test.mjs`. Expected: PASS.
@@ -348,28 +375,36 @@ git commit -m "feat(playground): vendor CodeMirror + shared playground editor cs
 
 **Files:**
 - Create: `tools/gallery/playground.html.tmpl`
-- Create: `xtask/src/playground.rs`
-- Modify: `xtask/src/main.rs` (register the `playground-page` subcommand)
-- Test: `xtask/tests/playground_page.rs`
-- Reference: `tools/gallery/host.html.tmpl`, `xtask/src/host.rs`, `xtask/src/sources.rs`
+- Create: `xtask/src/playground.rs` (a `render` fn + an in-file `#[cfg(test)] mod tests`, exactly mirroring `xtask/src/host.rs`)
+- Modify: `xtask/src/main.rs` (`mod playground;`, a `playground-page` match arm, and a `playground_page` handler)
+- Reference: `tools/gallery/host.html.tmpl`, `xtask/src/host.rs`, `xtask/src/main.rs::host_page`, `xtask/src/sources.rs`
 
 **Interfaces:**
-- Consumes: `xtask/src/sources.rs`'s file enumeration (reuse its existing function that classifies `examples/<slug>/assets/ui/<slug>/*` into a JSON array). Confirm its exact name/signature by reading the file; the host-page path already calls it.
-- Produces: a generated `playground.html` whose `<script type="module">` sets `window.__PLAYGROUND__ = { slug, sources, apply_source, apply_utilities, poll_diagnostics }` and references `../assets/playground.js`, `../assets/playground.css`, and `vendor/codemirror/*` by relative path. CLI: `xtask playground-page --slug <slug> --out <dir>`.
+- Consumes: `xtask::sources::enumerate(Path::new("examples"), slug) -> io::Result<Vec<SourceFile>>` where `SourceFile { name, path, lang }` (`serde::Serialize`). Same call `host_page` makes.
+- Produces:
+  - `xtask/src/playground.rs`: `pub fn render(slug: &str, sources: &[SourceFile]) -> String` — a pure token-substitution function like `host::render`, but taking only a slug (**no `manifest::Example`, no `gallery.json`**). Substitutes `{{SLUG}}`, `{{WASM_JS}}` (`<slug>.js`), `{{SOURCES_JSON}}` (`serde_json::to_string(sources)`).
+  - A `playground-page --slug <slug> --out <dir>` CLI arm that calls `sources::enumerate` then `playground::render` then writes `<out>/playground.html`.
+  - The generated page sets `window.__PLAYGROUND__ = { slug, sources: <SOURCES_JSON>, apply_source, apply_utilities, poll_diagnostics }` and references `../../assets/playground.{css,js}` and `../vendor/codemirror/*` (the proven prefixes from `host.html.tmpl`), under `<base href="./">`.
 
-- [ ] **Step 1: Read the reference files.** Read `xtask/src/host.rs` (token substitution + CLI arg shape), `xtask/src/sources.rs` (the sources-enumeration function name and return type), and `xtask/src/main.rs` (how `host-page` is registered) so the new subcommand mirrors them.
+- [ ] **Step 1: Read the reference files.** Read `xtask/src/host.rs` (the `render` shape + in-file test), `xtask/src/main.rs` (`host_page` handler + dispatch; note `host`/`sources`/`manifest` are `mod` in the binary, and `sources::enumerate` is the call to reuse — **do not** call `manifest::load`), and `tools/gallery/host.html.tmpl` head (the `<base href="./">` + `../../assets/` + `../vendor/` convention).
 
 - [ ] **Step 2: Write `playground.html.tmpl`.** Structure mirrors `host.html.tmpl` but for the split-pane playground. Tokens: `{{SLUG}}`, `{{WASM_JS}}`, `{{SOURCES_JSON}}`.
 
+Path prefixes are the proven ones from `host.html.tmpl` (page lives at
+`examples/<slug>/playground.html`, `<base href="./">` set): `../../assets/` for
+`website/src/assets/`, `../vendor/` for `website/src/examples/vendor/`.
+
 ```html
 <!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <base href="./">
   <title>{{SLUG}} — styling playground</title>
-  <link rel="stylesheet" href="../assets/playground.css">
-  <link rel="stylesheet" href="vendor/codemirror/codemirror.min.css">
-  <link rel="stylesheet" href="vendor/codemirror/theme-material-darker.css">
+  <link rel="stylesheet" href="../../assets/playground.css">
+  <link rel="stylesheet" href="../vendor/codemirror/codemirror.min.css">
+  <link rel="stylesheet" href="../vendor/codemirror/theme-material-darker.css">
 </head>
 <body>
   <div class="pg-root">
@@ -389,11 +424,11 @@ git commit -m "feat(playground): vendor CodeMirror + shared playground editor cs
       <pre class="pg-console" id="pg-console"></pre>
     </div>
   </div>
-  <script src="vendor/codemirror/codemirror.min.js"></script>
-  <script src="vendor/codemirror/mode-xml.js"></script>
-  <script src="vendor/codemirror/mode-javascript.js"></script>
-  <script src="vendor/codemirror/mode-css.js"></script>
-  <script src="vendor/codemirror/mode-jsx.js"></script>
+  <script src="../vendor/codemirror/codemirror.min.js"></script>
+  <script src="../vendor/codemirror/mode-xml.js"></script>
+  <script src="../vendor/codemirror/mode-javascript.js"></script>
+  <script src="../vendor/codemirror/mode-css.js"></script>
+  <script src="../vendor/codemirror/mode-jsx.js"></script>
   <script type="module">
     import init, { apply_source, apply_utilities, poll_diagnostics } from './{{WASM_JS}}';
     window.__PLAYGROUND__ = { slug: "{{SLUG}}", sources: {{SOURCES_JSON}},
@@ -403,44 +438,87 @@ git commit -m "feat(playground): vendor CodeMirror + shared playground editor cs
     }).finally(() => {
       document.getElementById('pg-loader')?.remove();
       try { window.parent.postMessage('superui:ready', '*'); } catch (_) {}
-      import('../assets/playground.js');
+      import('../../assets/playground.js');
     });
   </script>
 </body>
 </html>
 ```
 
-- [ ] **Step 3: Write the failing test.** `xtask/tests/playground_page.rs` runs the generation function against `styling_showcase` into a temp dir and asserts the output HTML contains the slug, a non-empty `window.__PLAYGROUND__`, the `app.tsx` source contents, and each referenced asset path.
+- [ ] **Step 3: Write the failing in-file unit test.** In `xtask/src/playground.rs`, add a `#[cfg(test)] mod tests` mirroring `host.rs`'s test: build a `SourceFile` list by hand and assert `render` substitutes every token and emits the proven paths. (Test lives in the source file, like `host.rs` — not in `xtask/tests/`.)
 
 ```rust
-#[test]
-fn playground_page_renders_slug_sources_and_asset_paths() {
-    let tmp = std::env::temp_dir().join("pg_test_out");
-    std::fs::create_dir_all(&tmp).unwrap();
-    xtask::playground::generate("styling_showcase", &tmp).unwrap();
-    let html = std::fs::read_to_string(tmp.join("playground.html")).unwrap();
-    assert!(html.contains("styling_showcase.js"), "wasm import present");
-    assert!(html.contains("window.__PLAYGROUND__"), "playground bootstrap present");
-    assert!(html.contains("createSignal"), "app.tsx source inlined");
-    assert!(html.contains("../assets/playground.js"), "shared js path");
-    assert!(html.contains("../assets/playground.css"), "shared css path");
-    assert!(html.contains("vendor/codemirror/codemirror.min.js"), "codemirror path");
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::sources::SourceFile;
+
+    #[test]
+    fn renders_canvas_wasm_sources_and_shared_asset_paths() {
+        let sources = vec![SourceFile {
+            name: "app.tsx".into(),
+            path: "assets/ui/styling_showcase/app.tsx".into(),
+            lang: "typescript".into(),
+            order: 0,
+        }];
+        let out = render("styling_showcase", &sources);
+        assert!(out.contains(r#"id="superui-canvas""#), "canvas present");
+        assert!(out.contains("from './styling_showcase.js'"), "wasm import substituted");
+        assert!(out.contains("window.__PLAYGROUND__"), "playground bootstrap present");
+        assert!(out.contains("assets/ui/styling_showcase/app.tsx"), "source path in SOURCES_JSON");
+        assert!(out.contains("../../assets/playground.js"), "shared js path");
+        assert!(out.contains("../../assets/playground.css"), "shared css path");
+        assert!(out.contains("../vendor/codemirror/codemirror.min.js"), "codemirror path");
+        assert!(!out.contains("{{"), "no unsubstituted template tokens");
+    }
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it fails.** Run: `cargo test -p xtask --test playground_page`. Expected: FAIL (`xtask::playground` does not exist).
+- [ ] **Step 4: Run the test to verify it fails.** Run: `cargo test -p xtask playground`. Expected: FAIL to compile (`render` / module not defined).
 
-- [ ] **Step 5: Write `xtask/src/playground.rs`.** A `pub fn generate(slug: &str, out: &Path) -> anyhow::Result<()>` that: reads `tools/gallery/playground.html.tmpl`, calls the same sources-enumeration function `host.rs` uses, **maps its output into a JSON array of `{ "path": <relative path>, "contents": <file text> }` objects** (this is the fixed `window.__PLAYGROUND__.sources` contract Task 3 depends on — adapt the field names from whatever `sources.rs` returns), substitutes `{{SLUG}}`, `{{WASM_JS}}` (`<slug>.js`), and `{{SOURCES_JSON}}`, and writes `<out>/playground.html`. Do NOT depend on `gallery.json` (slug comes from the arg; sources from disk). Mirror the error handling and path resolution in `host.rs`. Register a `playground-page { slug, out }` subcommand in `main.rs` that calls `playground::generate`.
-  - **Lib target for the test:** the integration test (`xtask/tests/playground_page.rs`) calls `xtask::playground::generate`, which requires a lib target. Check for `xtask/src/lib.rs`: if absent, add one exposing `pub mod playground;` (and re-export any shared module `playground` needs, e.g. `pub mod sources;`), and have `main.rs` use the crate lib. If `xtask` already exposes these as a lib, just add the module.
+- [ ] **Step 5: Write `xtask/src/playground.rs`.** Mirror `host.rs`:
 
-- [ ] **Step 6: Run the test to verify it passes.** Run: `cargo test -p xtask --test playground_page`. Expected: PASS.
+```rust
+use crate::sources::SourceFile;
 
-- [ ] **Step 7: Verify the CLI end to end.** Run: `cargo run -p xtask -- playground-page --slug styling_showcase --out /tmp/pg-cli && grep -oE "window.__PLAYGROUND__|styling_showcase.js" /tmp/pg-cli/playground.html | sort -u`. Expected: both tokens present.
+const TEMPLATE: &str = include_str!("../../tools/gallery/playground.html.tmpl");
+
+/// Render the playground host page for one example: slug + wasm-glue filename +
+/// the authored-source list the editor fetches. No manifest/gallery.json needed.
+pub fn render(slug: &str, sources: &[SourceFile]) -> String {
+    let sources_json = serde_json::to_string(sources).expect("sources serialize");
+    TEMPLATE
+        .replace("{{SLUG}}", slug)
+        .replace("{{WASM_JS}}", &format!("{slug}.js"))
+        .replace("{{SOURCES_JSON}}", &sources_json)
+}
+```
+
+Then wire `main.rs`: add `mod playground;`, a `Some("playground-page") => playground_page(&args[2..]),` match arm, and:
+
+```rust
+fn playground_page(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
+    let slug = flag(args, "--slug").ok_or("playground-page requires --slug")?;
+    let out_dir = flag(args, "--out").ok_or("playground-page requires --out")?;
+    let srcs = sources::enumerate(Path::new(EXAMPLE_BASE), &slug)?;
+    let html = playground::render(&slug, &srcs);
+    std::fs::create_dir_all(&out_dir)?;
+    std::fs::write(Path::new(&out_dir).join("playground.html"), html)?;
+    println!("wrote {out_dir}/playground.html ({} source files)", srcs.len());
+    Ok(())
+}
+```
+
+Also extend the `usage:` error string in `run()` to mention `playground-page`.
+
+- [ ] **Step 6: Run the test to verify it passes.** Run: `cargo test -p xtask playground`. Expected: PASS.
+
+- [ ] **Step 7: Verify the CLI end to end** (needs the assets from Task 2 on disk). Run: `cargo run -p xtask -- playground-page --slug styling_showcase --out /tmp/pg-cli && grep -oE "window.__PLAYGROUND__|styling_showcase.js|../../assets/playground.js" /tmp/pg-cli/playground.html | sort -u`. Expected: all three present.
 
 - [ ] **Step 8: Commit.**
 
 ```bash
-git add tools/gallery/playground.html.tmpl xtask/src/playground.rs xtask/src/main.rs xtask/tests/playground_page.rs
+git add tools/gallery/playground.html.tmpl xtask/src/playground.rs xtask/src/main.rs
 git commit -m "feat(xtask): playground-page subcommand + reusable host template"
 ```
 
