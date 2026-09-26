@@ -1,5 +1,6 @@
 mod host;
 mod manifest;
+mod playground;
 mod sources;
 
 use std::path::Path;
@@ -27,6 +28,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().collect();
     match args.get(1).map(String::as_str) {
         Some("host-page") => host_page(&args[2..]),
+        Some("playground-page") => playground_page(&args[2..]),
         Some("fork-patches") => {
             let ids = xtask::check_fork_patches(&repo_root()).map_err(|e| e)?;
             for id in &ids {
@@ -43,7 +45,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             xtask::run_publish(dry_run).map_err(Into::into)
         }
         other => Err(format!(
-            "usage: xtask <host-page|fork-patches|publish> (got {other:?})"
+            "usage: xtask <host-page|playground-page|fork-patches|publish> (got {other:?})"
         )
         .into()),
     }
@@ -67,5 +69,16 @@ fn host_page(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     std::fs::create_dir_all(&out_dir)?;
     std::fs::write(Path::new(&out_dir).join("index.html"), html)?;
     println!("wrote {out_dir}/index.html ({} source files)", srcs.len());
+    Ok(())
+}
+
+fn playground_page(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
+    let slug = flag(args, "--slug").ok_or("playground-page requires --slug")?;
+    let out_dir = flag(args, "--out").ok_or("playground-page requires --out")?;
+    let srcs = sources::enumerate(Path::new(EXAMPLE_BASE), &slug)?;
+    let html = playground::render(&slug, &srcs);
+    std::fs::create_dir_all(&out_dir)?;
+    std::fs::write(Path::new(&out_dir).join("playground.html"), html)?;
+    println!("wrote {out_dir}/playground.html ({} source files)", srcs.len());
     Ok(())
 }

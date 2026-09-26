@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <base href="./">
+  <title>{{SLUG}} — styling playground</title>
+  <link rel="stylesheet" href="../../assets/playground.css">
+  <link rel="stylesheet" href="../vendor/codemirror/codemirror.min.css">
+  <link rel="stylesheet" href="../vendor/codemirror/theme-material-darker.css">
+</head>
+<body>
+  <div class="pg-root">
+    <div class="pg-canvas-pane">
+      <canvas id="superui-canvas"></canvas>
+      <div class="pg-loader" id="pg-loader">Loading playground — large WebAssembly binary…</div>
+    </div>
+    <div class="pg-editor-pane">
+      <div class="pg-toolbar">
+        <div class="pg-tabs">
+          <button class="pg-tab is-active" data-path="app.tsx">app.tsx</button>
+          <button class="pg-tab" data-path="style.css">style.css</button>
+        </div>
+        <button class="pg-run" id="pg-run">Run &#9654;</button>
+      </div>
+      <div class="pg-editors" id="pg-editors"></div>
+      <pre class="pg-console" id="pg-console"></pre>
+    </div>
+  </div>
+  <script src="../vendor/codemirror/codemirror.min.js"></script>
+  <script src="../vendor/codemirror/mode-xml.js"></script>
+  <script src="../vendor/codemirror/mode-javascript.js"></script>
+  <script src="../vendor/codemirror/mode-css.js"></script>
+  <script src="../vendor/codemirror/mode-jsx.js"></script>
+  <script type="module">
+    import init, { apply_source, apply_utilities, poll_diagnostics } from './{{WASM_JS}}';
+    window.__PLAYGROUND__ = { slug: "{{SLUG}}", sources: {{SOURCES_JSON}},
+      apply_source, apply_utilities, poll_diagnostics };
+    init().catch((e) => {
+      if (!(e instanceof Error) || !String(e.message).includes('control flow')) console.error(e);
+    }).finally(() => {
+      document.getElementById('pg-loader')?.remove();
+      try { window.parent.postMessage('superui:ready', '*'); } catch (_) {}
+      import('../../assets/playground.js');
+    });
+  </script>
+</body>
+</html>
