@@ -69,7 +69,16 @@ function runAll() {
     PG.apply_utilities(JSON.stringify([tsxVal(), htmlVal()])), // 2. regen utilities
     PG.apply_source("app.tsx", tsxVal()),                      // 3. re-transpile + hot-swap
   ];
-  for (const r of out) { try { const j = JSON.parse(r); if (j && j.ok === false) log(r); } catch (_) {} }
+  // Log every diagnostic, not just ok:false: oxc recovers from most syntax
+  // errors and reports them as Warning with ok:true.
+  for (const r of out) {
+    try {
+      const j = JSON.parse(r);
+      if (j && Array.isArray(j.diagnostics)) {
+        for (const d of j.diagnostics) log((d.severity ? d.severity + ": " : "") + d.message);
+      }
+    } catch (_) {}
+  }
 }
 
 boot();

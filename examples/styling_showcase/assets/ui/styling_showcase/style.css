@@ -1,8 +1,8 @@
-/* Utilities import is inert in the playground (the inline CSS parser has no
-   @import); it exists for native/HMR builds. Playground utilities come from
-   apply_utilities. Kept on line 1 per the utilities convention. */
-@import ".superui/build/utilities.generated.css";
-
+/* No `@import ".superui/build/utilities.generated.css"` here: the playground
+   gets its utility classes from apply_utilities (in-browser), and an @import
+   would break this sheet — flair's asset loader fails the whole stylesheet when
+   the imported file is absent (nothing runs write_generated for this demo), and
+   the inline parser the playground edits through rejects @import outright. */
 #root {
   width: 100%;
   height: 100%;

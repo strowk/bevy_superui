@@ -15,9 +15,12 @@ function Row() {
         <button class="step" onClick={() => setN(n() + 1)}>+</button>
       </div>
       <div class="chips">
-        {/* A: inline style, width driven by the signal (runtime-computed) */}
+        {/* A: the style attribute — width is driven by the signal, a value only
+           known at runtime. (The label says "style attribute" rather than the
+           technique's other name so the utility scanner, which reads visible
+           text too, doesn't mistake a display-keyword for a class.) */}
         <div class="chip" style={`width: ${120 + n() * 8}px`}>
-          <span class="chip-tag">inline style</span>
+          <span class="chip-tag">style attribute</span>
         </div>
         {/* B: authored CSS — edit .chip-authored in style.css and Run */}
         <div class="chip chip-authored">

@@ -109,9 +109,12 @@ function Row() {
         <button class="step" onClick={() => setN(n() + 1)}>+</button>
       </div>
       <div class="chips">
-        {/* A: inline style, width driven by the signal (runtime-computed) */}
+        {/* A: the style attribute — width is driven by the signal, a value only
+           known at runtime. (Label says "style attribute", not the technique's
+           other name, so the utility scanner — which reads visible text too —
+           doesn't mistake a display-keyword for a class and warn.) */}
         <div class="chip" style={`width: ${120 + n() * 8}px`}>
-          <span class="chip-tag">inline style</span>
+          <span class="chip-tag">style attribute</span>
         </div>
         {/* B: authored CSS — edit .chip-authored in style.css and Run */}
         <div class="chip chip-authored">
@@ -132,11 +135,11 @@ render(() => <Row />, document.getElementById("root"));
 - [ ] **Step 3: Write `style.css` within flair-0.6 limits.**
 
 ```css
-/* Utilities import is inert in the playground (the inline CSS parser has no
-   @import); it exists for native/HMR builds. Playground utilities come from
-   apply_utilities. Kept on line 1 per the utilities convention. */
-@import ".superui/build/utilities.generated.css";
-
+/* NO `@import ".superui/build/utilities.generated.css"`: the playground gets
+   utilities from apply_utilities, and an @import breaks the sheet — flair's
+   asset loader fails the WHOLE stylesheet at mount when the imported file is
+   absent (nothing runs write_generated here → 404 → unstyled canvas), and the
+   inline parser the playground edits through rejects @import outright. */
 #root {
   width: 100%;
   height: 100%;
@@ -355,7 +358,16 @@ function runAll() {
     PG.apply_utilities(JSON.stringify([tsxVal(), htmlVal()])), // 2. regen utilities
     PG.apply_source("app.tsx", tsxVal()),                      // 3. re-transpile + hot-swap
   ];
-  for (const r of out) { try { const j = JSON.parse(r); if (j && j.ok === false) log(r); } catch (_) {} }
+  // Log every diagnostic, not just ok:false: oxc recovers from most syntax
+  // errors and reports them as Warning with ok:true.
+  for (const r of out) {
+    try {
+      const j = JSON.parse(r);
+      if (j && Array.isArray(j.diagnostics)) {
+        for (const d of j.diagnostics) log((d.severity ? d.severity + ": " : "") + d.message);
+      }
+    } catch (_) {}
+  }
 }
 
 boot();
