@@ -14,7 +14,7 @@
 
 .row { flex-direction: column; align-items: center; }
 
-.controls { flex-direction: row; align-items: center; margin-bottom: 16px; }
+.controls { flex-direction: row; align-items: center; margin-top: 16px; }
 .readout { color: #9feee6; font-size: 14px; padding: 0 12px; }
 .step {
   color: #04120f;

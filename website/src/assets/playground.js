@@ -40,14 +40,15 @@ async function boot() {
     wrap.dataset.path = path;
     host.appendChild(wrap);
     editors[path] = window.CodeMirror(wrap, {
-      value: contents[path] ?? "", mode: MODE[path], theme: "material-darker",
+      value: contents[path] ?? "", mode: MODE[path],
       lineNumbers: true, lineWrapping: true,
+      extraKeys: { "Ctrl-Enter": () => runAll(true), "Cmd-Enter": () => runAll(true) },
     });
   }
 
   document.querySelectorAll(".pg-tab").forEach((t) =>
     t.addEventListener("click", () => show(t.dataset.path)));
-  document.getElementById("pg-run").addEventListener("click", runAll);
+  document.getElementById("pg-run").addEventListener("click", () => runAll(true));
 
   show(EDITABLE[0]);
   runAll(); // first paint: seed CSS + utilities + tsx (UI is already mounted)
@@ -68,7 +69,13 @@ function tsxVal() { return editors["app.tsx"]?.getValue() ?? contents["app.tsx"]
 function cssVal() { return editors["style.css"]?.getValue() ?? contents["style.css"] ?? ""; }
 function htmlVal() { return contents["index.html"] ?? ""; }
 
-function runAll() {
+function runAll(fromUser) {
+  if (fromUser) {              // flash the button so a manual Run is acknowledged
+    const b = document.getElementById("pg-run");
+    b.classList.remove("is-ran"); void b.offsetWidth; b.classList.add("is-ran");
+  }
+  PG.poll_diagnostics();       // drop diagnostics queued before this run
+  consoleEl.textContent = "";  // each Run starts clean
   const out = [
     PG.apply_source("style.css", cssVal()),                    // 1. seed authored CSS
     PG.apply_utilities(JSON.stringify([tsxVal(), htmlVal()])), // 2. regen utilities

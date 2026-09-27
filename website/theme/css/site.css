@@ -401,7 +401,20 @@ h1 + .since-note { margin-top: 1.1em; }
 }
 .since-note--unreleased::before { content: "unreleased"; color: var(--su-amber); }
 
-.su-playground-embed { margin: 2rem 0; border: 1px solid var(--su-line-soft, #2b3a52); }
+/* A window-like frame so the embed reads as a distinct, live demo: 1px sides
+   (width is tight) + a title bar with a pulsing "live" dot. */
+.su-playground-embed { margin: 2rem 0; border: 1px solid var(--su-line);
+  border-radius: 7px; overflow: hidden; background: var(--su-bg-deep); }
+.su-playground-bar { display: flex; align-items: center; gap: 9px; padding: 9px 14px;
+  background: var(--su-bg); border-bottom: 1px solid var(--su-line-soft);
+  font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--su-muted); }
+.su-playground-dot { flex: none; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--su-teal); box-shadow: 0 0 8px var(--su-teal); }
+.su-playground-name { color: var(--su-heading); }
+.su-playground-live { margin-left: auto; color: var(--su-dim); letter-spacing: 0.14em; }
 .su-playground-embed iframe { width: 100%; height: 560px; border: 0; display: block;
-  background: var(--su-bg-deep, #0b1220); }
+  background: var(--su-bg-deep, #071a28); }
+/* Stacked layout (?layout=stack) is taller: canvas band above a full-width editor. */
+.su-playground-embed--stack iframe { height: 920px; }
 @media (max-width: 720px) { .su-playground-embed iframe { height: 720px; } }

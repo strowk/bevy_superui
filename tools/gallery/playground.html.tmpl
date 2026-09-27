@@ -5,9 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <base href="./">
   <title>{{SLUG}} — styling playground</title>
-  <link rel="stylesheet" href="../../assets/playground.css">
+  <!-- Layout is chosen by the embed via ?layout=stack|split (default split).
+       Set on <html> synchronously so the grid never flashes the wrong way. -->
+  <script>document.documentElement.dataset.layout = new URLSearchParams(location.search).get("layout") || "split";</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+  <!-- The site's design tokens (--su-*, --font-mono). The iframe doesn't get the
+       book's chrome, so load them here or every var() falls back off-palette. -->
+  <link rel="stylesheet" href="../../assets/blueprint.css">
   <link rel="stylesheet" href="../vendor/codemirror/codemirror.min.css">
-  <link rel="stylesheet" href="../vendor/codemirror/theme-material-darker.css">
+  <link rel="stylesheet" href="../../assets/playground.css">
 </head>
 <body>
   <div class="pg-root">
@@ -21,7 +29,7 @@
           <button class="pg-tab is-active" data-path="app.tsx">app.tsx</button>
           <button class="pg-tab" data-path="style.css">style.css</button>
         </div>
-        <button class="pg-run" id="pg-run">Run &#9654;</button>
+        <button class="pg-run" id="pg-run">Run &#9654; <span class="pg-run-kbd">Ctrl+Enter</span></button>
       </div>
       <div class="pg-editors" id="pg-editors"></div>
       <pre class="pg-console" id="pg-console"></pre>
@@ -36,6 +44,17 @@
     import init, { apply_source, apply_utilities, poll_diagnostics } from './{{WASM_JS}}';
     window.__PLAYGROUND__ = { slug: "{{SLUG}}", sources: {{SOURCES_JSON}},
       apply_source, apply_utilities, poll_diagnostics };
+    // winit auto-focuses the canvas once wasm is up. In an iframe that steals the
+    // host page's keyboard focus (breaking its arrow-key nav) and scrolls the
+    // parent to the embed. Block the load-time grab, then restore focus once the
+    // pointer enters the demo: picking needs canvas focus, so clicks still work,
+    // but merely landing on the page leaves the keyboard with the parent.
+    const _canvas = document.getElementById("superui-canvas");
+    if (_canvas) {
+      const _realFocus = HTMLCanvasElement.prototype.focus;
+      _canvas.focus = () => {};
+      _canvas.addEventListener("pointerenter", () => { _canvas.focus = _realFocus; }, { once: true });
+    }
     init().catch((e) => {
       if (!(e instanceof Error) || !String(e.message).includes('control flow')) console.error(e);
     }).finally(() => {

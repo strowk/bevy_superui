@@ -78,8 +78,13 @@ Edit the `.tsx` or `.css` below and press Run — the three chips restyle in you
 browser. The `n` counter keeps its value across a CSS edit, because a stylesheet
 change is a live re-cascade, not a reload.
 
-<div class="su-playground-embed">
-  <iframe src="../../examples/styling_showcase/playground.html"
+<div class="su-playground-embed su-playground-embed--stack">
+  <div class="su-playground-bar">
+    <span class="su-playground-dot"></span>
+    <span class="su-playground-name">Styling playground</span>
+    <span class="su-playground-live">Live &middot; edit &amp; run</span>
+  </div>
+  <iframe src="../../examples/styling_showcase/playground.html?layout=stack"
           title="Live styling playground" loading="lazy"></iframe>
 </div>
 

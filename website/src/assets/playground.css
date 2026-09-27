@@ -1,23 +1,97 @@
+html, body { margin: 0; padding: 0; height: 100%; background: var(--su-bg-deep, #071a28); }
 .pg-root { display: grid; grid-template-columns: 1fr 1fr; gap: 0; height: 100vh;
-  background: var(--su-bg-deep, #0b1220); color: #cfe9e5;
-  font-family: "IBM Plex Mono", monospace; }
-.pg-canvas-pane { position: relative; border-right: 1px solid var(--su-line-soft, #2b3a52); }
+  background: var(--su-bg-deep, #071a28); color: var(--su-text, #dce9f2);
+  font-family: var(--font-mono, "IBM Plex Mono", ui-monospace, monospace); }
+.pg-canvas-pane { position: relative; border-right: 1px solid var(--su-line-soft, rgba(220,233,242,0.16)); }
+/* Stacked layout: canvas band above the editor (embed passes ?layout=stack).
+   Default (no data-layout) stays side-by-side, so a stale page degrades gracefully. */
+[data-layout="stack"] .pg-root { grid-template-columns: 1fr; grid-template-rows: 200px 1fr; }
+[data-layout="stack"] .pg-canvas-pane { border-right: 0; }
 #superui-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: block; }
 .pg-editor-pane { display: flex; flex-direction: column; min-width: 0; }
 .pg-toolbar { display: flex; align-items: center; justify-content: space-between;
-  padding: 8px 12px; border-bottom: 1px solid var(--su-line-soft, #2b3a52); }
+  padding: 8px 12px; background: var(--su-bg, #0d2b40);
+  border-top: 1px solid var(--su-line-soft, rgba(220,233,242,0.16));
+  border-bottom: 1px solid var(--su-line-soft, rgba(220,233,242,0.16)); }
 .pg-tabs { display: flex; gap: 4px; }
-.pg-tab { background: transparent; color: #9fb6c9; border: 1px solid transparent;
+.pg-tab { background: transparent; color: var(--su-muted, #7fa3bd); border: 1px solid transparent;
   padding: 4px 10px; cursor: pointer; font: inherit; }
-.pg-tab.is-active { color: var(--su-teal, #4ff0e0); border-color: var(--su-line-soft, #2b3a52); }
-.pg-run { background: var(--su-teal, #4ff0e0); color: #04120f; border: 0;
-  padding: 6px 16px; cursor: pointer; font: inherit; font-weight: 600; }
+.pg-tab.is-active { color: var(--su-teal, #34e6d6); border-color: var(--su-line-soft, rgba(220,233,242,0.16)); }
+.pg-run { display: inline-flex; align-items: center; gap: 8px; border-radius: 4px;
+  background: var(--su-teal, #34e6d6); color: #04120f; border: 0;
+  padding: 6px 14px; cursor: pointer; font: inherit; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.08em; }
+.pg-run:hover { background: var(--su-teal-bright, #5cf2e4); }
+.pg-run-kbd { font-size: 9.5px; font-weight: 600; text-transform: none; letter-spacing: 0;
+  color: rgba(4, 18, 15, 0.82); border: 1px solid rgba(4, 18, 15, 0.28);
+  border-radius: 3px; padding: 0 4px; }
+/* A ripple + dip on the button confirms a manual Run even when output is unchanged. */
+.pg-run.is-ran { animation: pg-ran 0.45s ease-out; }
+@keyframes pg-ran {
+  0% { transform: scale(0.94); box-shadow: 0 0 0 0 rgba(52, 230, 214, 0.55); }
+  100% { transform: scale(1); box-shadow: 0 0 0 12px rgba(52, 230, 214, 0); }
+}
 .pg-editors { flex: 1; min-height: 0; position: relative; }
 .pg-editors .CodeMirror { height: 100%; }
 .pg-editor { position: absolute; inset: 0; }
 .pg-editor.is-off { visibility: hidden; }
-.pg-console { height: 120px; overflow: auto; padding: 8px 12px; font-size: 12px;
-  border-top: 1px solid var(--su-line-soft, #2b3a52); white-space: pre-wrap; color: #ffb4b4; }
+/* Output panel, set off from the editor by a firm top divider + a dim
+   placeholder — no heavy fill, and it stays compact while empty so there's no
+   dead colored stripe. It grows with diagnostics, up to a cap, then scrolls. */
+.pg-console { flex: 0 0 auto; max-height: 38%; overflow: auto; padding: 8px 12px; font-size: 12px;
+  border-top: 1px solid var(--su-line, rgba(220,233,242,0.28));
+  white-space: pre-wrap; color: #ffb4b4; }
+.pg-console:empty::before { content: "Diagnostics (transpile / CSS / runtime) appear here.";
+  color: var(--su-dim, #5c7f99); font-style: italic; }
 .pg-loader { position: absolute; inset: 0; display: flex; align-items: center;
-  justify-content: center; background: var(--su-bg-deep, #0b1220); color: #9feee6; }
-@media (max-width: 720px) { .pg-root { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; } }
+  justify-content: center; background: var(--su-bg-deep, #071a28); color: var(--su-teal, #34e6d6); }
+
+/* CodeMirror themed to the site's shiki palette (tools/mdbook-shiki/theme.mjs):
+   cool hues carry structure, warm amber carries literals, on the deep-navy bg.
+   Rules are NOT scoped to a cm-s-* theme class on purpose: the token colors then
+   hold no matter which theme the (possibly cached) JS applied, so highlighting
+   can't vanish on a JS/CSS version skew. */
+.CodeMirror { font-family: var(--font-mono, "IBM Plex Mono", ui-monospace, monospace);
+  font-size: 14px; line-height: 1.55; background: transparent; color: var(--su-text, #dce9f2); }
+.CodeMirror .CodeMirror-gutters { background: transparent; border: none; }
+.CodeMirror .CodeMirror-linenumber { color: var(--su-dim, #5c7f99); }
+.CodeMirror .CodeMirror-cursor { border-left: 1px solid var(--su-teal, #34e6d6); }
+.CodeMirror .CodeMirror-selected { background: rgba(52, 230, 214, 0.14); }
+.CodeMirror .CodeMirror-activeline-background { background: rgba(220, 233, 242, 0.04); }
+.CodeMirror .cm-comment { color: #5f7085; font-style: italic; }
+.CodeMirror .cm-keyword { color: #c58fff; }
+.CodeMirror .cm-atom, .CodeMirror .cm-number { color: #ffb454; }
+.CodeMirror .cm-string, .CodeMirror .cm-string-2 { color: #ffce8a; }
+.CodeMirror .cm-operator { color: #8a97a8; }
+.CodeMirror .cm-def { color: #7ff3e9; }
+.CodeMirror .cm-variable, .CodeMirror .cm-variable-2,
+.CodeMirror .cm-variable-3, .CodeMirror .cm-property { color: var(--su-text, #dce9f2); }
+.CodeMirror .cm-tag { color: #5fd7ff; }
+.CodeMirror .cm-attribute { color: #34e6d6; }
+.CodeMirror .cm-type, .CodeMirror .cm-qualifier { color: #5fd7ff; }
+.CodeMirror .cm-builtin { color: #7ff3e9; }
+.CodeMirror .cm-meta { color: #8a97a8; }
+.CodeMirror .cm-bracket { color: var(--su-text, #dce9f2); }
+/* Narrow viewports: side-by-side falls back to stacked rows. */
+@media (max-width: 720px) {
+  html:not([data-layout="stack"]) .pg-root { grid-template-columns: 1fr; grid-template-rows: 200px 1fr; }
+  html:not([data-layout="stack"]) .pg-canvas-pane { border-right: 0; }
+}
+
+/* Themed scrollbars matching the site (site.css "themed scrollbars"). The
+   iframe doesn't load site.css, so the rule is duplicated here. */
+.pg-console, .CodeMirror-vscrollbar, .CodeMirror-hscrollbar {
+  scrollbar-width: thin; scrollbar-color: rgba(52, 230, 214, 0.28) transparent;
+}
+.pg-console::-webkit-scrollbar,
+.CodeMirror-vscrollbar::-webkit-scrollbar,
+.CodeMirror-hscrollbar::-webkit-scrollbar { width: 10px; height: 10px; }
+.pg-console::-webkit-scrollbar-track,
+.CodeMirror-vscrollbar::-webkit-scrollbar-track,
+.CodeMirror-hscrollbar::-webkit-scrollbar-track { background: transparent; }
+.pg-console::-webkit-scrollbar-thumb,
+.CodeMirror-vscrollbar::-webkit-scrollbar-thumb,
+.CodeMirror-hscrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(52, 230, 214, 0.24);
+  border: 2px solid transparent; background-clip: padding-box;
+}
