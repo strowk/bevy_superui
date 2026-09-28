@@ -23,7 +23,13 @@ jobs:
       - uses: actions/checkout@v4
       - id: set
         run: |
-          matrix=$(jq -c '{include: .examples | map({slug, package, build_args: (.build_args // "")})}' examples/gallery.json)
+          # Gallery examples generate a code-viewer host page (index.html); playground
+          # entries build with --features playground and generate an editable
+          # playground.html. Both overlay under dist/examples/<slug>/.
+          matrix=$(jq -c '{include: (
+            (.examples | map({slug, package, build_args: (.build_args // ""), generator: "host-page"}))
+            + ((.playgrounds // []) | map({slug, package, build_args: "--features playground", generator: "playground-page"}))
+          )}' examples/gallery.json)
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
 
   build:
@@ -92,7 +98,7 @@ jobs:
             "stage/${{ matrix.slug }}/${{ matrix.slug }}_bg.wasm"
 
       - name: Generate host page
-        run: cargo run -p xtask -- host-page --slug ${{ matrix.slug }} --out "stage/${{ matrix.slug }}"
+        run: cargo run -p xtask -- ${{ matrix.generator }} --slug ${{ matrix.slug }} --out "stage/${{ matrix.slug }}"
 
       - name: Copy app assets (after build so app.generated.js exists)
         run: cp -r "examples/${{ matrix.slug }}/assets" "stage/${{ matrix.slug }}/assets"

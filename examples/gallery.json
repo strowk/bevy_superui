@@ -21,5 +21,8 @@
     { "slug": "horde", "package": "horde", "category": "Stress tests",
       "title": "Horde", "tags": ["Playable game"], "build_args": "--no-default-features",
       "description": "A survivors-like game (move, shoot, level up) with a reactive HUD under an enemy swarm — also a UI stress test." }
+  ],
+  "playgrounds": [
+    { "slug": "styling_showcase", "package": "styling_showcase" }
   ]
 }

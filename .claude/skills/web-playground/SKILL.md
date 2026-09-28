@@ -47,10 +47,17 @@ The host page is reusable across examples and pages.
    module only (the transpiler strips cross-module imports). Respect flair-0.6
    CSS limits and **do not add** the utilities `@import` (see Gotchas).
 
-3. **Build wiring** in `tools/build-demos.sh`: add
-   `[<slug>]="--features playground"` to `BUILD_ARGS`, `[<slug>]=1` to the
-   `PLAYGROUND` map (routes it to `playground-page`, not the gallery `host-page`),
-   and add `<slug>` to the default `slugs=( … )` list.
+3. **Build wiring — two places:**
+   - **Deploy (required):** add the slug to the `playgrounds` array in
+     `examples/gallery.json`. The deploy workflow builds every `playgrounds`
+     entry with `--features playground` and `xtask playground-page`, overlaying
+     `playground.html` + wasm under `dist/examples/<slug>/`. Without this the
+     docs iframe 404s in production. (`playgrounds` is separate from `examples`,
+     so it is not a gallery card.)
+   - **Local serve:** in `tools/build-demos.sh` add
+     `[<slug>]="--features playground"` to `BUILD_ARGS`, `[<slug>]=1` to the
+     `PLAYGROUND` map (routes it to `playground-page`), and add `<slug>` to the
+     default `slugs=( … )` list.
 
 4. **Generate + verify:** `bash tools/build-demos.sh <slug>`, then
    `mdbook serve website`. Commit the crate + assets + the `build-demos.sh`
@@ -137,8 +144,11 @@ via the `poll_diagnostics` interval. The console clears on each manual Run.
   re-enables `focus()` on `pointerenter` — do not replace it with a plain
   `focus()`; picking needs canvas focus, so clicks would stop working.
 
-## Not done yet
+## Deploy
 
-CI (`.github/workflows/deploy-pages.yml`) does not build playground examples —
-the deployed site would not include them. Playgrounds are local-serve only until
-a follow-up wires them into the deploy matrix.
+`.github/workflows/deploy-pages.yml` builds every `gallery.json` `playgrounds`
+entry with `--features playground` + `xtask playground-page` and overlays it
+under `dist/examples/<slug>/`. `playground.{css,js}`/`blueprint.css` ride along
+in `dist/assets/` and the CodeMirror vendor in `dist/examples/vendor/`, so the
+docs iframe resolves. Adding a playground is only live once its slug is in
+`playgrounds`.
