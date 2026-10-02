@@ -1,7 +1,8 @@
 # HTML element / attribute ledger
 
 **Legend:** ✅ supported today · 🟡 not supported yet, but planned · ⛔ won't be
-supported. Tier T0–T3. **Since** = the superui version a capability first shipped in.
+supported. Tier T0–T3. **Since** = the superui version a capability first shipped in
+(`unreleased` = merged to main, not yet in a tagged release).
 
 Unknown tags render as plain boxes; unknown attributes are ignored.
 
