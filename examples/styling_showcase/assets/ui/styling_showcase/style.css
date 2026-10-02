@@ -46,3 +46,11 @@
   border-width: 0;
   box-shadow: 0 0 12px rgba(184, 63, 69, 0.35);
 }
+
+/* logo.png is a 1x1 placeholder with no intrinsic size to speak of, so the
+   demo size is explicit here. */
+.demo-logo {
+  width: 64px;
+  height: 64px;
+  margin-top: 16px;
+}

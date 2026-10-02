@@ -27,6 +27,8 @@ function Row() {
         <span class="readout">n = {n()}</span>
         <button class="step" onClick={() => setN(n() + 1)}>+</button>
       </div>
+      {/* An <img> — src resolves against the document dir, sized via CSS. */}
+      <img class="demo-logo" src="logo.png" />
     </div>
   );
 }

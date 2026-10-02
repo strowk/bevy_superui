@@ -24,7 +24,7 @@ Unknown tags render as plain boxes; unknown attributes are ignored.
 | `pre` | 🟡 | T2 | — | preserved whitespace |
 | `input type=radio / number / password / …` | 🟡 | T1 | — | only `text` / `checkbox` / `range` behave as their type; the rest currently degrade to a plain text field |
 | `a` (anchor) | 🟡 | T1 | — | renders; no navigation (no network) |
-| `img` | 🟡 | T2 | — | needs image asset wiring |
+| `img` | ✅ | T2 | unreleased | loads `src` from assets; sized via CSS (`width`/`height`); `NodeImageMode::Auto` intrinsic size otherwise. No `object-fit` yet; `alt` not rendered |
 | `form` | 🟡 | T1 | — | renders; no `submit` semantics yet |
 | `textarea` | ✅ | T1 | 0.1 | multiline; full cursor navigation, selection, OS clipboard, IME, unicode |
 | `select` / `option` | 🟡 | T2 | — | |
@@ -55,7 +55,7 @@ Unknown tags render as plain boxes; unknown attributes are ignored.
 | `autofocus` | ✅ | T1 | 0.1 | focuses the element on mount |
 | `tabindex` | 🟡 | T2 | — | focus order |
 | `hidden` | 🟡 | T2 | — | use `display: none` for now |
-| `src` (img) | 🟡 | T2 | — | needs image assets |
+| `src` (img) | ✅ | T2 | unreleased | resolved relative to the document dir (like CSS/JS links); absolute `/` and `./` honored |
 | inline `on*` (`onclick`) | 🟡 | T3 | — | use `addEventListener` instead |
 | `role` / `aria-*` | 🟡 | T3 | — | stored, inert |
 | `title` / `alt` | 🟡 | T3 | — | |
