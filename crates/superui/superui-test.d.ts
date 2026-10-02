@@ -48,6 +48,19 @@ declare module "superui/test" {
   export interface Page {
     /** Start a locator query at the page root. */
     locator(selector: string, options?: LocatorOptions): Locator;
+    /**
+     * Deliver a game→UI bridge event to the UI's `bevy.on(name, …)` handlers, as
+     * the running game would via `commands.trigger`. Use it to supply data the UI
+     * pulls over the bridge; the headless test host has no game side to send it.
+     *
+     * The payload is hand-authored JSON delivered through the same marshalling a
+     * real app uses, so it must match the shape the game's registered event
+     * actually serializes. Verifies the UI's reaction, not the payload contract.
+     *
+     * Resolves once the event is delivered; observe the DOM reaction with a
+     * following `await expect(...)`.
+     */
+    emit(name: string, value?: unknown): Promise<void>;
   }
 
   /** Auto-waiting assertions returned by `expect(...)`. Each resolves when it passes. */

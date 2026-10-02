@@ -126,6 +126,23 @@ fn push_frame(mut commands: Commands, snap: Res<UiSnapshot>) {
 Each trigger is serialized and delivered to every `bevy.on("frame", …)`
 subscriber in the UI.
 
+### Testing the game→UI direction
+
+<div class="since-note since-note--unreleased">This section documents behavior currently on <code>main</code> only — not yet in a tagged release.</div>
+
+In a `superui_test_engine` spec there is no game side to call `commands.trigger`,
+so a UI's `bevy.on` handlers never fire on their own. `page.emit(name, value)`
+stands in for the game: it delivers `value` to every `bevy.on(name, …)`
+subscriber, so you can assert the UI's reaction.
+
+```typescript
+await page.emit("frame", { player_hp: 7, player_max_hp: 10 });
+await expect(page.locator("#hp")).toHaveText("7 / 10");
+```
+
+The payload is hand-authored, so it must match the shape your registered event
+serializes — `page.emit` tests the UI's reaction, not the payload contract.
+
 ## The full loop
 
 Putting both directions together, a superui game UI is a loop:

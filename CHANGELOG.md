@@ -35,6 +35,10 @@ for the maintenance lines.
 - `transpiler` cargo feature on `superui`: compiles the oxc `.tsx` transpiler into
   the build (including wasm), enabling in-browser transpilation for live
   playgrounds.
+- `page.emit(name, value)` in the end-to-end test engine: a spec can deliver a
+  game→UI bridge event to the UI's `bevy.on(name, …)` handlers (the counterpart
+  of the game's `commands.trigger`), so a headless test with no game side can
+  drive and assert the UI's reaction to bridge data.
 
 ### Changed
 
