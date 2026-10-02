@@ -65,6 +65,18 @@ pub fn mount_hmr(app: &mut App, dom: Rc<RefCell<Dom>>) -> Entity {
     root
 }
 
+/// Like `mount`, but seeds `UiRuntime.base_dir` so `<img src>` resolution can be
+/// exercised against a non-empty directory.
+pub fn mount_with_dir(app: &mut App, dom: Rc<RefCell<Dom>>, base_dir: &str) -> Entity {
+    let root = app.world_mut().spawn(Node::default()).id();
+    let stylesheet: Handle<StyleSheet> = Handle::default();
+    let mut rt = UiRuntime::new(dom, root, stylesheet, false);
+    rt.base_dir = base_dir.to_string();
+    app.world_mut().insert_non_send(rt);
+    app.add_systems(Update, reconcile_system);
+    root
+}
+
 /// Number of direct children of `entity`.
 pub fn child_count(app: &mut App, entity: Entity) -> usize {
     app.world_mut()

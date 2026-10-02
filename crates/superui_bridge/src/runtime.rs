@@ -116,6 +116,11 @@ pub struct UiRuntime {
     pub(crate) range_synced: HashMap<NodeId, f32>,
     /// Range `<input>` node -> its managed track/fill/thumb part entities.
     pub(crate) range_parts: HashMap<NodeId, RangeParts>,
+    /// Per-`<img>` last resolved asset path a load was issued for. Guards against
+    /// re-issuing `AssetServer::load` every reconcile pass; cleared when the node
+    /// is despawned.
+    #[allow(dead_code)]
+    pub(crate) img_src: std::collections::HashMap<superui_dom::NodeId, String>,
     /// Uncaught JS eval errors captured since the last `take_errors` drain.
     errors: Vec<String>,
 }
@@ -181,6 +186,7 @@ impl UiRuntime {
             editable_synced: HashMap::new(),
             range_synced: HashMap::new(),
             range_parts: HashMap::new(),
+            img_src: HashMap::new(),
             errors: Vec::new(),
         }
     }
