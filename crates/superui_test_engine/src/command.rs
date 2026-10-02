@@ -34,6 +34,7 @@ pub enum Command {
     /// which the headless host has no game side to send.
     Emit {
         name: String,
+        #[serde(default)]
         value: serde_json::Value,
     },
 }

@@ -172,3 +172,48 @@ fn stepper_supports_fresh_dom_rerun() {
         assert!(run.results[0].passed, "error: {:?}", run.results[0].error);
     }
 }
+
+/// The stepper path delivers `page.emit` to the UI's `bevy.on` handler — parity
+/// with the blocking driver's emit arm, which `tests/emit.rs` covers.
+#[test]
+fn stepper_delivers_emit_to_bevy_on() {
+    let project = HostProject {
+        html: "<html><head><link rel=\"stylesheet\" href=\"style.css\"><script type=\"module\" src=\"app.tsx\"></script></head><body><div id=\"root\"></div></body></html>".into(),
+        css: String::new(),
+        js_or_tsx: r#"
+            import { createSignal, onMount, render } from "supersolid";
+            function App() {
+                const [score, setScore] = createSignal("none");
+                onMount(() => { bevy.on("score", (s) => setScore(String(s))); });
+                return <div id="score">{score()}</div>;
+            }
+            render(App, document.getElementById("root"));
+        "#.into(),
+        tsx: true,
+        mount_root: "ui".into(),
+        extra_assets: vec![],
+    };
+    let mut app = build_headless_app(&project);
+
+    let spec = r##"
+        import { test, expect } from "superui/test";
+        test("emit updates score via stepper", async ({ page }) => {
+            await page.emit("score", 42);
+            await expect(page.locator("#score")).toHaveText("42");
+        });
+    "##;
+    let js = transpile_spec(spec, "t.spec.ts").unwrap();
+
+    let mut run = start_run(app.world_mut(), None, js, "t.spec.ts".into(), opts());
+    for _ in 0..4000 {
+        app.update();
+        step(app.world_mut(), &mut run);
+        if run.is_done() {
+            break;
+        }
+    }
+
+    assert!(run.is_done(), "run must finish within the frame budget");
+    assert_eq!(run.results.len(), 1, "one test registered");
+    assert!(run.results[0].passed, "spec must pass, error: {:?}", run.results[0].error);
+}
