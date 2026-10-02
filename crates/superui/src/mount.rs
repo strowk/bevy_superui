@@ -377,6 +377,11 @@ pub fn mount_when_ready(world: &mut World) {
 
     let dom = Rc::new(RefCell::new(superui_html::parse_document(&html_src)));
     let mut rt = UiRuntime::new(dom, entity, css_handle.unwrap_or_default(), hmr);
+    // The entry HTML's directory; `<img src>` resolves relative to it.
+    rt.base_dir = html_handle
+        .path()
+        .map(|p| superui_paths::parent_dir(&p.to_string()).to_string())
+        .unwrap_or_default();
     rt.run_script(&js_src);
     world.insert_non_send(rt);
 }

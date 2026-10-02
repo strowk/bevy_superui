@@ -83,6 +83,10 @@ pub struct UiRuntime {
     pub root: Entity,
     /// The stylesheet handle the root carries (children inherit it in flair).
     pub stylesheet: Handle<StyleSheet>,
+    /// Asset directory the entry HTML was loaded from; `<img src>` and other
+    /// relative asset refs resolve against it via `superui_paths::join_asset`.
+    /// Empty when the entry sits at the asset root.
+    pub base_dir: String,
     /// Set whenever the DOM may have changed; cleared after a reconcile.
     pub dirty: bool,
     /// Completed reconcile passes, monotonic. `dirty` is set and cleared within a
@@ -166,6 +170,7 @@ impl UiRuntime {
             applier,
             root,
             stylesheet,
+            base_dir: String::new(),
             dirty: true,
             reconciles: 0,
             node_to_entity: HashMap::new(),

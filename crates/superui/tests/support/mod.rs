@@ -69,6 +69,13 @@ pub fn spawn_root_entry(app: &mut App, entry: &str, body: &str, css: &str, js: &
     app.world_mut().spawn((Node::default(), root)).id()
 }
 
+/// Spawn a `SuperUiRoot` whose entry HTML lives at `entry` (which may contain a
+/// directory, e.g. `ui/x/index.html`), so tests can exercise `base_dir`-relative
+/// resolution. `body`/`css`/`js` are inlined via `entry_doc`.
+pub fn spawn_root_at(app: &mut App, entry: &str, body: &str, css: &str, js: &str) -> Entity {
+    spawn_root_entry(app, entry, body, css, js)
+}
+
 /// Tick `n` frames (enough for asset load + mount + reconcile).
 pub fn tick(app: &mut App, n: usize) {
     for _ in 0..n {
