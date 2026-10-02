@@ -17,6 +17,35 @@ and `0.2.x` (Bevy 0.18) lines are frozen maintenance mirrors. This file follows
 the `main` lineage only; see the [GitHub releases](https://github.com/strowk/bevy_superui/releases)
 for the maintenance lines.
 
+## [Unreleased]
+
+### Added
+
+- `<img>` tag: reconciled into a bevy_ui `ImageNode`. `src` resolves relative to
+  the document's own directory (recorded on `UiRuntime` as its base dir, the same
+  way CSS and JS links already resolve), loads as a `Handle<Image>`, and is
+  load-guarded so a stable `src` loads only once. Sizing is CSS-driven
+  (`NodeImageMode::Auto`); `object-fit` is intentionally out of scope until
+  bevy_ui gains fit modes.
+- `cargo superui test`: the end-to-end test runner is now included as a subcommand 
+  of the CLI.
+- `UiRuntime::take_errors`: drains uncaught JavaScript evaluation errors captured
+  since the last call. Previously these were logged and discarded; now apps and
+  tooling can read them to surface a failing author script.
+- `transpiler` cargo feature on `superui`: compiles the oxc `.tsx` transpiler into
+  the build (including wasm), enabling in-browser transpilation for live
+  playgrounds.
+
+### Changed
+
+- `cargo-superui` parses its arguments with `argh` instead of hand-rolled flag
+  parsing.
+
+### Fixed
+
+- The test engine now loads images, fonts, and class utilities, so
+  screenshot-based end-to-end tests render the same as the running app.
+
 ## [0.3.5] - 2026-09-25
 
 ### Added
