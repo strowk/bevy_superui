@@ -1,38 +1,98 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use argh::FromArgs;
 use superui_cli::{
     find_module_dts, gitignore_needs_entry, projected_modules, tsconfig_has_path, GITIGNORE_ENTRY,
     TSCONFIG_TEMPLATE,
 };
+use superui_test_engine::cli::{run_tests, TestRunConfig};
+
+/// superui developer CLI.
+#[derive(FromArgs, Debug, PartialEq)]
+struct Cli {
+    #[argh(subcommand)]
+    cmd: Cmd,
+}
+
+#[derive(FromArgs, Debug, PartialEq)]
+#[argh(subcommand)]
+enum Cmd {
+    Install(InstallCmd),
+    Test(TestCmd),
+}
+
+/// Project superui editor types & tsconfig into a project.
+#[derive(FromArgs, Debug, PartialEq)]
+#[argh(subcommand, name = "install")]
+struct InstallCmd {
+    /// app directory (default: the nearest package from the cwd)
+    #[argh(option)]
+    path: Option<String>,
+}
+
+/// Run the superui E2E test engine against the current project.
+#[derive(FromArgs, Debug, PartialEq)]
+#[argh(subcommand, name = "test")]
+struct TestCmd {
+    /// overwrite snapshot baselines instead of diffing them
+    #[argh(switch)]
+    update: bool,
+    /// launch interactive UI mode instead of a headless run
+    #[argh(switch)]
+    ui: bool,
+    /// only run spec files whose path contains this substring
+    #[argh(positional)]
+    filter: Option<String>,
+}
+
+/// Parse argv (already past the binary name) into [`Cli`].
+///
+/// Invoked as `cargo superui <cmd>`, cargo passes "superui" as the first arg;
+/// strip it so argh sees the subcommand directly.
+fn parse(args: &[String]) -> Result<Cli, argh::EarlyExit> {
+    let rest = match args.first().map(String::as_str) {
+        Some("superui") => &args[1..],
+        _ => args,
+    };
+    let strs: Vec<&str> = rest.iter().map(String::as_str).collect();
+    Cli::from_args(&["cargo-superui"], &strs)
+}
 
 fn main() {
-    if let Err(e) = run() {
-        eprintln!("cargo-superui: {e}");
-        std::process::exit(1);
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let cli = match parse(&args) {
+        Ok(cli) => cli,
+        Err(early) => {
+            // argh routes --help to stdout (exit 0) and usage errors to stderr.
+            match early.status {
+                Ok(()) => {
+                    print!("{}", early.output);
+                    std::process::exit(0);
+                }
+                Err(()) => {
+                    eprint!("{}", early.output);
+                    std::process::exit(1);
+                }
+            }
+        }
+    };
+
+    match cli.cmd {
+        Cmd::Install(InstallCmd { path }) => {
+            if let Err(e) = install(path) {
+                eprintln!("cargo-superui: {e}");
+                std::process::exit(1);
+            }
+        }
+        Cmd::Test(TestCmd { update, ui, filter }) => {
+            std::process::exit(run_tests(TestRunConfig { update, ui, filter }));
+        }
     }
 }
 
-fn run() -> Result<(), Box<dyn std::error::Error>> {
-    let mut args: Vec<String> = std::env::args().skip(1).collect();
-    // Invoked as `cargo superui install`, cargo passes "superui" as the first arg.
-    if args.first().map(String::as_str) == Some("superui") {
-        args.remove(0);
-    }
-    match args.first().map(String::as_str) {
-        Some("install") => install(&args[1..]),
-        None => Err("no command given; try `cargo superui install`".into()),
-        other => Err(format!("unknown command {other:?}; try `cargo superui install`").into()),
-    }
-}
-
-/// Minimal `--flag value` parser.
-fn flag(args: &[String], name: &str) -> Option<String> {
-    args.iter().position(|a| a == name).and_then(|i| args.get(i + 1).cloned())
-}
-
-fn install(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
-    let app_dir = match flag(args, "--path") {
+fn install(path: Option<String>) -> Result<(), Box<dyn std::error::Error>> {
+    let app_dir = match path {
         Some(p) => PathBuf::from(p),
         None => current_package_dir()?,
     };
@@ -127,4 +187,45 @@ fn run_cargo(args: &[&str]) -> Result<String, Box<dyn std::error::Error>> {
         .into());
     }
     Ok(String::from_utf8(out.stdout)?)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn argv(parts: &[&str]) -> Vec<String> {
+        parts.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn parses_install_with_path() {
+        let cli = parse(&argv(&["install", "--path", "app"])).unwrap();
+        assert_eq!(cli.cmd, Cmd::Install(InstallCmd { path: Some("app".into()) }));
+    }
+
+    #[test]
+    fn strips_cargo_superui_prefix() {
+        let cli = parse(&argv(&["superui", "install"])).unwrap();
+        assert_eq!(cli.cmd, Cmd::Install(InstallCmd { path: None }));
+    }
+
+    #[test]
+    fn parses_test_switches_and_filter() {
+        let cli = parse(&argv(&["test", "--update", "--ui", "cart"])).unwrap();
+        assert_eq!(
+            cli.cmd,
+            Cmd::Test(TestCmd { update: true, ui: true, filter: Some("cart".into()) })
+        );
+    }
+
+    #[test]
+    fn parses_bare_test() {
+        let cli = parse(&argv(&["test"])).unwrap();
+        assert_eq!(cli.cmd, Cmd::Test(TestCmd { update: false, ui: false, filter: None }));
+    }
+
+    #[test]
+    fn unknown_command_is_early_exit() {
+        assert!(parse(&argv(&["frobnicate"])).is_err());
+    }
 }

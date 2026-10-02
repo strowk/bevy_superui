@@ -1,5 +1,6 @@
 //! Playwright-shaped E2E test engine for superui UIs (native-only).
 pub mod abi;
+pub mod cli;
 pub mod command;
 pub mod config;
 pub mod driver;
