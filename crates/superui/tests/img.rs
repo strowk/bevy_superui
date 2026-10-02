@@ -2,7 +2,6 @@
 mod support;
 use support::*;
 
-use bevy::prelude::*;
 use superui::UiRuntime;
 
 #[test]
@@ -17,7 +16,7 @@ fn mount_records_entry_directory_as_base_dir() {
 
     let rt = app
         .world()
-        .get_non_send_resource::<UiRuntime>()
+        .get_non_send::<UiRuntime>()
         .expect("runtime mounted");
     assert_eq!(rt.base_dir, "ui/x", "base_dir must be the entry HTML's parent dir");
 }
