@@ -17,6 +17,10 @@ use crate::runtime::{DomNode, PlaceholderText, UiRuntime};
 pub struct PendingDomEvent {
     pub target: NodeId,
     pub type_: String,
+    /// `KeyboardEvent.key`, when this event carries one (e.g. a synthetic
+    /// `keydown` from the test engine's `press(key)`). `None` for non-key
+    /// events (click, input, focus, …).
+    pub key: Option<String>,
     pub bubbles: bool,
     pub cancelable: bool,
 }
@@ -26,9 +30,17 @@ impl PendingDomEvent {
         PendingDomEvent {
             target,
             type_: type_.to_string(),
+            key: None,
             bubbles: true,
             cancelable: true,
         }
+    }
+
+    /// Attach a `KeyboardEvent.key` value (browser-standard, e.g. `"Enter"`,
+    /// `"Escape"`, `` "`" ``) to a `keydown`/`keyup` event.
+    pub fn with_key(mut self, key: &str) -> Self {
+        self.key = Some(key.to_string());
+        self
     }
 }
 
@@ -407,7 +419,7 @@ pub fn drain_dom_events_system(world: &mut World) {
         return;
     };
     for e in queued {
-        rt.dispatch_dom_event(e.target, &e.type_, None, e.bubbles, e.cancelable);
+        rt.dispatch_dom_event(e.target, &e.type_, e.key.as_deref(), e.bubbles, e.cancelable);
     }
     rt.dirty = true;
     world.insert_non_send(rt);

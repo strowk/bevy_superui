@@ -476,13 +476,15 @@ fn fill(app: &mut App, spec: &LocatorSpec, text: &str) {
 
 fn press(app: &mut App, spec: &LocatorSpec, key: &str) {
     if let Some(&node) = resolve_nodes(app, spec).first() {
-        // Phase-1: dispatch a keydown DOM event; text mutation for printable keys
-        // is handled by the app's own handlers where wired.
-        let _ = key;
+        // Phase-1: dispatch a keydown DOM event carrying `key`, so an
+        // `onKeyDown` handler can branch on `event.key` (e.g. "Enter",
+        // "Escape", "`") exactly as it would for a real keypress. Text
+        // mutation for printable keys is handled by the app's own handlers
+        // where wired.
         app.world_mut()
             .resource_mut::<PendingDomEvents>()
             .0
-            .push(PendingDomEvent::new(node, "keydown"));
+            .push(PendingDomEvent::new(node, "keydown").with_key(key));
     }
 }
 
