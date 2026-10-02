@@ -6,6 +6,8 @@ fn fixture() -> HostProject {
         css: include_str!("fixtures/basic/style.css").to_string(),
         js_or_tsx: include_str!("fixtures/basic/app.tsx").to_string(),
         tsx: true,
+        mount_root: "ui".into(),
+        extra_assets: vec![],
     }
 }
 

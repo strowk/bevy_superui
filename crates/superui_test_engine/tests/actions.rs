@@ -19,6 +19,8 @@ fn project() -> HostProject {
         "#
         .into(),
         tsx: true,
+        mount_root: "ui".into(),
+        extra_assets: vec![],
     }
 }
 

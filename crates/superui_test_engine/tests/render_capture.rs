@@ -14,6 +14,8 @@ fn fixture() -> HostProject {
 render(() => <div id="box"></div>, document.getElementById("root"));"#
             .into(),
         tsx: true,
+        mount_root: "ui".into(),
+        extra_assets: vec![],
     }
 }
 

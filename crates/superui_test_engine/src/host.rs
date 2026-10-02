@@ -18,31 +18,46 @@ pub struct HostProject {
     /// Full manifest HTML (`index.html` content) — must declare `<link>` and
     /// `<script>` that reference the CSS and JS registered in memory.
     pub html: String,
-    /// Stylesheet content (registered at `ui/style.css` and `ui/theme.css`).
+    /// Stylesheet content (registered at `<mount_root>/style.css` and `theme.css`).
     pub css: String,
-    /// JS or TSX source content (registered at `ui/app.tsx` or `ui/app.js`).
+    /// JS or TSX source content (registered at `<mount_root>/app.tsx` or `app.js`).
     pub js_or_tsx: String,
     pub tsx: bool,
-    /// Binary project assets (images) to mount, as (project-relative path, bytes).
-    /// Each is registered at `ui/<path>` so `<img src>` references resolve the
-    /// same way they do under `cargo run`.
+    /// Asset-source path the project mounts under, mirroring how the running app
+    /// addresses its files from the Bevy asset root (e.g. `ui/main` for a project
+    /// at `assets/ui/main`). Absolute `@font-face url("ui/main/fonts/x.ttf")`
+    /// paths only resolve when the mount mirrors this; hand-built fixtures use
+    /// `ui`. See `config::project_mount_root`.
+    pub mount_root: String,
+    /// Binary project assets (images and fonts) to mount, as (project-relative
+    /// path, bytes). Each is registered at `<mount_root>/<path>` so `<img src>`
+    /// and `@font-face url()` resolve the same way they do under `cargo run`.
     pub extra_assets: Vec<(String, Vec<u8>)>,
 }
 
-/// Register the in-memory asset source for a project. Registers the manifest
-/// at `ui/index.html`, the CSS at `ui/style.css` + `ui/theme.css`, and the
-/// script at `ui/app.tsx` or `ui/app.js`. For TSX projects, the content is
-/// pre-transpiled and registered at the generated-JS path (`ui/.superui/build/app.js`)
-/// so the non-HMR mount seam (`app.tsx` → `.superui/build/app.js`) can find it.
-/// Shared by headless and render hosts.
+/// Asset-source path of the entry HTML, so [`spawn_root`] loads it from the
+/// project's real mount root rather than a hardcoded path.
+#[derive(Resource, Clone)]
+struct EntryHtmlPath(String);
+
+/// Register the in-memory asset source for a project, all paths prefixed by
+/// `project.mount_root` (e.g. `ui/main`) so they resolve the way the running app
+/// addresses them from the asset root. Registers the manifest at
+/// `<root>/index.html`, the CSS at `<root>/style.css` + `<root>/theme.css`, and
+/// the script at `<root>/app.tsx` or `<root>/app.js`. For TSX projects, the
+/// content is pre-transpiled and registered at the generated-JS path
+/// (`<root>/.superui/build/app.js`) so the non-HMR mount seam
+/// (`app.tsx` → `.superui/build/app.js`) can find it. Records the entry path in
+/// [`EntryHtmlPath`] for [`spawn_root`]. Shared by headless and render hosts.
 pub(crate) fn register_project_assets(app: &mut App, project: &HostProject) {
+    let root = project.mount_root.trim_end_matches('/');
     let dir = Dir::new("assets".into());
-    dir.insert_asset("ui/index.html".as_ref(), project.html.as_bytes().to_vec());
+    dir.insert_asset(format!("{root}/index.html").as_ref(), project.html.as_bytes().to_vec());
     // Register under both common names so both `style.css` and `theme.css`
     // hrefs in the manifest work without the caller needing to know which name
     // the manifest uses.
-    dir.insert_asset("ui/style.css".as_ref(), project.css.as_bytes().to_vec());
-    dir.insert_asset("ui/theme.css".as_ref(), project.css.as_bytes().to_vec());
+    dir.insert_asset(format!("{root}/style.css").as_ref(), project.css.as_bytes().to_vec());
+    dir.insert_asset(format!("{root}/theme.css").as_ref(), project.css.as_bytes().to_vec());
     // `style.css` typically `@import`s the Tailwind-compatible utility sheet at
     // `.superui/build/utilities.generated.css`. In a normal build that file is
     // emitted by build.rs / HMR; here we regenerate it in-memory from the
@@ -59,32 +74,33 @@ pub(crate) fn register_project_assets(app: &mut App, project: &HostProject) {
         }
     };
     dir.insert_asset(
-        "ui/.superui/build/utilities.generated.css".as_ref(),
+        format!("{root}/.superui/build/utilities.generated.css").as_ref(),
         utilities_css.as_bytes().to_vec(),
     );
     if project.tsx {
-        // Register the raw source at `ui/app.tsx` (live-HMR path).
-        dir.insert_asset("ui/app.tsx".as_ref(), project.js_or_tsx.as_bytes().to_vec());
+        // Register the raw source at `<root>/app.tsx` (live-HMR path).
+        dir.insert_asset(format!("{root}/app.tsx").as_ref(), project.js_or_tsx.as_bytes().to_vec());
         // In non-HMR builds (including all test runs) the mount seam maps
-        // `app.tsx` → `ui/.superui/build/app.js`. Pre-transpile and register
+        // `app.tsx` → `<root>/.superui/build/app.js`. Pre-transpile and register
         // the output there so the JsLoader finds it on that path.
         let opts = supersolid::TranspileOptions {
             tsx: true,
-            module_id: Some("ui/app.tsx".to_string()),
+            module_id: Some(format!("{root}/app.tsx")),
             ..Default::default()
         };
         let result = supersolid::transpile(&project.js_or_tsx, &opts);
-        dir.insert_asset("ui/.superui/build/app.js".as_ref(), result.code.as_bytes().to_vec());
+        dir.insert_asset(format!("{root}/.superui/build/app.js").as_ref(), result.code.as_bytes().to_vec());
     } else {
-        dir.insert_asset("ui/app.js".as_ref(), project.js_or_tsx.as_bytes().to_vec());
+        dir.insert_asset(format!("{root}/app.js").as_ref(), project.js_or_tsx.as_bytes().to_vec());
     }
 
-    // Mount binary project assets (images) so `<img src>` loads instead of
-    // failing with "Path not found" the way fonts do.
+    // Mount binary project assets (images and fonts) so `<img src>` and
+    // `@font-face url()` load instead of failing with "Path not found".
     for (rel, bytes) in &project.extra_assets {
-        dir.insert_asset(format!("ui/{rel}").as_ref(), bytes.clone());
+        dir.insert_asset(format!("{root}/{rel}").as_ref(), bytes.clone());
     }
 
+    app.insert_resource(EntryHtmlPath(format!("{root}/index.html")));
     app.register_asset_source(
         AssetSourceId::Default,
         AssetSourceBuilder::new(move || Box::new(MemoryAssetReader { root: dir.clone() })),
@@ -116,7 +132,8 @@ pub fn build_headless_app(project: &HostProject) -> App {
 /// Does NOT pump frames — the caller (or `mount_when_ready`) drives mounting.
 /// Returns the spawned root entity.
 pub fn spawn_root(world: &mut World) -> Entity {
-    let html = world.resource::<AssetServer>().load::<HtmlSource>("ui/index.html");
+    let entry = world.resource::<EntryHtmlPath>().0.clone();
+    let html = world.resource::<AssetServer>().load::<HtmlSource>(entry);
     // The root MUST fill the viewport: game_menu (and similar UIs) have a
     // `#root`/`.stage` tree with `100%`/`inset:0`/`position:absolute` children
     // that collapse to zero against an auto-sized root, producing BLANK

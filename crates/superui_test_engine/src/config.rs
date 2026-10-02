@@ -87,14 +87,40 @@ pub fn load_project(project_dir: &Path) -> Result<crate::host::HostProject, Stri
             .unwrap_or_default(),
         js_or_tsx: js,
         tsx,
-        extra_assets: collect_image_assets(project_dir),
+        mount_root: project_mount_root(project_dir),
+        extra_assets: collect_binary_assets(project_dir),
     })
 }
 
-/// Recursively collect image files under `project_dir` as (relative path, bytes)
-/// so the host can mount them for `<img>` to load. Paths use `/` separators to
-/// match asset-source lookups regardless of platform.
-fn collect_image_assets(project_dir: &Path) -> Vec<(String, Vec<u8>)> {
+/// Asset-source path the project mounts under, mirroring how the running app
+/// addresses its files from the Bevy asset root. The app's root is the `assets`
+/// directory, so a project at `<..>/assets/ui/main` is addressed as `ui/main`
+/// (e.g. `@font-face` `url("ui/main/fonts/x.ttf")`); the test host must mount it
+/// there, not at a flat synthetic root, or absolute `url()` paths miss. Falls
+/// back to `ui` for a project not under an `assets` dir.
+fn project_mount_root(project_dir: &Path) -> String {
+    use std::path::Component;
+    let segs: Vec<String> = project_dir
+        .components()
+        .filter_map(|c| match c {
+            Component::Normal(s) => Some(s.to_string_lossy().into_owned()),
+            _ => None,
+        })
+        .collect();
+    if let Some(idx) = segs.iter().rposition(|s| s.eq_ignore_ascii_case("assets")) {
+        let rel = &segs[idx + 1..];
+        if !rel.is_empty() {
+            return rel.join("/");
+        }
+    }
+    "ui".to_string()
+}
+
+/// Recursively collect binary assets (images and fonts) under `project_dir` as
+/// (relative path, bytes) so the host can mount them for `<img>` and
+/// `@font-face url()` to load. Paths use `/` separators to match asset-source
+/// lookups regardless of platform.
+fn collect_binary_assets(project_dir: &Path) -> Vec<(String, Vec<u8>)> {
     fn walk(dir: &Path, base: &Path, out: &mut Vec<(String, Vec<u8>)>) {
         let Ok(entries) = std::fs::read_dir(dir) else { return };
         for e in entries.flatten() {
@@ -107,7 +133,7 @@ fn collect_image_assets(project_dir: &Path) -> Vec<(String, Vec<u8>)> {
                 walk(&p, base, out);
             } else if matches!(
                 p.extension().and_then(|x| x.to_str()).map(str::to_ascii_lowercase).as_deref(),
-                Some("png" | "jpg" | "jpeg" | "webp")
+                Some("png" | "jpg" | "jpeg" | "webp" | "ttf" | "otf" | "woff" | "woff2")
             ) {
                 if let (Ok(rel), Ok(bytes)) = (p.strip_prefix(base), std::fs::read(&p)) {
                     out.push((rel.to_string_lossy().replace('\\', "/"), bytes));
@@ -164,6 +190,39 @@ mod tests {
         assert_eq!(cfg.width, 800);
         assert_eq!(cfg.height, 600);
         assert!((cfg.max_diff_ratio - 0.05).abs() < 1e-9);
+    }
+
+    #[test]
+    fn mount_root_mirrors_path_under_assets_dir() {
+        use super::project_mount_root;
+        let p = std::path::Path::new("some/game/assets/ui/main");
+        assert_eq!(project_mount_root(p), "ui/main");
+    }
+
+    #[test]
+    fn mount_root_falls_back_to_ui_without_assets_dir() {
+        use super::project_mount_root;
+        let p = std::path::Path::new("some/game/ui/main");
+        assert_eq!(project_mount_root(p), "ui");
+    }
+
+    #[test]
+    fn collects_font_files_as_assets() {
+        use super::collect_binary_assets;
+        let dir = std::env::temp_dir().join("superui_test_fonts");
+        std::fs::create_dir_all(dir.join("fonts")).unwrap();
+        std::fs::write(dir.join("fonts/MyFont-Regular.ttf"), b"ttf-bytes").unwrap();
+        std::fs::write(dir.join("fonts/MyFont-Bold.woff2"), b"woff2-bytes").unwrap();
+        let assets = collect_binary_assets(&dir);
+        let paths: Vec<_> = assets.iter().map(|(p, _)| p.as_str()).collect();
+        assert!(
+            paths.contains(&"fonts/MyFont-Regular.ttf"),
+            "expected the .ttf font to be mounted, got {paths:?}"
+        );
+        assert!(
+            paths.contains(&"fonts/MyFont-Bold.woff2"),
+            "expected the .woff2 font to be mounted, got {paths:?}"
+        );
     }
 
     #[test]

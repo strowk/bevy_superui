@@ -12,6 +12,8 @@ fn records_a_step_per_action() {
             render(() => <div id="a" class="x">A</div>, document.getElementById("root"));
         "#.into(),
         tsx: true,
+        mount_root: "ui".into(),
+        extra_assets: vec![],
     });
     let spec = r##"
         import { test, expect } from "superui/test";
