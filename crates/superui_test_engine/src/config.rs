@@ -87,7 +87,37 @@ pub fn load_project(project_dir: &Path) -> Result<crate::host::HostProject, Stri
             .unwrap_or_default(),
         js_or_tsx: js,
         tsx,
+        extra_assets: collect_image_assets(project_dir),
     })
+}
+
+/// Recursively collect image files under `project_dir` as (relative path, bytes)
+/// so the host can mount them for `<img>` to load. Paths use `/` separators to
+/// match asset-source lookups regardless of platform.
+fn collect_image_assets(project_dir: &Path) -> Vec<(String, Vec<u8>)> {
+    fn walk(dir: &Path, base: &Path, out: &mut Vec<(String, Vec<u8>)>) {
+        let Ok(entries) = std::fs::read_dir(dir) else { return };
+        for e in entries.flatten() {
+            let p = e.path();
+            if p.is_dir() {
+                // Skip the generated build dir; it holds no referenced images.
+                if p.file_name().and_then(|n| n.to_str()) == Some(".superui") {
+                    continue;
+                }
+                walk(&p, base, out);
+            } else if matches!(
+                p.extension().and_then(|x| x.to_str()).map(str::to_ascii_lowercase).as_deref(),
+                Some("png" | "jpg" | "jpeg" | "webp")
+            ) {
+                if let (Ok(rel), Ok(bytes)) = (p.strip_prefix(base), std::fs::read(&p)) {
+                    out.push((rel.to_string_lossy().replace('\\', "/"), bytes));
+                }
+            }
+        }
+    }
+    let mut out = Vec::new();
+    walk(project_dir, project_dir, &mut out);
+    out
 }
 
 #[cfg(test)]

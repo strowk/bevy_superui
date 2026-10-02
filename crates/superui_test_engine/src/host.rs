@@ -23,6 +23,10 @@ pub struct HostProject {
     /// JS or TSX source content (registered at `ui/app.tsx` or `ui/app.js`).
     pub js_or_tsx: String,
     pub tsx: bool,
+    /// Binary project assets (images) to mount, as (project-relative path, bytes).
+    /// Each is registered at `ui/<path>` so `<img src>` references resolve the
+    /// same way they do under `cargo run`.
+    pub extra_assets: Vec<(String, Vec<u8>)>,
 }
 
 /// Register the in-memory asset source for a project. Registers the manifest
@@ -73,6 +77,12 @@ pub(crate) fn register_project_assets(app: &mut App, project: &HostProject) {
         dir.insert_asset("ui/.superui/build/app.js".as_ref(), result.code.as_bytes().to_vec());
     } else {
         dir.insert_asset("ui/app.js".as_ref(), project.js_or_tsx.as_bytes().to_vec());
+    }
+
+    // Mount binary project assets (images) so `<img src>` loads instead of
+    // failing with "Path not found" the way fonts do.
+    for (rel, bytes) in &project.extra_assets {
+        dir.insert_asset(format!("ui/{rel}").as_ref(), bytes.clone());
     }
 
     app.register_asset_source(
