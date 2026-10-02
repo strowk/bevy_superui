@@ -103,6 +103,7 @@ impl UiRuntime {
             self.input_texts.remove(&node);
             self.editable_synced.remove(&node);
             self.range_synced.remove(&node);
+            self.img_src.remove(&node);
             if let Some(parts) = self.range_parts.remove(&node) {
                 for part in [parts.track, parts.fill, parts.thumb] {
                     if let Ok(ec) = world.get_entity_mut(part) {
@@ -253,7 +254,14 @@ impl UiRuntime {
             self.sync_editable_input(world, dom, parent_node, parent_entity, true);
         } else if Self::is_checkbox(dom, parent_node) {
             self.sync_checkbox_mark(world, dom, parent_node, parent_entity);
+        } else if Self::is_img(dom, parent_node) {
+            self.sync_img(world, dom, parent_node, parent_entity);
         }
+    }
+
+    /// Is `node` an `<img>` element?
+    fn is_img(dom: &superui_dom::Dom, node: NodeId) -> bool {
+        matches!(dom.tag(node), Some("img"))
     }
 
     /// Is `node` a checkbox `<input>`?
@@ -430,6 +438,41 @@ impl UiRuntime {
         if !multiline {
             self.sync_placeholder_overlay(world, dom, input_node, input_entity, synced.is_empty());
         }
+    }
+
+    /// Load an `<img>`'s `src` as a `Handle<Image>` and attach it via `ImageNode`.
+    /// `src` is resolved against `base_dir` with `join_asset` (same rule as CSS/JS
+    /// links). An absent/empty `src` removes any existing `ImageNode`. The
+    /// `img_src` guard means a stable `src` issues exactly one load and re-inserts
+    /// nothing, matching the reconciler's change-detection discipline elsewhere.
+    /// No `object-fit`: `NodeImageMode::Auto` uses the texture's intrinsic size,
+    /// aspect-preserving when one axis is CSS-constrained.
+    fn sync_img(
+        &mut self,
+        world: &mut World,
+        dom: &superui_dom::Dom,
+        node: NodeId,
+        entity: Entity,
+    ) {
+        let src = dom.get_attribute(node, "src").unwrap_or("");
+        if src.is_empty() {
+            if world.get::<ImageNode>(entity).is_some() {
+                world.entity_mut(entity).remove::<ImageNode>();
+            }
+            self.img_src.remove(&node);
+            return;
+        }
+        let path = superui_paths::join_asset(&self.base_dir, src);
+        if self.img_src.get(&node) == Some(&path) {
+            return;
+        }
+        let handle = world.resource::<AssetServer>().clone().load::<Image>(&path);
+        world.entity_mut(entity).insert(ImageNode {
+            image: handle,
+            image_mode: NodeImageMode::Auto,
+            ..default()
+        });
+        self.img_src.insert(node, path);
     }
 
     /// A range `<input>` carries the headless `bevy_ui_widgets` slider on the

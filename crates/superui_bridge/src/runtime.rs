@@ -119,7 +119,6 @@ pub struct UiRuntime {
     /// Per-`<img>` last resolved asset path a load was issued for. Guards against
     /// re-issuing `AssetServer::load` every reconcile pass; cleared when the node
     /// is despawned.
-    #[allow(dead_code)]
     pub(crate) img_src: std::collections::HashMap<superui_dom::NodeId, String>,
     /// Uncaught JS eval errors captured since the last `take_errors` drain.
     errors: Vec<String>,
