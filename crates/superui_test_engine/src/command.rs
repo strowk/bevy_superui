@@ -28,6 +28,14 @@ pub enum Command {
         #[serde(default)]
         opts: serde_json::Value,
     },
+    /// Deliver a game→UI bridge event to the UI's `bevy.on(name, …)` subscribers
+    /// (the counterpart of the game calling `commands.trigger`), carrying `value`
+    /// as the JSON payload. Lets a spec supply data a UI pulls over the bridge,
+    /// which the headless host has no game side to send.
+    Emit {
+        name: String,
+        value: serde_json::Value,
+    },
 }
 
 #[derive(Clone, Debug)]

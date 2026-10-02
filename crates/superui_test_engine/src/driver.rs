@@ -189,6 +189,16 @@ fn run_one(app: &mut App, test: &RegisteredTest, opts: &RunOptions) -> TestResul
                         action,
                     });
                 }
+                Command::Emit { name, value } => {
+                    // Deliver straight to the UI's bevy.on(name, …) callbacks via the
+                    // production ECS→JS leg: engine.emit invokes the __ss_emit hook that
+                    // emit_bevy_inbox_system uses in a real app. The callback's signal
+                    // writes are reconciled by this iteration's app.update() below.
+                    with_engine(app, |e| {
+                        e.emit(name, value);
+                        abi::resolve(e, q.id, r#"{"ok":true,"value":null}"#);
+                    });
+                }
             }
         }
 

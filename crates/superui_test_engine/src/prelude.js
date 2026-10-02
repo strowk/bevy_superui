@@ -114,6 +114,12 @@ if (!globalThis.__sstest) {
 
   globalThis.page = {
     locator(sel, opts) { return makeLocator([]).locator(sel, opts); },
+    // Deliver a game→UI bridge event to the UI's bevy.on(name, …) callbacks, the
+    // way the running game would via commands.trigger. Use it to supply data a UI
+    // pulls over the bridge (the headless host has no game side to send it).
+    async emit(name, value) {
+      return enqueue({ type: "emit", name: String(name), value: value === undefined ? null : value });
+    },
   };
 
   globalThis.expect = function (target) {

@@ -311,6 +311,14 @@ fn step_running(world: &mut World, run: &mut RunState) {
                         action,
                     });
                 }
+                Command::Emit { name, value } => {
+                    // Same production ECS→JS leg as driver.rs; the next frame's
+                    // reconcile (already scheduled) applies the callback's signal writes.
+                    with_engine(world, |e| {
+                        e.emit(name, value);
+                        abi::resolve(e, q.id, r#"{"ok":true,"value":null}"#);
+                    });
+                }
             }
         }
 
