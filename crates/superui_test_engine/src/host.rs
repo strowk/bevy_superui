@@ -39,6 +39,25 @@ pub(crate) fn register_project_assets(app: &mut App, project: &HostProject) {
     // the manifest uses.
     dir.insert_asset("ui/style.css".as_ref(), project.css.as_bytes().to_vec());
     dir.insert_asset("ui/theme.css".as_ref(), project.css.as_bytes().to_vec());
+    // `style.css` typically `@import`s the Tailwind-compatible utility sheet at
+    // `.superui/build/utilities.generated.css`. In a normal build that file is
+    // emitted by build.rs / HMR; here we regenerate it in-memory from the
+    // project source so the import resolves and the stylesheet loads (without
+    // it, flair fails the whole sheet and mount never completes). Always
+    // registered — a comment placeholder when no utilities are used — so the
+    // import never dangles.
+    let utilities_css = {
+        let css = superui_css_utilities::generate(&[project.js_or_tsx.as_str()]);
+        if css.is_empty() {
+            "/* superui class utilities — none in use */\n".to_string()
+        } else {
+            css
+        }
+    };
+    dir.insert_asset(
+        "ui/.superui/build/utilities.generated.css".as_ref(),
+        utilities_css.as_bytes().to_vec(),
+    );
     if project.tsx {
         // Register the raw source at `ui/app.tsx` (live-HMR path).
         dir.insert_asset("ui/app.tsx".as_ref(), project.js_or_tsx.as_bytes().to_vec());
