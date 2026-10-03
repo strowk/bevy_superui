@@ -89,10 +89,50 @@ impl AssetLoader for TsxLoader {
         let tsx = lc.path().path().extension().and_then(|e| e.to_str()) != Some("ts");
         let module_id = Some(lc.path().path().to_string_lossy().into_owned());
         let opts = supersolid::TranspileOptions { tsx, module_id, ..Default::default() };
-        let result = supersolid::transpile(&src, &opts);
+        let mut result = supersolid::transpile(&src, &opts);
         for d in &result.diagnostics {
             bevy::log::warn!("supersolid: {}", d.message);
         }
+
+        // Resolve `.json` imports the transpiler recorded (file I/O is the
+        // loader's job, not the pure transpiler's). Each resolved binding is
+        // read via `read_asset_bytes`, which also registers the JSON file as
+        // a load dependency so editing it triggers hot reload of this module.
+        let importer = lc.path().path().to_string_lossy().into_owned();
+        let dir = superui_paths::parent_dir(&importer);
+        let mut json_prelude = String::new();
+        for (binding, specifier) in &result.json_imports {
+            let asset_path = superui_paths::join_asset(dir, specifier);
+            let text = match lc.read_asset_bytes(asset_path.clone()).await {
+                Ok(bytes) => match String::from_utf8(bytes) {
+                    Ok(text) => text,
+                    Err(e) => {
+                        bevy::log::warn!(
+                            "supersolid: JSON import \"{specifier}\" ({asset_path}) is not valid UTF-8: {e}"
+                        );
+                        continue;
+                    }
+                },
+                Err(e) => {
+                    bevy::log::warn!(
+                        "supersolid: JSON import \"{specifier}\" ({asset_path}) could not be read: {e}"
+                    );
+                    continue;
+                }
+            };
+            match supersolid::json_binding(binding, &text) {
+                Ok(line) => json_prelude.push_str(&line),
+                Err(e) => {
+                    bevy::log::warn!(
+                        "supersolid: JSON import \"{specifier}\" ({asset_path}) is invalid: {e}"
+                    );
+                }
+            }
+        }
+        if !json_prelude.is_empty() {
+            result.code = format!("{json_prelude}{}", result.code);
+        }
+
         // Graceful degradation (design §1): return whatever JS was produced even on
         // diagnostics; never fail the load for a transpile warning.
         Ok(JsSource(result.code))
@@ -227,5 +267,46 @@ mod tests {
         let out = &jss.get(&handle).unwrap().0;
         assert!(!out.contains(": number"), "types stripped by loader:\n{out}");
         assert!(out.contains(r#"$ss.el("div")"#), "JSX lowered by loader:\n{out}");
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn tsx_loader_inlines_json_imports() {
+        let dir = Dir::new("assets".into());
+        dir.insert_asset("data.json".as_ref(), br#"{"n":7}"#);
+        dir.insert_asset(
+            "app.tsx".as_ref(),
+            br#"import data from "./data.json"; const a = <div>{data.n}</div>;"#,
+        );
+
+        let mut app = App::new();
+        app.register_asset_source(
+            AssetSourceId::Default,
+            AssetSourceBuilder::new(move || Box::new(MemoryAssetReader { root: dir.clone() })),
+        );
+        app.add_plugins((bevy::app::TaskPoolPlugin::default(), AssetPlugin::default()));
+        app.init_asset::<JsSource>().register_asset_loader(TsxLoader);
+        app.finish();
+
+        let handle = {
+            let server = app.world().resource::<AssetServer>().clone();
+            server.load::<JsSource>("app.tsx")
+        };
+        for _ in 0..64 {
+            app.update();
+            if matches!(
+                app.world().resource::<AssetServer>().load_state(handle.id()),
+                LoadState::Loaded
+            ) {
+                break;
+            }
+        }
+        let jss = app.world().resource::<Assets<JsSource>>();
+        let out = &jss.get(&handle).unwrap().0;
+        let re_spaced = out.contains(r#"const data = {"n": 7};"#);
+        assert!(
+            out.contains(r#"const data = {"n":7};"#) || re_spaced,
+            "loader must inline the JSON import as a top-level const:\n{out}"
+        );
     }
 }
