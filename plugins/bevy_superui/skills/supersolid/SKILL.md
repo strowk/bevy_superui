@@ -71,7 +71,9 @@ can be placed directly as element children:
 
 superui compiles each UI into a **single module** and strips imports between your own
 files. Put every component for one UI in its `app.tsx`; the only import you keep is
-`from "supersolid"`. No `import { X } from "./other.tsx"`.
+`from "supersolid"`. No `import { X } from "./other.tsx"`. The one exception is `.json`:
+`import x from "./data.json"` (default/namespace/named alike) inlines the whole parsed
+value as `const x` — no sub-path/member selection.
 
 ## The support surface is a SUBSET — check before you use it
 

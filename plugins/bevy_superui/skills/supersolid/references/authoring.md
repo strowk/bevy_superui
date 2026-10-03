@@ -131,4 +131,6 @@ stay in sync. Or lift state to a common ancestor and pass props. Both are idioma
 superui compiles each UI into a **single module** and strips imports between your own
 source files. Put every component for one UI in that UI's `app.tsx` as plain functions;
 the only import you keep is `from "supersolid"`. You **cannot** `import { X } from
-"./other.tsx"` today.
+"./other.tsx"` today. The one exception is `.json`: `import x from "./data.json"`
+(default/namespace/named alike) inlines the whole parsed value as `const x`; picking a
+sub-path or member out of the JSON is not supported.
