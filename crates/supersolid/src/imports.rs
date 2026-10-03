@@ -1,6 +1,6 @@
 //! Import rewriting: the engine runs plain (non-module) scripts, so imports are
 //! stripped. Strip ALL imports; classify each by specifier — runtime (silent),
-//! `.css` (record), else warn.
+//! `.css` (record), `.json` (record binding + specifier), else warn.
 
 use oxc::allocator::Allocator;
 use oxc::ast::ast::{Program, Statement};
@@ -11,9 +11,10 @@ pub(crate) fn rewrite(
     _allocator: &Allocator,
     program: &mut Program,
     options: &TranspileOptions,
-) -> (Vec<Diagnostic>, Vec<String>) {
+) -> (Vec<Diagnostic>, Vec<String>, Vec<(String, String)>) {
     let mut diagnostics = Vec::new();
     let mut style_imports = Vec::new();
+    let mut json_imports = Vec::new();
 
     // Inspect every import's specifier, classify, then drop all import statements.
     for stmt in program.body.iter() {
@@ -23,6 +24,10 @@ pub(crate) fn rewrite(
                 // silent — runtime specifiers are available as globals
             } else if specifier.to_ascii_lowercase().ends_with(".css") {
                 style_imports.push(specifier);
+            } else if specifier.to_ascii_lowercase().ends_with(".json") {
+                for spec in decl.specifiers.iter().flatten() {
+                    json_imports.push((spec.name().as_str().to_string(), specifier.clone()));
+                }
             } else {
                 diagnostics.push(Diagnostic {
                     severity: Severity::Warning,
@@ -35,5 +40,5 @@ pub(crate) fn rewrite(
     }
     program.body.retain(|stmt| !matches!(stmt, Statement::ImportDeclaration(_)));
 
-    (diagnostics, style_imports)
+    (diagnostics, style_imports, json_imports)
 }

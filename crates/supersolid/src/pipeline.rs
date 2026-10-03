@@ -7,7 +7,7 @@ use oxc::codegen::Codegen;
 use oxc::parser::Parser;
 use oxc::semantic::SemanticBuilder;
 use oxc::span::SourceType;
-use oxc::transformer::{JsxOptions, TransformOptions, Transformer};
+use oxc::transformer::{JsxOptions, TransformOptions, Transformer, TypeScriptOptions};
 
 use crate::{Diagnostic, TranspileOptions};
 
@@ -15,7 +15,7 @@ pub(crate) fn run(
     source: &str,
     options: &TranspileOptions,
     lower_jsx: bool,
-) -> (String, Vec<Diagnostic>, Vec<String>) {
+) -> (String, Vec<Diagnostic>, Vec<String>, Vec<(String, String)>) {
     let allocator = Allocator::default();
     let source_type = if options.tsx { SourceType::tsx() } else { SourceType::ts() };
 
@@ -48,13 +48,13 @@ pub(crate) fn run(
 
     if lower_jsx {
         crate::jsx::lower(&allocator, &mut program, options.module_id.as_deref());
-        let (mut import_diags, style_imports) =
+        let (mut import_diags, style_imports, json_imports) =
             crate::imports::rewrite(&allocator, &mut program, options);
         diagnostics.append(&mut import_diags);
-        return finish(&program, diagnostics, style_imports);
+        return finish(&program, diagnostics, style_imports, json_imports);
     }
 
-    finish(&program, diagnostics, vec![])
+    finish(&program, diagnostics, vec![], vec![])
 }
 
 /// Codegen + pack into the pipeline's return tuple.
@@ -62,9 +62,10 @@ fn finish(
     program: &oxc::ast::ast::Program,
     diagnostics: Vec<Diagnostic>,
     style_imports: Vec<String>,
-) -> (String, Vec<Diagnostic>, Vec<String>) {
+    json_imports: Vec<(String, String)>,
+) -> (String, Vec<Diagnostic>, Vec<String>, Vec<(String, String)>) {
     let code = Codegen::new().build(program).code;
-    (code, diagnostics, style_imports)
+    (code, diagnostics, style_imports, json_imports)
 }
 
 /// TransformOptions that strip TypeScript types but leave JSX untouched.
@@ -78,7 +79,17 @@ fn finish(
 ///   which preserves JSX in the output for our own pass.
 /// - TypeScript stripping runs automatically for `.tsx`/`.ts` SourceTypes when
 ///   the transformer is invoked (no explicit TypeScript option needed to enable it).
+/// - `TypeScriptOptions::only_remove_type_imports: false` (the default) makes
+///   oxc elide any import whose local binding is never referenced as a value —
+///   e.g. `import * as data from "./a.json"` with `data` unused vanishes before
+///   our `imports::rewrite` pass ever sees it. Setting it `true` narrows removal
+///   to explicit `import type { .. }` syntax, so our own import classification
+///   (css/json/runtime/warn) always runs against the full, untouched import list.
 fn ts_strip_jsx_preserve_options() -> TransformOptions {
     // Disable the JSX transform so JSX is preserved through codegen unchanged.
-    TransformOptions { jsx: JsxOptions::disable(), ..TransformOptions::default() }
+    TransformOptions {
+        jsx: JsxOptions::disable(),
+        typescript: TypeScriptOptions { only_remove_type_imports: true, ..TypeScriptOptions::default() },
+        ..TransformOptions::default()
+    }
 }

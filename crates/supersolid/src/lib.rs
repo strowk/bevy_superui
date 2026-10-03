@@ -47,18 +47,23 @@ pub struct Diagnostic {
 }
 
 /// The result of a transpile: emitted JS, diagnostics, and any co-located CSS
-/// imports discovered (recorded for a later cascade-wiring plan).
+/// or JSON imports discovered (recorded for a later cascade-wiring plan).
 #[derive(Debug, Clone, Default)]
 pub struct TranspileResult {
     pub code: String,
     pub diagnostics: Vec<Diagnostic>,
     pub style_imports: Vec<String>,
+    /// `(local_binding_name, specifier)` for every `.json` import, in
+    /// declaration order. No file I/O happens here — the transpiler only
+    /// records what was imported; resolving it is a later plan's job.
+    pub json_imports: Vec<(String, String)>,
 }
 
 /// Transpile Solid-style `.tsx`/`.ts` source to plain JavaScript.
 pub fn transpile(source: &str, options: &TranspileOptions) -> TranspileResult {
-    let (code, diagnostics, style_imports) = pipeline::run(source, options, /* lower_jsx */ true);
-    TranspileResult { code, diagnostics, style_imports }
+    let (code, diagnostics, style_imports, json_imports) =
+        pipeline::run(source, options, /* lower_jsx */ true);
+    TranspileResult { code, diagnostics, style_imports, json_imports }
 }
 
 /// Transpile one `.tsx`/`.ts` file to `output` (plain JS). Used by the CLI for
@@ -306,6 +311,30 @@ mod tests {
         assert_eq!(r.style_imports, vec!["./todo.css".to_string()]);
         assert!(r.diagnostics.is_empty(), "css import must not warn: {:?}", r.diagnostics);
         assert!(reparses_as_plain_js(&r.code));
+    }
+
+    #[test]
+    fn json_imports_are_recorded_not_warned() {
+        let r = transpile("import skills from \"./skills.json\"; const x = skills;", &TranspileOptions::default());
+        assert!(!r.code.contains("import"), "json import stripped from JS:\n{}", r.code);
+        assert_eq!(r.json_imports, vec![("skills".to_string(), "./skills.json".to_string())]);
+        assert!(r.diagnostics.is_empty(), "json import must not warn: {:?}", r.diagnostics);
+        assert!(reparses_as_plain_js(&r.code));
+    }
+
+    #[test]
+    fn json_import_captures_namespace_and_named_bindings() {
+        let ns = transpile("import * as data from \"./a.json\";", &TranspileOptions::default());
+        assert_eq!(ns.json_imports, vec![("data".to_string(), "./a.json".to_string())]);
+        let named = transpile("import { foo } from \"./b.json\";", &TranspileOptions::default());
+        assert_eq!(named.json_imports, vec![("foo".to_string(), "./b.json".to_string())]);
+    }
+
+    #[test]
+    fn bare_json_import_records_nothing() {
+        let r = transpile("import \"./x.json\"; const x = 1;", &TranspileOptions::default());
+        assert!(r.json_imports.is_empty(), "no binding to record: {:?}", r.json_imports);
+        assert!(r.diagnostics.is_empty());
     }
 
     #[test]
