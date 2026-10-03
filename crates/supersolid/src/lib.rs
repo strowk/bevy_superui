@@ -47,7 +47,7 @@ pub struct Diagnostic {
 }
 
 /// The result of a transpile: emitted JS, diagnostics, and any co-located CSS
-/// or JSON imports discovered (recorded for a later cascade-wiring plan).
+/// or JSON imports discovered (recorded for the caller to resolve).
 #[derive(Debug, Clone, Default)]
 pub struct TranspileResult {
     pub code: String,
@@ -340,6 +340,21 @@ mod tests {
     #[test]
     fn unknown_module_imports_warn() {
         let r = transpile("import { X } from \"./other\"; const x = X;", &TranspileOptions::default());
+        assert!(!r.code.contains("import"), "unknown import still stripped:\n{}", r.code);
+        assert_eq!(r.diagnostics.len(), 1, "one warning expected: {:?}", r.diagnostics);
+        assert_eq!(r.diagnostics[0].severity, Severity::Warning);
+        assert!(r.diagnostics[0].message.contains("./other"), "names specifier: {:?}", r.diagnostics);
+        assert!(reparses_as_plain_js(&r.code));
+    }
+
+    #[test]
+    fn unused_unknown_module_import_still_warns_once() {
+        // `only_remove_type_imports: true` means oxc no longer silently elides
+        // an unused-value import before `imports::rewrite` classifies it. An
+        // unknown-module import whose binding is never referenced must still
+        // warn exactly once (and still be stripped from the output), matching
+        // `unknown_module_imports_warn`'s used-binding case.
+        let r = transpile("import { X } from \"./other\";", &TranspileOptions::default());
         assert!(!r.code.contains("import"), "unknown import still stripped:\n{}", r.code);
         assert_eq!(r.diagnostics.len(), 1, "one warning expected: {:?}", r.diagnostics);
         assert_eq!(r.diagnostics[0].severity, Severity::Warning);
