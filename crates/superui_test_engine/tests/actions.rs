@@ -34,7 +34,7 @@ fn click_reveals_panel() {
             await expect(page.locator("#panel")).toHaveText("PANEL");
         });
     "##;
-    let js = transpile_spec(spec, "t.spec.ts").unwrap();
+    let js = transpile_spec(spec, "t.spec.ts", std::path::Path::new(".")).unwrap();
     let results = run_spec(&mut app, &js);
     assert_eq!(results.len(), 1);
     assert!(results[0].passed, "error: {:?}", results[0].error);

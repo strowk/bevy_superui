@@ -21,7 +21,7 @@ fn records_a_step_per_action() {
             await expect(page.locator("#a")).toHaveText("A");
         });
     "##;
-    let js = transpile_spec(spec, "t.spec.ts").unwrap();
+    let js = transpile_spec(spec, "t.spec.ts", std::path::Path::new(".")).unwrap();
     let results = run_spec(&mut app, &js);
     assert!(results[0].passed, "error: {:?}", results[0].error);
     assert_eq!(results[0].steps.len(), 1);

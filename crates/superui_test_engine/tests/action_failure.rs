@@ -32,7 +32,7 @@ fn click_on_missing_locator_fails() {
             await page.locator("#nope").click();
         });
     "##;
-    let js = transpile_spec(spec, "t.spec.ts").unwrap();
+    let js = transpile_spec(spec, "t.spec.ts", std::path::Path::new(".")).unwrap();
     let results = run_spec(&mut app, &js);
     assert_eq!(results.len(), 1);
     assert!(
@@ -56,7 +56,7 @@ fn click_on_existing_locator_still_passes() {
             await page.locator("#exists").click();
         });
     "##;
-    let js = transpile_spec(spec, "t.spec.ts").unwrap();
+    let js = transpile_spec(spec, "t.spec.ts", std::path::Path::new(".")).unwrap();
     let results = run_spec(&mut app, &js);
     assert_eq!(results.len(), 1);
     assert!(results[0].passed, "error: {:?}", results[0].error);

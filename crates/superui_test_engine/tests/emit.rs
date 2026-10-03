@@ -32,7 +32,7 @@ fn emit_delivers_scalar_to_bevy_on() {
             await expect(page.locator("#score")).toHaveText("42");
         });
     "##;
-    let js = transpile_spec(spec, "emit.spec.ts").unwrap();
+    let js = transpile_spec(spec, "emit.spec.ts", std::path::Path::new(".")).unwrap();
     let results = run_spec(&mut app, &js);
     assert_eq!(results.len(), 1);
     assert!(results[0].passed, "error: {:?}", results[0].error);
@@ -67,7 +67,7 @@ fn emit_delivers_object_payload() {
             await expect(page.locator("#hp")).toHaveText("7 / 10");
         });
     "##;
-    let js = transpile_spec(spec, "emit.spec.ts").unwrap();
+    let js = transpile_spec(spec, "emit.spec.ts", std::path::Path::new(".")).unwrap();
     let results = run_spec(&mut app, &js);
     assert!(results[0].passed, "error: {:?}", results[0].error);
 }
@@ -82,7 +82,7 @@ fn emit_to_unsubscribed_name_is_noop() {
             await expect(page.locator("#score")).toHaveText("none"); // unchanged
         });
     "##;
-    let js = transpile_spec(spec, "emit.spec.ts").unwrap();
+    let js = transpile_spec(spec, "emit.spec.ts", std::path::Path::new(".")).unwrap();
     let results = run_spec(&mut app, &js);
     assert!(results[0].passed, "error: {:?}", results[0].error);
 }
@@ -116,7 +116,7 @@ fn emit_without_value_delivers_null() {
             await expect(page.locator("#v")).toHaveText("null");
         });
     "##;
-    let js = transpile_spec(spec, "emit.spec.ts").unwrap();
+    let js = transpile_spec(spec, "emit.spec.ts", std::path::Path::new(".")).unwrap();
     let results = run_spec(&mut app, &js);
     assert!(results[0].passed, "error: {:?}", results[0].error);
 }
@@ -132,7 +132,7 @@ fn emit_string_with_special_chars_arrives_intact() {
             await expect(page.locator("#score")).toHaveText("a\"b\nc — ✓");
         });
     "##;
-    let js = transpile_spec(spec, "emit.spec.ts").unwrap();
+    let js = transpile_spec(spec, "emit.spec.ts", std::path::Path::new(".")).unwrap();
     let results = run_spec(&mut app, &js);
     assert!(results[0].passed, "error: {:?}", results[0].error);
 }
