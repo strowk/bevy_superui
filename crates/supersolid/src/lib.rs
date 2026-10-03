@@ -72,7 +72,30 @@ pub fn transpile_file(input: &std::path::Path, output: &std::path::Path) -> std:
     let src = std::fs::read_to_string(input)?;
     let tsx = input.extension().and_then(|e| e.to_str()) != Some("ts");
     let module_id = Some(input.to_string_lossy().into_owned());
-    let result = transpile(&src, &TranspileOptions { tsx, module_id, ..Default::default() });
+    let mut result = transpile(&src, &TranspileOptions { tsx, module_id, ..Default::default() });
+
+    let base = input.parent().unwrap_or_else(|| std::path::Path::new("."));
+    let mut inlined = String::new();
+    for (binding, specifier) in &result.json_imports {
+        let json_path = base.join(specifier);
+        match std::fs::read_to_string(&json_path) {
+            Ok(json_text) => match json_binding(binding, &json_text) {
+                Ok(line) => inlined.push_str(&line),
+                Err(e) => result.diagnostics.push(Diagnostic {
+                    severity: Severity::Warning,
+                    message: format!("supersolid: {} ({}): {e}", json_path.display(), specifier),
+                }),
+            },
+            Err(e) => result.diagnostics.push(Diagnostic {
+                severity: Severity::Warning,
+                message: format!("supersolid: could not read {} ({}): {e}", json_path.display(), specifier),
+            }),
+        }
+    }
+    if !inlined.is_empty() {
+        result.code = format!("{inlined}{}", result.code);
+    }
+
     std::fs::write(output, &result.code)?;
     Ok(result)
 }

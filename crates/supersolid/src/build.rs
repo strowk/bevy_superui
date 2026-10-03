@@ -39,6 +39,10 @@ fn transpile_dir_impl(ui_dir: &str, skip: bool) {
                 for d in &result.diagnostics {
                     println!("cargo:warning=supersolid: {}", d.message);
                 }
+                for (_, specifier) in &result.json_imports {
+                    let resolved = superui_paths::join_asset(superui_paths::parent_dir(&src), specifier);
+                    println!("cargo:rerun-if-changed={resolved}");
+                }
             }
             Err(e) => println!("cargo:warning=supersolid: could not transpile {src}: {e}"),
         }
@@ -71,6 +75,23 @@ mod tests {
         assert!(out.exists(), "expected generated {out:?}");
         let js = std::fs::read_to_string(out).unwrap();
         assert!(js.contains("$ss.el(\"div\")"), "JSX must be lowered:\n{js}");
+    }
+
+    #[test]
+    fn inlines_json_import_as_const() {
+        let dir = temp_ui_dir("json_import");
+        std::fs::write(dir.join("data.json"), r#"{"k":5}"#).unwrap();
+        std::fs::write(dir.join("app.tsx"), "import data from \"./data.json\"; const a = data.k;").unwrap();
+        let dir_str = dir.to_string_lossy().replace('\\', "/");
+
+        transpile_dir_impl(&dir_str, false);
+
+        let out = dir.join(".superui").join("build").join("app.js");
+        let js = std::fs::read_to_string(out).unwrap();
+        assert!(
+            js.contains("const data = {\"k\":5};") || js.contains("const data = {\"k\": 5};"),
+            "expected inlined json const:\n{js}"
+        );
     }
 
     #[test]
