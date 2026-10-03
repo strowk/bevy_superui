@@ -28,6 +28,10 @@ fn inlines_json_import_relative_to_spec_dir() {
         "expected inlined value:\n{js}"
     );
     assert!(!js.contains("import"), "import statement must be stripped:\n{js}");
+    assert!(
+        js.contains("const n = skills.length"),
+        "post-import body must be preserved:\n{js}"
+    );
 }
 
 #[test]
