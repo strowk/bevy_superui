@@ -29,6 +29,7 @@
 - [HTML](docs/reference/html.md)
 - [JS / DOM](docs/reference/js-dom.md)
 - [Supersolid framework](docs/reference/supersolid.md)
+- [Testing](docs/reference/testing.md)
 - [Compatibility](docs/reference/compatibility.md)
 - [Known Issues](docs/reference/known-issues.md)
 
