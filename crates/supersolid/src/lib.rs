@@ -365,6 +365,13 @@ mod tests {
     }
 
     #[test]
+    fn json_suffix_match_is_case_insensitive() {
+        let r = transpile("import d from \"./Data.JSON\";", &TranspileOptions::default());
+        assert_eq!(r.json_imports, vec![("d".to_string(), "./Data.JSON".to_string())]);
+        assert!(r.diagnostics.is_empty());
+    }
+
+    #[test]
     fn bare_json_import_records_nothing() {
         let r = transpile("import \"./x.json\"; const x = 1;", &TranspileOptions::default());
         assert!(r.json_imports.is_empty(), "no binding to record: {:?}", r.json_imports);
@@ -488,5 +495,32 @@ mod tests {
     #[test]
     fn json_binding_rejects_invalid_json() {
         assert!(super::json_binding("d", "{not json").is_err());
+    }
+
+    #[test]
+    fn transpile_file_missing_json_import_warns_and_skips() {
+        // Build caller (`transpile_file`) graceful degradation: a missing `.json`
+        // import must not fail the whole transpile. It records a `Warning`
+        // diagnostic, skips inlining that binding, and still writes the JS.
+        let dir = std::env::temp_dir().join("supersolid_lib_test_missing_json");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let input = dir.join("app.tsx");
+        std::fs::write(&input, "import data from \"./missing.json\"; const a = data;").unwrap();
+        let output = dir.join("app.js");
+
+        let result = transpile_file(&input, &output).expect("missing json import must not fail the transpile");
+
+        assert!(
+            result.diagnostics.iter().any(|d| d.severity == Severity::Warning),
+            "missing json import must record a warning diagnostic: {:?}",
+            result.diagnostics
+        );
+        assert!(
+            !result.code.contains("const data ="),
+            "no inlined const for a missing JSON import:\n{}",
+            result.code
+        );
+        assert!(output.exists(), "generated JS must still be written on graceful degradation");
     }
 }

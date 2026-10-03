@@ -309,4 +309,50 @@ mod tests {
             "loader must inline the JSON import as a top-level const:\n{out}"
         );
     }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn tsx_loader_missing_json_import_loads_without_inlining() {
+        // Loader graceful degradation (design §1): a missing `.json` import must
+        // never fail the `.tsx` load — it warns and skips inlining that binding.
+        let dir = Dir::new("assets".into());
+        dir.insert_asset(
+            "app.tsx".as_ref(),
+            br#"import data from "./missing.json"; const a = <div>{data}</div>;"#,
+        );
+
+        let mut app = App::new();
+        app.register_asset_source(
+            AssetSourceId::Default,
+            AssetSourceBuilder::new(move || Box::new(MemoryAssetReader { root: dir.clone() })),
+        );
+        app.add_plugins((bevy::app::TaskPoolPlugin::default(), AssetPlugin::default()));
+        app.init_asset::<JsSource>().register_asset_loader(TsxLoader);
+        app.finish();
+
+        let handle = {
+            let server = app.world().resource::<AssetServer>().clone();
+            server.load::<JsSource>("app.tsx")
+        };
+        for _ in 0..64 {
+            app.update();
+            if matches!(
+                app.world().resource::<AssetServer>().load_state(handle.id()),
+                LoadState::Loaded
+            ) {
+                break;
+            }
+        }
+        let load_state = app.world().resource::<AssetServer>().load_state(handle.id());
+        assert!(
+            matches!(load_state, LoadState::Loaded),
+            "missing JSON import must not fail the load, got {load_state:?}"
+        );
+        let jss = app.world().resource::<Assets<JsSource>>();
+        let out = &jss.get(&handle).unwrap().0;
+        assert!(
+            !out.contains("const data ="),
+            "no inlined const for a missing JSON import:\n{out}"
+        );
+    }
 }

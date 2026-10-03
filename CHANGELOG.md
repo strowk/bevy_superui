@@ -39,14 +39,14 @@ for the maintenance lines.
   game→UI bridge event to the UI's `bevy.on(name, …)` handlers (the counterpart
   of the game's `commands.trigger`), so a headless test with no game side can
   drive and assert the UI's reaction to bridge data.
-- `.json` imports: `import x from "./data.json"` — default, `import * as x`, or
-  `import { x }` alike — inlines the file's parsed value as a top-level `const x`,
-  resolved relative to the importing file. Only the whole value binds; picking a
-  sub-path or member out of the JSON is out of scope, and other cross-file
-  imports are still stripped. A missing or invalid file is fatal in the
-  end-to-end test engine (the spec fails to transpile) and a skipped-binding
-  warning everywhere else (runtime/HMR and build); editing the JSON hot-reloads
-  the `.tsx` that imports it.
+- `.json` imports: `import x from "./data.json"` — default, `import * as x`, and
+  `import { x }` all bind the whole value — inlines the file's parsed value as
+  a top-level `const x`, resolved relative to the importing file. Only the
+  whole value binds; picking a sub-path or member out of the JSON is out of
+  scope, and other cross-file imports are still stripped. A missing or invalid
+  file is fatal in the end-to-end test engine (the spec fails to transpile)
+  and a skipped-binding warning everywhere else (runtime/HMR and build);
+  editing the JSON hot-reloads the `.tsx` that imports it.
 
 ### Changed
 
