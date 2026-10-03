@@ -180,3 +180,20 @@ cargo superui test --ui
 ```
 
 This opens a windowed runner instead of printing to the terminal: a list of specs with Run buttons, the rendered frame, and a time-travel slider over the recorded steps that shows the DOM after each one. It is the fastest way to see *why* a step failed.
+
+## Limitations
+
+The current engine is deliberately a subset of Playwright. What to expect today:
+
+- Selectors are tag, class, and id plus descendant combinators only — no `[attr=value]` selectors.
+- `toHaveClass` is a substring match against the class list, not a full regular-expression engine.
+- `toBeVisible` checks that the element is attached and not inline `display:none` — it does not inspect computed layout.
+- `press(key)` dispatches a `keydown` event; it does not type text into the element.
+- There is no drag primitive, no `.not`, no `.last()`, and no `.value` matcher.
+- `toHaveScreenshot` is evaluated once, not retried like the other matchers.
+
+## Next
+
+- [The Bevy Bridge](../concepts/bevy-bridge.md) — the game↔UI boundary that `page.emit` drives.
+- [Getting Started](../getting-started.md) — building the UI project the tests mount.
+- [Compatibility](compatibility.md) — the `cargo-superui` CLI and version pinning.
