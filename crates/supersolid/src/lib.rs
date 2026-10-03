@@ -77,6 +77,17 @@ pub fn transpile_file(input: &std::path::Path, output: &std::path::Path) -> std:
     Ok(result)
 }
 
+/// Inline a `.json` file's contents as a `const` declaration for a classic
+/// (non-module) script. Validates `json_text` is real JSON, then re-emits it
+/// compactly; callers (the three `.json`-import resolution sites) supply the
+/// local binding name recorded in `TranspileResult::json_imports`.
+pub fn json_binding(binding: &str, json_text: &str) -> Result<String, String> {
+    let value = serde_json::from_str::<serde_json::Value>(json_text)
+        .map_err(|e| format!("invalid JSON: {e}"))?;
+    let literal = serde_json::to_string(&value).map_err(|e| format!("invalid JSON: {e}"))?;
+    Ok(format!("const {binding} = {literal};\n"))
+}
+
 /// TEST HELPER: true iff `code` parses as plain (non-JSX) JavaScript with no
 /// parser diagnostics. Proves both "valid JS" and "no JSX remains".
 #[cfg(test)]
@@ -435,5 +446,24 @@ mod tests {
         let out = code("function helper(){ return 1; } const value = 2; const Config = 3;");
         assert!(!out.contains("$ss.hot"), "no registration for non-components:\n{out}");
         assert!(reparses_as_plain_js(&out), "{out}");
+    }
+
+    #[test]
+    fn json_binding_inlines_value_as_valid_js() {
+        let out = super::json_binding("skills", r#"{"a":1,"b":["x","y"]}"#).unwrap();
+        assert!(out.starts_with("const skills = "), "const decl:\n{out}");
+        assert!(reparses_as_plain_js(&out), "inlined json must be valid JS:\n{out}");
+        assert!(out.contains("\"a\":1") || out.contains("\"a\": 1"));
+    }
+
+    #[test]
+    fn json_binding_escapes_special_string_chars() {
+        let out = super::json_binding("d", r#"{"s":"he said \"hi\"\n\\done"}"#).unwrap();
+        assert!(reparses_as_plain_js(&out), "special chars must round-trip to valid JS:\n{out}");
+    }
+
+    #[test]
+    fn json_binding_rejects_invalid_json() {
+        assert!(super::json_binding("d", "{not json").is_err());
     }
 }
