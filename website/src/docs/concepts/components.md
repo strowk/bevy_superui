@@ -179,6 +179,32 @@ import { createSignal, createMemo, For, Show, render } from "supersolid";
 Everything else — your components, types, helpers — just lives in the same file
 and refers to each other directly.
 
+### Importing JSON
+
+<div class="since-note since-note--unreleased">This section documents behavior currently on <code>main</code> only — not yet in a tagged release.</div>
+
+The one exception to "no cross-file imports" is `.json`. `import x from
+"./data.json"` inlines the file's parsed value as a top-level `const x`,
+available to the rest of the module — `import * as x` and `import { x }` bind
+the same whole value under `x`. The specifier resolves relative to the
+importing file's own directory. Only the whole value is bound: picking a
+sub-path or named member out of the JSON at import time is not supported.
+Non-JSON cross-file imports (`.tsx`, `.ts`, …) are still stripped, as above.
+
+```typescript
+import skills from "./skills.json";
+
+function SkillList() {
+  return <For each={skills}>{(s) => <li>{s.name}</li>}</For>;
+}
+```
+
+A missing or invalid JSON file fails the whole transpile when run through
+`cargo superui test` (see [Testing](../reference/testing.md)); in the running
+app — including hot reload — and at build time it logs a warning and skips
+that binding instead. Editing the JSON file hot-reloads the `.tsx` that
+imports it, the same as editing the `.tsx` itself.
+
 ## Next
 
 - [Signals](signals.md) — reactive state, and why read location matters.

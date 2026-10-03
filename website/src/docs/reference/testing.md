@@ -53,6 +53,17 @@ maxDiffRatio = 0.02
 import { test, expect } from "superui/test";
 ```
 
+### JSON fixtures
+
+A spec can import a `.json` file directly, the same as a UI's own `.tsx` (see
+[Importing JSON](../concepts/components.md#importing-json)): `import fixture
+from "./fixture.json"` inlines the parsed value as `const fixture`. Because the
+UI project under test resolves its own `.json` imports the same way, you can
+assert and screenshot data-driven UI straight from the file the app reads — no
+Bevy bridge needed for static data. A missing or invalid `.json` import in a
+spec file is fatal: that spec fails to transpile, unlike the app's
+warn-and-skip handling.
+
 ### Editor types
 
 `cargo superui install` projects the `superui/test` ambient declarations into your project so `test`, `page`, and `expect` autocomplete and type-check in your editor. See [Set up editor support](../getting-started.md#set-up-editor-support) in Getting Started.

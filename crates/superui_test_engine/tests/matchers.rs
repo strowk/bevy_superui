@@ -37,7 +37,7 @@ fn count_and_text_and_class_matchers_autowait() {
             await expect(page.locator(".item").first()).toHaveClass(/item/);
         });
     "##;
-    let js = transpile_spec(spec, "t.spec.ts").unwrap();
+    let js = transpile_spec(spec, "t.spec.ts", std::path::Path::new(".")).unwrap();
     let results = run_spec(&mut app, &js);
     assert!(results[0].passed, "error: {:?}", results[0].error);
 }
@@ -51,7 +51,7 @@ fn failing_matcher_reports_error() {
             await expect(page.locator(".item")).toHaveCount(99);
         });
     "#;
-    let js = transpile_spec(spec, "t.spec.ts").unwrap();
+    let js = transpile_spec(spec, "t.spec.ts", std::path::Path::new(".")).unwrap();
     let results = run_spec(&mut app, &js);
     assert!(!results[0].passed);
     assert!(results[0].error.as_deref().unwrap_or("").contains("count"));

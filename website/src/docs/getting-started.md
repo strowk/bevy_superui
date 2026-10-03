@@ -128,7 +128,10 @@ for what's supported):
 > **One module, no cross-file imports.** superui's transpiler compiles each UI
 > into a single module and strips imports between your own files. Keep every
 > component for one UI in the one `app.tsx` — the only import you keep is
-> `from "supersolid"`. See [Components & JSX](concepts/components.md).
+> `from "supersolid"`. The one exception is `.json`: `import x from "./data.json"`
+> inlines the file as a `const x` binding — see
+> [Importing JSON](concepts/components.md#importing-json). Otherwise, see
+> [Components & JSX](concepts/components.md).
 > This might be changed in the future, but for now this limitation would not allow 
 > you to `import {MyComponent} from "./my_component.tsx"`.
 

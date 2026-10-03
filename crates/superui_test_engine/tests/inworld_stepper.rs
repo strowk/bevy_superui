@@ -47,7 +47,7 @@ fn stepper_runs_spec_to_completion() {
             await expect(page.locator("#panel")).toHaveText("PANEL");
         });
     "##;
-    let js = transpile_spec(spec, "t.spec.ts").unwrap();
+    let js = transpile_spec(spec, "t.spec.ts", std::path::Path::new(".")).unwrap();
 
     // No camera in headless; layout doesn't matter for DOM assertions.
     let mut run = start_run(app.world_mut(), None, js, "t.spec.ts".into(), opts());
@@ -87,7 +87,7 @@ fn stepper_matches_blocking_driver_on_pass_and_fail() {
             await expect(page.locator("#panel")).toHaveCount(1);
         });
     "##;
-    let js = transpile_spec(spec, "t.spec.ts").unwrap();
+    let js = transpile_spec(spec, "t.spec.ts", std::path::Path::new(".")).unwrap();
 
     // --- Blocking driver ---
     let mut blocking_app = build_headless_app(&project());
@@ -151,7 +151,7 @@ fn stepper_supports_fresh_dom_rerun() {
             await expect(page.locator("#panel")).toHaveCount(0);
         });
     "##;
-    let js = transpile_spec(spec, "t.spec.ts").unwrap();
+    let js = transpile_spec(spec, "t.spec.ts", std::path::Path::new(".")).unwrap();
 
     for _round in 0..2 {
         let mut run = start_run(
@@ -202,7 +202,7 @@ fn stepper_delivers_emit_to_bevy_on() {
             await expect(page.locator("#score")).toHaveText("42");
         });
     "##;
-    let js = transpile_spec(spec, "t.spec.ts").unwrap();
+    let js = transpile_spec(spec, "t.spec.ts", std::path::Path::new(".")).unwrap();
 
     let mut run = start_run(app.world_mut(), None, js, "t.spec.ts".into(), opts());
     for _ in 0..4000 {

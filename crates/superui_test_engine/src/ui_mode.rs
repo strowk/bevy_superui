@@ -246,7 +246,8 @@ fn start_run_from_spec(
     max_diff_ratio: f64,
 ) -> Result<crate::ui_driver::RunState, String> {
     let src = std::fs::read_to_string(spec).map_err(|e| format!("read {file}: {e}"))?;
-    let js = crate::transpile::transpile_spec(&src, file).map_err(|e| format!("transpile {file}: {e}"))?;
+    let base_dir = spec.parent().unwrap_or_else(|| std::path::Path::new("."));
+    let js = crate::transpile::transpile_spec(&src, file, base_dir).map_err(|e| format!("transpile {file}: {e}"))?;
 
     let opts = RunOptions {
         snapshot: Some(crate::snapshot::SnapshotConfig {

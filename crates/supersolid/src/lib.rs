@@ -47,18 +47,23 @@ pub struct Diagnostic {
 }
 
 /// The result of a transpile: emitted JS, diagnostics, and any co-located CSS
-/// imports discovered (recorded for a later cascade-wiring plan).
+/// or JSON imports discovered (recorded for the caller to resolve).
 #[derive(Debug, Clone, Default)]
 pub struct TranspileResult {
     pub code: String,
     pub diagnostics: Vec<Diagnostic>,
     pub style_imports: Vec<String>,
+    /// `(local_binding_name, specifier)` for every `.json` import, in
+    /// declaration order. No file I/O happens here — the transpiler only
+    /// records what was imported; resolving it is a later plan's job.
+    pub json_imports: Vec<(String, String)>,
 }
 
 /// Transpile Solid-style `.tsx`/`.ts` source to plain JavaScript.
 pub fn transpile(source: &str, options: &TranspileOptions) -> TranspileResult {
-    let (code, diagnostics, style_imports) = pipeline::run(source, options, /* lower_jsx */ true);
-    TranspileResult { code, diagnostics, style_imports }
+    let (code, diagnostics, style_imports, json_imports) =
+        pipeline::run(source, options, /* lower_jsx */ true);
+    TranspileResult { code, diagnostics, style_imports, json_imports }
 }
 
 /// Transpile one `.tsx`/`.ts` file to `output` (plain JS). Used by the CLI for
@@ -67,9 +72,43 @@ pub fn transpile_file(input: &std::path::Path, output: &std::path::Path) -> std:
     let src = std::fs::read_to_string(input)?;
     let tsx = input.extension().and_then(|e| e.to_str()) != Some("ts");
     let module_id = Some(input.to_string_lossy().into_owned());
-    let result = transpile(&src, &TranspileOptions { tsx, module_id, ..Default::default() });
+    let mut result = transpile(&src, &TranspileOptions { tsx, module_id, ..Default::default() });
+
+    let base = input.parent().unwrap_or_else(|| std::path::Path::new("."));
+    let mut inlined = String::new();
+    for (binding, specifier) in &result.json_imports {
+        let json_path = base.join(specifier);
+        match std::fs::read_to_string(&json_path) {
+            Ok(json_text) => match json_binding(binding, &json_text) {
+                Ok(line) => inlined.push_str(&line),
+                Err(e) => result.diagnostics.push(Diagnostic {
+                    severity: Severity::Warning,
+                    message: format!("supersolid: {} ({}): {e}", json_path.display(), specifier),
+                }),
+            },
+            Err(e) => result.diagnostics.push(Diagnostic {
+                severity: Severity::Warning,
+                message: format!("supersolid: could not read {} ({}): {e}", json_path.display(), specifier),
+            }),
+        }
+    }
+    if !inlined.is_empty() {
+        result.code = format!("{inlined}{}", result.code);
+    }
+
     std::fs::write(output, &result.code)?;
     Ok(result)
+}
+
+/// Inline a `.json` file's contents as a `const` declaration for a classic
+/// (non-module) script. Validates `json_text` is real JSON, then re-emits it
+/// compactly; callers (the three `.json`-import resolution sites) supply the
+/// local binding name recorded in `TranspileResult::json_imports`.
+pub fn json_binding(binding: &str, json_text: &str) -> Result<String, String> {
+    let value = serde_json::from_str::<serde_json::Value>(json_text)
+        .map_err(|e| format!("invalid JSON: {e}"))?;
+    let literal = serde_json::to_string(&value).map_err(|e| format!("invalid JSON: {e}"))?;
+    Ok(format!("const {binding} = {literal};\n"))
 }
 
 /// TEST HELPER: true iff `code` parses as plain (non-JSX) JavaScript with no
@@ -309,8 +348,54 @@ mod tests {
     }
 
     #[test]
+    fn json_imports_are_recorded_not_warned() {
+        let r = transpile("import skills from \"./skills.json\"; const x = skills;", &TranspileOptions::default());
+        assert!(!r.code.contains("import"), "json import stripped from JS:\n{}", r.code);
+        assert_eq!(r.json_imports, vec![("skills".to_string(), "./skills.json".to_string())]);
+        assert!(r.diagnostics.is_empty(), "json import must not warn: {:?}", r.diagnostics);
+        assert!(reparses_as_plain_js(&r.code));
+    }
+
+    #[test]
+    fn json_import_captures_namespace_and_named_bindings() {
+        let ns = transpile("import * as data from \"./a.json\";", &TranspileOptions::default());
+        assert_eq!(ns.json_imports, vec![("data".to_string(), "./a.json".to_string())]);
+        let named = transpile("import { foo } from \"./b.json\";", &TranspileOptions::default());
+        assert_eq!(named.json_imports, vec![("foo".to_string(), "./b.json".to_string())]);
+    }
+
+    #[test]
+    fn json_suffix_match_is_case_insensitive() {
+        let r = transpile("import d from \"./Data.JSON\";", &TranspileOptions::default());
+        assert_eq!(r.json_imports, vec![("d".to_string(), "./Data.JSON".to_string())]);
+        assert!(r.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn bare_json_import_records_nothing() {
+        let r = transpile("import \"./x.json\"; const x = 1;", &TranspileOptions::default());
+        assert!(r.json_imports.is_empty(), "no binding to record: {:?}", r.json_imports);
+        assert!(r.diagnostics.is_empty());
+    }
+
+    #[test]
     fn unknown_module_imports_warn() {
         let r = transpile("import { X } from \"./other\"; const x = X;", &TranspileOptions::default());
+        assert!(!r.code.contains("import"), "unknown import still stripped:\n{}", r.code);
+        assert_eq!(r.diagnostics.len(), 1, "one warning expected: {:?}", r.diagnostics);
+        assert_eq!(r.diagnostics[0].severity, Severity::Warning);
+        assert!(r.diagnostics[0].message.contains("./other"), "names specifier: {:?}", r.diagnostics);
+        assert!(reparses_as_plain_js(&r.code));
+    }
+
+    #[test]
+    fn unused_unknown_module_import_still_warns_once() {
+        // `only_remove_type_imports: true` means oxc no longer silently elides
+        // an unused-value import before `imports::rewrite` classifies it. An
+        // unknown-module import whose binding is never referenced must still
+        // warn exactly once (and still be stripped from the output), matching
+        // `unknown_module_imports_warn`'s used-binding case.
+        let r = transpile("import { X } from \"./other\";", &TranspileOptions::default());
         assert!(!r.code.contains("import"), "unknown import still stripped:\n{}", r.code);
         assert_eq!(r.diagnostics.len(), 1, "one warning expected: {:?}", r.diagnostics);
         assert_eq!(r.diagnostics[0].severity, Severity::Warning);
@@ -391,5 +476,51 @@ mod tests {
         let out = code("function helper(){ return 1; } const value = 2; const Config = 3;");
         assert!(!out.contains("$ss.hot"), "no registration for non-components:\n{out}");
         assert!(reparses_as_plain_js(&out), "{out}");
+    }
+
+    #[test]
+    fn json_binding_inlines_value_as_valid_js() {
+        let out = super::json_binding("skills", r#"{"a":1,"b":["x","y"]}"#).unwrap();
+        assert!(out.starts_with("const skills = "), "const decl:\n{out}");
+        assert!(reparses_as_plain_js(&out), "inlined json must be valid JS:\n{out}");
+        assert!(out.contains("\"a\":1") || out.contains("\"a\": 1"));
+    }
+
+    #[test]
+    fn json_binding_escapes_special_string_chars() {
+        let out = super::json_binding("d", r#"{"s":"he said \"hi\"\n\\done"}"#).unwrap();
+        assert!(reparses_as_plain_js(&out), "special chars must round-trip to valid JS:\n{out}");
+    }
+
+    #[test]
+    fn json_binding_rejects_invalid_json() {
+        assert!(super::json_binding("d", "{not json").is_err());
+    }
+
+    #[test]
+    fn transpile_file_missing_json_import_warns_and_skips() {
+        // Build caller (`transpile_file`) graceful degradation: a missing `.json`
+        // import must not fail the whole transpile. It records a `Warning`
+        // diagnostic, skips inlining that binding, and still writes the JS.
+        let dir = std::env::temp_dir().join("supersolid_lib_test_missing_json");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let input = dir.join("app.tsx");
+        std::fs::write(&input, "import data from \"./missing.json\"; const a = data;").unwrap();
+        let output = dir.join("app.js");
+
+        let result = transpile_file(&input, &output).expect("missing json import must not fail the transpile");
+
+        assert!(
+            result.diagnostics.iter().any(|d| d.severity == Severity::Warning),
+            "missing json import must record a warning diagnostic: {:?}",
+            result.diagnostics
+        );
+        assert!(
+            !result.code.contains("const data ="),
+            "no inlined const for a missing JSON import:\n{}",
+            result.code
+        );
+        assert!(output.exists(), "generated JS must still be written on graceful degradation");
     }
 }

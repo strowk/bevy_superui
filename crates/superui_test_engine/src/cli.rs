@@ -92,7 +92,8 @@ pub fn run_tests(cfg: TestRunConfig) -> i32 {
             .to_string_lossy()
             .to_string();
 
-        let js = match transpile::transpile_spec(&src, &file) {
+        let base_dir = spec.parent().unwrap_or_else(|| std::path::Path::new("."));
+        let js = match transpile::transpile_spec(&src, &file, base_dir) {
             Ok(j) => j,
             Err(e) => {
                 eprintln!("error: transpile {file}: {e}");
