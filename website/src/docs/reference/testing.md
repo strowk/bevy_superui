@@ -139,3 +139,44 @@ test("toggling a switch turns it on", async ({ page }) => {
   await expect(cam).toHaveClass(/on/);
 });
 ```
+
+## Running
+
+Run the suite from the directory holding `superui.test.toml`:
+
+```sh
+cargo superui test
+```
+
+A positional `filter` runs only the spec files whose path contains the given substring:
+
+```sh
+cargo superui test settings
+```
+
+Flags:
+
+- `--update` — write or overwrite screenshot baselines instead of diffing against them.
+- `--ui` — open the interactive runner (see [UI mode](#ui-mode)).
+
+The process exits `0` when every test passed, `1` when a test failed, and `2` on a config or project error. Each run also writes an HTML report to `<specDir>/report.html` with per-test status and a DOM snapshot after each step.
+
+## Screenshots
+
+`toHaveScreenshot(name)` compares the rendered frame against a stored baseline at:
+
+```sh
+<specDir>/__snapshots__/<spec file>/<name>-<os>.png
+```
+
+The first run — or any run with `--update` — writes the baseline and passes. Later runs diff against it; on a mismatch the engine writes `<name>-<os>.actual.png` and `<name>-<os>.diff.png` next to the baseline and fails. `maxDiffRatio` sets the allowed fraction of changed pixels before a diff counts as a failure.
+
+Baselines are platform-specific — the `-<os>` suffix keeps a separate image per operating system, so commit the baseline for each OS you run tests on.
+
+## UI mode
+
+```sh
+cargo superui test --ui
+```
+
+This opens a windowed runner instead of printing to the terminal: a list of specs with Run buttons, the rendered frame, and a time-travel slider over the recorded steps that shows the DOM after each one. It is the fastest way to see *why* a step failed.
