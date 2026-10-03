@@ -56,3 +56,86 @@ import { test, expect } from "superui/test";
 ### Editor types
 
 `cargo superui install` projects the `superui/test` ambient declarations into your project so `test`, `page`, and `expect` autocomplete and type-check in your editor. See [Set up editor support](../getting-started.md#set-up-editor-support) in Getting Started.
+
+## Writing a spec
+
+A spec is a `.ts` file that imports its API from `"superui/test"` and registers tests:
+
+```typescript
+import { test, expect } from "superui/test";
+
+test("main menu renders", async ({ page }) => {
+  await expect(page.locator(".screen.main")).toBeVisible();
+});
+```
+
+### Tests
+
+`test(name, fn)` registers a test. `fn` receives `{ page }` and may be async; `await` every action and assertion so the test waits for each step.
+
+### Locators
+
+`page.locator(sel, opts?)` builds a lazy, chainable handle to matching elements — it resolves when you act on or assert against it, not when you create it. Chain `.locator(sel, opts?)` to narrow to descendants:
+
+```typescript
+const toggle = page.locator(".cfg-row", { hasText: "Camera follow" }).locator(".toggle");
+```
+
+- `opts.hasText` keeps only elements whose text *contains* the string. It is a plain substring, not a regular expression.
+- `.nth(i)` picks the match at 0-based index `i`; `.first()` is `.nth(0)`.
+
+The selector engine supports tag, class, and id selectors plus descendant combinators only — see [Limitations](#limitations).
+
+### Actions
+
+Actions are async and auto-wait for the element to be ready:
+
+- `.click()` — click the element.
+- `.fill(text)` — replace an input's value with `text`.
+- `.press(key)` — dispatch a key press (for example `"Enter"`).
+- `.hover()` — hover the element.
+
+### Assertions
+
+`expect(target)` begins an assertion; `target` is a locator or `page`. Each matcher auto-waits, retrying against the live DOM until it passes or times out.
+
+| matcher | asserts |
+| --- | --- |
+| `toBeVisible()` | attached and not inline `display:none` |
+| `toHaveText(text)` | exact text equals `text` |
+| `toHaveCount(n)` | locator resolves to `n` elements |
+| `toHaveClass(re)` | class list contains the pattern (substring match) |
+| `toHaveAttribute(name, value?)` | attribute present, optionally equal to `value` |
+| `toHaveScreenshot(name)` | pixels match the stored baseline |
+
+### Driving the game bridge
+
+`page.emit(name, value?)` stands in for the game in the game→UI direction: it delivers `value` to every `bevy.on(name, …)` subscriber so you can assert the UI's reaction. An omitted value is `null`. The payload is hand-authored and must match the shape your registered event serializes.
+
+```typescript
+await page.emit("frame", { player_hp: 7, player_max_hp: 10 });
+await expect(page.locator("#hp")).toHaveText("7 / 10");
+```
+
+See [The Bevy Bridge](../concepts/bevy-bridge.md#testing-the-gameui-direction) for the bridge this mirrors.
+
+### A worked example
+
+Clicking a tab, then asserting the panel it reveals and the active tab's class:
+
+```typescript
+import { test, expect } from "superui/test";
+
+test("tab bar navigates to settings", async ({ page }) => {
+  await page.locator(".tabs .tab", { hasText: "SETTINGS" }).click();
+  await expect(page.locator(".settings-card")).toBeVisible();
+  await expect(page.locator(".tabs .tab.active")).toHaveText("SETTINGS");
+});
+
+test("toggling a switch turns it on", async ({ page }) => {
+  await page.locator(".tabs .tab", { hasText: "SETTINGS" }).click();
+  const cam = page.locator(".cfg-row", { hasText: "Camera follow" }).locator(".toggle");
+  await cam.click();
+  await expect(cam).toHaveClass(/on/);
+});
+```
