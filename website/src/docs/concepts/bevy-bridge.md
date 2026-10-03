@@ -143,6 +143,8 @@ await expect(page.locator("#hp")).toHaveText("7 / 10");
 The payload is hand-authored, so it must match the shape your registered event
 serializes — `page.emit` tests the UI's reaction, not the payload contract.
 
+Full setup and the rest of the test API live in [Testing](../reference/testing.md).
+
 ## The full loop
 
 Putting both directions together, a superui game UI is a loop:
