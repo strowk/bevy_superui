@@ -55,9 +55,6 @@ h1 {
   border: 2px #2c7be5;
 }
 
-/* Author override: an unlayered rule always beats the framework's
-   `superui-defaults` layer (docs/fork-patches.md#slider-default-layer), so a
-   visibly different thumb here proves author CSS wins. */
 input[type=range]::slider-thumb {
   width: 22px;
   height: 22px;
