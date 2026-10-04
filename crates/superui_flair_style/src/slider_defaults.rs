@@ -9,8 +9,8 @@
 //!
 // >>> SUPERUI-FORK-PATCH: slider-default-layer  (docs/fork-patches.md#slider-default-layer)
 //! `::slider-fill`'s `width` and `::slider-thumb`'s `left` are deliberately
-//! unset: `position_slider_parts` drives them from `SliderValue` every frame,
-//! and a default here would race it.
+//! unset: `superui_bridge::position_slider_parts` drives them from
+//! `SliderValue` every frame, and a default here would race it.
 
 use crate::css_selector::CssSelector;
 use crate::{BlockBuilder, StyleBuilderProperty, StyleSheetBuilder};
@@ -86,7 +86,7 @@ pub fn add_slider_defaults(builder: &mut StyleSheetBuilder) {
             Val::Px(2.0),
         ));
 
-    // `::slider-fill` — no `width`: `position_slider_parts` owns it.
+    // `::slider-fill` — no `width`: `superui_bridge::position_slider_parts` owns it.
     builder
         .new_ruleset()
         .with_css_selector(defaults_selector("input[type=range]::slider-fill"))
@@ -106,7 +106,7 @@ pub fn add_slider_defaults(builder: &mut StyleSheetBuilder) {
             Val::Px(2.0),
         ));
 
-    // `::slider-thumb` — no `left`: `position_slider_parts` owns it.
+    // `::slider-thumb` — no `left`: `superui_bridge::position_slider_parts` owns it.
     builder
         .new_ruleset()
         .with_css_selector(defaults_selector("input[type=range]::slider-thumb"))
