@@ -1,0 +1,4 @@
+project = "assets/ui/bestiary"
+specDir = "tests"
+width = 900
+height = 600

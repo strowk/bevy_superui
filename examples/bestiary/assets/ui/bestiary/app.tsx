@@ -1,7 +1,25 @@
-// Minimal static stub (Task 1): mounts an empty root so the crate builds and
-// the UI asset dir is non-empty. The bridge subscription and card rendering
-// (`bevy.on("bestiary", ...)`, `<For>` over creatures) land in Task 3.
+import { createSignal, For, onMount, render } from "supersolid";
 
-import { render } from "supersolid";
+function App() {
+  const [creatures, setCreatures] = createSignal([]);
 
-render(() => <div class="bestiary" />, document.getElementById("root"));
+  onMount(() => {
+    bevy.on("bestiary", (data) => setCreatures(data.creatures));
+    bevy.send("uiReady", null);
+  });
+
+  return (
+    <div class="bestiary">
+      <For each={creatures()}>{(c, i) => (
+        <div class={`card ${c.element}`} id={`creature-${i()}`}>
+          <span class="name">{c.name}</span>
+          <span class="element">{c.element}</span>
+          <span class="stat">HP {c.hp}</span>
+          <span class="stat">ATK {c.attack}</span>
+        </div>
+      )}</For>
+    </div>
+  );
+}
+
+render(() => <App />, document.getElementById("root"));
