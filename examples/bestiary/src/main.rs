@@ -1,6 +1,5 @@
 //! Loads a bestiary of monsters from a JSON asset and pushes it to the UI
-//! over the Bevy bridge (bridge wiring lands in Task 2; this binary currently
-//! only loads the asset and mounts the static UI stub).
+//! over the Bevy bridge, once the UI announces itself ready.
 //!
 //! - `cargo run -p bestiary --features hmr` — native, live `.tsx` via the
 //!   transpiling asset loader, state-preserving hot reload.
@@ -11,7 +10,7 @@
 use bevy::prelude::*;
 use superui::prelude::{SuperUiPlugin, SuperUiRoot};
 
-use bestiary::{Bestiary, BestiaryHandle, BestiaryLoader};
+use bestiary::{Bestiary, BestiaryHandle, BestiaryLoader, BridgeState, push_bestiary, register_bridge};
 
 /// On the web, bind the primary window to the host page's canvas. Identity on native.
 fn web_window(window: bevy::window::Window) -> bevy::window::Window {
@@ -44,7 +43,10 @@ fn main() {
     }));
     app.init_asset::<Bestiary>().register_asset_loader(BestiaryLoader);
     app.add_plugins(SuperUiPlugin);
+    register_bridge(&mut app);
+    app.init_resource::<BridgeState>();
     app.add_systems(Startup, setup);
+    app.add_systems(Update, push_bestiary);
     app.run();
 }
 

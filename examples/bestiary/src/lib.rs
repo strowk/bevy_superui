@@ -1,5 +1,4 @@
-//! Data model + JSON asset loader for the bestiary example. Bridge wiring
-//! (pushing `Bestiary` to the UI over the Bevy bridge) lands in Task 2.
+//! Data model, JSON asset loader, and bridge wiring for the bestiary example.
 
 use bevy::asset::io::Reader;
 use bevy::asset::{Asset, AssetLoader, LoadContext};
@@ -16,8 +15,8 @@ pub struct Creature {
     pub attack: u32,
 }
 
-/// The full bestiary document, loaded as a Bevy asset and (in Task 2) also
-/// fired as an event when pushed across the bridge.
+/// The full bestiary document, loaded as a Bevy asset and also fired as an
+/// event when pushed across the bridge.
 #[derive(Asset, TypePath, Event, Clone, Serialize, Deserialize)]
 pub struct Bestiary {
     pub creatures: Vec<Creature>,
@@ -52,8 +51,58 @@ impl AssetLoader for BestiaryLoader {
     }
 }
 
-/// Holds the handle to the loaded bestiary data so later systems (Task 2's
-/// bridge wiring) can read it once `AssetEvent::Modified`/`LoadState::Loaded`
-/// fires.
+/// Holds the handle to the loaded bestiary data so `push_bestiary` can read
+/// it once the asset reaches `LoadState::Loaded`.
 #[derive(Resource)]
 pub struct BestiaryHandle(pub Handle<Bestiary>);
+
+// ── Bridge: readiness handshake ─────────────────────────────────────────────
+
+/// Sent by the UI (`bevy.send("uiReady", null)`) once it has mounted and is
+/// ready to receive data. Defeats the asset-load/UI-mount race: the bestiary
+/// is only pushed after this fires.
+#[derive(Event, Deserialize)]
+pub struct UiReady;
+
+/// Tracks the readiness handshake: whether the UI has announced itself ready,
+/// and whether the bestiary has already been pushed (so it is sent exactly
+/// once, however the ready signal and asset load interleave).
+#[derive(Resource, Default)]
+pub struct BridgeState {
+    pub ui_ready: bool,
+    pub sent: bool,
+}
+
+/// Flips [`BridgeState::ui_ready`] when the UI's `uiReady` command fires.
+pub fn on_ui_ready(_: On<UiReady>, mut state: ResMut<BridgeState>) {
+    state.ui_ready = true;
+}
+
+/// Once the UI is ready and the bestiary asset is loaded, pushes it across
+/// the bridge exactly once. No-ops (without panicking) while either
+/// condition is unmet, and after the data has already been sent.
+pub fn push_bestiary(
+    mut state: ResMut<BridgeState>,
+    handle: Res<BestiaryHandle>,
+    assets: Res<Assets<Bestiary>>,
+    mut commands: Commands,
+) {
+    if !state.ui_ready || state.sent {
+        return;
+    }
+    if let Some(b) = assets.get(&handle.0) {
+        commands.trigger(b.clone());
+        state.sent = true;
+    }
+}
+
+/// Registers the JS-visible bridge surface: `Bestiary` as the `"bestiary"`
+/// event, `UiReady` as the `"uiReady"` command, and the observer that latches
+/// readiness. Must run after `SuperUiPlugin` so the bridge registry resource
+/// exists.
+pub fn register_bridge(app: &mut App) {
+    use superui::prelude::SuperUiApp;
+    app.add_superui_event::<Bestiary>("bestiary")
+        .add_superui_command::<UiReady>("uiReady")
+        .add_observer(on_ui_ready);
+}
