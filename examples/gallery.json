@@ -20,7 +20,10 @@
       "description": "An economy/among-buildings sim UI — a reactive-node stress test." },
     { "slug": "horde", "package": "horde", "category": "Stress tests",
       "title": "Horde", "tags": ["Playable game"], "build_args": "--no-default-features",
-      "description": "A survivors-like game (move, shoot, level up) with a reactive HUD under an enemy swarm — also a UI stress test." }
+      "description": "A survivors-like game (move, shoot, level up) with a reactive HUD under an enemy swarm — also a UI stress test." },
+    { "slug": "bestiary", "package": "bestiary", "category": "Apps",
+      "title": "Bestiary (JSON over the bridge)",
+      "description": "One JSON asset drives the UI two ways: the game loads it through the Bevy AssetServer and pushes it over the bridge, while the test imports the same file and replays it with page.emit." }
   ],
   "playgrounds": [
     { "slug": "styling_showcase", "package": "styling_showcase" }

@@ -1,3 +1,6 @@
 # Build-time generated JS (wasm / no-HMR native path).
 **/.superui/
 superui_modules/
+
+# Test engine run report (regenerated on every `superui_test` run).
+/tests/report.html

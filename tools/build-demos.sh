@@ -36,6 +36,7 @@ declare -A BUILD_ARGS=(
   [styling_showcase]="--features playground"
   [citadel]="--no-default-features"
   [horde]="--no-default-features"
+  [bestiary]=""
 )
 
 # Playground demos build with --features playground and generate an editable
@@ -49,7 +50,7 @@ declare -A PLAYGROUND=(
 if [ "$#" -gt 0 ]; then
   slugs=("$@")
 else
-  slugs=(counter todomvc todomvc_supersolid game_menu widgets_showcase styling_showcase citadel horde)
+  slugs=(counter todomvc todomvc_supersolid game_menu widgets_showcase styling_showcase citadel horde bestiary)
 fi
 
 echo "==> ensuring the wasm target is installed"
