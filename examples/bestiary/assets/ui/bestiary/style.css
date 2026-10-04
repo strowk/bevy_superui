@@ -1,0 +1,15 @@
+/* Minimal static stub (Task 1): real card layout lands in Task 3. Written
+   within superui/flair 0.6 limits ahead of time: no `cursor`, no
+   `filter:brightness`, `border-width: 0` instead of `border: none`, and no
+   `font-family` (only actually-loaded fonts are valid). */
+
+#root {
+  width: 100%;
+  height: 100%;
+  background-color: #0b1220;
+}
+
+.bestiary {
+  width: 100%;
+  height: 100%;
+}
