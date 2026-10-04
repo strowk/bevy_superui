@@ -21,6 +21,7 @@
 - [Styling](docs/concepts/styling.md)
 - [The Bevy Bridge](docs/concepts/bevy-bridge.md)
 - [Picking & the world behind the UI](docs/concepts/picking.md)
+- [Testing](docs/concepts/testing.md)
 
 # Reference
 
@@ -29,7 +30,6 @@
 - [HTML](docs/reference/html.md)
 - [JS / DOM](docs/reference/js-dom.md)
 - [Supersolid framework](docs/reference/supersolid.md)
-- [Testing](docs/reference/testing.md)
 - [Compatibility](docs/reference/compatibility.md)
 - [Known Issues](docs/reference/known-issues.md)
 
