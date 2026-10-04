@@ -10,7 +10,8 @@ use superui_bridge::{
     clamp_scroll_position_system, dim_placeholder_text_system, drain_bevy_outbox_system,
     drain_dom_events_system, editable_input_events_system, emit_bevy_inbox_system,
     keyboard_events_system, on_focus_gained, on_focus_lost, on_pointer_click,
-    on_slider_value_change, reconcile_system, wheel_scroll_system, PendingDomEvents, UiRuntime,
+    on_slider_value_change, position_slider_parts, reconcile_system, wheel_scroll_system,
+    PendingDomEvents, UiRuntime,
 };
 use superui_css::style::StyleSheet;
 use superui_css::SuperUiCssPlugin;
@@ -204,6 +205,14 @@ impl Plugin for SuperUiPlugin {
             .add_systems(
                 PostUpdate,
                 dim_placeholder_text_system.after(bevy::ui::UiSystems::Content),
+            )
+            // position_slider_parts runs after flair's ApplyComputedProperties so the
+            // value-driven left/width it writes win over any author left/width on the
+            // thumb/fill. The ordering spans crate boundaries but targets a pub system
+            // set, so it is sound; crates/superui/tests/slider_positioning.rs is the guard.
+            .add_systems(
+                PostUpdate,
+                position_slider_parts.after(superui_css::style::StyleSystems::ApplyComputedProperties),
             )
             .add_systems(Update, mount_when_ready)
             .add_systems(Update, detect_hot_reload.after(mount_when_ready))
