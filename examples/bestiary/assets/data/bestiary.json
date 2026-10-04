@@ -1,0 +1,8 @@
+{
+  "creatures": [
+    { "name": "Ember Drake",  "element": "fire",  "hp": 120, "attack": 34 },
+    { "name": "Tide Serpent", "element": "water", "hp": 140, "attack": 28 },
+    { "name": "Gale Roc",     "element": "air",   "hp":  90, "attack": 41 },
+    { "name": "Crag Golem",   "element": "earth", "hp": 200, "attack": 22 }
+  ]
+}

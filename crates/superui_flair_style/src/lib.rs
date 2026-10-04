@@ -33,9 +33,6 @@ pub(crate) mod custom_iterators;
 mod layers;
 mod media_selector;
 pub mod placeholder;
-// >>> SUPERUI-FORK-PATCH: slider-positioning-system  (docs/fork-patches.md#slider-positioning-system)
-mod slider;
-// <<< SUPERUI-FORK-PATCH: slider-positioning-system
 // >>> SUPERUI-FORK-PATCH: slider-default-layer  (docs/fork-patches.md#slider-default-layer)
 pub mod slider_defaults;
 // <<< SUPERUI-FORK-PATCH: slider-default-layer
@@ -468,16 +465,7 @@ impl Plugin for FlairStylePlugin {
                         .chain()
                         .in_set(StyleSystems::ApplyComputedProperties),
                 ),
-            )
-            // >>> SUPERUI-FORK-PATCH: slider-positioning-system  (docs/fork-patches.md#slider-positioning-system)
-            // Runs after ApplyComputedProperties so the value-driven left/width it
-            // sets win over any author-authored left/width on the thumb/fill.
-            // Precise ordering vs. style calculation is asserted by a Task 5 test.
-            .add_systems(
-                PostUpdate,
-                slider::position_slider_parts.after(StyleSystems::ApplyComputedProperties),
             );
-        // <<< SUPERUI-FORK-PATCH: slider-positioning-system
     }
 }
 

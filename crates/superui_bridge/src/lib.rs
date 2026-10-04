@@ -9,6 +9,7 @@ mod events;
 mod reconcile;
 mod runtime;
 mod scroll;
+pub mod slider;
 
 pub use bevy_bridge::{
     drain_bevy_outbox_system, emit_bevy_inbox_system, BevyBridgeRegistry, SuperUiApp,
@@ -22,3 +23,4 @@ pub use events::{
 pub use reconcile::reconcile_system;
 pub use runtime::{DomNode, InputValueText, PickingPolicy, PlaceholderText, UiRuntime};
 pub use scroll::{clamp_scroll_position_system, wheel_scroll_system};
+pub use slider::position_slider_parts;

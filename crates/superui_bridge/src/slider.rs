@@ -1,9 +1,7 @@
-// >>> SUPERUI-FORK-PATCH: slider-positioning-system  (docs/fork-patches.md#slider-positioning-system)
-use crate::components::SliderPart;
-use bevy_ecs::hierarchy::Children;
-use bevy_ecs::prelude::*;
-use bevy_ui::{Node, Val};
-use bevy_ui_widgets::{SliderRange, SliderThumb, SliderValue};
+use bevy::ecs::prelude::*;
+use bevy::ui::{Node, Val};
+use bevy::ui_widgets::{SliderRange, SliderThumb, SliderValue};
+use superui_css::SliderPart;
 
 /// Position the thumb and size the fill of every `bevy_ui_widgets` slider from
 /// its `SliderValue`/`SliderRange`, driving the ordinary `Node.left`/`Node.width`
@@ -25,29 +23,28 @@ pub fn position_slider_parts(
     for (value, range, children) in &sliders {
         let pct = range.thumb_position(value.0).clamp(0.0, 1.0) * 100.0;
         for child in children.iter() {
-            if thumbs.get(child).is_ok()
-                && let Ok(mut n) = nodes.get_mut(child)
-            {
-                n.left = Val::Percent(pct);
+            if thumbs.get(child).is_ok() {
+                if let Ok(mut n) = nodes.get_mut(child) {
+                    n.left = Val::Percent(pct);
+                }
             }
-            if matches!(parts.get(child), Ok(SliderPart::Fill))
-                && let Ok(mut n) = nodes.get_mut(child)
-            {
-                n.width = Val::Percent(pct);
+            if matches!(parts.get(child), Ok(SliderPart::Fill)) {
+                if let Ok(mut n) = nodes.get_mut(child) {
+                    n.width = Val::Percent(pct);
+                }
             }
         }
     }
 }
-// <<< SUPERUI-FORK-PATCH: slider-positioning-system
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::components::StyleData;
-    use bevy_app::prelude::*;
-    use bevy_ecs::prelude::Entity;
-    use bevy_ui::{Node, Val};
-    use bevy_ui_widgets::{SliderRange, SliderThumb, SliderValue};
+    use bevy::app::prelude::*;
+    use bevy::ecs::prelude::Entity;
+    use bevy::ui::{Node, Val};
+    use bevy::ui_widgets::{SliderRange, SliderThumb, SliderValue};
+    use superui_css::{SliderPart, StyleData};
 
     fn val(app: &App, e: Entity) -> Val {
         app.world().get::<Node>(e).unwrap().left
