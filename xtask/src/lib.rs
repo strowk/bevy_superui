@@ -19,8 +19,8 @@ pub fn publish_order() -> Vec<&'static str> {
         "supersolid",
         "superui_bridge",
         "superui",
-        "cargo-superui",
         "superui_test_engine",
+        "cargo-superui",
     ]
 }
 
