@@ -2,24 +2,28 @@
 
 ## Branches & Bevy versions
 
-- `main` tracks the **newest** current supported Bevy. Its crate versions are `0.3.x` (bevy 0.19).
-- `release/bevy-0.18` is a maintenance branch (non actively developed): crate versions `0.2.x` (bevy 0.18).
-- `release/bevy-0.17` is a maintenance branch (non actively developed): crate versions `0.1.x` (bevy 0.17).
+- `main` tracks the **newest** current supported Bevy. Its crate versions are `0.4.x` (bevy 0.20).
+- `release/bevy-0.19` is the maintained backport target: crate versions `0.3.x` (bevy 0.19).
+- `release/bevy-0.18` is frozen (non actively developed, no further backports): crate versions `0.2.x` (bevy 0.18).
+- `release/bevy-0.17` is frozen (non actively developed, no further backports): crate versions `0.1.x` (bevy 0.17).
 
 ### Where fixes land
-Land fixes on `main` first. To backport, cherry-pick onto each maintenance branch
-where it applies (e.g. `release/bevy-0.18`, `release/bevy-0.17`):
+Land fixes on `main` first. Backport **only** to `release/bevy-0.19`, the sole
+maintained branch:
 
-    git checkout release/bevy-0.18
+    git checkout release/bevy-0.19
     git cherry-pick <sha>
-    # bump the patch version (0.2.(x+1)), then: cargo run -p xtask -- publish --execute
+    # bump the patch version (0.3.(x+1)), then: cargo run -p xtask -- publish --execute
+
+`release/bevy-0.18` and `release/bevy-0.17` are frozen and receive no further
+backports or releases.
 
 The single `[workspace.dependencies]` bevy knob and the fork markers
 (`docs/fork-patches.md`) keep cross-branch conflicts small.
 
 ### Cutting the next maintenance branch
-When Bevy 0.20 lands: cut `release/bevy-0.19` from `main`, then bump `main` to
-`0.4.0` + bevy 0.20 (vendor the matching flair release, reapply fork patches).
+When Bevy 0.21 lands: cut `release/bevy-0.20` from `main`, then bump `main` to
+`0.5.0` + bevy 0.21 (vendor the matching flair release, reapply fork patches).
 
 ## Publishing
 `cargo run -p xtask -- publish` dry-runs the whole workspace in dependency order.

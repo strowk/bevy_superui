@@ -30,7 +30,7 @@ editing. A few things are still missing:
 If you use `superui_css_utilities::write_generated` as stated in [Styling](../concepts/styling.md), you might need to add `reflect_documentation` feature:
 
 ```toml
-bevy_reflect = { version = "0.19", features = ["reflect_documentation"] }
+bevy_reflect = { version = "0.20", features = ["reflect_documentation"] }
 ```
 
 The reason for this is that superui_css_utilities drags the bevy stack into the build graph. 

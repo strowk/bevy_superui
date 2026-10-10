@@ -1,6 +1,6 @@
 # superui_css
 
-The CSS layer for [bevy_superui]: an in-tree fork of `bevy_flair` 0.8 (Bevy 0.19)
+The CSS layer for [bevy_superui]: an in-tree fork of `bevy_flair` 0.9 (Bevy 0.20)
 re-exported behind an HTML-shaped surface.
 
 The fork matches real HTML element/attribute/class/id and

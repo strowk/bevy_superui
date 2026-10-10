@@ -12,7 +12,7 @@
 
 <p align="center">
   <a href="https://strowk.github.io/bevy_superui/"><img alt="Docs & live demos" src="https://img.shields.io/badge/docs%20%26%20live%20demos-strowk.github.io-34e6d6"></a>
-  <a href="https://bevyengine.org/"><img alt="Bevy 0.19" src="https://img.shields.io/badge/bevy-0.19-232326"></a>
+  <a href="https://bevyengine.org/"><img alt="Bevy 0.20" src="https://img.shields.io/badge/bevy-0.20-232326"></a>
   <a href="#license"><img alt="License: MIT or Apache-2.0" src="https://img.shields.io/badge/license-MIT%2FApache--2.0-blue"></a>
 </p>
 
@@ -160,17 +160,19 @@ superui version that matches the Bevy version your project uses:
 
 | superui | bevy | branch | status |
 | --- | --- | --- | --- |
-| 0.3.x | 0.19 | `main` | current |
-| 0.2.x | 0.18 | `release/bevy-0.18` | maintained |
-| 0.1.x | 0.17 | `release/bevy-0.17` | maintained |
+| 0.4.x | 0.20 | `main` | current |
+| 0.3.x | 0.19 | `release/bevy-0.19` | maintained |
+| 0.2.x | 0.18 | `release/bevy-0.18` | frozen |
+| 0.1.x | 0.17 | `release/bevy-0.17` | frozen |
 
-`main` always tracks the **newest** supported Bevy; older Bevy versions live on
-long-lived `release/bevy-<ver>` branches. New features land on `main`; fixes are
-backported to the maintenance branch when they apply and shipped as patch
-releases (e.g. `0.1.1`).
+`main` always tracks the **newest** supported Bevy. Fixes land on `main` first
+and are backported only to `release/bevy-0.19`, the sole maintained track,
+shipped as patch releases (e.g. `0.3.1`). `release/bevy-0.18` and
+`release/bevy-0.17` are frozen — no further releases.
 
 The `cargo-superui` CLI is versioned alongside the libraries, so
 `cargo install cargo-superui` matches the current track,
+`cargo install cargo-superui@0.3` pins the 0.19 track,
 `cargo install cargo-superui@0.2` pins the 0.18 track, and
 `cargo install cargo-superui@0.1` pins the 0.17 track.
 

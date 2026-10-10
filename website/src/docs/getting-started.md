@@ -21,16 +21,17 @@ dependency is already in place from the prerequisite step):
 
 ```toml
 [dependencies]
-superui = "0.3"
+superui = "0.4"
 
 [build-dependencies]
-supersolid = "0.3"
+supersolid = "0.4"
 ```
 
 Pick the superui version that matches your Bevy version:
 
 | superui | bevy |
 |---|---|
+| `0.4` | `0.20` |
 | `0.3` | `0.19` |
 | `0.2` | `0.18` |
 | `0.1` | `0.17` |
