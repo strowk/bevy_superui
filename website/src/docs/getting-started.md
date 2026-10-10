@@ -22,7 +22,6 @@ dependency is already in place from the prerequisite step):
 ```toml
 [dependencies]
 superui = "0.3"
-superui_css = "0.3"
 
 # Pre-transpiles your .tsx to JS at build time (needed for release / web builds).
 [build-dependencies]

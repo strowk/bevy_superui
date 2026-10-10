@@ -7,7 +7,6 @@ superui is on crates.io — add it (you already have `bevy`):
 ```toml
 [dependencies]
 superui = "0.3"
-superui_css = "0.3"
 
 # Pre-transpiles .tsx → JS at build time (needed for release / web builds).
 [build-dependencies]
