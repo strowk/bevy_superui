@@ -1,5 +1,5 @@
-//! Regression test for the `css-import-relative-resolution` fork patch
-//! (docs/fork-patches.md#css-import-relative-resolution).
+//! Regression test confirming flair 0.9 resolves `@import` paths relative to
+//! the importing sheet natively — no fork patch needed for this behavior.
 //!
 //! A stylesheet at `dir/main.css` that says `@import "sub/child.css";` must load
 //! `dir/sub/child.css` — the import resolved relative to the importing sheet's

@@ -16,7 +16,7 @@ use crate::css_selector::CssSelector;
 use crate::{BlockBuilder, StyleBuilderProperty, StyleSheetBuilder};
 use bevy_color::Color;
 use bevy_reflect::{FromReflect, TypePath};
-use bevy_ui::{BackgroundColor, Node, PositionType, Val};
+use bevy_ui::{BackgroundColor, CornerRadius, Node, PositionType, Val};
 use superui_flair_core::{PropertyCanonicalName, PropertyPath, ReflectValue};
 
 /// Name of the low-priority layer the defaults are shipped under.
@@ -78,12 +78,21 @@ pub fn add_slider_defaults(builder: &mut StyleSheetBuilder) {
             background_color_property(),
             Color::srgb_u8(0xc8, 0xc8, 0xc8),
         ))
-        .with_property(prop(node_property(".border_radius.top_left"), Val::Px(2.0)))
-        .with_property(prop(node_property(".border_radius.top_right"), Val::Px(2.0)))
-        .with_property(prop(node_property(".border_radius.bottom_left"), Val::Px(2.0)))
+        .with_property(prop(
+            node_property(".border_radius.top_left"),
+            CornerRadius::circular(Val::Px(2.0)),
+        ))
+        .with_property(prop(
+            node_property(".border_radius.top_right"),
+            CornerRadius::circular(Val::Px(2.0)),
+        ))
+        .with_property(prop(
+            node_property(".border_radius.bottom_left"),
+            CornerRadius::circular(Val::Px(2.0)),
+        ))
         .with_property(prop(
             node_property(".border_radius.bottom_right"),
-            Val::Px(2.0),
+            CornerRadius::circular(Val::Px(2.0)),
         ));
 
     // `::slider-fill` — no `width`: `superui_bridge::position_slider_parts` owns it.
@@ -98,12 +107,21 @@ pub fn add_slider_defaults(builder: &mut StyleSheetBuilder) {
             background_color_property(),
             Color::srgb_u8(0x4a, 0x90, 0xd2),
         ))
-        .with_property(prop(node_property(".border_radius.top_left"), Val::Px(2.0)))
-        .with_property(prop(node_property(".border_radius.top_right"), Val::Px(2.0)))
-        .with_property(prop(node_property(".border_radius.bottom_left"), Val::Px(2.0)))
+        .with_property(prop(
+            node_property(".border_radius.top_left"),
+            CornerRadius::circular(Val::Px(2.0)),
+        ))
+        .with_property(prop(
+            node_property(".border_radius.top_right"),
+            CornerRadius::circular(Val::Px(2.0)),
+        ))
+        .with_property(prop(
+            node_property(".border_radius.bottom_left"),
+            CornerRadius::circular(Val::Px(2.0)),
+        ))
         .with_property(prop(
             node_property(".border_radius.bottom_right"),
-            Val::Px(2.0),
+            CornerRadius::circular(Val::Px(2.0)),
         ));
 
     // `::slider-thumb` — no `left`: `superui_bridge::position_slider_parts` owns it.
@@ -120,12 +138,21 @@ pub fn add_slider_defaults(builder: &mut StyleSheetBuilder) {
             background_color_property(),
             Color::srgb_u8(0x1e, 0x90, 0xff), // dodgerblue
         ))
-        .with_property(prop(node_property(".border_radius.top_left"), Val::Px(8.0)))
-        .with_property(prop(node_property(".border_radius.top_right"), Val::Px(8.0)))
-        .with_property(prop(node_property(".border_radius.bottom_left"), Val::Px(8.0)))
+        .with_property(prop(
+            node_property(".border_radius.top_left"),
+            CornerRadius::circular(Val::Px(8.0)),
+        ))
+        .with_property(prop(
+            node_property(".border_radius.top_right"),
+            CornerRadius::circular(Val::Px(8.0)),
+        ))
+        .with_property(prop(
+            node_property(".border_radius.bottom_left"),
+            CornerRadius::circular(Val::Px(8.0)),
+        ))
         .with_property(prop(
             node_property(".border_radius.bottom_right"),
-            Val::Px(8.0),
+            CornerRadius::circular(Val::Px(8.0)),
         ));
 }
 // <<< SUPERUI-FORK-PATCH: slider-default-layer

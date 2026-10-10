@@ -899,14 +899,33 @@ mod tests {
             LEFT => ReflectValue::Float(100.0),
         );
 
-        assert_eq!(
-            resolve!(keyframes, LEFT, &current_values).unwrap(),
-            vec![
-                keyframe!(0, 0.0),
-                keyframe!(25, 25.0),
-                keyframe!(75, 75.0),
-                keyframe!(100, 100.0),
-            ]
-        );
+        // The 75% keyframe is interpolated from the already-interpolated 25%
+        // keyframe (chained inverse_lerp/lerp through an intermediate missing
+        // keyframe), so it picks up a sub-ULP f32 rounding error (e.g.
+        // 75.00001 rather than the mathematically exact 75.0) depending on
+        // glam/libm codegen. Compare keyframe values with a small tolerance
+        // instead of bit-exact equality so this isn't toolchain-dependent.
+        let resolved = resolve!(keyframes, LEFT, &current_values).unwrap();
+        let expected = vec![
+            keyframe!(0, 0.0),
+            keyframe!(25, 25.0),
+            keyframe!(75, 75.0),
+            keyframe!(100, 100.0),
+        ];
+        assert_eq!(resolved.len(), expected.len());
+        for (resolved, expected) in resolved.iter().zip(expected.iter()) {
+            assert_eq!(resolved.time, expected.time);
+            assert_eq!(resolved.easing_function, expected.easing_function);
+            let (ReflectValue::Float(resolved_value), ReflectValue::Float(expected_value)) =
+                (&resolved.value, &expected.value)
+            else {
+                panic!("expected ReflectValue::Float for both resolved and expected");
+            };
+            assert!(
+                (resolved_value - expected_value).abs() < 1e-3,
+                "value mismatch at time {}: {resolved_value} vs {expected_value}",
+                resolved.time
+            );
+        }
     }
 }

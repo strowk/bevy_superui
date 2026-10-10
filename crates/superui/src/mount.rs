@@ -163,6 +163,14 @@ impl Plugin for SuperUiPlugin {
             .init_asset::<JsSource>()
             .register_asset_loader(HtmlLoader)
             .register_asset_loader(JsLoader);
+        // bevy_ui/bevy_text resolve the CSS-native `Val::Rem` (and `LetterSpacing::Rem`)
+        // during layout against the `RemSize` resource, but bevy's own default is
+        // `DEFAULT_REM_SIZE_PX` = 20px (matching `TextFont`'s default font size) — not
+        // the browser convention of `1rem == 16px` that `superui`'s "browser-like"
+        // CSS semantics (and the `css-rem-unit` line-height patch's own 16px-rooted
+        // conversion) already assume. `insert_resource` always wins regardless of
+        // whether `TextPlugin`'s `init_resource` ran before or after this.
+        app.insert_resource(bevy::text::RemSize(16.0));
         // `InputFocusPlugin` runs `process_recorded_focus_changes`, the system that
         // turns an `InputFocus` mutation into `FocusGained`/`FocusLost` events —
         // without it, our focus/blur/change observers never fire. `DefaultPlugins`

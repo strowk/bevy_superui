@@ -2,7 +2,7 @@
 //! transpiled by the native TsxLoader), driven headlessly through `superui`.
 mod support;
 use bevy::prelude::Node;
-use bevy::ui::Val;
+use bevy::ui::{ComputedNode, Val};
 use support::*;
 use superui::UiRuntime;
 
@@ -18,19 +18,34 @@ fn utility_classes_style_elements() {
     // Let the stylesheet (and its @import) load and flair apply the cascade.
     tick(&mut app, 20);
 
-    // `.pt-4` on the <h1>.
+    // `.pt-4` on the <h1>. `Node.padding.top` stays the symbolic `Val::Rem(1.0)`
+    // bevy 0.20 + flair 0.9 natively support (resolved during layout, not eagerly
+    // converted at CSS-parse time); the resolved pixel value lives on
+    // `ComputedNode.padding`, populated by `ui_layout_system` each frame.
     let h1 = node_by_selector(&app, "h1");
     let h1_e = entity_for(&app, h1);
-    let padding_top = app
+    let padding_top_rem = app
         .world()
         .get::<Node>(h1_e)
         .expect("h1 has a Node")
         .padding
         .top;
     assert_eq!(
-        padding_top,
-        Val::Px(16.0),
-        "expected `.pt-4` (1rem @ 16px root) as padding-top, got {padding_top:?}"
+        padding_top_rem,
+        Val::Rem(1.0),
+        "expected `.pt-4` as the native symbolic Val::Rem(1.0), got {padding_top_rem:?}"
+    );
+    let padding_top_px = app
+        .world()
+        .get::<ComputedNode>(h1_e)
+        .expect("h1 has a ComputedNode")
+        .padding
+        .min_inset
+        .y;
+    assert_eq!(
+        padding_top_px,
+        16.0,
+        "expected `.pt-4` (1rem @ 16px root) to resolve to 16px padding-top, got {padding_top_px}"
     );
 
     // `.w-[220px]` (arbitrary value) on the Add button.

@@ -32,6 +32,7 @@ where
 /// # Examples
 /// ```
 /// # use superui_flair_core::ExtractComponentProperties;
+/// # extern crate superui_flair_core as bevy_flair_core;
 ///
 /// // Defines a single property `.value` with type `f32`
 /// #[derive(ExtractComponentProperties)]
@@ -358,6 +359,7 @@ impl fmt::Debug for ComponentPropertiesRegistration {
 /// # use bevy_ui::prelude::*;
 /// # use bevy_color::Color;
 /// # use bevy_reflect::prelude::*;
+/// # extern crate superui_flair_core as bevy_flair_core;
 ///
 /// // Simplest example
 /// //  - Defines a single `background_color` property

@@ -9,13 +9,16 @@ use bevy::input::ButtonState;
 use bevy::input_focus::{FocusCause, InputFocus};
 use bevy::prelude::*;
 use bevy::text::EditableText;
+use bevy::ui_widgets::TextInput;
 
 #[test]
 fn focused_editable_text_applies_keyboard_edits() {
     let mut app = test_app();
+    // `TextInput` is bevy_ui_widgets' marker: `on_focused_keyboard_input` filters
+    // `With<TextInput>`, so a bare `EditableText` never receives keyboard edits.
     let e = app
         .world_mut()
-        .spawn((Node::default(), EditableText::default()))
+        .spawn((Node::default(), EditableText::default(), TextInput))
         .id();
     app.world_mut()
         .resource_mut::<InputFocus>()

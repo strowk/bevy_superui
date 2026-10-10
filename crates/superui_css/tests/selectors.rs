@@ -53,8 +53,9 @@ fn matches_html_selectors_end_to_end() {
 
     // Spawn a small DOM-shaped tree. `html_type_name(tag)` is the element-selector
     // identity the Plan-5 bridge will insert; `Name` is the id; `ClassList` the
-    // classes; `AttributeList` the attributes; `Checked`/`Interaction` drive
-    // pseudo-state exactly as flair syncs it.
+    // classes; `AttributeList` the attributes; `Checked`/`Hovered` drive
+    // pseudo-state exactly as flair syncs it (bevy 0.20 split hover state out of
+    // `Interaction` into its own `bevy_picking::hover::Hovered` component).
     let root = app
         .world_mut()
         .spawn((
@@ -80,12 +81,34 @@ fn matches_html_selectors_end_to_end() {
         .id();
     let btn = app
         .world_mut()
-        .spawn((Node::default(), html_type_name("button"), Interaction::Hovered, Name::new("btn")))
+        .spawn((
+            Node::default(),
+            html_type_name("button"),
+            bevy::picking::hover::Hovered(false),
+            Name::new("btn"),
+        ))
         .id();
 
     app.world_mut().entity_mut(root).add_children(&[plain_li, done_li, special_li, checkbox, btn]);
 
     load_until_ready(&mut app, &handle);
+
+    // Force hover the same way a real cursor eventually would, but scheduled
+    // *after* `PickingSystems::Hover`: bevy_picking's own `generate_hovermap` +
+    // `update_is_hovered` run every `PreUpdate` and reset `Hovered` to `false`
+    // for any entity absent from the (headless, cursor-less) `HoverMap` — setting
+    // `Hovered(true)` any earlier would just be clobbered before flair's
+    // `sync_hovered` (which runs later, in `Update`) ever observes it.
+    use bevy::picking::hover::Hovered;
+    use bevy::picking::PickingSystems;
+    app.add_systems(
+        PreUpdate,
+        (move |mut commands: Commands| {
+            commands.entity(btn).insert(Hovered(true));
+        })
+        .in_set(PickingSystems::PostHover),
+    );
+    app.update();
 
     // Element selector `li` matches, but the descendant `.todo-list li`
     // (specificity 0,1,1 > 0,0,1) wins → purple:

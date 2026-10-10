@@ -53,9 +53,9 @@ impl LoadStyleSheet for AssetServer {
         path: &str,
         mode: CssStyleLoaderErrorMode,
     ) -> Handle<StyleSheet> {
-        self.load_with_settings(path.to_string(), move |s: &mut CssStyleLoaderSetting| {
-            s.error_mode = mode
-        })
+        self.load_builder()
+            .with_settings(move |s: &mut CssStyleLoaderSetting| s.error_mode = mode)
+            .load(path.to_string())
     }
 }
 

@@ -12,7 +12,8 @@ use bevy::prelude::*;
 use bevy::text::{EditableText, TextCursorStyle, TextLayout};
 use bevy::ui::Checked;
 use bevy::ui_widgets::{
-    Slider, SliderOrientation, SliderRange, SliderStep, SliderThumb, SliderValue, TrackClick,
+    Slider, SliderOrientation, SliderRange, SliderStep, SliderThumb, SliderValue, TextInput,
+    TrackClick,
 };
 use superui_css::html_type_name;
 use superui_css::prelude::{AttributeList, ClassList, InlineStyle, Styled, TypeName};
@@ -410,10 +411,13 @@ impl UiRuntime {
             editable.editor_mut().set_text(&seed);
             editable.visible_lines = visible_lines.or(editable.visible_lines);
             // `EditableText` does not require `TextCursorStyle`, but Bevy's caret
-            // renderer only draws a cursor for entities that carry it.
+            // renderer only draws a cursor for entities that carry it. `TextInput`
+            // is bevy_ui_widgets' marker: `on_focused_keyboard_input`/pointer/IME
+            // systems in `TextInputPlugin` all filter `With<TextInput>`, so without
+            // it a plain `EditableText` never receives keyboard edits.
             world
                 .entity_mut(input_entity)
-                .insert((editable, layout, TextCursorStyle::default()));
+                .insert((editable, layout, TextCursorStyle::default(), TextInput));
             seed
         } else {
             // Keep buffer in sync with the live DOM value when JS/JSX changed it.
