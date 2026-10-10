@@ -154,6 +154,11 @@ body:has(.superui-landing) .content main { max-width: none; margin: 0; padding: 
 /* --- wrappers must be transparent or they cover the fixed background layers --- */
 #mdbook-page-wrapper, .page-wrapper, .page, .content { background: transparent; }
 .page-wrapper { position: relative; z-index: 1; }
+/* That z-index:1 makes .page-wrapper a stacking context, which traps mdBook's
+   image-zoom overlay (position:fixed inside .content) below the fixed sidebar
+   (z-index 150) — raising the overlay's own z-index can't escape the context.
+   Lift the wrapper above the sidebar only while an image is zoomed. */
+.page-wrapper:has(.checkbox-img:checked) { z-index: 1002; }
 
 /* single dark theme: hide the theme picker */
 #mdbook-theme-toggle, #mdbook-theme-list, #theme-toggle, #theme-list { display: none !important; }
