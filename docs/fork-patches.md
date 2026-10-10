@@ -11,8 +11,8 @@ Marker grammar (both lines required; use `//` in `.rs` files, `#` in `Cargo.toml
     // <<< SUPERUI-FORK-PATCH: <id>
 
 Upstream bases:
-- bevy_flair 0.8.0 (bevy 0.19) (https://github.com/eckz/bevy_flair)
-  - bevy_flair_core_macros 0.8.0
+- bevy_flair 0.9 (bevy 0.20), vendored from main @ 52cf64211c2134048c3025afa03e8ee519d7d0d3 (https://github.com/eckz/bevy_flair)
+  - bevy_flair_core_macros 0.9
 
 ## Patches
 

@@ -11,7 +11,7 @@ use cssparser::*;
 
 use crate::error::CssError;
 use crate::reflect::ReflectParseCssEnum;
-use crate::utils::{ImportantLevel, try_parse_important_level};
+use crate::utils::{ImportantLevel, resolve_asset_path, try_parse_important_level};
 use crate::vars::parse_var_tokens;
 use crate::{CssParseResult, ParserExt, ShorthandProperty, ShorthandPropertyRegistry};
 use crate::{ReflectParseCss, error_codes};
@@ -21,13 +21,13 @@ use superui_flair_core::{
 use superui_flair_style::animations::{AnimationProperty, AnimationPropertyId, TransitionPropertyId};
 use superui_flair_style::{DynamicParseVarTokens, MediaSelectors, StyleSheet, VarTokens};
 
+pub use animations::*;
+use bevy_asset::AssetPath;
 use bevy_reflect::TypeRegistry;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::fmt::Debug;
 use std::rc::Rc;
 use std::sync::Arc;
-
-pub use animations::*;
 
 use crate::internal_loader::{ImportMapping, Imports};
 use crate::parser::media_selectors::parse_media_selectors;
@@ -70,6 +70,7 @@ impl CssDeclaration {
 
 #[derive(Clone, Debug)]
 pub struct CssRuleset {
+    pub original_path: Option<AssetPath<'static>>,
     pub selectors: CssParseResult<Vec<CssSelector>>,
     pub declaration_block: Vec<CssDeclaration>,
 }
@@ -113,9 +114,19 @@ pub(crate) struct CssPropertyParser<'a> {
 struct CssParserContext<'a, 'i> {
     property_parser: CssPropertyParser<'a>,
     defined_animations: Rc<RefCell<FxHashSet<CowRcStr<'i>>>>,
+    asset_path: Option<AssetPath<'static>>,
     imports: &'a Imports,
     media_selectors: MediaSelectors,
     current_layer: String,
+}
+
+impl<'a, 'i> CssParserContext<'a, 'i> {
+    fn resolve_asset_path<'p>(&self, path: &AssetPath<'p>) -> AssetPath<'static> {
+        match self.asset_path.as_ref() {
+            None => resolve_asset_path(None, path),
+            Some(asset_path) => resolve_asset_path(asset_path.parent().as_ref(), path),
+        }
+    }
 }
 
 impl CssPropertyParser<'_> {
@@ -344,6 +355,7 @@ impl<'i> AtRuleParser<'i> for CssRulesetBodyParser<'_, 'i> {
                     .with_media_selectors(media_selectors);
 
                 CssDeclaration::NestedRuleset(CssRuleset {
+                    original_path: self.inner.asset_path.clone(),
                     selectors: Ok(vec![parent_selector]),
                     declaration_block: properties,
                 })
@@ -367,6 +379,7 @@ impl<'i> AtRuleParser<'i> for CssRulesetBodyParser<'_, 'i> {
                     .with_layer(layer.as_ref().into());
 
                 CssDeclaration::NestedRuleset(CssRuleset {
+                    original_path: self.inner.asset_path.clone(),
                     selectors: Ok(vec![parent_selector]),
                     declaration_block: properties,
                 })
@@ -410,6 +423,7 @@ impl<'i> QualifiedRuleParser<'i> for CssRulesetBodyParser<'_, 'i> {
         let properties = collect_parser(body_parser);
 
         Ok(CssDeclaration::NestedRuleset(CssRuleset {
+            original_path: self.inner.asset_path.clone(),
             selectors,
             declaration_block: properties,
         }))
@@ -492,7 +506,7 @@ struct CssStyleSheetParser<'a, 'i> {
 enum AtRuleType<'i> {
     FontFace,
     KeyFrames(CowRcStr<'i>),
-    Import(CowRcStr<'i>, Option<String>),
+    Import(AssetPath<'static>, Option<String>),
     MediaSelector(MediaSelectors),
     Layer(Vec<CowRcStr<'i>>),
 }
@@ -552,7 +566,26 @@ impl<'i> AtRuleParser<'i> for CssStyleSheetParser<'_, 'i> {
                     })
                 }).ok().map(|l| String::from(l.as_ref()));
 
-                AtRuleType::Import(url, layer)
+                let asset_path = match AssetPath::try_parse(&url) {
+                    Ok(path) => path,
+                    Err(err) => {
+                        return Err(CssError::new_unlocated(
+                            error_codes::basic::ASSET_PATH_PARSE_ERROR,
+                            format!("Cannot load import \"{url}\" because: {err}"),
+                        ).into_parse_error());
+                    }
+                };
+
+                let full_path = self.inner.resolve_asset_path(&asset_path);
+
+                if !self.inner.imports.contains_key(&full_path.to_string()) {
+                    return Err(CssError::new_unlocated(
+                        error_codes::basic::CANNOT_LOAD_IMPORT,
+                        format!("Import url \"{url}\" could not be loaded"),
+                    ).into_parse_error());
+                };
+
+                AtRuleType::Import(full_path, layer)
             },
             "media" =>  {
                 let media_selectors = parse_media_selectors(input).map_err(|err| err.into_parse_error())?;
@@ -574,11 +607,12 @@ impl<'i> AtRuleParser<'i> for CssStyleSheetParser<'_, 'i> {
         _start: &ParserState,
     ) -> Result<CssStyleSheetItem, ()> {
         match at_rule_type {
-            AtRuleType::Import(url, layer) => {
-                let (style_sheet, mapping) =
-                    self.inner.imports.get(url.as_ref()).unwrap_or_else(|| {
-                        panic!("Import '{url}' not found in imports. This should not happen");
-                    });
+            AtRuleType::Import(full_path, layer) => {
+                let (style_sheet, mapping) = self
+                    .inner
+                    .imports
+                    .get(&full_path.to_string())
+                    .expect("import not found");
 
                 Ok(CssStyleSheetItem::EmbedStylesheet(
                     style_sheet.clone(),
@@ -687,6 +721,7 @@ impl<'i> QualifiedRuleParser<'i> for CssStyleSheetParser<'_, 'i> {
         let properties = collect_parser(body_parser);
 
         Ok(CssStyleSheetItem::RuleSet(CssRuleset {
+            original_path: self.inner.asset_path.clone(),
             selectors,
             declaration_block: properties,
         }))
@@ -710,6 +745,7 @@ pub fn parse_inline_properties(
         inner: CssParserContext {
             property_parser,
             defined_animations: Default::default(),
+            asset_path: None,
             imports: &empty_imports,
             media_selectors: MediaSelectors::empty(),
             current_layer: String::new(),
@@ -719,11 +755,13 @@ pub fn parse_inline_properties(
     collect_parser(body_parser)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn parse_css<F>(
     type_registry: &TypeRegistry,
     property_registry: &PropertyRegistry,
     css_property_registry: &CssPropertyRegistry,
     shorthand_property_registry: &ShorthandPropertyRegistry,
+    asset_path: Option<AssetPath<'static>>,
     imports: &FxHashMap<String, (StyleSheet, ImportMapping)>,
     contents: &str,
     mut processor: F,
@@ -743,6 +781,7 @@ pub fn parse_css<F>(
                 shorthand_property_registry,
             },
             defined_animations: Default::default(),
+            asset_path,
             imports,
             media_selectors: MediaSelectors::empty(),
             current_layer: String::new(),
@@ -773,6 +812,7 @@ mod tests {
     use superui_flair_style::{ToCss, VarOrToken, VarToken};
     use bevy_reflect::*;
     use indoc::indoc;
+    use std::assert_matches;
     use std::sync::LazyLock;
 
     const TEST_REPORT_CONFIG: ariadne::Config = ariadne::Config::new()
@@ -801,8 +841,8 @@ mod tests {
         })
     }
 
-    impl FromType<i32> for ReflectParseCss {
-        fn from_type() -> Self {
+    impl CreateTypeData<i32> for ReflectParseCss {
+        fn create_type_data(_: ()) -> Self {
             Self(parse_i32_property_value)
         }
     }
@@ -887,6 +927,7 @@ mod tests {
             &PROPERTY_REGISTRY,
             &CSS_PROPERTY_REGISTRY,
             &SHORTHAND_PROPERTY_REGISTRY,
+            None,
             &IMPORTS,
             contents,
             |item| {
@@ -1206,13 +1247,13 @@ mod tests {
         let property = rule1.declaration_block.expect_one();
         let (value, important_level) = expect_property_name!(property, "height");
         assert_eq!(value, PropertyValue::Value(ReflectValue::new(1)));
-        assert!(matches!(important_level, ImportantLevel::Important(_)));
+        assert_matches!(important_level, ImportantLevel::Important(_));
 
         assert_single_class_selector!(rule2, "rule2");
         let property = rule2.declaration_block.expect_one();
         let (value, important_level) = expect_property_name!(property, "height");
         assert_eq!(value, PropertyValue::Value(ReflectValue::new(2)));
-        assert!(matches!(important_level, ImportantLevel::Important(_)));
+        assert_matches!(important_level, ImportantLevel::Important(_));
 
         assert_single_class_selector!(rule3, "rule3");
         let property = rule3.declaration_block.expect_one();
@@ -1220,7 +1261,7 @@ mod tests {
         let CssDeclaration::MultipleProperties(values, important_level) = property else {
             panic!("Expected MultipleProperties");
         };
-        assert!(matches!(important_level, ImportantLevel::Important(_)));
+        assert_matches!(important_level, ImportantLevel::Important(_));
 
         assert_eq!(
             values,
@@ -1336,10 +1377,10 @@ mod tests {
         assert_single_class_selector!(ruleset, "rule1");
         let property = ruleset.declaration_block.expect_one();
 
-        assert!(matches!(
+        assert_matches!(
             property,
             CssDeclaration::TransitionProperty(AnimationProperty::Shorthand(_))
-        ));
+        );
     }
 
     #[test]
@@ -1356,13 +1397,13 @@ mod tests {
         assert_single_class_selector!(ruleset, "rule1");
         let property = ruleset.declaration_block.expect_one();
 
-        assert!(matches!(
+        assert_matches!(
             property,
             CssDeclaration::TransitionProperty(AnimationProperty::SingleProperty {
                 property_id: TransitionPropertyId::Delay,
                 ..
             })
-        ));
+        );
     }
 
     #[test]
@@ -1418,10 +1459,10 @@ mod tests {
         assert_single_class_selector!(ruleset, "rule1");
         let property = ruleset.declaration_block.expect_one();
 
-        assert!(matches!(
+        assert_matches!(
             property,
             CssDeclaration::AnimationProperty(AnimationProperty::Shorthand(_))
-        ));
+        );
     }
 
     #[test]
@@ -1590,11 +1631,8 @@ mod tests {
         let mut properties = ruleset.declaration_block;
         assert_eq!(properties.len(), 2);
 
-        assert!(matches!(
-            properties[0],
-            CssDeclaration::SingleProperty(_, _, _)
-        ));
-        assert!(matches!(properties[1], CssDeclaration::NestedRuleset(_)));
+        assert_matches!(properties[0], CssDeclaration::SingleProperty(_, _, _));
+        assert_matches!(properties[1], CssDeclaration::NestedRuleset(_));
 
         let CssDeclaration::NestedRuleset(nested_ruleset) = properties.remove(1) else {
             panic!("Expected nested ruleset")
@@ -1627,11 +1665,8 @@ mod tests {
         let mut properties = ruleset.declaration_block;
         assert_eq!(properties.len(), 2);
 
-        assert!(matches!(
-            properties[0],
-            CssDeclaration::SingleProperty(_, _, _)
-        ));
-        assert!(matches!(properties[1], CssDeclaration::NestedRuleset(_)));
+        assert_matches!(properties[0], CssDeclaration::SingleProperty(_, _, _));
+        assert_matches!(properties[1], CssDeclaration::NestedRuleset(_));
 
         let CssDeclaration::NestedRuleset(nested_ruleset) = properties.remove(1) else {
             panic!("Expected nested ruleset")
@@ -1654,14 +1689,8 @@ mod tests {
         let items = parse(contents);
         let [import1, import2] = items.expect_n();
 
-        assert!(matches!(
-            import1,
-            CssStyleSheetItem::EmbedStylesheet(_, _, _)
-        ));
-        assert!(matches!(
-            import2,
-            CssStyleSheetItem::EmbedStylesheet(_, _, _)
-        ));
+        assert_matches!(import1, CssStyleSheetItem::EmbedStylesheet(_, _, _));
+        assert_matches!(import2, CssStyleSheetItem::EmbedStylesheet(_, _, _));
     }
 
     #[test]

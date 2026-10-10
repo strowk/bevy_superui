@@ -6,7 +6,6 @@ use cssparser::{
     BasicParseError, BasicParseErrorKind, ParseError, ParseErrorKind, SourceLocation, ToCss, Token,
 };
 use selectors::parser::SelectorParseErrorKind;
-use std::ops::Range;
 
 #[derive(Default)]
 struct WriteLengthCounter {
@@ -22,7 +21,7 @@ impl std::fmt::Write for WriteLengthCounter {
 
 #[derive(Clone, Debug)]
 pub(crate) enum CssErrorLocation {
-    Range(Range<usize>),
+    Range(std::range::Range<usize>),
     Unlocated,
     SubStr {
         substr_ptr: usize,
@@ -35,16 +34,14 @@ pub(crate) enum CssErrorLocation {
     },
 }
 
-// Taken from subslice_range (https://doc.rust-lang.org/src/core/slice/mod.rs.html#4626)
-fn substr_range(original: &str, substr: &str) -> Option<Range<usize>> {
-    let original_start = original.as_ptr() as usize;
-    let subslice_start = substr.as_ptr() as usize;
-
-    let byte_start = subslice_start.wrapping_sub(original_start);
-    let byte_end = byte_start.wrapping_add(substr.len());
-
-    if byte_start <= original.len() && byte_end <= original.len() {
-        Some(byte_start..byte_end)
+// Taken from subslice_range (https://doc.rust-lang.org/stable/src/core/slice/mod.rs.html#5321)
+fn substr_range(original: &str, substr: &str) -> Option<core::range::Range<usize>> {
+    let self_start = original.as_ptr().addr();
+    let subslice_start = substr.as_ptr().addr();
+    let start = subslice_start.wrapping_sub(self_start);
+    let end = start.wrapping_add(substr.len());
+    if start <= original.len() && end <= original.len() {
+        Some(core::range::Range { start, end })
     } else {
         None
     }
@@ -76,19 +73,19 @@ impl CssErrorLocation {
         }
     }
 
-    pub(crate) fn into_range(self, contents: &str) -> Range<usize> {
+    pub(crate) fn into_range(self, contents: &str) -> std::range::legacy::Range<usize> {
         match self {
             CssErrorLocation::Unlocated => {
                 panic!("Unexpected unlocated CssError")
             }
-            CssErrorLocation::Range(range) => range,
+            CssErrorLocation::Range(range) => range.into(),
             CssErrorLocation::SubStr { substr_ptr, len } => {
                 let contents_ptr = contents.as_ptr() as usize;
-                let byte_start = substr_ptr.wrapping_sub(contents_ptr);
-                let byte_end = byte_start.wrapping_add(len);
+                let start = substr_ptr.wrapping_sub(contents_ptr);
+                let end = start.wrapping_add(len);
 
-                if byte_start <= contents.len() && byte_end <= contents.len() {
-                    byte_start..byte_end
+                if start <= contents.len() && end <= contents.len() {
+                    std::range::legacy::Range { start, end }
                 } else {
                     panic!("invalid range generated");
                 }
@@ -97,15 +94,11 @@ impl CssErrorLocation {
                 source_location,
                 len_offset,
             } => {
-                // >>> SUPERUI-FORK-PATCH: css-eof-guard  (docs/fork-patches.md#css-eof-guard)
-                // A parse error can carry a SourceLocation one line past EOF
-                // (e.g. a trailing block-less malformed rule). Upstream panicked
-                // here; instead fall back to an empty end-of-input span so the
-                // bad rule is skipped, not fatal.
+                // A parse error's SourceLocation can point one line past EOF (e.g. a
+                // trailing block-less rule); yield an empty end-of-input span for it.
                 let Some(line) = contents.lines().nth(source_location.line as usize) else {
                     return contents.len()..contents.len();
                 };
-                // <<< SUPERUI-FORK-PATCH: css-eof-guard
 
                 // The column number within a line starts at 1 for first the character of the line.
                 // Column numbers are counted in UTF-16 code units.
@@ -122,7 +115,8 @@ impl CssErrorLocation {
                 let line_len = line.len();
                 if column_byte_offset >= line_len {
                     return substr_range(contents, &line[line_len - 1..line_len])
-                        .expect("Invalid range generated");
+                        .expect("Invalid range generated")
+                        .into();
                 }
 
                 substr_range(
@@ -130,6 +124,7 @@ impl CssErrorLocation {
                     &line[column_byte_offset..(column_byte_offset + len_offset)],
                 )
                 .expect("Invalid range generated")
+                .into()
             }
         }
     }
@@ -300,7 +295,7 @@ impl CssError {
     ) -> Self {
         Self::new(
             StyleErrorData::new(code, annotated_message),
-            CssErrorLocation::Range(located.location.clone()),
+            CssErrorLocation::Range(located.location),
         )
     }
 
@@ -486,7 +481,7 @@ impl<'a> ErrorReportGenerator<'a> {
     /// Add advice to this report.
     pub fn add_advice(
         &mut self,
-        location: Range<usize>,
+        location: core::range::legacy::Range<usize>,
         message: &'static str,
         annotated_message: impl Into<String>,
     ) {
@@ -567,6 +562,21 @@ mod tests {
    |       `------ unexpected token: Number { has_sign: false, value: 12345.0, int_value: Some(12345) }
 ---'
 "
+        );
+    }
+
+    #[test]
+    fn source_location_past_eof_degrades_without_panic() {
+        // A parse error's SourceLocation can point one line past EOF (e.g. a
+        // trailing block-less rule); into_range must not panic on it.
+        let contents = "#kept 12345\n";
+        let location = CssErrorLocation::SourceLocation {
+            source_location: SourceLocation { line: 5, column: 1 },
+            len_offset: 3,
+        };
+        assert_eq!(
+            location.into_range(contents),
+            contents.len()..contents.len()
         );
     }
 

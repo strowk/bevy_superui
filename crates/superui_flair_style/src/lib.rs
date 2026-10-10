@@ -33,9 +33,6 @@ pub(crate) mod custom_iterators;
 mod layers;
 mod media_selector;
 pub mod placeholder;
-// >>> SUPERUI-FORK-PATCH: slider-default-layer  (docs/fork-patches.md#slider-default-layer)
-pub mod slider_defaults;
-// <<< SUPERUI-FORK-PATCH: slider-default-layer
 mod style_block;
 mod systems;
 mod to_css;
@@ -50,10 +47,6 @@ pub use style_block::*;
 pub use style_sheet::*;
 pub use to_css::*;
 pub use vars::*;
-
-// >>> SUPERUI-FORK-PATCH: slider-part-pseudo-elements  (docs/fork-patches.md#slider-part-pseudo-elements)
-pub use crate::components::SliderPart;
-// <<< SUPERUI-FORK-PATCH: slider-part-pseudo-elements
 
 pub(crate) type IdName = std::borrow::Cow<'static, str>;
 pub(crate) type ClassName = std::borrow::Cow<'static, str>;
@@ -358,7 +351,18 @@ impl Plugin for FlairStylePlugin {
             .init_resource::<GlobalChangeDetection>()
             .register_required_components::<Node, Styled>()
             .register_required_components::<TextSpan, Styled>()
-            .register_required_components_with::<Button, TypeName>(|| TypeName("button"))
+            .register_required_components_with::<bevy_ui_widgets::Button, TypeName>(|| {
+                TypeName("button")
+            })
+            .register_required_components_with::<bevy_ui_widgets::Checkbox, TypeName>(|| {
+                TypeName("checkbox")
+            })
+            .register_required_components_with::<bevy_ui_widgets::RadioButton, TypeName>(|| {
+                TypeName("radio")
+            })
+            .register_required_components_with::<bevy_ui_widgets::Slider, TypeName>(|| {
+                TypeName("slider")
+            })
             .register_required_components_with::<Text, TypeName>(|| TypeName("text"))
             .register_required_components_with::<TextSpan, TypeName>(|| TypeName("span"))
             .register_required_components_with::<Label, TypeName>(|| TypeName("label"))
@@ -432,8 +436,12 @@ impl Plugin for FlairStylePlugin {
                                 state.checked = value;
                             },
                         ),
+                        systems::sync_marker_component_system::<bevy_ui::Selected>(
+                            |state, value| {
+                                state.checked = value;
+                            },
+                        ),
                         systems::sync_hovered,
-                        systems::sync_interaction,
                         systems::track_name_changes,
                         systems::sync_input_focus,
                     )
@@ -458,6 +466,7 @@ impl Plugin for FlairStylePlugin {
                     systems::emit_redraw_event.in_set(StyleSystems::EmitRedrawEvent),
                     (
                         systems::resolve_placeholders,
+                        systems::sync_em_size,
                         systems::apply_computed_properties,
                         systems::auto_remove_components
                             .run_if(systems::auto_remove_components_condition),

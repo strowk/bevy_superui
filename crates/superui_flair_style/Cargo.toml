@@ -56,6 +56,10 @@ workspace = true
 [dependencies.bevy_color]
 workspace = true
 
+[dependencies.bevy_curve]
+workspace = true
+features = ["bevy_reflect"]
+
 [dependencies.bevy_ecs]
 workspace = true
 
@@ -86,7 +90,9 @@ workspace = true
 
 [dependencies.bevy_ui]
 workspace = true
-features = ["bevy_picking"]
+
+[dependencies.bevy_ui_widgets]
+workspace = true
 
 [dependencies.bevy_utils]
 workspace = true

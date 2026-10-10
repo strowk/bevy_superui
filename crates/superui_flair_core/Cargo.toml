@@ -74,7 +74,6 @@ workspace = true
 
 [dependencies.bevy_ui]
 workspace = true
-features = ["bevy_picking"]
 
 [dependencies.rustc-hash]
 version = "2.1"

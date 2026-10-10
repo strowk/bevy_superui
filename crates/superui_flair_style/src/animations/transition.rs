@@ -1,7 +1,7 @@
 use crate::animations::reflect::BoxedReflectCurve;
 use crate::animations::{EasingFunction, EasingFunctionCurve, ReflectAnimatable};
+use bevy_curve::Curve;
 use superui_flair_core::{ComponentPropertyId, ReflectValue};
-use bevy_math::Curve;
 use bevy_reflect::prelude::*;
 use bevy_time::{Timer, TimerMode};
 use std::time::Duration;
@@ -135,19 +135,6 @@ impl Transition {
         this
     }
 
-    /// Elapsed time in seconds, excluding the initial delay.
-    pub fn elapsed_secs(&self) -> f32 {
-        (self.timer.elapsed_secs() - self.initial_delay.as_secs_f32()).max(0.0)
-    }
-
-    /// Returns `true` if this transition is active.
-    pub fn is_active(&self) -> bool {
-        matches!(
-            self.state,
-            TransitionState::Pending | TransitionState::Running
-        )
-    }
-
     fn update_for_possibly_reversed_transition(
         &mut self,
         replaced_transition: &Transition,
@@ -174,7 +161,7 @@ impl Transition {
         //      time of the style change event, times the reversing shortening
         //      factor of the old transition
         //    2.  1 minus the reversing shortening factor of the old transition."
-        let transition_progress = (replaced_transition.elapsed_secs()
+        let transition_progress = (replaced_transition.elapsed().as_secs_f32()
             / (replaced_transition.duration.as_secs_f32()))
         .clamp(0.0, 1.0);
 
@@ -206,6 +193,29 @@ impl Transition {
             reflect.create_property_transition_curve(Some(self.from.clone()), self.to.clone());
     }
 
+    /// Elapsed time, excluding the initial delay.
+    pub fn elapsed(&self) -> Duration {
+        self.timer
+            .elapsed()
+            .checked_sub(self.initial_delay)
+            .unwrap_or(Duration::ZERO)
+    }
+
+    /// Returns `true` if this transition has not finished or being canceled.
+    pub fn is_active(&self) -> bool {
+        matches!(
+            self.state,
+            TransitionState::Pending | TransitionState::Running
+        )
+    }
+
+    pub(crate) fn can_be_ticked(&self) -> bool {
+        matches!(
+            self.state,
+            TransitionState::Pending | TransitionState::Running
+        )
+    }
+
     /// Calculates the current value of the transitions using the easing and interpolation curves.
     pub fn sample_value(&self) -> ReflectValue {
         match self.state {
@@ -220,13 +230,6 @@ impl Transition {
                 self.interpolation_curve.sample_unchecked(eased_t)
             }
         }
-    }
-
-    pub(crate) fn can_be_ticked(&self) -> bool {
-        matches!(
-            self.state,
-            TransitionState::Pending | TransitionState::Running
-        )
     }
 
     #[inline]
@@ -252,7 +255,7 @@ mod tests {
     use crate::animations::ReflectAnimatable;
     use superui_flair_core::{ComponentPropertyId, ReflectValue};
     use bevy_math::Vec2;
-    use bevy_reflect::FromType;
+    use bevy_reflect::CreateTypeData;
     use std::time::Duration;
 
     const ONE_SECOND: Duration = Duration::from_secs(1);
@@ -269,7 +272,8 @@ mod tests {
 
     #[test]
     fn basic_transition() {
-        let reflect_animatable_f32 = <ReflectAnimatable as FromType<f32>>::from_type();
+        let reflect_animatable_f32 =
+            <ReflectAnimatable as CreateTypeData<f32>>::create_type_data(());
 
         let mut transition = Transition::new(
             ComponentPropertyId::PLACEHOLDER,
@@ -282,7 +286,7 @@ mod tests {
         assert_eq!(transition.state, TransitionState::Pending);
         assert_eq!(transition.initial_delay, Duration::ZERO);
         assert_eq!(transition.duration, ONE_SECOND);
-        assert_eq!(transition.elapsed_secs(), 0.0);
+        assert_eq!(transition.elapsed(), Duration::ZERO);
 
         // Emits initial value
         assert_eq!(transition.sample_value(), ReflectValue::Float(0.0));
@@ -292,23 +296,24 @@ mod tests {
 
         assert_eq!(transition.state, TransitionState::Running);
         assert_eq!(transition.sample_value(), ReflectValue::Float(0.0));
-        assert_eq!(transition.elapsed_secs(), 0.0);
+        assert_eq!(transition.elapsed(), Duration::ZERO);
 
         transition.tick(HALF_SECOND);
 
         assert_eq!(transition.state, TransitionState::Running);
         assert_eq!(transition.sample_value(), ReflectValue::Float(5.0));
-        assert_eq!(transition.elapsed_secs(), 0.5);
+        assert_eq!(transition.elapsed(), HALF_SECOND);
 
         transition.tick(HALF_SECOND);
         assert_eq!(transition.state, TransitionState::Finished);
         assert_eq!(transition.sample_value(), ReflectValue::Float(10.0));
-        assert_eq!(transition.elapsed_secs(), 1.0);
+        assert_eq!(transition.elapsed(), ONE_SECOND);
     }
 
     #[test]
     fn easing_can_overshoot() {
-        let reflect_animatable_f32 = <ReflectAnimatable as FromType<f32>>::from_type();
+        let reflect_animatable_f32 =
+            <ReflectAnimatable as CreateTypeData<f32>>::create_type_data(());
 
         let mut transition = Transition::new(
             ComponentPropertyId::PLACEHOLDER,
@@ -334,7 +339,8 @@ mod tests {
 
     #[test]
     fn zero_duration_transition() {
-        let reflect_animatable_f32 = <ReflectAnimatable as FromType<f32>>::from_type();
+        let reflect_animatable_f32 =
+            <ReflectAnimatable as CreateTypeData<f32>>::create_type_data(());
 
         let mut transition = Transition::new(
             ComponentPropertyId::PLACEHOLDER,
@@ -359,12 +365,14 @@ mod tests {
         transition.tick(Duration::ZERO);
 
         assert_eq!(transition.state, TransitionState::Finished);
+        assert_eq!(transition.elapsed(), Duration::ZERO);
         assert_eq!(transition.sample_value(), ReflectValue::Float(10.0));
     }
 
     #[test]
     fn nano_duration_transition() {
-        let reflect_animatable_f32 = <ReflectAnimatable as FromType<f32>>::from_type();
+        let reflect_animatable_f32 =
+            <ReflectAnimatable as CreateTypeData<f32>>::create_type_data(());
 
         let mut transition = Transition::new(
             ComponentPropertyId::PLACEHOLDER,
@@ -395,11 +403,13 @@ mod tests {
 
         // The math should be correct even after one nanosecond.
         assert_eq!(transition.state, TransitionState::Running);
+        assert_eq!(transition.elapsed(), ONE_NANOSECOND);
         assert_eq!(transition.sample_value(), ReflectValue::Float(5.0));
 
         transition.tick(ONE_NANOSECOND);
 
         assert_eq!(transition.state, TransitionState::Finished);
+        assert_eq!(transition.elapsed(), ONE_NANOSECOND + ONE_NANOSECOND);
         assert_eq!(transition.sample_value(), ReflectValue::Float(10.0));
     }
 }

@@ -2,9 +2,11 @@ use crate::ShorthandPropertyRegistry;
 
 use crate::imports_parser::extract_imports;
 use crate::internal_loader::InternalStylesheetLoader;
+use crate::utils::resolve_asset_path;
 use bevy_asset::io::Reader;
 use bevy_asset::{
-    AssetLoader, AssetServer, AsyncReadExt, LoadContext, LoadDirectError, VisitAssetDependencies,
+    AssetLoader, AssetPath, AssetServer, AsyncReadExt, LoadContext, LoadDirectError,
+    VisitAssetDependencies,
 };
 use bevy_ecs::change_detection::{MaybeLocation, Res};
 use bevy_ecs::prelude::AppTypeRegistry;
@@ -16,7 +18,7 @@ use bevy_reflect::{TypePath, TypeRegistryArc};
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use tracing::debug;
+use tracing::{debug, error};
 
 /// Errors that can occur while loading a CSS stylesheet using [`CssStyleSheetLoader`] or
 /// [`InlineCssStyleSheetParser`].
@@ -112,6 +114,9 @@ impl AssetLoader for CssStyleSheetLoader {
         settings: &Self::Settings,
         load_context: &mut LoadContext<'_>,
     ) -> Result<Self::Asset, Self::Error> {
+        let asset_path = load_context.path().clone().into_owned();
+        let current_path = load_context.path().parent();
+
         let mut contents = String::new();
         reader.read_to_string(&mut contents).await?;
 
@@ -119,7 +124,14 @@ impl AssetLoader for CssStyleSheetLoader {
         let mut import_paths = Vec::new();
 
         extract_imports(&contents, |item| {
-            import_paths.push(String::from(item.as_ref()));
+            let asset_path = match AssetPath::try_parse(&item) {
+                Ok(path) => path,
+                Err(err) => {
+                    error!("Cannot parse import url \"{item}\": {err}");
+                    return;
+                }
+            };
+            import_paths.push(resolve_asset_path(current_path.as_ref(), &asset_path).to_string());
         });
 
         let mut imports = FxHashMap::default();
@@ -128,20 +140,18 @@ impl AssetLoader for CssStyleSheetLoader {
             // The issue here is that by using `load_value`,
             // `StyleBlock` do not get added to the `Assets<StyleBlock>` resource, and they are never 'Loaded'.
             // So we need to extract and map them from the loaded value into new `StyleBlock`.
-            // >>> SUPERUI-FORK-PATCH: css-import-relative-resolution  (docs/fork-patches.md#css-import-relative-resolution)
-            // CSS spec: @import URLs resolve relative to the importing stylesheet's directory,
-            // not the asset root. `resolve_embed_str` uses RFC-1808 (embedded) semantics: the base
-            // is the importing sheet FILE, so the relative import resolves against its directory.
-            // Fall back to the raw string if the import can't be parsed as an asset path.
-            let load_path = load_context
-                .path()
-                .resolve_embed_str(&import_path)
-                .unwrap_or_else(|_| import_path.clone().into());
             let loaded_asset = load_context
                 .load_builder()
-                .load_value::<StyleSheet>(load_path)
-                .await?;
-            // <<< SUPERUI-FORK-PATCH: css-import-relative-resolution
+                .load_value::<StyleSheet>(&import_path)
+                .await;
+
+            let loaded_asset = match loaded_asset {
+                Ok(asset) => asset,
+                Err(err) => {
+                    error!("Error loading \"{import_path}\": {err}");
+                    continue;
+                }
+            };
 
             let mut old_index_to_handle = FxHashMap::default();
 
@@ -171,8 +181,9 @@ impl AssetLoader for CssStyleSheetLoader {
             imports.insert(import_path, (style_sheet, old_index_to_handle));
         }
 
-        let file_name = load_context.path().to_string();
         let type_registry = self.type_registry_arc.read();
+
+        let full_path = asset_path.to_string();
 
         let internal_loader = InternalStylesheetLoader {
             type_registry: &type_registry,
@@ -180,10 +191,11 @@ impl AssetLoader for CssStyleSheetLoader {
             css_property_registry: &self.css_property_registry,
             shorthand_property_registry: &self.shorthand_property_registry,
             error_mode: settings.error_mode,
+            asset_path: Some(asset_path.clone()),
             imports: &imports,
         };
 
-        let builder = internal_loader.load_stylesheet(&file_name, &contents)?;
+        let builder = internal_loader.load_stylesheet(&full_path, &contents)?;
         Ok(builder.build(
             &type_registry,
             &self.property_registry,
@@ -208,10 +220,11 @@ impl AssetLoader for CssStyleSheetLoader {
 /// # use bevy_asset::Assets;
 /// # use bevy_ecs::change_detection::ResMut;
 /// # use bevy_ecs::system::Commands;
-/// # use bevy_ui::widget::Button;
 /// # use superui_flair_css_parser::InlineCssStyleSheetParser;
 /// # use superui_flair_style::components::Styled;
 /// # use superui_flair_style::StyleSheet;
+/// # use bevy_ui::Node;
+/// # use bevy_ui_widgets::Button;
 ///
 /// fn setup(mut commands: Commands, loader: InlineCssStyleSheetParser, mut assets: ResMut<Assets<StyleSheet>>,) {
 ///     let stylesheet = loader
@@ -224,6 +237,7 @@ impl AssetLoader for CssStyleSheetLoader {
 ///     let handle_id = assets.add(stylesheet);
 ///     commands.spawn((
 ///         Button,
+///         Node::default(),
 ///         Styled::new(handle_id),
 ///     ));
 /// }
@@ -264,6 +278,7 @@ impl<'w> InlineCssStyleSheetParser<'w> {
             css_property_registry: &self.css_property_registry,
             shorthand_property_registry: &self.shorthand_property_registry,
             error_mode: CssStyleLoaderErrorMode::ReturnError,
+            asset_path: None,
             imports: &imports,
         };
 

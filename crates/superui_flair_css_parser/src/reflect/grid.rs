@@ -4,7 +4,7 @@ use crate::utils::{parse_many, parse_property_value_with, try_parse_none};
 use crate::{Located, ParserExt, ReflectParseCss};
 
 use superui_flair_core::ReflectValue;
-use bevy_reflect::{FromType, TypePath};
+use bevy_reflect::{CreateTypeData, TypePath};
 use bevy_ui::{
     GridPlacement, GridTrack, GridTrackRepetition, MaxTrackSizingFunction, MinTrackSizingFunction,
     RepeatedGridTrack,
@@ -321,55 +321,94 @@ macro_rules! convert_integer {
     };
 }
 
-fn parse_grid_placement(parser: &mut Parser) -> Result<ReflectValue, CssError> {
-    let start = parser.expect_integer()?;
-
-    non_zero!(start);
-    let start = convert_integer!(start as i16);
-
-    if let Ok(result) = parser.try_parse_with(|parser| {
-        parser.expect_delim('/')?;
-
-        let peek = parser.peek()?;
-
-        Ok(ReflectValue::new(match peek {
-            Token::Ident(_) => {
-                parser.expect_ident_matching("span")?;
-                let span = parser.expect_integer()?;
-                non_zero!(span);
-                let span = convert_integer!(span as u16);
-
-                // TODO: Check this conversion
-                GridPlacement::start_span(start, span)
-            }
-            _ => {
-                let end = parser.expect_integer()?;
-                non_zero!(end);
-                let end = convert_integer!(end as i16);
-                GridPlacement::start_end(start, end)
-            }
-        }))
-    }) {
-        Ok(result)
-    } else {
-        Ok(ReflectValue::new(GridPlacement::start(start)))
-    }
+/// A single `<grid-line>` component of the `grid-row`/`grid-column` grammar
+enum GridLine {
+    Auto,
+    Line(i16),
+    Span(u16),
 }
 
-impl FromType<Vec<GridTrack>> for ReflectParseCss {
-    fn from_type() -> Self {
+fn parse_grid_line(parser: &mut Parser) -> Result<GridLine, CssError> {
+    let peek = parser.peek()?;
+
+    Ok(match peek {
+        Token::Ident(ref ident) if ident.as_ref().eq_ignore_ascii_case("auto") => {
+            parser.expect_ident_matching("auto")?;
+            GridLine::Auto
+        }
+        Token::Ident(_) => {
+            parser.expect_ident_matching("span")?;
+            let span = parser.expect_integer()?;
+            non_zero!(span);
+            let span = convert_integer!(span as u16);
+            GridLine::Span(span)
+        }
+        _ => {
+            let value = parser.expect_integer()?;
+            non_zero!(value);
+            let value = convert_integer!(value as i16);
+            GridLine::Line(value)
+        }
+    })
+}
+
+fn grid_placement_from_lines(
+    first: GridLine,
+    second: Option<GridLine>,
+) -> Result<GridPlacement, CssError> {
+    Ok(match (first, second) {
+        (GridLine::Auto, None | Some(GridLine::Auto)) => GridPlacement::auto(),
+        (GridLine::Line(start), None) => GridPlacement::start(start),
+        (GridLine::Span(span), None) => GridPlacement::span(span),
+
+        (GridLine::Auto, Some(GridLine::Line(end))) => GridPlacement::end(end),
+        (GridLine::Auto, Some(GridLine::Span(span))) => GridPlacement::span(span),
+
+        (GridLine::Line(start), Some(GridLine::Auto)) => GridPlacement::start(start),
+        (GridLine::Line(start), Some(GridLine::Line(end))) => GridPlacement::start_end(start, end),
+        (GridLine::Line(start), Some(GridLine::Span(span))) => {
+            GridPlacement::start_span(start, span)
+        }
+
+        (GridLine::Span(span), Some(GridLine::Auto)) => GridPlacement::span(span),
+        (GridLine::Span(span), Some(GridLine::Line(end))) => GridPlacement::end_span(end, span),
+
+        (GridLine::Span(_), Some(GridLine::Span(_))) => {
+            return Err(CssError::new_unlocated(
+                error_codes::GRID_PLACEMENT_DOUBLE_SPAN,
+                "'span' cannot be used for both the start and the end of a grid placement",
+            ));
+        }
+    })
+}
+
+fn parse_grid_placement(parser: &mut Parser) -> Result<ReflectValue, CssError> {
+    let first = parse_grid_line(parser)?;
+
+    let second = parser
+        .try_parse_with(|parser| {
+            parser.expect_delim('/')?;
+            parse_grid_line(parser)
+        })
+        .ok();
+
+    grid_placement_from_lines(first, second).map(ReflectValue::new)
+}
+
+impl CreateTypeData<Vec<GridTrack>> for ReflectParseCss {
+    fn create_type_data(_: ()) -> Self {
         ReflectParseCss(|parser| parse_property_value_with(parser, parse_grid_track_vec))
     }
 }
 
-impl FromType<Vec<RepeatedGridTrack>> for ReflectParseCss {
-    fn from_type() -> Self {
+impl CreateTypeData<Vec<RepeatedGridTrack>> for ReflectParseCss {
+    fn create_type_data(_: ()) -> Self {
         ReflectParseCss(|parser| parse_property_value_with(parser, parse_repeated_grid_track_vec))
     }
 }
 
-impl FromType<GridPlacement> for ReflectParseCss {
-    fn from_type() -> Self {
+impl CreateTypeData<GridPlacement> for ReflectParseCss {
+    fn create_type_data(_: ()) -> Self {
         ReflectParseCss(|parser| parse_property_value_with(parser, parse_grid_placement))
     }
 }
@@ -481,6 +520,60 @@ mod tests {
         assert_eq!(
             test_parse_reflect::<GridPlacement>("1 / span 2"),
             GridPlacement::start_span(1, 2)
+        );
+
+        assert_eq!(
+            test_parse_reflect::<GridPlacement>("auto"),
+            GridPlacement::auto()
+        );
+
+        assert_eq!(
+            test_parse_reflect::<GridPlacement>("span 2"),
+            GridPlacement::span(2)
+        );
+
+        assert_eq!(
+            test_parse_reflect::<GridPlacement>("1 / auto"),
+            GridPlacement::start(1)
+        );
+
+        assert_eq!(
+            test_parse_reflect::<GridPlacement>("auto / auto"),
+            GridPlacement::auto()
+        );
+
+        assert_eq!(
+            test_parse_reflect::<GridPlacement>("auto / 3"),
+            GridPlacement::end(3)
+        );
+
+        assert_eq!(
+            test_parse_reflect::<GridPlacement>("auto / span 2"),
+            GridPlacement::span(2)
+        );
+
+        assert_eq!(
+            test_parse_reflect::<GridPlacement>("span 2 / auto"),
+            GridPlacement::span(2)
+        );
+
+        assert_eq!(
+            test_parse_reflect::<GridPlacement>("span 2 / 5"),
+            GridPlacement::end_span(5, 2)
+        );
+
+        use crate::reflect::reflect_test_utils::test_err_parse_reflect;
+
+        assert_eq!(
+            test_err_parse_reflect::<GridPlacement>("span 2 / span 3"),
+            "[56] Warning: 'span' used for both start and end of a grid placement
+   ,-[ test.css:1:1 ]
+   |
+ 1 | span 2 / span 3
+   | |^^^^^^^^^^^^^^  
+   | `---------------- 'span' cannot be used for both the start and the end of a grid placement
+---'
+"
         );
     }
 }

@@ -10,8 +10,19 @@ pub use bevy_flair_core_macros::ExtractComponentProperties;
 use bevy_reflect::{ApplyError, PartialReflect, TypeInfo};
 use std::any::TypeId;
 use std::fmt;
-use std::ops::Range;
+use std::range::Range;
 use tracing::debug;
+
+fn map_range<T, O>(input: Range<T>) -> Range<O>
+where
+    O: From<T>,
+{
+    let Range { start, end } = input;
+    Range {
+        start: start.into(),
+        end: end.into(),
+    }
+}
 
 /// Trait for extracting component properties from a component type.
 /// This trait can be implemented using the `ExtractComponentProperties` derive macro.
@@ -20,7 +31,6 @@ use tracing::debug;
 ///
 /// # Examples
 /// ```
-/// # extern crate superui_flair_core as bevy_flair_core; // fork: derive macro emits ::bevy_flair_core paths
 /// # use superui_flair_core::ExtractComponentProperties;
 ///
 /// // Defines a single property `.value` with type `f32`
@@ -52,7 +62,7 @@ pub struct ComponentPropertiesRegistration {
     pub(crate) component_type_info: &'static TypeInfo,
     pub(crate) component_type_id: TypeId,
     pub(crate) component_fns: ComponentFns,
-    registered_properties: (ComponentPropertyId, ComponentPropertyId),
+    registered_properties: Range<ComponentPropertyId>,
     auto_insert_remove: bool,
 }
 
@@ -64,7 +74,6 @@ impl ComponentPropertiesRegistration {
         registered_properties: Range<ComponentPropertyId>,
         auto_insert_remove: bool,
     ) -> Self {
-        let registered_properties = (registered_properties.start, registered_properties.end);
         Self {
             component_type_info,
             component_type_id: component_type_info.type_id(),
@@ -105,10 +114,8 @@ impl ComponentPropertiesRegistration {
         property_registry: &PropertyRegistry,
         values: &mut PropertyMap<ComputedValue>,
     ) -> Result<bool, ApplyError> {
-        let (start, end) = self.registered_properties;
-
         let mut any_property_set = false;
-        for id in start.0..end.0 {
+        for id in map_range(self.registered_properties) {
             let id = ComponentPropertyId(id);
             let ComputedValue::Value(reflect_value) = values.take(id) else {
                 continue;
@@ -314,15 +321,15 @@ impl ComponentPropertiesRegistration {
 
     /// Returns an iterator over this component property IDs.
     pub fn iter_properties(&self) -> impl Iterator<Item = ComponentPropertyId> {
-        let (start, end) = self.registered_properties;
-        (start.0..end.0).map(ComponentPropertyId)
+        map_range(self.registered_properties)
+            .iter()
+            .map(ComponentPropertyId)
     }
 
     /// Returns the range of this component property IDs.
     #[inline]
     pub fn properties_range(&self) -> Range<ComponentPropertyId> {
-        let (start, end) = self.registered_properties;
-        start..end
+        self.registered_properties
     }
 
     /// Returns the range of this component property IDs.
@@ -346,7 +353,6 @@ impl fmt::Debug for ComponentPropertiesRegistration {
 ///
 /// # Examples
 /// ```
-/// # extern crate superui_flair_core as bevy_flair_core; // fork: derive macro emits ::bevy_flair_core paths
 /// # use bevy_ecs::prelude::*;
 /// # use superui_flair_core::*;
 /// # use bevy_ui::prelude::*;

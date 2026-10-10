@@ -30,10 +30,10 @@ impl_extract_component_properties! {
 
 impl_extract_component_properties! {
     pub struct BorderRadius {
-        pub top_left: Val,
-        pub top_right: Val,
-        pub bottom_right: Val,
-        pub bottom_left: Val,
+        pub top_left: CornerRadius,
+        pub top_right: CornerRadius,
+        pub bottom_right: CornerRadius,
+        pub bottom_left: CornerRadius,
     }
 }
 
@@ -152,6 +152,7 @@ impl_component_properties! {
         pub flip_y: bool,
         pub rect: Option<Rect>,
         pub image_mode: NodeImageMode,
+        pub visual_box: VisualBox,
     }
 }
 
@@ -368,6 +369,7 @@ impl Plugin for ImplComponentPropertiesPlugin {
             "-bevy-image-color" => ImageNode[".color"],
             "-bevy-image-mode" => ImageNode[".image_mode"],
             "-bevy-image-rect" => ImageNode[".rect"],
+            "-bevy-image-visual-box" => ImageNode[".visual_box"],
 
             // Text fields
             "color" => TextColor[".0"],
