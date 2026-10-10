@@ -1,7 +1,5 @@
 # Control flow: Show / For / Index / Keyed / Switch
 
-> Mirrors `website/src/docs/concepts/{control-flow,keyed}.md`. Keep in sync.
-
 Because components run once, a plain `if`/`for` in the body runs a single time and never
 updates. Use these control-flow components instead — they read signals and re-render their
 part of the tree reactively. Import from `"supersolid"`:

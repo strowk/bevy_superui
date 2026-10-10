@@ -1,7 +1,5 @@
 # The Bevy bridge + Rust registration + mounting
 
-> Mirrors `website/src/docs/concepts/bevy-bridge.md` and `getting-started.md`. Keep in sync.
-
 A superui UI drives the game and reflects its state through a small, typed, JSON bridge.
 `bevy` is a JS global (also `window.bevy`). Two directions:
 

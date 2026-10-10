@@ -1,7 +1,6 @@
 # Authoring: components, signals, effects, memos, context, lifecycle
 
-> Mirrors `website/src/docs/concepts/{components,signals,effects,derived-state,context,lifecycle}.md`.
-> Keep in sync if the docs change. Everything imports from `"supersolid"`.
+> Everything imports from `"supersolid"`.
 
 supersolid is Solid-like. If you know Solid.js the mental model is identical; the notes
 below are the practical surface plus superui-specific caveats.

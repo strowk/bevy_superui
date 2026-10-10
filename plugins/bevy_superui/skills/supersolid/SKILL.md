@@ -2,9 +2,10 @@
 name: supersolid
 description: Use when writing or editing superui game UI — .tsx/.jsx components,
   createSignal/createEffect/createMemo, control flow (Show/For/Index/Keyed/Switch),
-  styling a superui app, or wiring the Bevy bridge (bevy.send/bevy.on). superui is a
-  Bevy plugin with a browser-like HTML/CSS/JS environment; supersolid is its reactive
-  Solid-like .tsx layer. Its CSS/HTML/JS surface is a SUBSET — check it before use.
+  styling a superui app, wiring the Bevy bridge (bevy.send/bevy.on), or writing *.spec.ts
+  tests run with `cargo superui test`. superui is a Bevy plugin with a browser-like
+  HTML/CSS/JS environment; supersolid is its reactive Solid-like .tsx layer. Its CSS/HTML/JS
+  surface is a SUBSET — check it before use.
 ---
 
 # supersolid (superui game UI)
@@ -115,6 +116,14 @@ Both directions, the Rust registration, observers, and mounting (`SuperUiPlugin`
 (`index.html` manifest, `style.css`), editor types (`cargo superui install`), and build
 modes → `references/project-setup.md`.
 
+## Testing
+
+`cargo superui test` runs Playwright-shaped `*.spec.ts` specs against a real UI, headlessly
+(since superui 0.3.6). Specs import `test`/`expect` from `"superui/test"`; locators, actions,
+and matchers auto-wait against the live DOM. Drive the game→UI bridge from a test with
+`page.emit(name, value?)`. The selector and matcher surface is a deliberate subset (tag/class/
+id selectors, no `[attr=value]`, no `.not`) → `references/testing.md`.
+
 ## Reference files
 
 | File | Covers |
@@ -126,3 +135,4 @@ modes → `references/project-setup.md`.
 | `references/html-dom.md` | HTML elements + JS/DOM/Web API ledger + reserved globals |
 | `references/bevy-bridge.md` | bevy.send / bevy.on + the Rust side + the full loop |
 | `references/project-setup.md` | project layout, build modes, hot reload, editor setup |
+| `references/testing.md` | `cargo superui test`: spec API, locators/matchers, page.emit, screenshots, limits |

@@ -1,6 +1,5 @@
 # CSS support ledger
 
-> Mirrors `website/src/docs/reference/css.md`. Keep in sync.
 > Legend: ✅ supported · 🟡 planned, not yet · ⛔ won't be supported.
 > **Unknown properties and rules are silently ignored, never fatal** — so unsupported CSS
 > fails quietly. Check here before using a property.

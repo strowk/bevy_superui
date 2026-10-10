@@ -1,7 +1,5 @@
 # Project layout, build modes, hot reload, editor setup
 
-> Mirrors `website/src/docs/{getting-started,project-structure}.md`. Keep in sync.
-
 ## Dependencies
 
 superui is on crates.io — add it (you already have `bevy`):

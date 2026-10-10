@@ -1,6 +1,5 @@
 # HTML + JS/DOM/Web API support ledger
 
-> Mirrors `website/src/docs/reference/{html,js-dom}.md`. Keep in sync.
 > Legend: ✅ supported · 🟡 planned, not yet · ⛔ won't be supported.
 > **Unknown tags render as plain boxes; unknown attributes and unknown JS/DOM APIs are
 > silently ignored** (or throw, where noted). Check here before use.
