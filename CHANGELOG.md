@@ -52,6 +52,12 @@ for the maintenance lines.
 
 - `cargo-superui` parses its arguments with `argh` instead of hand-rolled flag
   parsing.
+- Test engine `--ui` mode: specs are shown as a tree with their tests nested
+  underneath; each spec header carries a status icon (spinner while running,
+  check/cross once finished, hollow dot when not yet run) and each test a
+  pass/fail icon. Time-travel now records a frame per step, so the slider moves
+  the rendered image together with the DOM, and selecting a test jumps to its
+  final step. The shell starts at a slightly larger zoom.
 
 ### Fixed
 

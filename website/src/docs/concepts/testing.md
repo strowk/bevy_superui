@@ -190,7 +190,9 @@ Baselines are platform-specific — the `-<os>` suffix keeps a separate image pe
 cargo superui test --ui
 ```
 
-This opens a windowed runner instead of printing to the terminal: a list of specs with Run buttons, the rendered frame, and a time-travel slider over the recorded steps that shows the DOM after each one. It is the fastest way to see *why* a step failed.
+This opens a windowed runner instead of printing to the terminal. The left panel lists the specs as a tree, each with a Run button; running a spec nests its tests beneath it. A spec's header shows a spinner while it runs and a pass/fail mark when it finishes, and each nested test carries its own pass/fail mark. Selecting a test shows its rendered frame alongside a time-travel slider over the recorded steps — moving the slider steps the DOM snapshot and the rendered image together. It is the fastest way to see *why* a step failed.
+
+![The UI-mode runner: a spec tree on the left with nested tests, and the rendered frame with a time-travel slider in the center.](testing-ui-mode.png)
 
 ## Limitations
 

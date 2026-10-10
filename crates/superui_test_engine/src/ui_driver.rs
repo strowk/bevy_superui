@@ -38,6 +38,13 @@ const SCREENSHOT_SETTLE_FRAMES: usize = 30;
 /// changing. The async readback can land a blank/partial frame even after the
 /// DOM settles; requiring two identical consecutive frames rejects those.
 const SCREENSHOT_STABILITY_ATTEMPTS: usize = 12;
+/// Settle frames before a per-step time-travel capture. The DOM is already
+/// quiescent at a step boundary, so this only lets the offscreen render catch
+/// up; the stability check still guards the readback race.
+const STEP_CAPTURE_SETTLE: usize = 4;
+/// Stored time-travel frames are shown small in the egui pane; downscale to this
+/// max width to bound memory (a long test holds one frame per step).
+const FRAME_DISPLAY_MAX_W: u32 = 640;
 
 /// Non-send holder for the in-progress run (or `None` when idle). Kept
 /// non-send to stay alongside the `!Send` `UiRuntime` it steps.
@@ -101,6 +108,20 @@ struct ScreenshotCapture {
     attempts: usize,
 }
 
+/// Tracks an in-flight per-step time-travel capture. Lighter than
+/// `ScreenshotCapture`: no matcher and no JS command to resolve, it just stores
+/// a frame for the steps recorded since the last capture.
+struct StepCapture {
+    settle: usize,
+    spawned: bool,
+    frames_waited: usize,
+    prev: Option<Vec<u8>>,
+    attempts: usize,
+    /// Step index range `[from, to)` this frame belongs to.
+    from: usize,
+    to: usize,
+}
+
 /// Per-test working state, reset when a new test starts.
 struct TestWork {
     name: String,
@@ -112,6 +133,12 @@ struct TestWork {
     iter: usize,
     /// Active screenshot-matcher capture, if any.
     capturing: Option<ScreenshotCapture>,
+    /// Per-step time-travel frames (parallel to `steps`), filled as captures land.
+    step_frames: Vec<Option<(u32, u32, Vec<u8>)>>,
+    /// Count of leading `steps` that already have a frame.
+    captured_upto: usize,
+    /// Active per-step capture, if any. While set, command processing pauses.
+    step_capture: Option<StepCapture>,
 }
 
 pub struct RunState {
@@ -123,10 +150,13 @@ pub struct RunState {
     work: Option<TestWork>,
     pub results: Vec<TestResult>,
     /// Final rendered frame captured at the end of each test (index parallels
-    /// `results`), so the egui pane can show the frame for the SELECTED test
-    /// rather than a single whole-run frame. `None` = capture unavailable
+    /// `results`). Used as the fallback when the selected step has no per-step
+    /// frame (zero-step test, or capture timed out). `None` = unavailable
     /// (headless) or timed out.
     pub test_frames: Vec<Option<(u32, u32, Vec<u8>)>>,
+    /// Per-step time-travel frame, indexed `[test][step]` (inner Vec parallels
+    /// that test's `steps`). Lets the slider move DOM and image together.
+    pub step_frames: Vec<Vec<Option<(u32, u32, Vec<u8>)>>>,
 }
 
 impl RunState {
@@ -176,6 +206,7 @@ pub fn start_run(
         work: None,
         results: Vec::new(),
         test_frames: Vec::new(),
+        step_frames: Vec::new(),
     }
 }
 
@@ -194,7 +225,8 @@ pub fn step(world: &mut World, run: &mut RunState) {
 fn step_capturing_frame(world: &mut World, run: &mut RunState) {
     let sink = world.resource::<crate::render::CaptureSink>().0.clone();
     if let Some(img) = sink.lock().unwrap().take() {
-        run.test_frames.push(Some((img.width, img.height, img.rgba)));
+        run.test_frames
+            .push(Some(downscale_frame((img.width, img.height, img.rgba))));
         advance_after_test(world, run);
         return;
     }
@@ -238,11 +270,22 @@ fn begin_test(world: &mut World, run: &mut RunState) {
         pending_actions: Vec::new(),
         iter: 0,
         capturing: None,
+        step_frames: Vec::new(),
+        captured_upto: 0,
+        step_capture: None,
     });
 }
 
 fn step_running(world: &mut World, run: &mut RunState) {
     let opts_render = run.opts.render;
+
+    // Gate: while a per-step frame capture is in flight, drive only it. No new
+    // commands run, so the DOM stays put until the frame for the just-recorded
+    // steps lands. Resumes normal stepping once the capture completes.
+    if run.work.as_ref().is_some_and(|w| w.step_capture.is_some()) {
+        drive_step_capture(world, run);
+        return;
+    }
 
     // Borrow-check adaptation: we scope the `work` borrow to the main body of
     // the function, then drop it before the done-check section at the bottom.
@@ -490,6 +533,29 @@ fn step_running(world: &mut World, run: &mut RunState) {
         // re-borrows `run` immutably / mutably without a live `work` reference.
     }
 
+    // Capture a time-travel frame for any steps recorded this frame, unless a
+    // screenshot-matcher capture is already using the sink. The gate at the top
+    // of this function drives it over the next frames; return so the done-check
+    // waits until it lands (and can't finish the test mid-capture).
+    if opts_render {
+        let need = run.work.as_ref().is_some_and(|w| {
+            w.capturing.is_none() && w.step_capture.is_none() && w.steps.len() > w.captured_upto
+        });
+        if need {
+            let work = run.work.as_mut().unwrap();
+            work.step_capture = Some(StepCapture {
+                settle: STEP_CAPTURE_SETTLE,
+                spawned: false,
+                frames_waited: 0,
+                prev: None,
+                attempts: 0,
+                from: work.captured_upto,
+                to: work.steps.len(),
+            });
+            return;
+        }
+    }
+
     // 4. Done with this test?
     // Borrow-check adaptation: read `idle` and `handle` via fresh borrows of
     // `run.work` after the main work-block above has ended. This avoids a
@@ -500,6 +566,7 @@ fn step_running(world: &mut World, run: &mut RunState) {
             && w.expects.is_empty()
             && w.pending_actions.is_empty()
             && w.capturing.is_none()
+            && w.step_capture.is_none()
     });
     if idle {
         // Poll the JS-side settlement of the running test's promise. No handle to
@@ -526,6 +593,11 @@ fn finish_current_test(world: &mut World, run: &mut RunState, outcome: TestOutco
         TestOutcome::Passed => (true, None),
         TestOutcome::Error(e) => (false, Some(e)),
     };
+    // Keep per-step frames parallel to steps (trailing steps may lack a frame if
+    // the test ended before their capture, e.g. a timeout).
+    let mut step_frames = work.step_frames;
+    step_frames.resize(work.steps.len(), None);
+    run.step_frames.push(step_frames);
     run.results.push(TestResult { name: work.name, passed, error, steps: work.steps });
 
     if run.opts.render {
@@ -554,6 +626,90 @@ fn advance_after_test(world: &mut World, run: &mut RunState) {
         begin_test(world, run);
         run.phase = Phase::Running;
     }
+}
+
+/// Advance an in-flight per-step capture by one frame: settle, spawn the
+/// screenshot, then poll with a stability check (mirrors the matcher capture in
+/// `step_running`). On a stable readback, store the frame for every step in the
+/// capture's range and mark them captured. A timeout leaves them without a
+/// frame but still marks the range done so stepping can resume.
+fn drive_step_capture(world: &mut World, run: &mut RunState) {
+    let Some(mut cap) = run.work.as_mut().and_then(|w| w.step_capture.take()) else {
+        return;
+    };
+
+    if !cap.spawned {
+        // Let the offscreen render catch up, then spawn. Decrement unconditionally
+        // (not gated on `!dirty` like the matcher): a step can be recorded while
+        // the app still animates, and the stability check below rejects any
+        // mid-render frame, so waiting on quiescence here would risk a hang.
+        if cap.settle > 0 {
+            cap.settle -= 1;
+        } else {
+            let handle = world.resource::<crate::render::RenderTargetHandle>().0.clone();
+            let sink = world.resource::<crate::render::CaptureSink>().0.clone();
+            crate::render::spawn_screenshot(world, handle, sink);
+            cap.spawned = true;
+        }
+        run.work.as_mut().unwrap().step_capture = Some(cap);
+        return;
+    }
+
+    let sink = world.resource::<crate::render::CaptureSink>().0.clone();
+    let Some(img) = sink.lock().unwrap().take() else {
+        cap.frames_waited += 1;
+        if cap.frames_waited > SCREENSHOT_CAPTURE_TIMEOUT_FRAMES {
+            mark_steps_captured(run, &cap, None);
+        } else {
+            run.work.as_mut().unwrap().step_capture = Some(cap);
+        }
+        return;
+    };
+
+    cap.attempts += 1;
+    let stable = !crate::render::is_blank(&img.rgba) && cap.prev.as_deref() == Some(img.rgba.as_slice());
+    if !stable && cap.attempts < SCREENSHOT_STABILITY_ATTEMPTS {
+        cap.prev = Some(img.rgba);
+        let handle = world.resource::<crate::render::RenderTargetHandle>().0.clone();
+        let sink = world.resource::<crate::render::CaptureSink>().0.clone();
+        crate::render::spawn_screenshot(world, handle, sink);
+        cap.frames_waited = 0;
+        run.work.as_mut().unwrap().step_capture = Some(cap);
+        return;
+    }
+
+    let frame = downscale_frame((img.width, img.height, img.rgba));
+    mark_steps_captured(run, &cap, Some(frame));
+}
+
+/// Assign `frame` (or leave `None`) to the step range `[cap.from, cap.to)` and
+/// advance `captured_upto` past them. Clears the capture.
+fn mark_steps_captured(run: &mut RunState, cap: &StepCapture, frame: Option<(u32, u32, Vec<u8>)>) {
+    let work = run.work.as_mut().expect("capturing has work");
+    let n = work.steps.len();
+    work.step_frames.resize(n, None);
+    if let Some(frame) = frame {
+        for idx in cap.from..cap.to.min(n) {
+            work.step_frames[idx] = Some(frame.clone());
+        }
+    }
+    work.captured_upto = n;
+    work.step_capture = None;
+}
+
+/// Shrink a captured frame to `FRAME_DISPLAY_MAX_W` wide (keeping aspect) so the
+/// per-step history doesn't hold full-resolution pixels. Frames at or under the
+/// cap, or with a length that doesn't match `w*h*4`, pass through unchanged.
+fn downscale_frame(frame: (u32, u32, Vec<u8>)) -> (u32, u32, Vec<u8>) {
+    let (w, h, rgba) = frame;
+    if w <= FRAME_DISPLAY_MAX_W || w == 0 || h == 0 || rgba.len() != (w as usize * h as usize * 4) {
+        return (w, h, rgba);
+    }
+    let new_w = FRAME_DISPLAY_MAX_W;
+    let new_h = ((h as f32) * (new_w as f32 / w as f32)).round().max(1.0) as u32;
+    let src = image::RgbaImage::from_raw(w, h, rgba).expect("len checked above");
+    let dst = image::imageops::resize(&src, new_w, new_h, image::imageops::FilterType::Triangle);
+    (new_w, new_h, dst.into_raw())
 }
 
 // ---- World-based leaf helpers (duplicated from driver.rs, per plan) --------

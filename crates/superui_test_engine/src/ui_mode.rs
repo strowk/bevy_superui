@@ -45,6 +45,10 @@ struct UiState {
     selected: Option<usize>,
     /// A Run was requested this frame (spec index); consumed by run_stepper.
     pending_run: Option<usize>,
+    /// The `current_spec_name` spec is mid-run (drives its spinner icon).
+    running: bool,
+    /// Starting egui zoom applied yet? Set once so later manual zoom sticks.
+    zoom_applied: bool,
 
     last_results: Vec<TestResult>,
     selected_test: usize,
@@ -53,10 +57,13 @@ struct UiState {
     current_spec_name: Option<String>,
     status_line: String,
 
-    /// Per-test rendered frame, registered as an egui texture (index parallels
-    /// `last_results`). `None` = no frame captured for that test. The central
-    /// panel shows the entry for `selected_test`.
-    frame_textures: Vec<Option<(egui::TextureId, (u32, u32))>>,
+    /// Per-step rendered frame as an egui texture, indexed `[test][step]`. The
+    /// central panel shows `[selected_test][selected_step]` so the time-travel
+    /// slider moves DOM and image together. `None` = no frame for that step.
+    step_frame_textures: Vec<Vec<Option<(egui::TextureId, (u32, u32))>>>,
+    /// Per-test final frame as an egui texture (index parallels `last_results`),
+    /// the fallback when the selected step has no frame (e.g. a zero-step test).
+    test_frame_textures: Vec<Option<(egui::TextureId, (u32, u32))>>,
     /// Kept alive so egui's referenced image assets aren't dropped.
     frame_handles: Vec<Handle<Image>>,
 }
@@ -110,13 +117,16 @@ pub fn run(cfg: &TestConfig, project: &HostProject, specs: &[PathBuf]) {
         max_diff_ratio: cfg.max_diff_ratio,
         selected: None,
         pending_run: None,
+        running: false,
+        zoom_applied: false,
         last_results: Vec::new(),
         selected_test: 0,
         selected_step: 0,
         error: None,
         current_spec_name: None,
         status_line: String::new(),
-        frame_textures: Vec::new(),
+        step_frame_textures: Vec::new(),
+        test_frame_textures: Vec::new(),
         frame_handles: Vec::new(),
     });
 
@@ -193,6 +203,7 @@ fn run_stepper(world: &mut World) {
             s.last_results.clear();
             s.current_spec_name = Some(file.clone());
             s.status_line = "starting\u{2026}".to_string();
+            s.running = true;
         }
 
         match start_run_from_spec(world, &spec, &file, &spec_dir, max_diff) {
@@ -200,7 +211,9 @@ fn run_stepper(world: &mut World) {
                 world.non_send_mut::<ActiveRun>().0 = Some(run);
             }
             Err(e) => {
-                world.resource_mut::<UiState>().error = Some(e);
+                let mut s = world.resource_mut::<UiState>();
+                s.error = Some(e);
+                s.running = false;
             }
         }
     }
@@ -216,6 +229,7 @@ fn run_stepper(world: &mut World) {
             let mut s = world.resource_mut::<UiState>();
             s.status_line = run.progress_label();
             if done {
+                s.running = false;
                 s.last_results = run.results.clone();
                 // Point the time-travel slider at the LAST step of the first
                 // test (the finished state), not step 0.
@@ -229,8 +243,8 @@ fn run_stepper(world: &mut World) {
         }
 
         if done {
-            // Register each test's captured frame as an egui texture.
-            register_test_frames(world, &run.test_frames);
+            // Register the captured frames as egui textures.
+            register_run_frames(world, &run.test_frames, &run.step_frames);
         } else {
             world.non_send_mut::<ActiveRun>().0 = Some(run);
         }
@@ -264,52 +278,135 @@ fn start_run_from_spec(
     Ok(ui_driver::start_run(world, Some(cam), js, file.to_string(), opts))
 }
 
-/// Register each test's captured RGBA frame as an egui texture, releasing any
-/// previously registered ones. `frames` is indexed per test (parallel to
-/// `last_results`); a `None` entry becomes a `None` texture slot.
+/// Register the captured RGBA frames as egui textures, releasing the previous
+/// registrations. `test_frames` is indexed per test; `step_frames` per
+/// `[test][step]`. A `None` (or empty) frame becomes a `None` texture slot.
 ///
 /// Uses `EguiUserTextures` (a normal `Resource`) directly rather than driving
 /// `SystemState<EguiContexts>` from an exclusive system, which avoids lifetime
 /// issues with the world borrow.  `EguiContexts::add_image` is just a thin
 /// proxy to `EguiUserTextures::add_image`, so the result is identical.
-fn register_test_frames(world: &mut World, frames: &[Option<(u32, u32, Vec<u8>)>]) {
+fn register_run_frames(
+    world: &mut World,
+    test_frames: &[Option<(u32, u32, Vec<u8>)>],
+    step_frames: &[Vec<Option<(u32, u32, Vec<u8>)>>],
+) {
     // Release the previous egui texture registrations.
     let old_handles = std::mem::take(&mut world.resource_mut::<UiState>().frame_handles);
     for old in &old_handles {
         world.resource_mut::<EguiUserTextures>().remove_image(old);
     }
 
-    let mut textures: Vec<Option<(egui::TextureId, (u32, u32))>> = Vec::with_capacity(frames.len());
     let mut handles: Vec<Handle<Image>> = Vec::new();
-    for frame in frames {
-        match frame {
-            Some((w, h, rgba)) if !rgba.is_empty() => {
-                let size = Extent3d { width: *w, height: *h, depth_or_array_layers: 1 };
-                let image = Image::new(
-                    size,
-                    TextureDimension::D2,
-                    rgba.clone(),
-                    TextureFormat::Rgba8UnormSrgb,
-                    RenderAssetUsages::default(),
-                );
-                let handle = world.resource_mut::<Assets<Image>>().add(image);
-                let tex = world
-                    .resource_mut::<EguiUserTextures>()
-                    .add_image(EguiTextureHandle::Strong(handle.clone()));
-                handles.push(handle);
-                textures.push(Some((tex, (*w, *h))));
-            }
-            _ => textures.push(None),
+
+    let mut test_textures = Vec::with_capacity(test_frames.len());
+    for frame in test_frames {
+        test_textures.push(register_frame(world, frame, &mut handles));
+    }
+
+    let mut step_textures = Vec::with_capacity(step_frames.len());
+    for steps in step_frames {
+        let mut row = Vec::with_capacity(steps.len());
+        for frame in steps {
+            row.push(register_frame(world, frame, &mut handles));
         }
+        step_textures.push(row);
     }
 
     let mut s = world.resource_mut::<UiState>();
-    s.frame_textures = textures;
+    s.test_frame_textures = test_textures;
+    s.step_frame_textures = step_textures;
     s.frame_handles = handles;
+}
+
+/// Register one RGBA frame as an egui texture, pushing its strong image handle
+/// onto `handles`. Returns the texture id + size, or `None` for a missing frame.
+fn register_frame(
+    world: &mut World,
+    frame: &Option<(u32, u32, Vec<u8>)>,
+    handles: &mut Vec<Handle<Image>>,
+) -> Option<(egui::TextureId, (u32, u32))> {
+    let (w, h, rgba) = match frame {
+        Some((w, h, rgba)) if !rgba.is_empty() => (*w, *h, rgba),
+        _ => return None,
+    };
+    let size = Extent3d { width: w, height: h, depth_or_array_layers: 1 };
+    let image = Image::new(
+        size,
+        TextureDimension::D2,
+        rgba.clone(),
+        TextureFormat::Rgba8UnormSrgb,
+        RenderAssetUsages::default(),
+    );
+    let handle = world.resource_mut::<Assets<Image>>().add(image);
+    let tex = world
+        .resource_mut::<EguiUserTextures>()
+        .add_image(EguiTextureHandle::Strong(handle.clone()));
+    handles.push(handle);
+    Some((tex, (w, h)))
+}
+
+/// Run status of a spec, shown as an icon in its tree header. Only the
+/// `current_spec_name` spec is ever non-`None`: the engine runs one spec at a
+/// time and retains only its results.
+#[derive(Clone, Copy)]
+enum SpecStatus {
+    None,
+    Running,
+    Ok,
+    Fail,
+}
+
+/// Draw the spec header status icon: an animated spinner while running, a
+/// check/cross once finished, or a hollow "not run" dot otherwise.
+fn paint_spec_status(ui: &mut egui::Ui, status: SpecStatus) {
+    match status {
+        SpecStatus::Running => {
+            let h = ui.text_style_height(&egui::TextStyle::Body);
+            ui.add(egui::Spinner::new().size(h));
+        }
+        SpecStatus::Ok => paint_status_icon(ui, true),
+        SpecStatus::Fail => paint_status_icon(ui, false),
+        SpecStatus::None => {
+            let h = ui.text_style_height(&egui::TextStyle::Body);
+            let (rect, _) = ui.allocate_exact_size(egui::Vec2::splat(h), egui::Sense::hover());
+            let color = ui.visuals().weak_text_color();
+            ui.painter()
+                .circle_stroke(rect.center(), h * 0.28, egui::Stroke::new(1.5, color));
+        }
+    }
+}
+
+/// Draw a pass (green check) or fail (red cross) icon as vector line segments.
+/// Painted rather than drawn from a font glyph because the shell's font does not
+/// carry check/cross codepoints.
+fn paint_status_icon(ui: &mut egui::Ui, passed: bool) {
+    let size = egui::Vec2::splat(ui.text_style_height(&egui::TextStyle::Body));
+    let (rect, _) = ui.allocate_exact_size(size, egui::Sense::hover());
+    let color = if passed {
+        egui::Color32::from_rgb(80, 200, 120)
+    } else {
+        egui::Color32::from_rgb(230, 80, 80)
+    };
+    let stroke = egui::Stroke::new(2.0, color);
+    let at = |nx: f32, ny: f32| rect.min + egui::vec2(nx * rect.width(), ny * rect.height());
+    let painter = ui.painter();
+    if passed {
+        painter.line_segment([at(0.18, 0.55), at(0.42, 0.78)], stroke);
+        painter.line_segment([at(0.42, 0.78), at(0.82, 0.25)], stroke);
+    } else {
+        painter.line_segment([at(0.25, 0.25), at(0.75, 0.75)], stroke);
+        painter.line_segment([at(0.75, 0.25), at(0.25, 0.75)], stroke);
+    }
 }
 
 fn ui_system(mut contexts: EguiContexts, mut state: ResMut<UiState>) -> Result {
     let ctx = contexts.ctx_mut()?.clone();
+    // Start a bit larger than the 1.0 default; applied once so Ctrl +/- stick.
+    if !state.zoom_applied {
+        ctx.set_zoom_factor(1.25);
+        state.zoom_applied = true;
+    }
     let mut viewport_ui = egui::Ui::new(
         ctx.clone(),
         "viewport".into(),
@@ -318,37 +415,95 @@ fn ui_system(mut contexts: EguiContexts, mut state: ResMut<UiState>) -> Result {
             .max_rect(ctx.viewport_rect()),
     );
 
-    // ---- LEFT: spec list -------------------------------------------------
+    // ---- LEFT: spec tree (tests nested under the run spec) ---------------
+    // Only the last-run spec's tests are known (they live in `last_results`),
+    // so just that spec gets test children. Collected up front because the
+    // panel closure mutates `state`, which would alias the borrowed vectors.
+    let spec_names: Vec<(usize, String)> = state
+        .specs
+        .iter()
+        .enumerate()
+        .map(|(i, spec)| {
+            let name = spec
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_else(|| spec.to_string_lossy().to_string());
+            (i, name)
+        })
+        .collect();
+    let run_spec_name = state.current_spec_name.clone();
+    // Status of the run spec: running, else aggregate pass/fail of its tests
+    // (or its start error), else nothing to show yet.
+    let run_status = if state.running {
+        SpecStatus::Running
+    } else if state.error.is_some() {
+        SpecStatus::Fail
+    } else if state.last_results.is_empty() {
+        SpecStatus::None
+    } else if state.last_results.iter().all(|t| t.passed) {
+        SpecStatus::Ok
+    } else {
+        SpecStatus::Fail
+    };
+    // (test index, name, passed, step count), in run order.
+    let run_tests: Vec<(usize, String, bool, usize)> = state
+        .last_results
+        .iter()
+        .enumerate()
+        .map(|(ti, t)| (ti, t.name.clone(), t.passed, t.steps.len()))
+        .collect();
+
     egui::Panel::left("spec_list")
         .resizable(true)
         .default_size(280.0)
         .show(&mut viewport_ui, |ui| {
             ui.heading("Specs");
             ui.separator();
-            if state.specs.is_empty() {
+            if spec_names.is_empty() {
                 ui.label("(no specs discovered)");
             }
-            let specs: Vec<(usize, String)> = state
-                .specs
-                .iter()
-                .enumerate()
-                .map(|(i, spec)| {
-                    let name = spec
-                        .file_name()
-                        .map(|n| n.to_string_lossy().to_string())
-                        .unwrap_or_else(|| spec.to_string_lossy().to_string());
-                    (i, name)
-                })
-                .collect();
-            for (i, name) in specs {
-                ui.horizontal(|ui| {
+            for (i, name) in &spec_names {
+                let i = *i;
+                let is_run_spec = run_spec_name.as_deref() == Some(name.as_str());
+                let header_id = ui.make_persistent_id(("spec", i));
+                egui::collapsing_header::CollapsingState::load_with_default_open(
+                    ui.ctx(),
+                    header_id,
+                    is_run_spec,
+                )
+                .show_header(ui, |ui| {
+                    let status = if is_run_spec { run_status } else { SpecStatus::None };
+                    paint_spec_status(ui, status);
                     let selected = state.selected == Some(i);
-                    if ui.selectable_label(selected, &name).clicked() {
+                    if ui.selectable_label(selected, name).clicked() {
                         state.selected = Some(i);
                     }
                     if ui.button("Run").clicked() {
                         state.selected = Some(i);
                         state.pending_run = Some(i);
+                    }
+                })
+                .body(|ui| {
+                    if !is_run_spec {
+                        ui.weak("(run to list tests)");
+                    } else if matches!(run_status, SpecStatus::Running) {
+                        ui.weak("(running\u{2026})");
+                    } else if run_tests.is_empty() {
+                        ui.weak("(no tests)");
+                    } else {
+                        for (ti, tname, passed, nsteps) in &run_tests {
+                            ui.horizontal(|ui| {
+                                paint_status_icon(ui, *passed);
+                                if ui
+                                    .selectable_label(state.selected_test == *ti, tname)
+                                    .clicked()
+                                {
+                                    state.selected_test = *ti;
+                                    // Jump to the test's final step (its end state).
+                                    state.selected_step = nsteps.saturating_sub(1);
+                                }
+                            });
+                        }
                     }
                 });
             }
@@ -408,15 +563,16 @@ fn ui_system(mut contexts: EguiContexts, mut state: ResMut<UiState>) -> Result {
         });
 
     // ---- CENTRAL: frame image + time-travel + DOM ------------------------
-    // The rendered frame for the SELECTED test (captured before the closure
-    // borrows `state` mutably; a tab switch this frame applies next frame).
+    // The rendered frame for the selected (test, step), falling back to the
+    // test's final frame when that step has none. Captured before the closure
+    // borrows `state` mutably; the left tree and slider that set the selection
+    // run first, so this reflects the current selection.
     let sel_frame = state
-        .frame_textures
+        .step_frame_textures
         .get(state.selected_test)
-        .copied()
-        .flatten();
+        .and_then(|steps| steps.get(state.selected_step).copied().flatten())
+        .or_else(|| state.test_frame_textures.get(state.selected_test).copied().flatten());
     let current_spec_name = state.current_spec_name.clone();
-    let n_tests = state.last_results.len();
 
     egui::CentralPanel::default().show(&mut viewport_ui, |ui| {
         if let Some(name) = &current_spec_name {
@@ -427,29 +583,15 @@ fn ui_system(mut contexts: EguiContexts, mut state: ResMut<UiState>) -> Result {
         }
         ui.separator();
 
-        if n_tests > 1 {
-            ui.horizontal(|ui| {
-                ui.label("Test:");
-                for i in 0..n_tests {
-                    let name = state.last_results[i].name.clone();
-                    if ui.selectable_label(state.selected_test == i, name).clicked() {
-                        state.selected_test = i;
-                        state.selected_step = 0;
-                    }
-                }
-            });
-            ui.separator();
-        }
-
         if let Some((tex, (w, h))) = sel_frame {
             let max_w = ui.available_width().min(640.0).max(64.0);
             let scale = if w > 0 { max_w / w as f32 } else { 1.0 };
             let size = egui::vec2(w as f32 * scale, h as f32 * scale);
-            ui.label("Rendered frame (selected test):");
+            ui.label("Rendered frame (this step):");
             ui.image(egui::load::SizedTexture::new(tex, size));
             ui.separator();
         } else if !state.last_results.is_empty() {
-            ui.label("(no rendered frame for this test)");
+            ui.label("(no rendered frame for this step)");
             ui.separator();
         }
 
