@@ -85,7 +85,12 @@ fn ensure_slots(
 
             p.spawn((
                 Slot { index: s.index },
-                Button,
+                // `bevy_ui::widget::Button` is now a deprecated alias for a
+                // private type (can't be constructed); its old job —
+                // requiring `Interaction` + blocking focus policy for
+                // `ui_focus_system` — is done explicitly here instead.
+                Interaction::None,
+                FocusPolicy::Block,
                 Node {
                     width: Val::Px(70.0),
                     height: Val::Px(48.0),

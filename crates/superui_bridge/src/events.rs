@@ -5,7 +5,7 @@ use bevy::ecs::message::MessageReader;
 use bevy::input::keyboard::{Key, KeyCode, KeyboardInput};
 use bevy::input::ButtonState;
 use bevy::input_focus::{FocusCause, InputFocus};
-use bevy::picking::events::{Click, Pointer};
+use bevy::picking::events::PointerClick;
 use bevy::prelude::*;
 use bevy::text::EditableText;
 use superui_dom::NodeId;
@@ -54,7 +54,7 @@ pub struct PendingDomEvents(pub Vec<PendingDomEvent>);
 /// and enqueue a subsequent `"change"` event.
 ///
 /// Extracted as a free function so both the observer and the test harness can
-/// call it without needing to construct a `Pointer<Click>` event.
+/// call it without needing to construct a `PointerClick` event.
 pub fn click_effect(rt: &UiRuntime, node: NodeId, pending: &mut PendingDomEvents) {
     let is_checkbox = {
         let d = rt.dom.borrow();
@@ -75,7 +75,7 @@ pub fn click_effect(rt: &UiRuntime, node: NodeId, pending: &mut PendingDomEvents
 /// enqueue a `change` event (dispatched after the click). Also sets keyboard focus
 /// to the clicked node (Task 5).
 pub fn on_pointer_click(
-    mut ev: On<Pointer<Click>>,
+    mut ev: On<PointerClick>,
     nodes: Query<&DomNode>,
     parents: Query<&ChildOf>,
     dom: Option<NonSendMut<UiRuntime>>,
@@ -91,15 +91,15 @@ pub fn on_pointer_click(
         return;
     };
     // Resolve BEFORE claiming the event. This is a global observer on the
-    // app-wide `Pointer<Click>`, so it also runs for entities that have nothing
+    // app-wide `PointerClick`, so it also runs for entities that have nothing
     // to do with superui — a game's own buttons, world objects, another UI. Those
     // must be left alone: stopping propagation for them cancels bubbling to the
     // handler on their ancestor, which is where Bevy UIs put it (the pick lands
     // on a `Text` child and only reaches the button by propagation).
-    let Some(node) = resolve_dom_node(ev.event().entity, &nodes, &parents) else {
+    let Some(node) = resolve_dom_node(ev.entity, &nodes, &parents) else {
         return;
     };
-    // Ours. `Pointer<Click>` bubbles up the entity hierarchy, firing this observer
+    // Ours. `PointerClick` bubbles up the entity hierarchy, firing this observer
     // once per ancestor. We only want the actual (deepest) target — otherwise focus
     // would be overwritten by each ancestor up to `<body>`. Stop propagation so we
     // handle the click exactly once. (DOM-level bubbling is done separately by our
@@ -148,7 +148,7 @@ fn focus_and_click(
 /// The core of a pointer click on a UI `entity`: resolve it to a DOM node, focus
 /// it, and enqueue the `click` (+ checkbox `change`) DOM event. Shared by the
 /// picking observer and by test/automation drivers that can't synthesize a real
-/// `Pointer<Click>` (e.g. the `mcp_debug` click injector). Silently does nothing
+/// `PointerClick` (e.g. the `mcp_debug` click injector). Silently does nothing
 /// when the entity belongs to no mounted UI.
 pub fn apply_pointer_click(
     entity: Entity,

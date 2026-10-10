@@ -23,7 +23,7 @@ required-features = ["bench"]
 default = ["debug-ui"]
 # Native state-preserving hot reload: live app.tsx via TsxLoader + the asset watcher.
 hmr = ["superui/hmr", "bevy/file_watcher"]
-debug-ui = ["bevy/bevy_dev_tools"]
+debug-ui = ["bevy/bevy_dev_tools", "bevy/render_dev_tools"]
 bench = []
 dhat-prof = ["dep:dhat", "superui_bench_support/dhat-prof"]
 

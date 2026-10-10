@@ -84,14 +84,14 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
 }
 
 /// Opt-in click injector (feature `mcp_debug`): lets a BRP client drive a real
-/// `Pointer<Click>` through the whole picking/observer path (bevy_brp injects
+/// `PointerClick` through the whole picking/observer path (bevy_brp injects
 /// keys, not mouse). Set `DebugClick(Some(entity))` via `world_insert_resources`;
 /// the system fires the click and clears it.
 #[cfg(feature = "mcp_debug")]
 mod mcp_debug {
     use bevy::camera::NormalizedRenderTarget;
     use bevy::picking::backend::HitData;
-    use bevy::picking::events::{Click, Pointer};
+    use bevy::picking::events::{Pointer, PointerClick};
     use bevy::picking::pointer::{Location, PointerId};
     use bevy::prelude::*;
     use bevy::window::{PrimaryWindow, WindowRef};
@@ -119,15 +119,13 @@ mod mcp_debug {
             target: NormalizedRenderTarget::Window(target),
             position: Vec2::ZERO,
         };
-        commands.trigger(Pointer {
-            pointer_id: PointerId::Mouse,
-            pointer_location: location,
+        commands.trigger(PointerClick {
             entity,
-            event: Click {
-                button: bevy::picking::pointer::PointerButton::Primary,
-                hit: HitData::new(camera, 0.0, None, None),
-                duration: std::time::Duration::from_millis(0),
-            },
+            pointer: Pointer::new(PointerId::Mouse, location),
+            button: bevy::picking::pointer::PointerButton::Primary,
+            hit: HitData::new(camera, 0.0, None, None),
+            duration: std::time::Duration::from_millis(0),
+            count: 1,
         });
     }
 }

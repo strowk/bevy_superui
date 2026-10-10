@@ -714,7 +714,7 @@ impl UiRuntime {
 /// Blocking on "self **or an ancestor** is interactive" rather than on "self" is
 /// what keeps a click single. A non-blocking node does not stop the backend from
 /// also reporting its ancestors as hits, so a bare `<div>` inside a listener-
-/// bearing `<button>` would produce two `Pointer<Click>`s and dispatch the DOM
+/// bearing `<button>` would produce two `PointerClick`s and dispatch the DOM
 /// click twice. Blocking the whole interactive subtree reports exactly one hit,
 /// and the DOM's own bubbling carries it to the listener.
 fn apply_picking(world: &mut World, entity: Entity, policy: PickingPolicy, interactive: bool) {

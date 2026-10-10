@@ -173,8 +173,8 @@ impl Plugin for SuperUiPlugin {
         if !app.is_plugin_added::<bevy::input_focus::InputDispatchPlugin>() {
             app.add_plugins(bevy::input_focus::InputDispatchPlugin);
         }
-        if !app.is_plugin_added::<bevy::ui_widgets::EditableTextInputPlugin>() {
-            app.add_plugins(bevy::ui_widgets::EditableTextInputPlugin);
+        if !app.is_plugin_added::<bevy::ui_widgets::TextInputPlugin>() {
+            app.add_plugins(bevy::ui_widgets::TextInputPlugin);
         }
         if !app.is_plugin_added::<bevy::ui_widgets::SliderPlugin>() {
             app.add_plugins(bevy::ui_widgets::SliderPlugin);
@@ -278,7 +278,7 @@ fn runtime_exists(world: &World) -> bool {
 /// still-bound entity mirrors the hot-reload teardown and is idempotent. Deferred
 /// through a command because removing a `NonSend` needs `&mut World`. `Remove` fires
 /// for both an explicit `remove::<SuperUiRoot>()` and a `despawn()`.
-fn on_superui_root_removed(_ev: On<Remove, SuperUiRoot>, mut commands: Commands) {
+fn on_superui_root_removed(_ev: On<Remove<SuperUiRoot>>, mut commands: Commands) {
     commands.queue(|world: &mut World| {
         if let Some(rt) = world.remove_non_send::<UiRuntime>() {
             for e in rt.bound_non_root_entities() {

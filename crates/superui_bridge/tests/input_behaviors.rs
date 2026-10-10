@@ -134,7 +134,7 @@ fn checked_checkbox_shows_a_mark_and_unchecking_removes_it() {
     );
 }
 
-/// A real `Pointer<Click>` bubbles up the entity hierarchy, firing the observer
+/// A real `PointerClick` bubbles up the entity hierarchy, firing the observer
 /// once per ancestor. Without `propagate(false)` a single physical click would
 /// be handled repeatedly — enqueuing duplicate DOM `click` events (and, for a
 /// checkbox, double-toggling it). This drives a genuine propagating click on a
@@ -143,7 +143,7 @@ fn checked_checkbox_shows_a_mark_and_unchecking_removes_it() {
 #[test]
 fn click_stops_propagation_and_focuses_the_deepest_dom_node() {
     use bevy::picking::backend::HitData;
-    use bevy::picking::events::{Click, Pointer};
+    use bevy::picking::events::{Pointer, PointerClick};
     use bevy::picking::pointer::{Location, PointerButton, PointerId};
     use bevy::window::{PrimaryWindow, WindowRef};
 
@@ -172,7 +172,7 @@ fn click_stops_propagation_and_focuses_the_deepest_dom_node() {
     // itself, which is why we use the managed child here.)
     let text_child = managed_child(&mut app, field).expect("input has a managed text child");
 
-    // Build a real propagating Pointer<Click> (same shape as the picking backend
+    // Build a real propagating PointerClick (same shape as the picking backend
     // and the example's BRP click injector). HitData/Location aren't read by the
     // observer, but must be constructed to trigger the event.
     let win = app
@@ -187,19 +187,17 @@ fn click_stops_propagation_and_focuses_the_deepest_dom_node() {
         target: bevy::camera::NormalizedRenderTarget::Window(target),
         position: Vec2::ZERO,
     };
-    // 0.19: `Pointer` fields (`propagate`) are private — use `Pointer::new`
-    // (id, location, event, entity); `Click` gained a `count` field.
-    app.world_mut().trigger(Pointer::new(
-        PointerId::Mouse,
-        location,
-        Click {
-            button: PointerButton::Primary,
-            hit: HitData::new(Entity::PLACEHOLDER, 0.0, None, None),
-            duration: std::time::Duration::ZERO,
-            count: 1,
-        },
-        text_child,
-    ));
+    // 0.20: pointer events are no longer generic over an inner event type —
+    // each is its own `EntityEvent` struct carrying a `pointer: Pointer` field
+    // (built via `Pointer::new(id, location)`) plus a target `entity`.
+    app.world_mut().trigger(PointerClick {
+        entity: text_child,
+        pointer: Pointer::new(PointerId::Mouse, location),
+        button: PointerButton::Primary,
+        hit: HitData::new(Entity::PLACEHOLDER, 0.0, None, None),
+        duration: std::time::Duration::ZERO,
+        count: 1,
+    });
 
     // Handled exactly once (propagation stopped): a single queued click event,
     // targeting the input — not duplicated once per ancestor up to <body>.

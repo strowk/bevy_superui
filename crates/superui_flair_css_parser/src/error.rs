@@ -73,7 +73,7 @@ impl CssErrorLocation {
         }
     }
 
-    pub(crate) fn into_range(self, contents: &str) -> std::range::legacy::Range<usize> {
+    pub(crate) fn into_range(self, contents: &str) -> std::ops::Range<usize> {
         match self {
             CssErrorLocation::Unlocated => {
                 panic!("Unexpected unlocated CssError")
@@ -85,7 +85,7 @@ impl CssErrorLocation {
                 let end = start.wrapping_add(len);
 
                 if start <= contents.len() && end <= contents.len() {
-                    std::range::legacy::Range { start, end }
+                    std::ops::Range { start, end }
                 } else {
                     panic!("invalid range generated");
                 }
@@ -481,7 +481,7 @@ impl<'a> ErrorReportGenerator<'a> {
     /// Add advice to this report.
     pub fn add_advice(
         &mut self,
-        location: core::range::legacy::Range<usize>,
+        location: std::ops::Range<usize>,
         message: &'static str,
         annotated_message: impl Into<String>,
     ) {

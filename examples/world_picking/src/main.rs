@@ -16,7 +16,7 @@
 //!
 //! `cargo run -p world_picking`
 
-use bevy::picking::events::{Click, Out, Over, Pointer};
+use bevy::picking::events::{PointerClick, PointerOut, PointerOver};
 use bevy::picking::Pickable;
 use bevy::prelude::*;
 use superui::prelude::{SuperUiPlugin, SuperUiRoot};
@@ -88,7 +88,7 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
     // and the pickable `Text` as a child — the arrangement every Bevy UI uses.
     commands
         .spawn((
-            Button,
+            bevy::ui_widgets::Button,
             Node {
                 position_type: PositionType::Absolute,
                 bottom: Val::Px(24.0),
@@ -104,7 +104,7 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
                 TextColor(Color::WHITE),
             )],
         ))
-        .observe(|_: On<Pointer<Click>>, mut tally: ResMut<Tally>| {
+        .observe(|_: On<PointerClick>, mut tally: ResMut<Tally>| {
             tally.button_clicks += 1;
         });
 
@@ -146,11 +146,11 @@ fn spawn_probe(commands: &mut Commands, zone: Zone, pos: Vec2) {
 }
 
 fn on_probe_over(
-    ev: On<Pointer<Over>>,
+    ev: On<PointerOver>,
     mut probes: Query<(&mut Sprite, &Zone)>,
     mut tally: ResMut<Tally>,
 ) {
-    let Ok((mut sprite, zone)) = probes.get_mut(ev.event().entity) else {
+    let Ok((mut sprite, zone)) = probes.get_mut(ev.entity) else {
         return;
     };
     sprite.color = Color::WHITE;
@@ -160,14 +160,14 @@ fn on_probe_over(
     }
 }
 
-fn on_probe_out(ev: On<Pointer<Out>>, mut probes: Query<(&mut Sprite, &BaseColor)>) {
-    if let Ok((mut sprite, base)) = probes.get_mut(ev.event().entity) {
+fn on_probe_out(ev: On<PointerOut>, mut probes: Query<(&mut Sprite, &BaseColor)>) {
+    if let Ok((mut sprite, base)) = probes.get_mut(ev.entity) {
         sprite.color = base.0;
     }
 }
 
-fn on_probe_click(ev: On<Pointer<Click>>, probes: Query<&Zone>, mut tally: ResMut<Tally>) {
-    match probes.get(ev.event().entity) {
+fn on_probe_click(ev: On<PointerClick>, probes: Query<&Zone>, mut tally: ResMut<Tally>) {
+    match probes.get(ev.entity) {
         Ok(Zone::Covered) => tally.covered_clicks += 1,
         Ok(Zone::Clear) => tally.clear_clicks += 1,
         Err(_) => {}

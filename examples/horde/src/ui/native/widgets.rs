@@ -64,7 +64,12 @@ pub fn bar_fill(frac: f32, color: Color) -> impl Bundle {
 /// Add your own marker component alongside for click routing.
 pub fn menu_button() -> impl Bundle {
     (
-        Button,
+        // `bevy_ui::widget::Button` is now a deprecated alias for a private
+        // type (can't be constructed); its old job — requiring `Interaction`
+        // + blocking focus policy for `ui_focus_system` — is done explicitly
+        // here instead.
+        Interaction::None,
+        FocusPolicy::Block,
         HoverButton,
         Node {
             padding: UiRect::axes(Val::Px(20.0), Val::Px(11.0)),

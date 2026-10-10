@@ -39,7 +39,7 @@ pub fn test_app() -> App {
     if !app.is_plugin_added::<bevy::input_focus::InputDispatchPlugin>() {
         app.add_plugins(bevy::input_focus::InputDispatchPlugin);
     }
-    app.add_plugins(bevy::ui_widgets::EditableTextInputPlugin);
+    app.add_plugins(bevy::ui_widgets::TextInputPlugin);
     app.finish();
     app
 }

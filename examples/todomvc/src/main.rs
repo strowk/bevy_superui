@@ -81,7 +81,7 @@ fn main() {
 mod debug_ui {
     use bevy::ecs::message::MessageReader;
     use bevy::input::keyboard::KeyboardInput;
-    use bevy::picking::events::{Click, Pointer};
+    use bevy::picking::events::PointerClick;
     use bevy::prelude::*;
     use superui_css::prelude::TypeName;
 
@@ -91,11 +91,11 @@ mod debug_ui {
     }
 
     fn log_click(
-        ev: On<Pointer<Click>>,
+        ev: On<PointerClick>,
         tags: Query<Option<&TypeName>>,
         parents: Query<&ChildOf>,
     ) {
-        let e = ev.event().entity;
+        let e = ev.entity;
         let tag = tags.get(e).ok().flatten().map(|t| t.0.clone());
         let parent_tag = parents
             .get(e)
@@ -138,7 +138,7 @@ mod debug_ui {
 #[cfg(feature = "mcp_debug")]
 mod mcp_debug {
     use bevy::picking::backend::HitData;
-    use bevy::picking::events::{Click, Pointer};
+    use bevy::picking::events::{Pointer, PointerClick};
     use bevy::picking::pointer::{Location, PointerId};
     use bevy::prelude::*;
     use bevy::camera::NormalizedRenderTarget;
@@ -149,7 +149,7 @@ mod mcp_debug {
     #[reflect(Resource)]
     pub struct DebugClick(pub Option<Entity>);
 
-    /// Trigger a *real* `Pointer<Click>` on the target so it goes through the whole
+    /// Trigger a *real* `PointerClick` on the target so it goes through the whole
     /// picking-observer path INCLUDING hierarchy propagation — the entity-only
     /// path can't reproduce propagation bugs. This lets the BRP client drive a
     /// faithful click (bevy_brp injects keys, not mouse).
@@ -172,15 +172,13 @@ mod mcp_debug {
             target: NormalizedRenderTarget::Window(target),
             position: Vec2::ZERO,
         };
-        commands.trigger(Pointer {
-            pointer_id: PointerId::Mouse,
-            pointer_location: location,
+        commands.trigger(PointerClick {
             entity,
-            event: Click {
-                button: bevy::picking::pointer::PointerButton::Primary,
-                hit: HitData::new(camera, 0.0, None, None),
-                duration: std::time::Duration::from_millis(0),
-            },
+            pointer: Pointer::new(PointerId::Mouse, location),
+            button: bevy::picking::pointer::PointerButton::Primary,
+            hit: HitData::new(camera, 0.0, None, None),
+            duration: std::time::Duration::from_millis(0),
+            count: 1,
         });
     }
 }

@@ -213,7 +213,7 @@ fn initial_value_does_not_fire_input() {
 
 /// Test 2: checkbox toggle + change event via `click_effect`.
 ///
-/// `Pointer<Click>` cannot be constructed in a headless test: `HitData` requires
+/// `PointerClick` cannot be constructed in a headless test: `HitData` requires
 /// a camera `Entity` and `Location` requires a `NormalizedRenderTarget`, neither
 /// of which have `Default`. We therefore call `click_effect` directly — the free
 /// function extracted from the observer body — which genuinely tests the
@@ -264,7 +264,7 @@ fn checkbox_click_toggles_checked_and_fires_change() {
 }
 
 /// Regression: superui's click observer is global — it runs for every
-/// `Pointer<Click>` in the app, including entities that belong to the host game.
+/// `PointerClick` in the app, including entities that belong to the host game.
 /// Claiming those (stopping propagation) cancels bubbling to the handler on their
 /// ancestor, which is where a Bevy UI puts it: the pick lands on the `Text` child
 /// and only reaches the button by propagation. So while a UI is mounted, every
@@ -273,7 +273,7 @@ fn checkbox_click_toggles_checked_and_fires_change() {
 fn a_click_on_a_foreign_entity_still_reaches_its_ancestors_handler() {
     use bevy::camera::NormalizedRenderTarget;
     use bevy::picking::backend::HitData;
-    use bevy::picking::events::{Click, Pointer};
+    use bevy::picking::events::{Pointer, PointerClick};
     use bevy::picking::pointer::{Location, PointerButton, PointerId};
     use bevy::window::{PrimaryWindow, WindowRef};
 
@@ -294,9 +294,9 @@ fn a_click_on_a_foreign_entity_still_reaches_its_ancestors_handler() {
     app.world_mut()
         .spawn(Node::default())
         .add_child(child)
-        .observe(|_: On<Pointer<Click>>, mut ran: ResMut<AncestorRan>| ran.0 = true);
+        .observe(|_: On<PointerClick>, mut ran: ResMut<AncestorRan>| ran.0 = true);
 
-    // A real `Pointer<Click>` on the child — the entity-only path can't reproduce
+    // A real `PointerClick` on the child — the entity-only path can't reproduce
     // a propagation bug.
     let camera = app.world_mut().spawn(Camera2d).id();
     let window = app
@@ -307,20 +307,20 @@ fn a_click_on_a_foreign_entity_still_reaches_its_ancestors_handler() {
     let target = WindowRef::Entity(window)
         .normalize(Some(window))
         .expect("normalized window");
-    app.world_mut().trigger(Pointer::new(
-        PointerId::Mouse,
-        Location {
-            target: NormalizedRenderTarget::Window(target),
-            position: Vec2::ZERO,
-        },
-        Click {
-            button: PointerButton::Primary,
-            hit: HitData::new(camera, 0.0, None, None),
-            duration: std::time::Duration::ZERO,
-            count: 1,
-        },
-        child,
-    ));
+    app.world_mut().trigger(PointerClick {
+        entity: child,
+        pointer: Pointer::new(
+            PointerId::Mouse,
+            Location {
+                target: NormalizedRenderTarget::Window(target),
+                position: Vec2::ZERO,
+            },
+        ),
+        button: PointerButton::Primary,
+        hit: HitData::new(camera, 0.0, None, None),
+        duration: std::time::Duration::ZERO,
+        count: 1,
+    });
 
     assert!(
         app.world().resource::<AncestorRan>().0,
