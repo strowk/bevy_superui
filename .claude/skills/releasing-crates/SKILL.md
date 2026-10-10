@@ -36,9 +36,10 @@ The `superui_flair_*` crates are forks. Any deviation from upstream must be wrap
 3. Fill in the docs "since version" markers: replace every unreleased note with
    the new version. `grep -rn 'since-note--unreleased' website/src/docs` must come
    back empty before tagging. See the documenting-new-features skill.
-4. Publish: `cargo run -p xtask -- publish --execute`.
-5. Tag and push: `git tag v<new> && git push --tags`.
-6. Always cut a GitHub release — every crates.io release gets a matching one.
+4. Commit the version bump, changelog, and docs edits.
+5. Publish: `cargo run -p xtask -- publish --execute`.
+6. Tag and push: `git tag v<new> && git push --tags`.
+7. Always cut a GitHub release — every crates.io release gets a matching one.
    Title it `superui v<new> (bevy <bevy-minor>)`, e.g. `superui v0.3.5 (bevy 0.19)`.
    Use the changelog section you just wrote as the notes body:
    ```
