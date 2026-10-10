@@ -15,7 +15,7 @@ A new crate under `crates/` that other crates depend on is not published until i
 
 1. **`xtask/src/lib.rs::publish_order()`** — insert the crate name in topological order: after every crate it depends on, before every crate that depends on it. Update the count in the function's doc comment.
 2. **`xtask/tests/publish_order.rs`** — bump both `order.len()` / `sorted.len()` asserts, and add a `pos(dep) < pos(new) < pos(dependent)` assert documenting its position.
-3. **Intra-workspace deps** — path deps carry `version = "<workspace version>"` (currently `0.3.5`), matching `[workspace.package].version` in the root `Cargo.toml`. A dep pinned below the workspace version publishes a stale requirement. `cargo set-version` (see Releasing) keeps these in sync automatically.
+3. **Intra-workspace deps** — path deps carry `version = "<workspace version>"`, matching `[workspace.package].version` in the root `Cargo.toml`. A dep pinned below the workspace version publishes a stale requirement. `cargo set-version` (see Releasing) keeps these in sync automatically.
 
 Skip publishing only for a crate that is `publish = false` or lives under `examples/`, `xtask`, or `tools/`.
 
