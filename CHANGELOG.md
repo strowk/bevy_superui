@@ -12,10 +12,17 @@ This means increase in major/minor version in superui will always indicate a bev
 Increase in patch version in superui will indicate all other changes, i.e new superui features, bug fixes, etc, that do not require a bevy version bump.
 
 `bevy_superui` ships one release line per supported Bevy version. `main` tracks the
-actively developed Bevy 0.19 line (the `0.3.x` series); the `0.1.x` (Bevy 0.17)
-and `0.2.x` (Bevy 0.18) lines are frozen maintenance mirrors. This file follows
-the `main` lineage only; see the [GitHub releases](https://github.com/strowk/bevy_superui/releases)
+actively developed Bevy 0.20 line (the `0.4.x` series); the `0.3.x` (Bevy 0.19) line
+is a maintained branch (`release/bevy-0.19`), and the `0.1.x` (Bevy 0.17) and `0.2.x`
+(Bevy 0.18) lines are frozen maintenance mirrors. This file follows the `main`
+lineage only; see the [GitHub releases](https://github.com/strowk/bevy_superui/releases)
 for the maintenance lines.
+
+## [0.4.0] - 2026-10-10
+
+### Changed
+
+- Target Bevy 0.20; rebased the Flair fork onto bevy_flair 0.9.
 
 ## [0.3.6] - 2026-10-10
 
@@ -143,7 +150,8 @@ for the maintenance lines.
 
 - Target Bevy 0.19; rebased the Flair fork onto bevy_flair 0.8.0.
 
-[Unreleased]: https://github.com/strowk/bevy_superui/compare/v0.3.6...HEAD
+[Unreleased]: https://github.com/strowk/bevy_superui/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/strowk/bevy_superui/compare/v0.3.6...v0.4.0
 [0.3.6]: https://github.com/strowk/bevy_superui/compare/v0.3.5...v0.3.6
 [0.3.5]: https://github.com/strowk/bevy_superui/compare/v0.3.4...v0.3.5
 [0.3.4]: https://github.com/strowk/bevy_superui/compare/v0.3.3...v0.3.4
