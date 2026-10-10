@@ -73,7 +73,9 @@ impl CssErrorLocation {
         }
     }
 
+    // >>> SUPERUI-FORK-PATCH: flair-stable-rust-adaptations  (docs/fork-patches.md#flair-stable-rust-adaptations)
     pub(crate) fn into_range(self, contents: &str) -> std::ops::Range<usize> {
+    // <<< SUPERUI-FORK-PATCH: flair-stable-rust-adaptations
         match self {
             CssErrorLocation::Unlocated => {
                 panic!("Unexpected unlocated CssError")
@@ -85,7 +87,9 @@ impl CssErrorLocation {
                 let end = start.wrapping_add(len);
 
                 if start <= contents.len() && end <= contents.len() {
+                    // >>> SUPERUI-FORK-PATCH: flair-stable-rust-adaptations  (docs/fork-patches.md#flair-stable-rust-adaptations)
                     std::ops::Range { start, end }
+                    // <<< SUPERUI-FORK-PATCH: flair-stable-rust-adaptations
                 } else {
                     panic!("invalid range generated");
                 }
@@ -481,7 +485,9 @@ impl<'a> ErrorReportGenerator<'a> {
     /// Add advice to this report.
     pub fn add_advice(
         &mut self,
+        // >>> SUPERUI-FORK-PATCH: flair-stable-rust-adaptations  (docs/fork-patches.md#flair-stable-rust-adaptations)
         location: std::ops::Range<usize>,
+        // <<< SUPERUI-FORK-PATCH: flair-stable-rust-adaptations
         message: &'static str,
         annotated_message: impl Into<String>,
     ) {

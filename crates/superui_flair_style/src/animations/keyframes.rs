@@ -921,11 +921,13 @@ mod tests {
             else {
                 panic!("expected ReflectValue::Float for both resolved and expected");
             };
+            // >>> SUPERUI-FORK-PATCH: keyframes-test-tolerance  (docs/fork-patches.md#keyframes-test-tolerance)
             assert!(
                 (resolved_value - expected_value).abs() < 1e-3,
                 "value mismatch at time {}: {resolved_value} vs {expected_value}",
                 resolved.time
             );
+            // <<< SUPERUI-FORK-PATCH: keyframes-test-tolerance
         }
     }
 }

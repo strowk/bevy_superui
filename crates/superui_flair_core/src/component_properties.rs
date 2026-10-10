@@ -32,7 +32,9 @@ where
 /// # Examples
 /// ```
 /// # use superui_flair_core::ExtractComponentProperties;
+/// # // >>> SUPERUI-FORK-PATCH: flair-macros-vendored-name  (docs/fork-patches.md#flair-macros-vendored-name)
 /// # extern crate superui_flair_core as bevy_flair_core;
+/// # // <<< SUPERUI-FORK-PATCH: flair-macros-vendored-name
 ///
 /// // Defines a single property `.value` with type `f32`
 /// #[derive(ExtractComponentProperties)]
@@ -359,7 +361,9 @@ impl fmt::Debug for ComponentPropertiesRegistration {
 /// # use bevy_ui::prelude::*;
 /// # use bevy_color::Color;
 /// # use bevy_reflect::prelude::*;
+/// # // >>> SUPERUI-FORK-PATCH: flair-macros-vendored-name  (docs/fork-patches.md#flair-macros-vendored-name)
 /// # extern crate superui_flair_core as bevy_flair_core;
+/// # // <<< SUPERUI-FORK-PATCH: flair-macros-vendored-name
 ///
 /// // Simplest example
 /// //  - Defines a single `background_color` property

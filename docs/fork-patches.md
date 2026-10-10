@@ -19,7 +19,7 @@ Upstream bases:
 ### flair-macros-vendored-name
 - **Crate/file:** `superui_flair_core_macros` — `src/utils.rs`
 - **What:** Add `itself_alias: Option<&'static str>` field to `CratePath`; add `CratePath::with_alias` constructor; in the `FoundCrate::Itself` arm emit `itself_alias.unwrap_or(crate_name)` so the macro emits `::bevy_flair_core` rather than `::superui_flair_core`; add a third candidate `CratePath::with_alias("superui_flair_core", "bevy_flair_core")` in `bevy_flair_core_path()`.
-- **Why:** The fork renamed the core crate's lib to `superui_flair_core`, so the macro's default `::bevy_flair_core` path resolution (via `proc_macro_crate`) falls back to `FoundCrate::Itself` and would emit `::superui_flair_core` — which doesn't exist as a public path. The crate declares `extern crate self as bevy_flair_core;` so the alias resolves, but the macro must be told to emit that alias name. Without this patch every `#[derive(ComponentProperties)]` in `superui_flair_core` fails to compile.
+- **Why:** The fork renamed the core crate's lib to `superui_flair_core`, so the macro's default `::bevy_flair_core` path resolution (via `proc_macro_crate`) falls back to `FoundCrate::Itself` and would emit `::superui_flair_core` — which doesn't exist as a public path. The crate declares `extern crate self as bevy_flair_core;` so the alias resolves, but the macro must be told to emit that alias name. Without this patch every `#[derive(ComponentProperties)]` in `superui_flair_core` fails to compile. Doctest companion: two `///` doctests in `superui_flair_core/src/component_properties.rs` (on `ExtractComponentProperties` and `ComponentProperties`) are compiled by rustdoc as standalone external crates, where the `extern crate self as bevy_flair_core;` in `lib.rs` doesn't apply — each doctest adds its own hidden `# extern crate superui_flair_core as bevy_flair_core;` line so `superui_flair_core_macros`' emitted `::bevy_flair_core` path resolves there too.
 - **Upstream status:** local (not applicable upstream; this is a vendoring concern specific to the superui fork name).
 
 ---
@@ -30,6 +30,18 @@ Upstream bases:
 - **What:** Accept the CSS `rem` unit for line-height as `value * 16.0` px: add `"rem" => LineHeight::Px(*value * 16.0)` and extend the error-message unit list to include `'rem'`. (The former `parse_val`/`Val` half is gone: flair 0.9 + bevy 0.20 parse `rem` natively into `Val::Rem`, so that arm was dropped.)
 - **Why:** `LineHeight` has no `Rem` variant in bevy 0.20 (only `Px`/`RelativeToFont`) and flair 0.9's `parse_line_height` rejects `rem`, but encre-css / Tailwind `text-*` utilities emit `line-height: Nrem`. A 16px root matches the CSS/Tailwind default. Regression test: `rem` line-height case in `crates/superui_flair_css_parser/src/reflect/text.rs`.
 - **Upstream status:** local, no upstream path — no bevy issue/PR exists for `LineHeight::Rem` (the native rem work, bevy PR #25231, is `Val`-only). Could be offered as a bevy feature request (`LineHeight::Rem`) in future.
+
+### flair-stable-rust-adaptations
+- **Crate/file:** `superui_flair_core` — `src/property_map.rs` (the `Range` import and the `Index<Range<ComponentPropertyId>>` impl); `superui_flair_css_parser` — `src/error.rs` (`CssErrorLocation::into_range`'s return type and body, and `ErrorReportGenerator::add_advice`'s `location` parameter).
+- **What:** Revert upstream's nightly `std::range::legacy::Range` (and `core::range::legacy::Range`) usages to stable `std::ops::Range`.
+- **Why:** Upstream flair 0.9 opts into the unstable `new_range_api_legacy` nightly feature in a couple of spots; this fork builds on stable Rust, so those spots are reverted to the plain stable `Range` type they're a drop-in replacement for. Not a bevy 0.20 API change — a vendoring-time build fix.
+- **Upstream status:** local, drop when upstream targets stable (or stops using the legacy range API).
+
+### keyframes-test-tolerance
+- **Crate/file:** `superui_flair_style` — `src/animations/keyframes.rs` (keyframe interpolation test, chained-missing-keyframe case).
+- **What:** Compare the resolved vs. expected interpolated `f32` keyframe values with a `1e-3` tolerance (`(resolved_value - expected_value).abs() < 1e-3`) instead of bit-exact `assert_eq!`.
+- **Why:** The 75% keyframe in this test is interpolated from an already-interpolated 25% keyframe (chained `inverse_lerp`/`lerp` through an intermediate missing keyframe), and a glam/libm version bump made the resulting value differ from the mathematically exact expectation by a sub-ULP rounding amount — bit-exact comparison was flaky across toolchains/codegen.
+- **Upstream status:** local test-robustness tweak, not upstream-specific; could be offered upstream as-is.
 
 ### slider-part-pseudo-elements
 - **Crate/file:** `superui_flair_style` — `src/css_selector/mod.rs` (`CssPseudoElement` enum, `ToCss` impl, `parse_pseudo_element`), `src/css_selector/element.rs` (`match_pseudo_element`), `src/css_selector/testing.rs` (`TestNodeRef::match_pseudo_element`, test-only), `src/testing.rs` (`entity!` macro, test-only), `src/components.rs` (`PseudoElement` enum, new `SliderPart` component), `src/lib.rs` (re-export).

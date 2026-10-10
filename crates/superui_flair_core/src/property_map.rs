@@ -5,7 +5,9 @@ use bevy_reflect::Reflect;
 use std::fmt::{Debug, Formatter};
 use std::marker::PhantomData;
 use std::mem;
+// >>> SUPERUI-FORK-PATCH: flair-stable-rust-adaptations  (docs/fork-patches.md#flair-stable-rust-adaptations)
 use std::ops::{Deref, Index, IndexMut, Range};
+// <<< SUPERUI-FORK-PATCH: flair-stable-rust-adaptations
 use std::ptr::NonNull;
 use std::sync::Arc;
 
@@ -118,12 +120,14 @@ impl<'a, T> Index<&'a ComponentPropertyId> for PropertyMap<T> {
     }
 }
 
+// >>> SUPERUI-FORK-PATCH: flair-stable-rust-adaptations  (docs/fork-patches.md#flair-stable-rust-adaptations)
 impl<T> Index<Range<ComponentPropertyId>> for PropertyMap<T> {
     type Output = [T];
     fn index(&self, index: Range<ComponentPropertyId>) -> &Self::Output {
         &self.0[(index.start.0 as usize)..(index.end.0 as usize)]
     }
 }
+// <<< SUPERUI-FORK-PATCH: flair-stable-rust-adaptations
 
 impl<T> Index<std::range::Range<ComponentPropertyId>> for PropertyMap<T> {
     type Output = [T];

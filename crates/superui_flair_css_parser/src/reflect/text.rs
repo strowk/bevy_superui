@@ -32,6 +32,9 @@ fn parse_line_height(parser: &mut Parser) -> Result<LineHeight, CssError> {
                 "em" => LineHeight::RelativeToFont(*value),
                 // >>> SUPERUI-FORK-PATCH: css-rem-unit  (docs/fork-patches.md#css-rem-unit)
                 // LineHeight has no Rem variant, so resolve rem to px at a 16px root.
+                // This 16px conversion is deliberately hardcoded and NOT read from the
+                // configurable RemSize resource, so `line-height: 1rem` and `width: 1rem`
+                // can diverge if an app overrides RemSize.
                 "rem" => LineHeight::Px(*value * 16.0),
                 // <<< SUPERUI-FORK-PATCH: css-rem-unit
                 _ => {
