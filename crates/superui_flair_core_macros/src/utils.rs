@@ -6,6 +6,12 @@ use std::cell::LazyCell;
 struct CratePath {
     pub crate_name: &'static str,
     pub path: Option<&'static str>,
+    // >>> SUPERUI-FORK-PATCH: flair-macros-vendored-name  (docs/fork-patches.md#flair-macros-vendored-name)
+    /// When `FoundCrate::Itself` is detected, emit this ident instead of `crate_name`.
+    /// Used when the crate was vendored under a different lib name but keeps an
+    /// `extern crate self as <original_name>;` alias so the path still resolves.
+    pub itself_alias: Option<&'static str>,
+    // <<< SUPERUI-FORK-PATCH: flair-macros-vendored-name
 }
 
 impl CratePath {
@@ -13,6 +19,9 @@ impl CratePath {
         Self {
             crate_name,
             path: None,
+            // >>> SUPERUI-FORK-PATCH: flair-macros-vendored-name  (docs/fork-patches.md#flair-macros-vendored-name)
+            itself_alias: None,
+            // <<< SUPERUI-FORK-PATCH: flair-macros-vendored-name
         }
     }
 
@@ -20,8 +29,25 @@ impl CratePath {
         Self {
             crate_name,
             path: Some(path),
+            // >>> SUPERUI-FORK-PATCH: flair-macros-vendored-name  (docs/fork-patches.md#flair-macros-vendored-name)
+            itself_alias: None,
+            // <<< SUPERUI-FORK-PATCH: flair-macros-vendored-name
         }
     }
+
+    // >>> SUPERUI-FORK-PATCH: flair-macros-vendored-name  (docs/fork-patches.md#flair-macros-vendored-name)
+    /// Construct a candidate where `proc_macro_crate` looks up `crate_name` in Cargo.toml,
+    /// but when `FoundCrate::Itself` fires (meaning we ARE that crate), the emitted path
+    /// uses `itself_alias` instead — matching the `extern crate self as <itself_alias>;`
+    /// declaration in the vendored crate's lib.rs.
+    fn with_alias(crate_name: &'static str, itself_alias: &'static str) -> Self {
+        Self {
+            crate_name,
+            path: None,
+            itself_alias: Some(itself_alias),
+        }
+    }
+    // <<< SUPERUI-FORK-PATCH: flair-macros-vendored-name
 
     fn resolve(self) -> Result<TokenStream, CrateError> {
         let found_crate = crate_name(self.crate_name)?;
@@ -40,7 +66,13 @@ impl CratePath {
                 //                            As a workaround we need to inject `extern crate self as my_crate_name;`.
                 //                            but it's only internal code.
                 // See https://github.com/bkchr/proc-macro-crate/issues/14
-                let crate_name = Ident::new(self.crate_name, Span::call_site());
+                // >>> SUPERUI-FORK-PATCH: flair-macros-vendored-name  (docs/fork-patches.md#flair-macros-vendored-name)
+                // Use the itself_alias when set so that vendored-name crates (which declare
+                // `extern crate self as bevy_flair_core;`) emit the original path rather
+                // than the renamed lib name.
+                let emit_name = self.itself_alias.unwrap_or(self.crate_name);
+                let crate_name = Ident::new(emit_name, Span::call_site());
+                // <<< SUPERUI-FORK-PATCH: flair-macros-vendored-name
                 quote!( ::#crate_name #maybe_path )
             }
             FoundCrate::Name(name) => {
@@ -87,6 +119,12 @@ fn bevy_flair_core_path() -> TokenStream {
     resolve_first_available_crate([
         CratePath::with_path("bevy_flair", "core"),
         CratePath::new("bevy_flair_core"),
+        // >>> SUPERUI-FORK-PATCH: flair-macros-vendored-name  (docs/fork-patches.md#flair-macros-vendored-name)
+        // Third candidate: the vendored fork is named `superui_flair_core` on crates.io but
+        // declares `extern crate self as bevy_flair_core;` in its lib.rs, so `::bevy_flair_core`
+        // resolves correctly inside the crate itself and for downstream dependents.
+        CratePath::with_alias("superui_flair_core", "bevy_flair_core"),
+        // <<< SUPERUI-FORK-PATCH: flair-macros-vendored-name
     ])
 }
 

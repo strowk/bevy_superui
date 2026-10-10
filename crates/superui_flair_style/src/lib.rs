@@ -33,6 +33,9 @@ pub(crate) mod custom_iterators;
 mod layers;
 mod media_selector;
 pub mod placeholder;
+// >>> SUPERUI-FORK-PATCH: slider-default-layer  (docs/fork-patches.md#slider-default-layer)
+pub mod slider_defaults;
+// <<< SUPERUI-FORK-PATCH: slider-default-layer
 mod style_block;
 mod systems;
 mod to_css;
@@ -47,6 +50,10 @@ pub use style_block::*;
 pub use style_sheet::*;
 pub use to_css::*;
 pub use vars::*;
+
+// >>> SUPERUI-FORK-PATCH: slider-part-pseudo-elements  (docs/fork-patches.md#slider-part-pseudo-elements)
+pub use crate::components::SliderPart;
+// <<< SUPERUI-FORK-PATCH: slider-part-pseudo-elements
 
 pub(crate) type IdName = std::borrow::Cow<'static, str>;
 pub(crate) type ClassName = std::borrow::Cow<'static, str>;
