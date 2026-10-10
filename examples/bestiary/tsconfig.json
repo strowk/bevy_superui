@@ -12,9 +12,11 @@
     "baseUrl": ".",                 // anchor the paths below to this folder
     "paths": {
       // map the bare `supersolid` import to its projected editor types
-      "supersolid": ["./superui_modules/supersolid/index.d.ts"]
+      "supersolid": ["./superui_modules/supersolid/index.d.ts"],
+      // map the `superui/test` import to the projected test-framework types
+      "superui/test": ["./superui_modules/superui/test/index.d.ts"]
     }
   },
-  // files the language server should type-check: projected types + this app's UI
-  "include": ["superui_modules/**/*.d.ts", "assets/**/*.ts", "assets/**/*.tsx"]
+  // files the language server should type-check: projected types, UI, and specs
+  "include": ["superui_modules/**/*.d.ts", "assets/**/*.ts", "assets/**/*.tsx", "tests/**/*.ts"]
 }
