@@ -24,3 +24,17 @@ editing. A few things are still missing:
 - `disabled` / `readonly` are not implemented.
 - `input` events are frame-coalesced: at most one `input` event per frame in which
   the text changed, not one per keystroke.
+
+## Need reflect_documentation in [build-dependencies] for bevy_reflect when using `superui_css_utilities`
+
+If you use `superui_css_utilities::write_generated` as stated in [Styling](../concepts/styling.md), you might need to add `reflect_documentation` feature:
+
+```toml
+bevy_reflect = { version = "0.19", features = ["reflect_documentation"] }
+```
+
+The reason for this is that superui_css_utilities drags the bevy stack into the build graph. 
+Then in case if you use bevy-inspector-egui, it enables bevy_reflect/reflect_documentation in the target graph, 
+and the reflect derive proc-macro is feature-unified across graphs, so it emits `with_docs` calls the build-graph
+bevy_reflect lib lacks unless we enable the same feature here too.
+
