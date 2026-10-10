@@ -15,8 +15,8 @@ categories = ["game-development"]
 # `--no-default-features` to keep Bevy out of the graph entirely.
 [dependencies]
 encre-css = "0.20"
-superui_css = { path = "../superui_css", version = "0.3.6", optional = true }
-superui_paths = { path = "../superui_paths", version = "0.3.6", optional = true }
+superui_css = { path = "../superui_css", version = "0.4.0", optional = true }
+superui_paths = { path = "../superui_paths", version = "0.4.0", optional = true }
 
 # The flair oracle needs a headless Bevy app with the property registries
 # installed. default-features = false keeps it headless (no winit/render); the
@@ -40,7 +40,7 @@ oracle = ["dep:bevy", "dep:superui_css", "dep:superui_paths"]
 
 [dev-dependencies]
 # Integration tests reference GENERATED_DIR directly.
-superui_paths = { path = "../superui_paths", version = "0.3.6" }
+superui_paths = { path = "../superui_paths", version = "0.4.0" }
 
 [[bin]]
 name = "gen_utilities_doc"

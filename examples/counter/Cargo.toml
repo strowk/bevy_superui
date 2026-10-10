@@ -18,7 +18,7 @@ playground = ["superui/transpiler", "superui/hmr", "dep:superui_playground_web",
 [dependencies]
 superui = { path = "../../crates/superui" }
 superui_css = { path = "../../crates/superui_css" }
-superui_playground_web = { path = "../../crates/superui_playground_web", version = "0.3.6", optional = true }
+superui_playground_web = { path = "../../crates/superui_playground_web", version = "0.4.0", optional = true }
 bevy = { workspace = true, default-features = true }
 
 # Host-only: pre-transpile app.tsx -> app.generated.js for wasm / no-HMR native.

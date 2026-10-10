@@ -21,7 +21,7 @@ bevy = { workspace = true, default-features = true }
 
 [dependencies.bevy_brp_extras]
 optional = true
-version = "0.22.1"
+version = "0.23.0"
 
 # Host-only: pre-transpile app.tsx -> app.generated.js for wasm / no-HMR native.
 [build-dependencies]
