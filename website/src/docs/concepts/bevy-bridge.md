@@ -128,7 +128,7 @@ subscriber in the UI.
 
 ### Testing the game→UI direction
 
-<div class="since-note since-note--unreleased">This section documents behavior currently on <code>main</code> only — not yet in a tagged release.</div>
+<div class="since-note"><strong>0.3.6</strong></div>
 
 In a `superui_test_engine` spec there is no game side to call `commands.trigger`,
 so a UI's `bevy.on` handlers never fire on their own. `page.emit(name, value)`

@@ -181,7 +181,7 @@ and refers to each other directly.
 
 ### Importing JSON
 
-<div class="since-note since-note--unreleased">This section documents behavior currently on <code>main</code> only — not yet in a tagged release.</div>
+<div class="since-note"><strong>0.3.6</strong></div>
 
 The one exception to "no cross-file imports" is `.json`. `import x from
 "./data.json"` inlines the file's parsed value as a top-level `const x`,
