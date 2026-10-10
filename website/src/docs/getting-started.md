@@ -23,7 +23,6 @@ dependency is already in place from the prerequisite step):
 [dependencies]
 superui = "0.3"
 
-# Pre-transpiles your .tsx to JS at build time (needed for release / web builds).
 [build-dependencies]
 supersolid = "0.3"
 ```
@@ -36,9 +35,31 @@ Pick the superui version that matches your Bevy version:
 | `0.2` | `0.18` |
 | `0.1` | `0.17` |
 
-The `supersolid` build dependency is explained in
-[Project Structure & Build](project-structure.md#build-modes); you can add it now
-and not think about it again.
+## Pre-transpile your `.tsx`
+
+Add a `build.rs` next to your `Cargo.toml`. It calls the `supersolid` build
+dependency to transpile your `.tsx` to JS:
+
+```rust
+fn main() {
+    supersolid::build::transpile_dir("assets/ui/counter");
+}
+```
+
+The path is the UI directory you create in [Author the UI](#author-the-ui). Only
+native hot reload (`--features hmr`, set up below) transpiles `.tsx` live; every
+other build — including a plain `cargo run` and any web build — loads this
+generated JS, so without the build script the UI renders nothing.
+
+The output lands in `assets/ui/counter/.superui/build/`. Keep it out of version
+control:
+
+```gitignore
+**/.superui/
+```
+
+Build modes and hot reload are covered in
+[Project Structure & Build](project-structure.md#build-modes).
 
 ## Set up editor support
 
