@@ -42,7 +42,8 @@ assets/ui/counter/
 </html>
 ```
 
-`app.tsx` (everything for the UI in one file — see the one-module rule):
+`app.tsx` (a UI can be one file like this, or split across sibling modules
+imported via `./` — see "Splitting a UI across modules" in SKILL.md):
 
 ```tsx
 import { createSignal, render } from "supersolid";
