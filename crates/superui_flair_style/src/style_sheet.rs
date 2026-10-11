@@ -83,6 +83,23 @@ impl StyleSheet {
         }
     }
 
+    // >>> SUPERUI-FORK-PATCH: stylesheet-extend  (docs/fork-patches.md#stylesheet-extend)
+    /// Append `other`'s rules after self's (source order: other wins ties).
+    ///
+    /// `font_faces`, `block_handles`, and `css_selectors_to_blocks` are appended
+    /// in order, so `other`'s rules land later in source order and therefore win
+    /// the cascade on equal specificity. `resolved_font_faces` and
+    /// `animation_keyframes` are merged by key, with `other`'s entries
+    /// overwriting `self`'s on a name collision.
+    pub fn extend(&mut self, other: StyleSheet) {
+        self.font_faces.extend(other.font_faces);
+        self.resolved_font_faces.extend(other.resolved_font_faces);
+        self.block_handles.extend(other.block_handles);
+        self.animation_keyframes.extend(other.animation_keyframes);
+        self.css_selectors_to_blocks.extend(other.css_selectors_to_blocks);
+    }
+    // <<< SUPERUI-FORK-PATCH: stylesheet-extend
+
     /// Returns block ids that matches with the given element.
     /// Results are sorted from less specific to more specific.
     pub(crate) fn get_matching_block_ids_for_element<
@@ -636,6 +653,81 @@ mod tests {
         assert_eq!(
             style_sheet.get_matching_block_ids_for_element(element!(Text), &resolution_600x800),
             vec![block_aspect_ratio_le_1]
+        );
+    }
+
+    #[test]
+    fn extend_appends_rules() {
+        let mut builder_a = StyleSheetBuilder::new();
+        builder_a
+            .new_ruleset()
+            .with_css_selector(css_selector!(".only_a"))
+            .with_property(StyleBuilderProperty::new(
+                TEST_PROPERTY,
+                ReflectValue::Float(1f32),
+            ))
+            .block_id();
+
+        let mut builder_b = StyleSheetBuilder::new();
+        builder_b
+            .new_ruleset()
+            .with_css_selector(css_selector!(".only_b"))
+            .with_property(StyleBuilderProperty::new(
+                TEST_PROPERTY,
+                ReflectValue::Float(2f32),
+            ))
+            .block_id();
+
+        let mut style_blocks = Assets::<StyleBlock>::default();
+
+        let sheet_a = {
+            let mut custom_loader = TestAssetLoader(&mut style_blocks);
+            builder_a
+                .build(
+                    &EMPTY_TYPE_REGISTRY,
+                    &PROPERTY_REGISTRY,
+                    StyleAssetLoader::custom(&mut custom_loader),
+                )
+                .unwrap()
+        };
+        let sheet_b = {
+            let mut custom_loader = TestAssetLoader(&mut style_blocks);
+            builder_b
+                .build(
+                    &EMPTY_TYPE_REGISTRY,
+                    &PROPERTY_REGISTRY,
+                    StyleAssetLoader::custom(&mut custom_loader),
+                )
+                .unwrap()
+        };
+
+        let media_provider = TestMediaProvider::default();
+
+        // Before the merge, `a` has no knowledge of `b`'s selector.
+        assert!(
+            sheet_a
+                .get_matching_block_ids_for_element(element!(div.only_b), &media_provider)
+                .is_empty(),
+            "sheet_a should not match a selector that only exists in sheet_b"
+        );
+
+        let mut merged = sheet_a;
+        merged.extend(sheet_b);
+
+        // After the merge, the combined sheet matches both selectors.
+        assert_eq!(
+            merged
+                .get_matching_block_ids_for_element(element!(div.only_a), &media_provider)
+                .len(),
+            1,
+            "merged sheet should still match sheet_a's own selector"
+        );
+        assert_eq!(
+            merged
+                .get_matching_block_ids_for_element(element!(div.only_b), &media_provider)
+                .len(),
+            1,
+            "merged sheet should now match sheet_b's selector too"
         );
     }
 }

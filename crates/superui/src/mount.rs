@@ -5,6 +5,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use bevy::asset::LoadState;
+use bevy::ecs::system::SystemState;
 use bevy::prelude::*;
 use superui_bridge::{
     clamp_scroll_position_system, dim_placeholder_text_system, drain_bevy_outbox_system,
@@ -13,6 +14,7 @@ use superui_bridge::{
     on_slider_value_change, position_slider_parts, reconcile_system, wheel_scroll_system,
     PendingDomEvents, UiRuntime,
 };
+use superui_css::parser::InlineCssStyleSheetParser;
 use superui_css::style::StyleSheet;
 use superui_css::SuperUiCssPlugin;
 
@@ -374,8 +376,8 @@ pub fn mount_when_ready(world: &mut World) {
         Some(h) => h.0.clone(),
         None => return,
     };
-    let js_src = match world.resource::<Assets<JsSource>>().get(&js_handle) {
-        Some(j) => j.code.clone(),
+    let (js_code, module_css) = match world.resource::<Assets<JsSource>>().get(&js_handle) {
+        Some(j) => (j.code.clone(), j.css.clone()),
         None => return,
     };
 
@@ -392,15 +394,78 @@ pub fn mount_when_ready(world: &mut World) {
         );
     }
 
+    // The module graph's bundled CSS (collected from every `import "*.css"` across
+    // the entry's dependency graph) applies AFTER the entry's `<link>` stylesheet,
+    // so an equal-specificity module rule wins the cascade (source order) — the
+    // module CSS is "closer" to the component that imported it. When the document
+    // declares no `<link>`, the module CSS becomes the whole applied sheet.
+    let applied_css_handle = if module_css.is_empty() {
+        css_handle.unwrap_or_default()
+    } else {
+        merge_module_css(world, css_handle, &module_css)
+    };
+
     let dom = Rc::new(RefCell::new(superui_html::parse_document(&html_src)));
-    let mut rt = UiRuntime::new(dom, entity, css_handle.unwrap_or_default(), hmr);
+    let mut rt = UiRuntime::new(dom, entity, applied_css_handle, hmr);
     // The entry HTML's directory; `<img src>` resolves relative to it.
     rt.base_dir = html_handle
         .path()
         .map(|p| superui_paths::parent_dir(&p.to_string()).to_string())
         .unwrap_or_default();
-    rt.run_script(&js_src);
+    rt.run_script(&js_code);
     world.insert_non_send(rt);
+}
+
+/// Parse `module_css` and merge it after the base applied sheet (the `<link>`
+/// sheet behind `css_handle`, or an empty sheet when the document declares
+/// none), returning the `Handle<StyleSheet>` the runtime should carry.
+///
+/// Reuses `css_handle`'s asset slot when present (overwriting it in place) so
+/// any other `Handle<StyleSheet>` pointing at the same `<link>` sheet keeps
+/// seeing the merged result; otherwise inserts a fresh asset. On a parse
+/// error, warns and skips the merge (falls back to the unmodified base),
+/// matching the loader's graceful-degradation stance elsewhere in the crate.
+fn merge_module_css(
+    world: &mut World,
+    css_handle: Option<Handle<StyleSheet>>,
+    module_css: &str,
+) -> Handle<StyleSheet> {
+    // Parse in a scoped block: `InlineCssStyleSheetParser` borrows `world` to
+    // read flair's registries, and that borrow must end (returning an owned
+    // `StyleSheet`) before `Assets<StyleSheet>` is mutably borrowed below.
+    let parsed = {
+        let mut state: SystemState<InlineCssStyleSheetParser> = SystemState::new(world);
+        let parser = state
+            .get(world)
+            .expect("InlineCssStyleSheetParser system params must be available");
+        parser.load_stylesheet(module_css)
+    };
+    let parsed = match parsed {
+        Ok(sheet) => sheet,
+        Err(e) => {
+            bevy::log::warn!(
+                "superui: module CSS failed to parse; skipping the merge: {e}"
+            );
+            return css_handle.unwrap_or_default();
+        }
+    };
+
+    match css_handle {
+        Some(h) => {
+            let mut assets = world.resource_mut::<Assets<StyleSheet>>();
+            let mut base = assets.get(&h).cloned().unwrap_or_else(StyleSheet::empty);
+            base.extend(parsed);
+            if let Some(mut slot) = assets.get_mut(&h) {
+                *slot = base;
+            }
+            h
+        }
+        None => {
+            let mut base = StyleSheet::empty();
+            base.extend(parsed);
+            world.resource_mut::<Assets<StyleSheet>>().add(base)
+        }
+    }
 }
 
 #[cfg(test)]

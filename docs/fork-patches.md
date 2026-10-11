@@ -49,6 +49,12 @@ Upstream bases:
 - **Why:** Exposes `bevy_ui_widgets` slider parts to the flair cascade so `<input type=range>` track/fill/thumb entities can be styled from CSS.
 - **Upstream status:** local (not yet submitted); to be offered to bevy_flair.
 
+### stylesheet-extend
+- **Crate/file:** `superui_flair_style` — `src/style_sheet.rs` (`StyleSheet::extend`).
+- **What:** Add `pub fn extend(&mut self, other: StyleSheet)`, appending `other`'s `font_faces`, `block_handles`, and `css_selectors_to_blocks` after `self`'s (so `other`'s equal-specificity rules win the cascade via source order), and merging `resolved_font_faces` / `animation_keyframes` by key with `other`'s entries overwriting `self`'s on collision. Needs to live in the flair crate because it touches the `pub(super)` fields.
+- **Why:** `superui` mounts a single applied `StyleSheet`, but a document's `<link>` stylesheet and its JS module graph's bundled `.css` (collected via `TsxLoader`'s import walk) are two separately-parsed sheets that both need to apply, with the module CSS taking precedence on ties (it is "closer" to the component in source order, mirroring how a browser treats same-specificity rules declared later). `extend` is the concatenation primitive `superui`'s `mount.rs` uses to produce that single merged sheet.
+- **Upstream status:** local (not yet submitted); to be offered to bevy_flair as a general stylesheet-merge utility.
+
 ### slider-default-layer
 - **Crate/file:** `superui_flair_style` — new `src/slider_defaults.rs` (`add_slider_defaults`), `src/lib.rs` (module declaration); `superui_flair_css_parser` — `src/internal_loader.rs` (`InternalStylesheetLoader::load_stylesheet`, right after `StyleSheetBuilder::new()`).
 - **What:** `add_slider_defaults` builds default `<input type=range>` rulesets (host size/position, `::slider-track`, `::slider-fill`, `::slider-thumb` — size, color, border-radius) via `StyleSheetBuilder`, tagging every selector with a `superui-defaults` `CssSelector::with_layer`. `InternalStylesheetLoader::load_stylesheet` calls it immediately after constructing the builder, before any author rule or `@layer` is parsed, so `superui-defaults` is always the first layer defined. `::slider-fill`'s `width` and `::slider-thumb`'s `left` are deliberately not set — `superui_bridge`'s `position_slider_parts` system owns those axes every frame.
