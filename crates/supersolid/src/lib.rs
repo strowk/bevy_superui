@@ -9,7 +9,10 @@ mod jsx;
 mod module;
 mod pipeline;
 
-pub use module::{transpile_module, Module};
+pub use module::{
+    assemble, resolve_candidates, transpile_module, walk_sync, Bundle, Module, ResolvedModule,
+    DEFAULT_MODULES_ROOT,
+};
 
 /// Options controlling a transpile.
 #[derive(Debug, Clone)]
@@ -62,11 +65,33 @@ pub struct TranspileResult {
     pub json_imports: Vec<(String, String)>,
 }
 
-/// Transpile Solid-style `.tsx`/`.ts` source to plain JavaScript.
+/// Transpile Solid-style `.tsx`/`.ts` source to plain JavaScript: a one-module
+/// wrapper over `transpile_module` + `assemble` (spec §2). Still I/O-free —
+/// any `.css`/`.json` imports are only *recorded* (`style_imports`/
+/// `json_imports`), never resolved; resolving a module graph is `walk_sync`'s
+/// job.
 pub fn transpile(source: &str, options: &TranspileOptions) -> TranspileResult {
-    let (code, diagnostics, style_imports, json_imports) =
-        pipeline::run(source, options, /* lower_jsx */ true);
-    TranspileResult { code, diagnostics, style_imports, json_imports }
+    let m = module::transpile_module(source, options);
+    let entry = options.module_id.clone().unwrap_or_else(|| "input".to_string());
+
+    let mut modules = std::collections::BTreeMap::new();
+    modules.insert(
+        entry.clone(),
+        ResolvedModule {
+            factory_code: m.factory_code,
+            edges: Vec::new(),
+            css: String::new(),
+            json_prelude: String::new(),
+        },
+    );
+    let bundle = module::assemble(&entry, &modules);
+
+    TranspileResult {
+        code: bundle.code,
+        diagnostics: m.diagnostics,
+        style_imports: m.css_imports,
+        json_imports: m.json_imports,
+    }
 }
 
 /// Transpile one `.tsx`/`.ts` file to `output` (plain JS). Used by the CLI for
@@ -383,27 +408,23 @@ mod tests {
 
     #[test]
     fn unknown_module_imports_warn() {
+        // A relative import is no longer a warning (Task 1/2): it lowers to a
+        // `require(...)` edge instead of being stripped. Resolution/warnings for
+        // actually-missing modules are the graph walker's job (module::tests).
         let r = transpile("import { X } from \"./other\"; const x = X;", &TranspileOptions::default());
-        assert!(!r.code.contains("import"), "unknown import still stripped:\n{}", r.code);
-        assert_eq!(r.diagnostics.len(), 1, "one warning expected: {:?}", r.diagnostics);
-        assert_eq!(r.diagnostics[0].severity, Severity::Warning);
-        assert!(r.diagnostics[0].message.contains("./other"), "names specifier: {:?}", r.diagnostics);
-        assert!(reparses_as_plain_js(&r.code));
+        assert!(r.code.contains(r#"require("./other")"#), "{}", r.code);
+        assert!(r.diagnostics.is_empty(), "{:?}", r.diagnostics);
     }
 
     #[test]
     fn unused_unknown_module_import_still_warns_once() {
         // `only_remove_type_imports: true` means oxc no longer silently elides
-        // an unused-value import before `imports::rewrite` classifies it. An
-        // unknown-module import whose binding is never referenced must still
-        // warn exactly once (and still be stripped from the output), matching
-        // `unknown_module_imports_warn`'s used-binding case.
+        // an unused-value import before import-lowering classifies it. An
+        // unused relative import still lowers to a `require(...)` edge (no
+        // warning), matching `unknown_module_imports_warn`'s used-binding case.
         let r = transpile("import { X } from \"./other\";", &TranspileOptions::default());
-        assert!(!r.code.contains("import"), "unknown import still stripped:\n{}", r.code);
-        assert_eq!(r.diagnostics.len(), 1, "one warning expected: {:?}", r.diagnostics);
-        assert_eq!(r.diagnostics[0].severity, Severity::Warning);
-        assert!(r.diagnostics[0].message.contains("./other"), "names specifier: {:?}", r.diagnostics);
-        assert!(reparses_as_plain_js(&r.code));
+        assert!(r.code.contains(r#"require("./other")"#), "{}", r.code);
+        assert!(r.diagnostics.is_empty(), "{:?}", r.diagnostics);
     }
 
     #[test]

@@ -1,10 +1,7 @@
-//! Import rewriting. Two paths share one four-way specifier classification
-//! (runtime / `.css` / `.json` / anything else):
-//! - `rewrite` — the engine runs plain (non-module) scripts, so every import is
-//!   stripped; an unresolved specifier warns. Kept for `transpile` (Task 2
-//!   retires it).
-//! - `lower_to_require` — module-mode: every resolved specifier becomes a
-//!   `require(...)`-based binding instead of a warning (spec §2).
+//! Import lowering: every resolved specifier becomes a `require(...)`-based
+//! binding (module-mode, spec §2), classified by one four-way split (runtime
+//! / `.css` / `.json` / anything else — the "anything else" arm is what
+//! becomes a `require(...)`).
 //!
 //! See `jsx.rs`'s module doc for why `#![allow(deprecated)]`: the entire
 //! `AstBuilder` construction surface is `#[deprecated]` pending an interface
@@ -19,43 +16,7 @@ use oxc::ast::ast::{
 use oxc::ast::{AstBuilder, NONE};
 use oxc::span::SPAN;
 
-use crate::{Diagnostic, Severity, TranspileOptions};
-
-pub(crate) fn rewrite(
-    _allocator: &Allocator,
-    program: &mut Program,
-    options: &TranspileOptions,
-) -> (Vec<Diagnostic>, Vec<String>, Vec<(String, String)>) {
-    let mut diagnostics = Vec::new();
-    let mut style_imports = Vec::new();
-    let mut json_imports = Vec::new();
-
-    // Inspect every import's specifier, classify, then drop all import statements.
-    for stmt in program.body.iter() {
-        if let Statement::ImportDeclaration(decl) = stmt {
-            let specifier = decl.source.value.as_str().to_string();
-            if options.runtime_specifiers.iter().any(|s| s == &specifier) {
-                // silent — runtime specifiers are available as globals
-            } else if specifier.to_ascii_lowercase().ends_with(".css") {
-                style_imports.push(specifier);
-            } else if specifier.to_ascii_lowercase().ends_with(".json") {
-                for spec in decl.specifiers.iter().flatten() {
-                    json_imports.push((spec.name().as_str().to_string(), specifier.clone()));
-                }
-            } else {
-                diagnostics.push(Diagnostic {
-                    severity: Severity::Warning,
-                    message: format!(
-                        "supersolid: cross-module import from {specifier:?} is not supported yet (stripped)"
-                    ),
-                });
-            }
-        }
-    }
-    program.body.retain(|stmt| !matches!(stmt, Statement::ImportDeclaration(_)));
-
-    (diagnostics, style_imports, json_imports)
-}
+use crate::{Diagnostic, TranspileOptions};
 
 /// Extract the plain-text name from a `ModuleExportName` (an import/export
 /// specifier's imported/local/exported name). Used by both `lower_to_require`
