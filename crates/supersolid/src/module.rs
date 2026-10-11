@@ -157,7 +157,7 @@ pub fn assemble(entry_id: &str, modules: &BTreeMap<String, ResolvedModule>) -> B
 
 /// Normalize `.`/`..` path segments after a `join_asset` join (which does not
 /// normalize them itself). Forward-slash only; a leading `..` past the root
-/// simply has nothing left to pop.
+/// has nothing left to pop.
 fn normalize_segments(path: &str) -> String {
     let mut stack: Vec<&str> = Vec::new();
     for seg in path.split('/') {
@@ -346,7 +346,7 @@ mod tests {
         assert_eq!(m.deps, vec!["ui-kit".to_string()]);
         assert!(m.diagnostics.is_empty(), "bare imports resolve now; no warn: {:?}", m.diagnostics);
     }
-    // Runtime / css / json classification unchanged
+    // Runtime / css / json classification
     #[test]
     fn runtime_import_still_strips_silently() {
         let m = transpile_module(

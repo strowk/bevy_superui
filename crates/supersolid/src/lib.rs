@@ -408,9 +408,9 @@ mod tests {
 
     #[test]
     fn unknown_module_imports_warn() {
-        // A relative import is no longer a warning (Task 1/2): it lowers to a
-        // `require(...)` edge instead of being stripped. Resolution/warnings for
-        // actually-missing modules are the graph walker's job (module::tests).
+        // Despite the name, a relative import does not warn: it lowers to a
+        // `require(...)` edge. Resolution warnings for missing modules are the
+        // graph walker's job (module::tests).
         let r = transpile("import { X } from \"./other\"; const x = X;", &TranspileOptions::default());
         assert!(r.code.contains(r#"require("./other")"#), "{}", r.code);
         assert!(r.diagnostics.is_empty(), "{:?}", r.diagnostics);
@@ -418,10 +418,10 @@ mod tests {
 
     #[test]
     fn unused_unknown_module_import_still_warns_once() {
-        // `only_remove_type_imports: true` means oxc no longer silently elides
-        // an unused-value import before import-lowering classifies it. An
-        // unused relative import still lowers to a `require(...)` edge (no
-        // warning), matching `unknown_module_imports_warn`'s used-binding case.
+        // `only_remove_type_imports: true` keeps oxc from eliding an unused
+        // value-import before import-lowering classifies it, so an unused
+        // relative import lowers to a `require(...)` edge (no warning), like
+        // `unknown_module_imports_warn`'s used-binding case.
         let r = transpile("import { X } from \"./other\";", &TranspileOptions::default());
         assert!(r.code.contains(r#"require("./other")"#), "{}", r.code);
         assert!(r.diagnostics.is_empty(), "{:?}", r.diagnostics);

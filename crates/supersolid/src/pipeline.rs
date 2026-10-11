@@ -23,7 +23,7 @@ use oxc::transformer::{JsxOptions, TransformOptions, Transformer, TypeScriptOpti
 
 use crate::{Diagnostic, Severity, TranspileOptions};
 
-/// Module-mode entry point (Task 1, spec §2): parse → TS-strip (JSX preserved)
+/// Module-mode entry point (spec §2): parse → TS-strip (JSX preserved)
 /// → dynamic-`import()` scan (warn-only) → export-lowering → `jsx::lower`
 /// (JSX + `$ss.hot`) → import-lowering (`require(...)`) → codegen.
 ///
@@ -102,9 +102,10 @@ fn scan_dynamic_imports(program: &Program) -> Vec<Diagnostic> {
 /// Lower every top-level `export` statement to its plain declaration (if any)
 /// plus `exports.<name> = <value>;` assignment statement(s) (spec §2).
 ///
-/// `export * from "x"` has no re-export wiring — Task 1 builds no runtime
-/// module registry to resolve it against — so it is dropped with a `Warning`
-/// diagnostic ("warn, skip" per spec §2) rather than attempted.
+/// `export * from "x"` has no re-export wiring — this pass lowers one module
+/// in isolation, with no cross-module registry to resolve the star against —
+/// so it is dropped with a `Warning` diagnostic ("warn, skip" per spec §2)
+/// rather than attempted.
 fn lower_exports<'a>(ast: &AstBuilder<'a>, program: &mut Program<'a>) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
     let old = std::mem::replace(&mut program.body, ast.vec());

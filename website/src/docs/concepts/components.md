@@ -189,14 +189,15 @@ Supported specifiers:
 - **Relative files** — `./widgets`, `./widgets.tsx` (extensionless preferred;
   `.tsx`/`.ts`/`.js` all resolve). Export whatever a component needs —
   functions, constants — with ordinary `export` / `export default`.
-- **Bare packages** — resolved from a sibling `superui_modules/` directory
-  (candidate `index.tsx`/`.ts`/`.js`/`.json` only). No package manager
-  populates `superui_modules/` yet, so this is ready but unused today.
+- **Bare packages** — `foo` resolves from a sibling `superui_modules/`
+  directory, via the same `.tsx`/`.ts`/`.js` then `/index.*` ladder as
+  relative files. No package manager populates `superui_modules/` yet, so bare
+  imports have nothing to resolve to in practice.
 - **`.json`** — see [Importing JSON](#importing-json) below.
 
-Out of scope, logged and skipped rather than erroring: `export * from`
-re-export, dynamic `import()`, `import.meta`, and `package.json`
-`main`/`module`-field resolution.
+Not supported: `export * from` re-exports and dynamic `import()` (each warns
+rather than erroring), `import.meta`, and `package.json` `main`/`module`-field
+resolution for bare packages.
 
 ### Importing JSON
 
