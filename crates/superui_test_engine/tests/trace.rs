@@ -14,6 +14,7 @@ fn records_a_step_per_action() {
         tsx: true,
         mount_root: "ui".into(),
         extra_assets: vec![],
+        ..Default::default()
     });
     let spec = r##"
         import { test, expect } from "superui/test";

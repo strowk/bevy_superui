@@ -27,6 +27,7 @@ fn project() -> HostProject {
         tsx: true,
         mount_root: "ui".into(),
         extra_assets: vec![],
+        ..Default::default()
     }
 }
 
@@ -192,6 +193,7 @@ fn stepper_delivers_emit_to_bevy_on() {
         tsx: true,
         mount_root: "ui".into(),
         extra_assets: vec![],
+        ..Default::default()
     };
     let mut app = build_headless_app(&project);
 
