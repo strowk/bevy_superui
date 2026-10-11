@@ -154,6 +154,58 @@ fn graph_wide_hmr_reloads_when_an_imported_module_changes() {
     );
 }
 
+/// Module-graph CSS (spec §5): a `.css` imported by a module that is only a
+/// *dependency* of the mounted entry (not the entry's own `<link>` sheet) must
+/// still apply, merged in AFTER the `<link>` sheet so it wins on equal
+/// specificity — exactly the ordering `StyleSheet::extend` and
+/// `mount.rs::merge_module_css` implement (spec §5 / fork patch
+/// `stylesheet-extend`).
+///
+/// The `<link>` sheet and the module both declare a rule for `.c`, with
+/// different `width`s; the module's value wins, which is only possible if the
+/// merge actually concatenated the two sheets (a sheet containing only one of
+/// the two rules, or the wrong cascade order, would fail this assertion).
+///
+/// Same gate as `graph_wide_hmr_reloads_when_an_imported_module_changes`:
+/// without `hmr`, `live_source()` maps the entry's `<script src="*.tsx">` to a
+/// prebuilt `.superui/build/*.js` (loaded by the plain `JsLoader`, whose
+/// `JsSource.css` is always empty) rather than routing it through `TsxLoader`,
+/// which would defeat the point of this test.
+#[cfg(feature = "hmr")]
+#[test]
+fn module_css_merges_after_link_stylesheet() {
+    put("mcss_link.css", b".c { width: 999px; }");
+    put("mcss_c.css", b".c { width: 10px; }");
+    put("mcss_lib.tsx", b"import \"./mcss_c.css\";");
+    put(
+        "mcss_app.tsx",
+        br#"import "./mcss_lib.tsx";
+            var el = document.createElement('div');
+            el.className = 'c';
+            document.getElementById('host').appendChild(el);"#,
+    );
+
+    let mut app = app();
+    let _root = spawn_root(&mut app, "<div id='host'></div>", "mcss_link.css", "mcss_app.tsx");
+    tick(&mut app, 32);
+
+    let width = {
+        let mut q = app
+            .world_mut()
+            .query::<(&Node, &superui_css::prelude::ClassList)>();
+        q.iter(app.world())
+            .find(|(_, classes)| classes.contains("c"))
+            .map(|(node, _)| node.width)
+            .expect("the JS-created <div class='c'> should have reconciled")
+    };
+    assert_eq!(
+        width,
+        Val::Px(10.0),
+        "the module's `.c` rule must win over the <link> sheet's `.c` rule, \
+         proving the module CSS was merged in AFTER the link sheet"
+    );
+}
+
 #[test]
 fn html_hot_reload_despawns_old_entities_no_leak() {
     // Mount with 3 lis, then hot-reload HTML+JS to produce 1 li;
