@@ -3,10 +3,12 @@ use supersolid::{walk_sync, TranspileOptions};
 /// Transpile a spec file's import graph: `module_id` is the entry (its source
 /// is `source`, held in memory, not read from disk — the spec file need not
 /// exist as a file at all); any `./`-relative deps (helpers, `.css`, `.json`)
-/// are read from `base_dir`. A missing/unresolved import, missing `.css`, or
-/// missing-or-invalid `.json` is a test-authoring bug, so — unlike
-/// `walk_sync`'s normal warn-and-degrade behavior — any diagnostic here is
-/// fatal, matching the existing empty-output fatal check below.
+/// are read from `base_dir`. Only a genuinely unresolved module import is
+/// fatal here — a spec/helper whose source merely *lowers* with a warning
+/// (`export * from`, dynamic `import()`, a dep `walk_sync` warns about for
+/// some other non-resolution reason) still returns `Ok`, matching how those
+/// same constructs degrade everywhere else (the loader/build paths). Missing
+/// or invalid `.css`/`.json` also warn-and-skip now, for the same reason.
 pub fn transpile_spec(source: &str, module_id: &str, base_dir: &std::path::Path) -> Result<String, String> {
     let options_for = |id: &str| TranspileOptions {
         runtime_specifiers: vec![
@@ -26,9 +28,18 @@ pub fn transpile_spec(source: &str, module_id: &str, base_dir: &std::path::Path)
     };
     let bundle = walk_sync(module_id, options_for, read);
 
-    if !bundle.diagnostics.is_empty() {
+    // `walk_sync` emits a `superui:unresolved:<spec>` sentinel edge (visible
+    // in the assembled code) for every dep no candidate `read` could resolve
+    // — that, and only that, is "a module import could not be resolved" (a
+    // test-authoring bug). Any other diagnostic (export*, dynamic import,
+    // missing css/json) is a warn-and-skip everywhere else and must not trip
+    // this gate.
+    if bundle.code.contains("superui:unresolved:") {
         let messages: Vec<String> = bundle.diagnostics.iter().map(|d| d.message.clone()).collect();
-        return Err(messages.join("; "));
+        return Err(format!(
+            "unresolved import in {module_id}: {}",
+            messages.join("; ")
+        ));
     }
     // Fatal only if codegen produced nothing from non-empty input.
     if bundle.code.trim().is_empty() && !source.trim().is_empty() {
@@ -85,5 +96,19 @@ mod tests {
             std::path::Path::new(".")
         )
         .is_err());
+    }
+
+    /// `export * from` is a lowering warning (skipped, not resolved) — see
+    /// `supersolid::module::export_star_warns_and_skips` — not an unresolved
+    /// import, even though the specifier it names exists on disk. Pins that
+    /// the fatal gate keys off the unresolved-sentinel, not "any diagnostic".
+    #[test]
+    fn spec_export_star_warns_but_not_fatal() {
+        let dir = std::env::temp_dir().join("superui_spec_export_star_warns_but_not_fatal");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("helper.ts"), r#"export const thing = 1;"#).unwrap();
+        let src = r#"export * from "./helper";"#;
+        let js = transpile_spec(src, "t.spec.ts", &dir).unwrap();
+        assert!(js.contains(r#"$ssmod.def("t.spec.ts""#), "entry defined: {js}");
     }
 }

@@ -1,7 +1,9 @@
 //! `.json` imports in a spec must resolve relative to the spec file's own
 //! directory and inline as a top-level `const` (see
-//! `supersolid::json_binding`). A missing or invalid JSON file is a
-//! test-authoring bug, so it must fail loudly (`Err`), not silently.
+//! `supersolid::json_binding`). A missing or invalid JSON file warns and
+//! skips the binding — `transpile_spec`'s fatal gate fires only on a
+//! genuinely unresolved *module* import (`walk_sync`'s unresolved-sentinel),
+//! not on this or any other non-resolution diagnostic.
 
 use std::path::PathBuf;
 
@@ -35,11 +37,14 @@ fn inlines_json_import_relative_to_spec_dir() {
 }
 
 #[test]
-fn missing_json_file_is_fatal() {
+fn missing_json_file_warns_but_is_not_fatal() {
     let dir = temp_ui_dir("missing");
 
     let src = r#"import skills from "./missing.json"; const n = skills.length;"#;
     let result = transpile_spec(src, "t.spec.ts", &dir);
 
-    assert!(result.is_err(), "expected Err for missing JSON file, got {result:?}");
+    assert!(
+        result.is_ok(),
+        "missing .json warns and skips the binding, it does not fail the whole spec: {result:?}"
+    );
 }
