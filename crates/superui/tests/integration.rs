@@ -85,10 +85,10 @@ fn hot_reload_js_re_executes_and_reconciles() {
 /// as a load dependency the first time through) and re-bundles.
 ///
 /// Harness limitation: `MemoryAssetReader` has no file watcher, so there is no
-/// "edit a file on disk and the watcher notices" to exercise. This test is
-/// honest about that — it re-`put`s the dependency's bytes into the shared
-/// `ASSETS` dir, then explicitly calls `AssetServer::reload` on the entry path
-/// to force `TsxLoader` to run again (exactly the trigger a real file watcher
+/// "edit a file on disk and the watcher notices" to exercise. Instead it
+/// re-`put`s the dependency's bytes into the shared `ASSETS` dir, then
+/// explicitly calls `AssetServer::reload` on the entry path to force
+/// `TsxLoader` to run again (exactly the trigger a real file watcher
 /// would deliver). It does NOT edit the loaded `JsSource` asset directly, so
 /// it genuinely exercises the loader, not just the re-exec seam.
 ///

@@ -27,7 +27,7 @@ pub struct HostProject {
     pub tsx: bool,
     /// CSS collected from the app's own module `.css` imports by `walk_sync`
     /// (only populated when `bundled` is true). Registered after `css` so a
-    /// split app's module stylesheet wins, matching Task 5's cascade order.
+    /// split app's module stylesheet wins (spec §5: link css, then module css).
     pub bundled_css: String,
     /// True when `js_or_tsx` is already a `walk_sync` bundle (produced by
     /// `config::load_project` for an on-disk `app.tsx`/`app.ts` entry), so
@@ -71,7 +71,7 @@ pub(crate) fn register_project_assets(app: &mut App, project: &HostProject) {
     // the manifest uses.
     // Bundled CSS (a split app's module `.css` imports, collected by
     // `walk_sync` in `config::load_project`) is appended after the project's
-    // own `style.css`/`theme.css` text, matching Task 5's cascade order
+    // own `style.css`/`theme.css` text, matching the spec §5 cascade order
     // (link css, then module css) so it can override the link sheet.
     let stylesheet = format!("{}\n{}", project.css, project.bundled_css);
     dir.insert_asset(format!("{root}/style.css").as_ref(), stylesheet.as_bytes().to_vec());
