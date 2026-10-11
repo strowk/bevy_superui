@@ -157,9 +157,7 @@ fn graph_wide_hmr_reloads_when_an_imported_module_changes() {
 /// Module-graph CSS (spec §5): a `.css` imported by a module that is only a
 /// *dependency* of the mounted entry (not the entry's own `<link>` sheet) must
 /// still apply, merged in AFTER the `<link>` sheet so it wins on equal
-/// specificity — exactly the ordering `StyleSheet::extend` and
-/// `mount.rs::build_applied_css` implement (spec §5 / fork patch
-/// `stylesheet-extend`).
+/// specificity — the cascade order `mount.rs::merged_sheet` produces (spec §5).
 ///
 /// The `<link>` sheet and the module both declare a rule for `.c`, with
 /// different `width`s; the module's value wins, which is only possible if the
@@ -303,6 +301,41 @@ fn editing_link_stylesheet_preserves_merged_module_css() {
         class_c_width(&mut app),
         Some(Val::Px(10.0)),
         "editing the <link> sheet must not drop the merged module CSS"
+    );
+}
+
+/// Cross-operand specificity: merging is NOT a plain append where the module
+/// always wins. A *higher*-specificity rule in the `<link>` sheet must still
+/// beat a *lower*-specificity module rule, even though the module CSS is
+/// concatenated AFTER the link sheet — the merge re-sorts the combined rules by
+/// (layer, specificity), so `#host .c` (id + class, from the link sheet)
+/// outranks `.c` (class only, from the module). Paired with
+/// `module_css_merges_after_link_stylesheet` (which proves the module wins a
+/// same-specificity tie), it pins the full cross-sheet cascade.
+#[cfg(feature = "hmr")]
+#[test]
+fn higher_specificity_link_rule_beats_lower_specificity_module_rule() {
+    put("mcss_spec_link.css", b"#host .c { width: 999px; }");
+    put("mcss_spec_c.css", b".c { width: 10px; }");
+    put("mcss_spec_lib.tsx", b"import \"./mcss_spec_c.css\";");
+    put(
+        "mcss_spec_app.tsx",
+        br#"import "./mcss_spec_lib.tsx";
+            var el = document.createElement('div');
+            el.className = 'c';
+            document.getElementById('host').appendChild(el);"#,
+    );
+
+    let mut app = app();
+    let _root = spawn_root(&mut app, "<div id='host'></div>", "mcss_spec_link.css", "mcss_spec_app.tsx");
+    tick(&mut app, 32);
+
+    assert_eq!(
+        class_c_width(&mut app),
+        Some(Val::Px(999.0)),
+        "the <link> sheet's higher-specificity `#host .c` rule must win over the \
+         module's lower-specificity `.c` rule, even though module CSS is merged in \
+         after the link sheet"
     );
 }
 

@@ -407,6 +407,8 @@ git commit -m "feat(superui): walk the import graph in TsxLoader for multi-file 
 
 Apply the module-graph `.css` (`JsSource.css`) by appending it after the entry `<link>` stylesheet into the single applied `StyleSheet` the runtime carries (spec §5). Needs a `StyleSheet` concatenation primitive on the vendored flair crate.
 
+> Superseded: the `StyleSheet::extend` flair deviation below was later replaced by `mount::merge_sheets`, which concatenates the two sheets through flair's public `StyleSheetBuilder::embed_style_sheet` + `build` — no vendored-fork edit. The rest of this task is kept as the original record.
+
 **Files:**
 - Modify: `crates/superui_flair_style/src/style_sheet.rs` (add `StyleSheet::extend`) — vendored flair edit; follow the flair-deviation convention (REQUIRED SUB-SKILL at execution time: `releasing-crates`, for marking a vendored-fork deviation).
 - Modify: `crates/superui/src/mount.rs` (Phase 2: parse `js_src.css` and merge into the applied sheet)
