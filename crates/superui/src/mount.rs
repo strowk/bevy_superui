@@ -4,9 +4,10 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use bevy::asset::LoadState;
+use bevy::asset::{AssetId, LoadState, VisitAssetDependencies};
 use bevy::ecs::system::SystemState;
 use bevy::prelude::*;
+use rustc_hash::FxHashMap;
 use superui_bridge::{
     clamp_scroll_position_system, dim_placeholder_text_system, drain_bevy_outbox_system,
     drain_dom_events_system, editable_input_events_system, emit_bevy_inbox_system,
@@ -14,8 +15,10 @@ use superui_bridge::{
     on_slider_value_change, position_slider_parts, reconcile_system, wheel_scroll_system,
     PendingDomEvents, UiRuntime,
 };
+use superui_css::core::PropertyRegistry;
 use superui_css::parser::InlineCssStyleSheetParser;
-use superui_css::style::StyleSheet;
+use superui_css::style::asset_loader::StyleAssetLoader;
+use superui_css::style::{StyleBlock, StyleSheet};
 use superui_css::SuperUiCssPlugin;
 
 use crate::assets::{HtmlLoader, HtmlSource, JsLoader, JsSource};
@@ -446,7 +449,7 @@ fn build_applied_css(
 }
 
 /// Compute the base `<link>` sheet (pristine; empty when `base` is `None` or
-/// unloaded) extended with the parsed `module_css`, as an owned `StyleSheet`.
+/// unloaded) concatenated with the parsed `module_css`, as an owned `StyleSheet`.
 /// Touches no asset slot. On a parse error, warns and returns the base alone —
 /// the loader's graceful-degradation stance. Shared by mount and hot reload.
 pub(crate) fn merged_sheet(
@@ -454,14 +457,12 @@ pub(crate) fn merged_sheet(
     base: Option<&Handle<StyleSheet>>,
     module_css: &str,
 ) -> StyleSheet {
-    let mut merged = base
-        .and_then(|h| world.resource::<Assets<StyleSheet>>().get(h).cloned())
-        .unwrap_or_else(StyleSheet::empty);
+    let base_sheet = base.and_then(|h| world.resource::<Assets<StyleSheet>>().get(h).cloned());
     if module_css.is_empty() {
-        return merged;
+        return base_sheet.unwrap_or_else(StyleSheet::empty);
     }
-    // Parse in a scoped block: `InlineCssStyleSheetParser` borrows `world` to
-    // read flair's registries, and that borrow must end before the extend.
+    // Scoped so `InlineCssStyleSheetParser`'s borrow of `world` ends before the
+    // asset/registry resources are re-borrowed below.
     let parsed = {
         let mut state: SystemState<InlineCssStyleSheetParser> = SystemState::new(world);
         let parser = state
@@ -469,11 +470,74 @@ pub(crate) fn merged_sheet(
             .expect("InlineCssStyleSheetParser system params must be available");
         parser.load_stylesheet(module_css)
     };
-    match parsed {
-        Ok(sheet) => merged.extend(sheet),
-        Err(e) => bevy::log::warn!("superui: module CSS failed to parse; skipping the merge: {e}"),
+    let module_sheet = match parsed {
+        Ok(sheet) => sheet,
+        Err(e) => {
+            bevy::log::warn!("superui: module CSS failed to parse; skipping the merge: {e}");
+            return base_sheet.unwrap_or_else(StyleSheet::empty);
+        }
+    };
+    merge_sheets(world, base_sheet, module_sheet)
+}
+
+/// Concatenate `base` (if present) then `module` into one `StyleSheet` via flair's
+/// public `StyleSheetBuilder::embed_style_sheet` + `build` (the path flair's own
+/// `@import` uses), rather than reaching into a built sheet's private fields.
+/// Embedding base before module makes the module win a same-(layer, specificity)
+/// tie (source order), while `build`'s stable (layer, specificity) sort still lets
+/// a genuinely more specific rule in either sheet outrank a less specific one in
+/// the other. On a build error, degrades to the base alone.
+fn merge_sheets(world: &mut World, base: Option<StyleSheet>, module: StyleSheet) -> StyleSheet {
+    // `embed_style_sheet` remaps each embedded sheet's blocks through this
+    // id -> handle map. `AssetServer::get_id_handle` resolves any id the server
+    // tracks, including the just-parsed module sheet's blocks whose
+    // `AssetServer::add` insert into `Assets<StyleBlock>` is deferred — so
+    // `Assets::get_strong_handle` would miss them this frame.
+    let mapping = {
+        let asset_server = world.resource::<AssetServer>();
+        let mut mapping: FxHashMap<AssetId<StyleBlock>, Handle<StyleBlock>> = FxHashMap::default();
+        for sheet in base.iter().chain(std::iter::once(&module)) {
+            sheet.visit_dependencies(&mut |id| {
+                let id = id.typed::<StyleBlock>();
+                if let std::collections::hash_map::Entry::Vacant(e) = mapping.entry(id) {
+                    if let Some(handle) = asset_server.get_id_handle(id) {
+                        e.insert(handle);
+                    }
+                }
+            });
+        }
+        mapping
+    };
+
+    let fallback = base.clone();
+    let mut builder = StyleSheet::builder();
+    if let Some(base) = base {
+        builder.embed_style_sheet(base, &mapping, None);
     }
-    merged
+    builder.embed_style_sheet(module, &mapping, None);
+
+    // `build` validates/resolves against flair's registries and needs an asset
+    // loader for font-face resolution; the embedded blocks are already resolved,
+    // so it does little work here.
+    let mut state: SystemState<(Res<AppTypeRegistry>, Res<PropertyRegistry>, Res<AssetServer>)> =
+        SystemState::new(world);
+    let (type_registry, property_registry, asset_server) = state
+        .get(world)
+        .expect("AppTypeRegistry / PropertyRegistry / AssetServer must be available");
+    let type_registry = type_registry.read();
+    match builder.build(
+        &type_registry,
+        &property_registry,
+        StyleAssetLoader::from_asset_server(&asset_server),
+    ) {
+        Ok(sheet) => sheet,
+        Err(e) => {
+            bevy::log::warn!(
+                "superui: merging module CSS failed; applying the base sheet alone: {e}"
+            );
+            fallback.unwrap_or_else(StyleSheet::empty)
+        }
+    }
 }
 
 #[cfg(test)]
