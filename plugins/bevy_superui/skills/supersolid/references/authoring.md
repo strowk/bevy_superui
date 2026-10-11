@@ -121,15 +121,20 @@ function Label() { const t = useContext(ThemeContext); return <span class={t}/>;
 
 ## Sharing state without prop-drilling
 
-Because a UI is one module (see below), a **signal declared at module scope** is a simple
-global store any component in that UI can read/write — components reading the same signal
+A **signal declared at module scope** is a simple global store any component that
+imports it (or shares the file) can read/write — components reading the same signal
 stay in sync. Or lift state to a common ancestor and pass props. Both are idiomatic.
 
-## One module, no cross-file imports
+## Splitting a UI across modules
 
-superui compiles each UI into a **single module** and strips imports between your own
-source files. Put every component for one UI in that UI's `app.tsx` as plain functions;
-the only import you keep is `from "supersolid"`. You **cannot** `import { X } from
-"./other.tsx"` today. The one exception is `.json`: `import x from "./data.json"`
-(default/namespace/named alike) inlines the whole parsed value as `const x`; picking a
-sub-path or member out of the JSON is not supported.
+A UI can split components across sibling files — superui resolves, loads, and
+bundles relative imports (`import { X } from "./other"`, extensionless or
+`.tsx`/`.ts`/`.js`), plus bare `superui_modules/`-package imports (no package
+manager populates that dir yet, so this is unused today). `export` whatever a
+module needs — functions, constants. The only import that doesn't resolve to a
+file on disk is `from "supersolid"` itself (the framework globals). The one
+exception is `.json`: `import x from "./data.json"` (default/namespace/named
+alike) inlines the whole parsed value as `const x`; picking a sub-path or
+member out of the JSON is not supported. Out of scope, logged and skipped:
+`export * from` re-export, dynamic `import()`, `import.meta`,
+`package.json` `main`/`module`-field resolution.
