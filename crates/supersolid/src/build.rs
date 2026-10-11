@@ -2,7 +2,8 @@
 //! to `<dir>/.superui/build/<stem>.js` for wasm / no-HMR native builds. Runs on
 //! the HOST, so `oxc` never enters the wasm binary.
 
-use std::path::Path;
+use crate::TranspileOptions;
+use std::cell::RefCell;
 
 /// Transpile every top-level `.tsx`/`.ts` file in `ui_dir` to its generated `.js`
 /// under `<ui_dir>/.superui/build/`. Intended to be the whole body of a `build.rs`.
@@ -33,18 +34,40 @@ fn transpile_dir_impl(ui_dir: &str, skip: bool) {
         let src = format!("{ui_dir}/{name}");
         let out = superui_paths::generated_js(&src);
         let _ = std::fs::create_dir_all(superui_paths::parent_dir(&out));
-        println!("cargo:rerun-if-changed={src}");
-        match crate::transpile_file(Path::new(&src), Path::new(&out)) {
-            Ok(result) => {
-                for d in &result.diagnostics {
-                    println!("cargo:warning=supersolid: {}", d.message);
-                }
-                for (_, specifier) in &result.json_imports {
-                    let resolved = superui_paths::join_asset(superui_paths::parent_dir(&src), specifier);
-                    println!("cargo:rerun-if-changed={resolved}");
-                }
+
+        // `walk_sync` doesn't surface css/json paths directly (its signature is
+        // shared across other callers) — the read closure records every path it
+        // successfully served, which is exactly entry + every resolved module +
+        // every css/json file. Failed `resolve_candidates` probes (nonexistent
+        // paths tried during resolution) must NOT be recorded: rerun-if-changed
+        // on a file that doesn't exist causes spurious rebuilds.
+        let served: RefCell<Vec<String>> = RefCell::new(Vec::new());
+        let read = |id: &str| -> std::io::Result<Vec<u8>> {
+            let bytes = std::fs::read(id)?;
+            served.borrow_mut().push(id.to_string());
+            Ok(bytes)
+        };
+        let options_for = |id: &str| TranspileOptions {
+            tsx: !id.ends_with(".ts"),
+            module_id: Some(id.to_string()),
+            ..Default::default()
+        };
+
+        let bundle = crate::walk_sync(&src, options_for, read);
+
+        for d in &bundle.diagnostics {
+            println!("cargo:warning=supersolid: {}", d.message);
+        }
+
+        let mut seen = std::collections::HashSet::new();
+        for path in served.borrow().iter() {
+            if seen.insert(path.clone()) {
+                println!("cargo:rerun-if-changed={path}");
             }
-            Err(e) => println!("cargo:warning=supersolid: could not transpile {src}: {e}"),
+        }
+
+        if let Err(e) = std::fs::write(&out, &bundle.code) {
+            println!("cargo:warning=supersolid: could not write {out}: {e}");
         }
     }
 }
@@ -91,6 +114,24 @@ mod tests {
         assert!(
             js.contains("const data = {\"k\":5};") || js.contains("const data = {\"k\": 5};"),
             "expected inlined json const:\n{js}"
+        );
+    }
+
+    #[test]
+    fn bundles_a_two_file_graph_for_the_entry() {
+        let dir = temp_ui_dir("graph");
+        std::fs::write(dir.join("label.tsx"), r#"export function Label(){ return <span/>; }"#).unwrap();
+        std::fs::write(
+            dir.join("app.tsx"),
+            r#"import { Label } from "./label.tsx"; render(() => <Label/>, root);"#,
+        )
+        .unwrap();
+        let dir_str = dir.to_string_lossy().replace('\\', "/");
+        transpile_dir_impl(&dir_str, false);
+        let js = std::fs::read_to_string(dir.join(".superui").join("build").join("app.js")).unwrap();
+        assert!(
+            js.contains(r#"$ssmod.def("#) && js.contains("$ss.el(\"span\")"),
+            "entry artifact must bundle the imported module:\n{js}"
         );
     }
 
