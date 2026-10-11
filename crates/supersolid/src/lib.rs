@@ -6,7 +6,10 @@
 pub mod build;
 mod imports;
 mod jsx;
+mod module;
 mod pipeline;
+
+pub use module::{transpile_module, Module};
 
 /// Options controlling a transpile.
 #[derive(Debug, Clone)]
