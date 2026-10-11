@@ -111,7 +111,7 @@ pub fn apply_hot_reload(world: &mut World) {
         if let Some(js) = world
             .resource::<Assets<JsSource>>()
             .get(&js_handle)
-            .map(|j| j.0.clone())
+            .map(|j| j.code.clone())
         {
             rt.run_script(&js);
         }

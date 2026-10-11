@@ -57,7 +57,7 @@ fn hot_reload_js_re_executes_and_reconciles() {
     {
         let mut assets = app.world_mut().resource_mut::<Assets<superui::JsSource>>();
         if let Some(mut js) = assets.get_mut(&js_handle) {
-            js.0 = "var s=document.createElement('span'); s.textContent='v2'; \
+            js.code = "var s=document.createElement('span'); s.textContent='v2'; \
                     document.getElementById('host').appendChild(s); \
                     var s2=document.createElement('span'); \
                     document.getElementById('host').appendChild(s2);"
@@ -117,7 +117,7 @@ fn html_hot_reload_despawns_old_entities_no_leak() {
     {
         let mut assets = app.world_mut().resource_mut::<Assets<superui::JsSource>>();
         if let Some(mut j) = assets.get_mut(&js_handle) {
-            j.0 = "var h=document.getElementById('h'); \
+            j.code = "var h=document.getElementById('h'); \
                    var li=document.createElement('li');h.appendChild(li);"
                 .to_string();
         };
