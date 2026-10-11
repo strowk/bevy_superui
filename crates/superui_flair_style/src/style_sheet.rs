@@ -6,6 +6,7 @@ use crate::animations::*;
 use crate::components::StyleData;
 
 use crate::css_selector::CssSelector;
+use crate::layers::LayersHierarchy;
 
 use crate::media_selector::MediaFeaturesProvider;
 use bevy_asset::{Asset, AssetId, Handle};
@@ -84,19 +85,44 @@ impl StyleSheet {
     }
 
     // >>> SUPERUI-FORK-PATCH: stylesheet-extend  (docs/fork-patches.md#stylesheet-extend)
-    /// Append `other`'s rules after self's (source order: other wins ties).
+    /// Append `other`'s rules after self's, then re-sort by (layer, specificity)
+    /// so the combined sheet cascades correctly (other wins only on a true tie).
     ///
     /// `font_faces`, `block_handles`, and `css_selectors_to_blocks` are appended
-    /// in order, so `other`'s rules land later in source order and therefore win
-    /// the cascade on equal specificity. `resolved_font_faces` and
-    /// `animation_keyframes` are merged by key, with `other`'s entries
-    /// overwriting `self`'s on a name collision.
+    /// in order; `resolved_font_faces` and `animation_keyframes` are merged by
+    /// key, with `other`'s entries overwriting `self`'s on a name collision.
+    ///
+    /// `css_selectors_to_blocks` additionally gets re-sorted: each operand was
+    /// individually sorted ascending by `(layer, specificity)` when it was
+    /// built (see `StyleSheetBuilder::build`), but concatenating two sorted
+    /// vectors does not produce a globally sorted one, and the resolver
+    /// applies matches in array order with last-write-wins — it depends on
+    /// that global order. The sort uses the exact same comparator the builder
+    /// uses (`LayersHierarchy::cmp_layers` then `CssSelector::specificity`),
+    /// rebuilding a `LayersHierarchy` from the already-concatenated list (self's
+    /// entries first, so a layer name first seen in `self` keeps the priority
+    /// position it would have had if `self` alone had defined it). The sort is
+    /// STABLE, so entries with equal `(layer, specificity)` keep their
+    /// concatenation order — `other`'s rules, appended after `self`'s, still
+    /// win same-specificity ties, while a genuinely higher-specificity rule in
+    /// either operand now correctly outranks a lower-specificity rule in the
+    /// other, regardless of which sheet it came from.
     pub fn extend(&mut self, other: StyleSheet) {
         self.font_faces.extend(other.font_faces);
         self.resolved_font_faces.extend(other.resolved_font_faces);
         self.block_handles.extend(other.block_handles);
         self.animation_keyframes.extend(other.animation_keyframes);
         self.css_selectors_to_blocks.extend(other.css_selectors_to_blocks);
+
+        let mut layers_hierarchy = LayersHierarchy::new();
+        for (selector, _) in &self.css_selectors_to_blocks {
+            layers_hierarchy.define_layer(&selector.layer);
+        }
+        self.css_selectors_to_blocks.sort_by(|(a, _), (b, _)| {
+            layers_hierarchy
+                .cmp_layers(&a.layer, &b.layer)
+                .then_with(|| a.specificity().cmp(&b.specificity()))
+        });
     }
     // <<< SUPERUI-FORK-PATCH: stylesheet-extend
 
@@ -728,6 +754,76 @@ mod tests {
                 .len(),
             1,
             "merged sheet should now match sheet_b's selector too"
+        );
+    }
+
+    /// Concatenating two individually-sorted `css_selectors_to_blocks` vectors
+    /// is NOT a globally sorted vector; `extend` must re-sort by
+    /// (layer, specificity) so a higher-specificity rule wins across the sheet
+    /// boundary, not just within one operand. `self` carries the
+    /// higher-specificity `#box.c` rule; `other` carries a lower-specificity
+    /// `.c` rule on the same element. Even though `other` is merged in AFTER
+    /// `self` (and would win a same-specificity tie, per `extend_appends_rules`
+    /// above), `self`'s rule must still win here because it is MORE specific.
+    #[test]
+    fn extend_sorts_by_specificity_across_sheets() {
+        let mut builder_self = StyleSheetBuilder::new();
+        builder_self
+            .new_ruleset()
+            .with_css_selector(css_selector!("#box.c"))
+            .with_property(StyleBuilderProperty::new(
+                TEST_PROPERTY,
+                ReflectValue::Float(50f32),
+            ))
+            .block_id();
+
+        let mut builder_other = StyleSheetBuilder::new();
+        builder_other
+            .new_ruleset()
+            .with_css_selector(css_selector!(".c"))
+            .with_property(StyleBuilderProperty::new(
+                TEST_PROPERTY,
+                ReflectValue::Float(10f32),
+            ))
+            .block_id();
+
+        let mut style_blocks = Assets::<StyleBlock>::default();
+
+        let sheet_self = {
+            let mut custom_loader = TestAssetLoader(&mut style_blocks);
+            builder_self
+                .build(
+                    &EMPTY_TYPE_REGISTRY,
+                    &PROPERTY_REGISTRY,
+                    StyleAssetLoader::custom(&mut custom_loader),
+                )
+                .unwrap()
+        };
+        let sheet_other = {
+            let mut custom_loader = TestAssetLoader(&mut style_blocks);
+            builder_other
+                .build(
+                    &EMPTY_TYPE_REGISTRY,
+                    &PROPERTY_REGISTRY,
+                    StyleAssetLoader::custom(&mut custom_loader),
+                )
+                .unwrap()
+        };
+
+        let mut merged = sheet_self;
+        merged.extend(sheet_other);
+
+        let media_provider = TestMediaProvider::default();
+        let ids = merged
+            .get_matching_block_ids_for_element(element!(div #box .c), &media_provider);
+        assert_eq!(ids.len(), 2, "both rules should match <div id=box class=c>");
+
+        assert_eq!(
+            get_properties!(style_blocks, ids),
+            property_map! { TEST_PROPERTY => ReflectValue::Float(50.0) },
+            "the higher-specificity #box.c rule from `self` must win over the \
+             lower-specificity .c rule from `other`, even though `other` was \
+             merged in after `self`"
         );
     }
 }
