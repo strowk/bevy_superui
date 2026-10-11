@@ -13,7 +13,7 @@ use superui::prelude::{SuperUiPlugin, SuperUiRoot};
 use superui::HtmlSource;
 use superui_bridge::UiRuntime;
 
-#[derive(Clone)]
+#[derive(Default, Clone)]
 pub struct HostProject {
     /// Full manifest HTML (`index.html` content) — must declare `<link>` and
     /// `<script>` that reference the CSS and JS registered in memory.
@@ -21,8 +21,21 @@ pub struct HostProject {
     /// Stylesheet content (registered at `<mount_root>/style.css` and `theme.css`).
     pub css: String,
     /// JS or TSX source content (registered at `<mount_root>/app.tsx` or `app.js`).
+    /// When `bundled` is true this is already a `walk_sync` bundle (the whole
+    /// app import graph, not just the entry file).
     pub js_or_tsx: String,
     pub tsx: bool,
+    /// CSS collected from the app's own module `.css` imports by `walk_sync`
+    /// (only populated when `bundled` is true). Registered after `css` so a
+    /// split app's module stylesheet wins (spec §5: link css, then module css).
+    pub bundled_css: String,
+    /// True when `js_or_tsx` is already a `walk_sync` bundle (produced by
+    /// `config::load_project` for an on-disk `app.tsx`/`app.ts` entry), so
+    /// `host.rs` must register it as-is instead of transpiling it again. Hand-built
+    /// fixtures that construct `HostProject` directly leave this `false` (the
+    /// default) and pass raw single-file tsx/js, which `host.rs` transpiles
+    /// exactly as before.
+    pub bundled: bool,
     /// Asset-source path the project mounts under, mirroring how the running app
     /// addresses its files from the Bevy asset root (e.g. `ui/main` for a project
     /// at `assets/ui/main`). Absolute `@font-face url("ui/main/fonts/x.ttf")`
@@ -56,8 +69,13 @@ pub(crate) fn register_project_assets(app: &mut App, project: &HostProject) {
     // Register under both common names so both `style.css` and `theme.css`
     // hrefs in the manifest work without the caller needing to know which name
     // the manifest uses.
-    dir.insert_asset(format!("{root}/style.css").as_ref(), project.css.as_bytes().to_vec());
-    dir.insert_asset(format!("{root}/theme.css").as_ref(), project.css.as_bytes().to_vec());
+    // Bundled CSS (a split app's module `.css` imports, collected by
+    // `walk_sync` in `config::load_project`) is appended after the project's
+    // own `style.css`/`theme.css` text, matching the spec §5 cascade order
+    // (link css, then module css) so it can override the link sheet.
+    let stylesheet = format!("{}\n{}", project.css, project.bundled_css);
+    dir.insert_asset(format!("{root}/style.css").as_ref(), stylesheet.as_bytes().to_vec());
+    dir.insert_asset(format!("{root}/theme.css").as_ref(), stylesheet.as_bytes().to_vec());
     // `style.css` typically `@import`s the Tailwind-compatible utility sheet at
     // `.superui/build/utilities.generated.css`. In a normal build that file is
     // emitted by build.rs / HMR; here we regenerate it in-memory from the
@@ -78,18 +96,26 @@ pub(crate) fn register_project_assets(app: &mut App, project: &HostProject) {
         utilities_css.as_bytes().to_vec(),
     );
     if project.tsx {
-        // Register the raw source at `<root>/app.tsx` (live-HMR path).
+        // Register the raw source at `<root>/app.tsx` (live-HMR path, unused in
+        // tests but harmless to register).
         dir.insert_asset(format!("{root}/app.tsx").as_ref(), project.js_or_tsx.as_bytes().to_vec());
         // In non-HMR builds (including all test runs) the mount seam maps
-        // `app.tsx` → `<root>/.superui/build/app.js`. Pre-transpile and register
-        // the output there so the JsLoader finds it on that path.
-        let opts = supersolid::TranspileOptions {
-            tsx: true,
-            module_id: Some(format!("{root}/app.tsx")),
-            ..Default::default()
+        // `app.tsx` → `<root>/.superui/build/app.js`. When `config::load_project`
+        // already bundled the app's import graph (`project.bundled`), `js_or_tsx`
+        // IS the built output — register it as-is, no second transpile. Hand-built
+        // fixtures (`project.bundled == false`) pass raw single-file tsx, so
+        // transpile it here exactly as before.
+        let built = if project.bundled {
+            project.js_or_tsx.clone()
+        } else {
+            let opts = supersolid::TranspileOptions {
+                tsx: true,
+                module_id: Some(format!("{root}/app.tsx")),
+                ..Default::default()
+            };
+            supersolid::transpile(&project.js_or_tsx, &opts).code
         };
-        let result = supersolid::transpile(&project.js_or_tsx, &opts);
-        dir.insert_asset(format!("{root}/.superui/build/app.js").as_ref(), result.code.as_bytes().to_vec());
+        dir.insert_asset(format!("{root}/.superui/build/app.js").as_ref(), built.as_bytes().to_vec());
     } else {
         dir.insert_asset(format!("{root}/app.js").as_ref(), project.js_or_tsx.as_bytes().to_vec());
     }

@@ -48,8 +48,9 @@ also makes context handy for app-wide constants without any provider at all.
 
 ## Sharing state today
 
-Because a superui UI compiles to a [single module](components.md#one-module-no-cross-file-imports),
-there are two straightforward ways to share state across components.
+Whether a UI's components live in one `app.tsx` or are
+[split across modules](components.md#splitting-a-ui-across-modules), there are
+two straightforward ways to share state across components.
 
 ### Lift state to a common ancestor
 
@@ -70,8 +71,8 @@ function App() {
 
 ### Hold shared signals at module scope
 
-Since everything lives in one module, a signal declared at the top of the file is
-reachable from any component in that UI — a simple global store:
+A signal declared at the top level of a module is reachable from any component
+that imports it (or lives in the same file) — a simple global store:
 
 ```typescript
 const [volume, setVolume] = createSignal(0.8);

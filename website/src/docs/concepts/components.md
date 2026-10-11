@@ -165,31 +165,52 @@ function App() {
 `<For>` and the other list/branch helpers are covered in
 [Control Flow](control-flow.md).
 
-## One module, no cross-file imports
+## Splitting a UI across modules
 
-superui compiles each UI into a **single module**, and its transpiler strips
-imports between your own source files. In practice: put every component for one UI
-in that UI's `app.tsx`, as plain functions in one file. The only import you keep
-is the framework itself:
+<div class="since-note since-note--unreleased">This section documents behavior currently on <code>main</code> only — not yet in a tagged release.</div>
+
+A UI doesn't have to live in one `app.tsx`. Besides `from "supersolid"`, a
+module can `import` other local files, and superui resolves, loads, and
+bundles the whole graph — splitting components across sibling modules (one
+file per screen, shared widgets and data in their own files) hot-reloads like
+editing a single file:
 
 ```typescript
-import { createSignal, createMemo, For, Show, render } from "supersolid";
+// widgets.tsx
+export function Header(props) { return <h1>{props.title}</h1>; }
+
+// app.tsx
+import { createSignal, For, Show, render } from "supersolid";
+import { Header } from "./widgets";
 ```
 
-Everything else — your components, types, helpers — just lives in the same file
-and refers to each other directly.
+Supported specifiers:
+
+- **Relative files** — `./widgets`, `./widgets.tsx` (extensionless preferred;
+  `.tsx`/`.ts`/`.js` all resolve). Export whatever a component needs —
+  functions, constants — with ordinary `export` / `export default`.
+- **Bare packages** — `foo` resolves from a sibling `superui_modules/`
+  directory, via the same `.tsx`/`.ts`/`.js` then `/index.*` ladder as
+  relative files. No package manager populates `superui_modules/` yet, so bare
+  imports have nothing to resolve to in practice.
+- **Co-located `.css`** — `import "./theme.css"` from any module in the graph.
+  Its rules apply after the entry `<link>` sheet, so an equal-specificity
+  module rule wins the cascade. Editing the `.css` hot-reloads.
+- **`.json`** — see [Importing JSON](#importing-json) below.
+
+Not supported: `export * from` re-exports and dynamic `import()` (each warns
+rather than erroring), `import.meta`, and `package.json` `main`/`module`-field
+resolution for bare packages.
 
 ### Importing JSON
 
 <div class="since-note"><strong>0.3.6</strong></div>
 
-The one exception to "no cross-file imports" is `.json`. `import x from
-"./data.json"` inlines the file's parsed value as a top-level `const x`,
-available to the rest of the module — `import * as x` and `import { x }` bind
-the same whole value under `x`. The specifier resolves relative to the
-importing file's own directory. Only the whole value is bound: picking a
+`import x from "./data.json"` inlines the file's parsed value as a top-level
+`const x`, available to the rest of the module — `import * as x` and `import {
+x }` bind the same whole value under `x`. The specifier resolves relative to
+the importing file's own directory. Only the whole value is bound: picking a
 sub-path or named member out of the JSON at import time is not supported.
-Non-JSON cross-file imports (`.tsx`, `.ts`, …) are still stripped, as above.
 
 ```typescript
 import skills from "./skills.json";

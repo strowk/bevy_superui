@@ -10,6 +10,20 @@ test("main menu renders", async ({ page }) => {
   await expect(page).toHaveScreenshot("main.png");
 });
 
+test("tab bar navigates to pause", async ({ page }) => {
+  await page.locator(".tabs .tab", { hasText: "PAUSE" }).click();
+  await expect(page.locator(".pause-card")).toBeVisible();
+  await expect(page.locator(".tabs .tab.active")).toHaveText("PAUSE");
+  await expect(page).toHaveScreenshot("pause.png");
+});
+
+test("tab bar navigates to game over", async ({ page }) => {
+  await page.locator(".tabs .tab", { hasText: "GAME OVER" }).click();
+  await expect(page.locator(".screen.over")).toBeVisible();
+  await expect(page.locator(".tabs .tab.active")).toHaveText("GAME OVER");
+  await expect(page).toHaveScreenshot("over.png");
+});
+
 test("tab bar navigates to settings", async ({ page }) => {
   await page.locator(".tabs .tab", { hasText: "SETTINGS" }).click();
   await expect(page.locator(".settings-card")).toBeVisible();

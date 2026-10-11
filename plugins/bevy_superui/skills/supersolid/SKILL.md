@@ -68,13 +68,18 @@ can be placed directly as element children:
 · `<Keyed>` high-frequency per-entity feeds (nameplates, damage numbers) · `<Switch>`/
 `<Match>` first truthy branch. Which to pick → `references/control-flow.md`.
 
-## One module, no cross-file imports
+## Splitting a UI across modules
 
-superui compiles each UI into a **single module** and strips imports between your own
-files. Put every component for one UI in its `app.tsx`; the only import you keep is
-`from "supersolid"`. No `import { X } from "./other.tsx"`. The one exception is `.json`:
-`import x from "./data.json"` (default/namespace/named alike) inlines the whole parsed
-value as `const x` — no sub-path/member selection.
+Relative imports resolve: `import { X } from "./other"` (extensionless or
+`.tsx`/`.ts`/`.js`), plus bare `superui_modules/`-package imports. `export`
+what each module needs. A module can also `import "./x.css"` (co-located
+CSS) — its rules merge into the app's stylesheet alongside the entry
+`<link>` sheet. `.json` imports inline the whole parsed value as `const x` —
+no sub-path/member selection. Out of scope: `export * from`, dynamic
+`import()`, `import.meta`, `package.json` `main`/`module` resolution.
+
+Under `--features hmr`, edits to any file in the graph — `.css` included —
+hot-reload with signal state preserved.
 
 ## The support surface is a SUBSET — check before you use it
 

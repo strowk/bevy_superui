@@ -146,15 +146,15 @@ for what's supported):
 }
 ```
 
-> **One module, no cross-file imports.** superui's transpiler compiles each UI
-> into a single module and strips imports between your own files. Keep every
-> component for one UI in the one `app.tsx` — the only import you keep is
-> `from "supersolid"`. The one exception is `.json`: `import x from "./data.json"`
-> inlines the file as a `const x` binding — see
-> [Importing JSON](concepts/components.md#importing-json). Otherwise, see
-> [Components & JSX](concepts/components.md).
-> This might be changed in the future, but for now this limitation would not allow 
-> you to `import {MyComponent} from "./my_component.tsx"`.
+> **Splitting a UI across files.** Besides `from "supersolid"`, your `app.tsx`
+> can `import` other local modules: relative `.tsx`/`.ts`/`.js` files
+> (`import {MyComponent} from "./my_component"`) and `.json` data (inlined as a
+> `const` binding — see [Importing JSON](concepts/components.md#importing-json)).
+> superui resolves and bundles the whole import graph, so splitting one UI's
+> components across sibling files — one module per screen, shared widgets in
+> their own file — works and hot-reloads. See
+> [Components & JSX](concepts/components.md#splitting-a-ui-across-modules) for
+> the supported import forms and their limits.
 
 ## Mount it
 

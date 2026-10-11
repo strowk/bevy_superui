@@ -18,6 +18,26 @@ is a maintained branch (`release/bevy-0.19`), and the `0.1.x` (Bevy 0.17) and `0
 lineage only; see the [GitHub releases](https://github.com/strowk/bevy_superui/releases)
 for the maintenance lines.
 
+## [Unreleased]
+
+### Added
+
+- Cross-file module imports: `import { X } from "./other"` resolves, loads, and
+  bundles the whole import graph instead of stripping the import. Relative
+  specifiers (`./widget`, extension optional — `.tsx`/`.ts`/`.js`, then
+  `/index.*`) and bare packages (resolved from a sibling `superui_modules/`
+  directory, which no tooling populates yet) both resolve; each module's
+  `export` / `export default` is wired through a CommonJS-style registry, so one
+  UI can split across sibling files — one module per screen, shared widgets and
+  data in their own files. Editing any file in the graph, not just the entry,
+  hot-reloads. `export * from` re-exports and dynamic `import()` warn and are
+  skipped; `import.meta` and `package.json` `main`/`module` resolution are
+  unsupported. An unresolved module import warns and the bundle still builds
+  (runtime/HMR and build), but is fatal in the end-to-end test engine.
+- Module `.css` imports: a `.css` imported by any module in the graph is
+  applied after the entry's `<link>` stylesheet, so an equal-specificity module
+  rule wins the cascade. Editing it hot-reloads like the rest of the graph.
+
 ## [0.4.0] - 2026-10-10
 
 ### Changed

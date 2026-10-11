@@ -13,7 +13,10 @@ pub struct HtmlSource(pub String);
 
 /// Raw authored JS source (executed against the DOM at mount).
 #[derive(Asset, TypePath, Debug, Clone)]
-pub struct JsSource(pub String);
+pub struct JsSource {
+    pub code: String,
+    pub css: String,
+}
 
 #[derive(Default, TypePath)]
 pub struct HtmlLoader;
@@ -54,9 +57,24 @@ impl AssetLoader for JsLoader {
         &self,
         reader: &mut dyn Reader,
         _settings: &(),
-        _lc: &mut LoadContext<'_>,
+        lc: &mut LoadContext<'_>,
     ) -> Result<JsSource, std::io::Error> {
-        Ok(JsSource(read_to_string(reader).await?))
+        let code = read_to_string(reader).await?;
+
+        // Shipped (no-HMR) path: a generated `.superui/build/<stem>.js` carries
+        // its module-graph CSS in a sibling `<stem>.css` that `supersolid::build`
+        // wrote. Load it so `mount.rs` merges it exactly as it does `TsxLoader`'s
+        // `JsSource.css` on the live path. A missing sidecar (or a hand-written
+        // `.js` that isn't a build artifact) just means no module CSS.
+        let css = match superui_paths::generated_css_sidecar(&lc.path().path().to_string_lossy()) {
+            Some(sidecar) => match lc.read_asset_bytes(sidecar).await {
+                Ok(bytes) => String::from_utf8_lossy(&bytes).into_owned(),
+                Err(_) => String::new(),
+            },
+            None => String::new(),
+        };
+
+        Ok(JsSource { code, css })
     }
 
     fn extensions(&self) -> &[&str] {
@@ -79,63 +97,144 @@ impl AssetLoader for TsxLoader {
     type Settings = ();
     type Error = std::io::Error;
 
+    /// Async BFS over the import graph rooted at this asset (design §4 / spec
+    /// §4): per module, `transpile_module`, then resolve each `dep`/`.css`/
+    /// `.json` import via `resolve_candidates` + `read_asset_bytes`. Every id
+    /// read this way (modules, css, json) becomes a load dependency, so
+    /// editing *any* graph file — not just the entry — re-runs this loader
+    /// (graph-wide HMR). Graceful degradation throughout: a missing/invalid
+    /// import warns and degrades (sentinel edge / skipped css or json) rather
+    /// than failing the load; only a hard I/O error reading the entry itself
+    /// (via `reader`) propagates as `Err`.
     async fn load(
         &self,
         reader: &mut dyn Reader,
         _settings: &(),
         lc: &mut LoadContext<'_>,
     ) -> Result<JsSource, std::io::Error> {
-        let src = read_to_string(reader).await?;
-        let tsx = lc.path().path().extension().and_then(|e| e.to_str()) != Some("ts");
-        let module_id = Some(lc.path().path().to_string_lossy().into_owned());
-        let opts = supersolid::TranspileOptions { tsx, module_id, ..Default::default() };
-        let mut result = supersolid::transpile(&src, &opts);
-        for d in &result.diagnostics {
+        use std::collections::{BTreeMap, HashSet, VecDeque};
+        use supersolid::{
+            assemble, json_binding, resolve_candidates, transpile_module, ResolvedModule,
+            DEFAULT_MODULES_ROOT,
+        };
+
+        let entry_id = lc.path().path().to_string_lossy().into_owned();
+
+        let mut modules: BTreeMap<String, ResolvedModule> = BTreeMap::new();
+        let mut seen: HashSet<String> = HashSet::new();
+        let mut queue: VecDeque<String> = VecDeque::new();
+        seen.insert(entry_id.clone());
+        queue.push_back(entry_id.clone());
+
+        let mut entry_bytes = Some({
+            let mut bytes = Vec::new();
+            reader.read_to_end(&mut bytes).await?;
+            bytes
+        });
+
+        while let Some(id) = queue.pop_front() {
+            // The entry's bytes are already in `reader`; every other id is a
+            // dependency read via `read_asset_bytes` (registers it for HMR).
+            let bytes = if id == entry_id && entry_bytes.is_some() {
+                entry_bytes.take().unwrap()
+            } else {
+                match lc.read_asset_bytes(id.clone()).await {
+                    Ok(bytes) => bytes,
+                    Err(e) => {
+                        bevy::log::warn!("supersolid: could not read module {id:?}: {e}");
+                        continue;
+                    }
+                }
+            };
+            let source = String::from_utf8_lossy(&bytes).into_owned();
+
+            let tsx = !id.ends_with(".ts");
+            let opts = supersolid::TranspileOptions {
+                tsx,
+                module_id: Some(id.clone()),
+                ..Default::default()
+            };
+            let m = transpile_module(&source, &opts);
+            for d in &m.diagnostics {
+                bevy::log::warn!("supersolid: {}", d.message);
+            }
+
+            let dir = superui_paths::parent_dir(&id);
+
+            let mut edges = Vec::with_capacity(m.deps.len());
+            for spec in &m.deps {
+                let candidates = resolve_candidates(&id, spec, DEFAULT_MODULES_ROOT);
+                let mut resolved_id = None;
+                for candidate in &candidates {
+                    if lc.read_asset_bytes(candidate.clone()).await.is_ok() {
+                        resolved_id = Some(candidate.clone());
+                        break;
+                    }
+                }
+                match resolved_id {
+                    Some(target) => {
+                        if seen.insert(target.clone()) {
+                            queue.push_back(target.clone());
+                        }
+                        edges.push((spec.clone(), target));
+                    }
+                    None => {
+                        bevy::log::warn!(
+                            "supersolid: could not resolve {spec:?} imported from {id:?}"
+                        );
+                        edges.push((spec.clone(), format!("superui:unresolved:{spec}")));
+                    }
+                }
+            }
+
+            let mut css = String::new();
+            for spec in &m.css_imports {
+                let path = superui_paths::join_asset(dir, spec);
+                match lc.read_asset_bytes(path.clone()).await {
+                    Ok(bytes) => css.push_str(&String::from_utf8_lossy(&bytes)),
+                    Err(e) => {
+                        bevy::log::warn!("supersolid: could not read {path:?} ({spec:?}): {e}");
+                    }
+                }
+            }
+
+            let mut json_prelude = String::new();
+            for (binding, spec) in &m.json_imports {
+                let path = superui_paths::join_asset(dir, spec);
+                match lc.read_asset_bytes(path.clone()).await {
+                    Ok(bytes) => match String::from_utf8(bytes) {
+                        Ok(text) => match json_binding(binding, &text) {
+                            Ok(line) => json_prelude.push_str(&line),
+                            Err(e) => {
+                                bevy::log::warn!("supersolid: {path:?} ({spec:?}): {e}");
+                            }
+                        },
+                        Err(e) => {
+                            bevy::log::warn!(
+                                "supersolid: JSON import \"{spec}\" ({path}) is not valid UTF-8: {e}"
+                            );
+                        }
+                    },
+                    Err(e) => {
+                        bevy::log::warn!("supersolid: could not read {path:?} ({spec:?}): {e}");
+                    }
+                }
+            }
+
+            modules.insert(
+                id,
+                ResolvedModule { factory_code: m.factory_code, edges, css, json_prelude },
+            );
+        }
+
+        let bundle = assemble(&entry_id, &modules);
+        for d in &bundle.diagnostics {
             bevy::log::warn!("supersolid: {}", d.message);
         }
 
-        // Resolve `.json` imports the transpiler recorded (file I/O is the
-        // loader's job, not the pure transpiler's). Each resolved binding is
-        // read via `read_asset_bytes`, which also registers the JSON file as
-        // a load dependency so editing it triggers hot reload of this module.
-        let importer = lc.path().path().to_string_lossy().into_owned();
-        let dir = superui_paths::parent_dir(&importer);
-        let mut json_prelude = String::new();
-        for (binding, specifier) in &result.json_imports {
-            let asset_path = superui_paths::join_asset(dir, specifier);
-            let text = match lc.read_asset_bytes(asset_path.clone()).await {
-                Ok(bytes) => match String::from_utf8(bytes) {
-                    Ok(text) => text,
-                    Err(e) => {
-                        bevy::log::warn!(
-                            "supersolid: JSON import \"{specifier}\" ({asset_path}) is not valid UTF-8: {e}"
-                        );
-                        continue;
-                    }
-                },
-                Err(e) => {
-                    bevy::log::warn!(
-                        "supersolid: JSON import \"{specifier}\" ({asset_path}) could not be read: {e}"
-                    );
-                    continue;
-                }
-            };
-            match supersolid::json_binding(binding, &text) {
-                Ok(line) => json_prelude.push_str(&line),
-                Err(e) => {
-                    bevy::log::warn!(
-                        "supersolid: JSON import \"{specifier}\" ({asset_path}) is invalid: {e}"
-                    );
-                }
-            }
-        }
-        if !json_prelude.is_empty() {
-            result.code = format!("{json_prelude}{}", result.code);
-        }
-
         // Graceful degradation (design §1): return whatever JS was produced even on
-        // diagnostics; never fail the load for a transpile warning.
-        Ok(JsSource(result.code))
+        // diagnostics; never fail the load for a resolve/transpile/css/json warning.
+        Ok(JsSource { code: bundle.code, css: bundle.css })
     }
 
     fn extensions(&self) -> &[&str] {
@@ -190,7 +289,79 @@ mod tests {
         let htmls = app.world().resource::<Assets<HtmlSource>>();
         let jss = app.world().resource::<Assets<JsSource>>();
         assert_eq!(htmls.get(&html).unwrap().0, "<div id='x'></div>");
-        assert_eq!(jss.get(&js).unwrap().0, "var a = 1;");
+        assert_eq!(jss.get(&js).unwrap().code, "var a = 1;");
+    }
+
+    #[test]
+    fn js_loader_reads_generated_css_sidecar() {
+        // A generated build artifact (`.superui/build/<stem>.js`) carries its
+        // module CSS in a sibling `<stem>.css` that the shipped path must load
+        // onto `JsSource.css` so `mount.rs` can merge it.
+        let dir = Dir::new("assets".into());
+        dir.insert_asset(".superui/build/app.js".as_ref(), b"var a = 1;");
+        dir.insert_asset(".superui/build/app.css".as_ref(), b".c{width:5px}");
+
+        let mut app = App::new();
+        app.register_asset_source(
+            AssetSourceId::Default,
+            AssetSourceBuilder::new(move || Box::new(MemoryAssetReader { root: dir.clone() })),
+        );
+        app.add_plugins((bevy::app::TaskPoolPlugin::default(), AssetPlugin::default()));
+        app.init_asset::<JsSource>().register_asset_loader(JsLoader);
+        app.finish();
+
+        let handle = {
+            let server = app.world().resource::<AssetServer>().clone();
+            server.load::<JsSource>(".superui/build/app.js")
+        };
+        for _ in 0..64 {
+            app.update();
+            if matches!(
+                app.world().resource::<AssetServer>().load_state(handle.id()),
+                LoadState::Loaded
+            ) {
+                break;
+            }
+        }
+        let jss = app.world().resource::<Assets<JsSource>>();
+        let js = jss.get(&handle).unwrap();
+        assert_eq!(js.code, "var a = 1;");
+        assert!(js.css.contains(".c{width:5px}"), "sidecar css loaded onto JsSource.css: {:?}", js.css);
+    }
+
+    #[test]
+    fn js_loader_ignores_non_build_sibling_css() {
+        // A hand-written `app.js` with a same-named `app.css` neighbor (NOT a
+        // build artifact) must not have the CSS auto-applied — only `<link>`
+        // and module imports apply CSS.
+        let dir = Dir::new("assets".into());
+        dir.insert_asset("app.js".as_ref(), b"var a = 1;");
+        dir.insert_asset("app.css".as_ref(), b".c{width:5px}");
+
+        let mut app = App::new();
+        app.register_asset_source(
+            AssetSourceId::Default,
+            AssetSourceBuilder::new(move || Box::new(MemoryAssetReader { root: dir.clone() })),
+        );
+        app.add_plugins((bevy::app::TaskPoolPlugin::default(), AssetPlugin::default()));
+        app.init_asset::<JsSource>().register_asset_loader(JsLoader);
+        app.finish();
+
+        let handle = {
+            let server = app.world().resource::<AssetServer>().clone();
+            server.load::<JsSource>("app.js")
+        };
+        for _ in 0..64 {
+            app.update();
+            if matches!(
+                app.world().resource::<AssetServer>().load_state(handle.id()),
+                LoadState::Loaded
+            ) {
+                break;
+            }
+        }
+        let jss = app.world().resource::<Assets<JsSource>>();
+        assert!(jss.get(&handle).unwrap().css.is_empty(), "non-artifact sibling css must be ignored");
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -225,7 +396,7 @@ mod tests {
             }
         }
         let jss = app.world().resource::<Assets<JsSource>>();
-        let out = &jss.get(&handle).unwrap().0;
+        let out = &jss.get(&handle).unwrap().code;
         assert!(
             out.contains(r#"$ss.hot("counter.tsx#Counter", Counter)"#),
             "loader must bake the asset path into the HMR id:\n{out}"
@@ -264,7 +435,7 @@ mod tests {
             }
         }
         let jss = app.world().resource::<Assets<JsSource>>();
-        let out = &jss.get(&handle).unwrap().0;
+        let out = &jss.get(&handle).unwrap().code;
         assert!(!out.contains(": number"), "types stripped by loader:\n{out}");
         assert!(out.contains(r#"$ss.el("div")"#), "JSX lowered by loader:\n{out}");
     }
@@ -302,7 +473,7 @@ mod tests {
             }
         }
         let jss = app.world().resource::<Assets<JsSource>>();
-        let out = &jss.get(&handle).unwrap().0;
+        let out = &jss.get(&handle).unwrap().code;
         let re_spaced = out.contains(r#"const data = {"n": 7};"#);
         assert!(
             out.contains(r#"const data = {"n":7};"#) || re_spaced,
@@ -349,10 +520,115 @@ mod tests {
             "missing JSON import must not fail the load, got {load_state:?}"
         );
         let jss = app.world().resource::<Assets<JsSource>>();
-        let out = &jss.get(&handle).unwrap().0;
+        let out = &jss.get(&handle).unwrap().code;
         assert!(
             !out.contains("const data ="),
             "no inlined const for a missing JSON import:\n{out}"
         );
+    }
+
+    /// Shared setup for the graph-walk tests below: a `Dir` + app wired with
+    /// `TsxLoader`, loading `path` to a `Loaded` `JsSource`.
+    #[cfg(not(target_arch = "wasm32"))]
+    fn load_tsx(dir: Dir, path: &str) -> (App, Handle<JsSource>) {
+        let mut app = App::new();
+        app.register_asset_source(
+            AssetSourceId::Default,
+            AssetSourceBuilder::new(move || Box::new(MemoryAssetReader { root: dir.clone() })),
+        );
+        app.add_plugins((bevy::app::TaskPoolPlugin::default(), AssetPlugin::default()));
+        app.init_asset::<JsSource>().register_asset_loader(TsxLoader);
+        app.finish();
+
+        let handle = {
+            let server = app.world().resource::<AssetServer>().clone();
+            server.load::<JsSource>(path.to_string())
+        };
+        for _ in 0..64 {
+            app.update();
+            if matches!(
+                app.world().resource::<AssetServer>().load_state(handle.id()),
+                LoadState::Loaded
+            ) {
+                break;
+            }
+        }
+        (app, handle)
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn tsx_loader_bundles_a_two_file_graph() {
+        // `app.tsx` imports a sibling module; the bundle must define both
+        // modules (singleton registry, spec §1) and run the entry — proving
+        // the loader walks the import graph rather than transpiling only the
+        // one file it was asked to load.
+        let dir = Dir::new("assets".into());
+        dir.insert_asset(
+            "counter.tsx".as_ref(),
+            br#"export function Counter(){ return <div class="c"/>; }"#,
+        );
+        dir.insert_asset(
+            "app.tsx".as_ref(),
+            br#"import { Counter } from "./counter.tsx"; render(() => <Counter/>, root);"#,
+        );
+
+        let (app, handle) = load_tsx(dir, "app.tsx");
+        assert!(
+            matches!(
+                app.world().resource::<AssetServer>().load_state(handle.id()),
+                LoadState::Loaded
+            ),
+            "a two-file graph must still load"
+        );
+        let jss = app.world().resource::<Assets<JsSource>>();
+        let out = &jss.get(&handle).unwrap().code;
+        assert!(out.contains(r#"$ssmod.def("app.tsx""#), "entry defined:\n{out}");
+        assert!(out.contains(r#"$ssmod.def("counter.tsx""#), "dep defined:\n{out}");
+        assert!(out.contains(r#"$ss.el("div")"#), "counter's JSX lowered into the bundle:\n{out}");
+        assert!(out.contains(r#"$ssmod.run("app.tsx")"#), "entry run:\n{out}");
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn tsx_loader_missing_dep_degrades_gracefully() {
+        // Graceful degradation (design §1): an unresolvable import must not
+        // fail the load — it warns and the bundle gets a sentinel edge.
+        let dir = Dir::new("assets".into());
+        dir.insert_asset(
+            "app.tsx".as_ref(),
+            br#"import { Nope } from "./gone.tsx"; const a = <div>{Nope}</div>;"#,
+        );
+
+        let (app, handle) = load_tsx(dir, "app.tsx");
+        let load_state = app.world().resource::<AssetServer>().load_state(handle.id());
+        assert!(
+            matches!(load_state, LoadState::Loaded),
+            "a missing dep must not fail the load, got {load_state:?}"
+        );
+        let jss = app.world().resource::<Assets<JsSource>>();
+        let out = &jss.get(&handle).unwrap().code;
+        assert!(
+            out.contains("superui:unresolved:"),
+            "unresolved dep must degrade to a sentinel edge:\n{out}"
+        );
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn tsx_loader_collects_module_css_onto_jssource() {
+        // A module's own `.css` import must flow onto the loaded `JsSource.css`
+        // (graph-wide CSS concatenation, spec §5), not just the entry's.
+        let dir = Dir::new("assets".into());
+        dir.insert_asset("c.css".as_ref(), b".c{color:red}");
+        dir.insert_asset(
+            "app.tsx".as_ref(),
+            br#"import "./c.css"; const a = <div class="c"/>;"#,
+        );
+
+        let (app, handle) = load_tsx(dir, "app.tsx");
+        let jss = app.world().resource::<Assets<JsSource>>();
+        let css = &jss.get(&handle).unwrap().css;
+        assert!(css.contains(".c{color:red}"), "module css collected onto JsSource.css:\n{css}");
     }
 }
