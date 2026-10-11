@@ -586,5 +586,13 @@ git commit -m "example(game_menu): split the app across modules, now that import
 
 ## Notes / documented limitations (carry into docs)
 
+- **Module `.css` edits do not hot-reload.** `merge_module_css` runs once, in
+  the run-once mount (`mount.rs::mount_when_ready`); the HMR path
+  (`hot_reload.rs::apply_hot_reload`) re-runs JS only and never re-merges
+  module CSS. Worse, under `hmr`, editing the entry `<link>` stylesheet
+  reloads that `<link>`'s asset slot to base-only, dropping the previously
+  merged module CSS until the next full mount. Module `.tsx`/`.ts`/`.js`
+  edits DO hot-reload (graph-wide JS HMR works). Workaround: trigger a full
+  remount (edit the entry HTML) or restart.
 - **Non-HMR native binaries lose module `.css`.** The `<script src=app.tsx>` seam maps to `.superui/build/app.js` loaded by the plain `JsLoader` (`css: ""`); build.rs writes `bundle.code` but there is no wiring to apply `bundle.css` in that path. The demonstrator (`game_menu`) keeps all CSS in the single `<link>` `style.css`, so it is unaffected; module-`.css` concatenation is exercised and supported only on the live `TsxLoader` path (and the test-engine, Task 7). This is consistent with spec §5, which wires CSS only through `TsxLoader` + `mount.rs`.
 - **Out of scope, warn-and-skip:** `export * from` re-export, dynamic `import()`, `import.meta`, `package.json` `main`/`module` resolution (candidate `index.*` only). Bare-package resolution machinery is ready but no package manager populates `superui_modules/`.

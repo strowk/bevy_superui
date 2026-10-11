@@ -106,10 +106,11 @@ await expect(page.locator("#hp")).toHaveText("7 / 10");
 ### JSON fixtures
 
 A spec can `import fixture from "./fixture.json"` — inlined as `const fixture`, same as a
-UI's own `.json` import (see the one-module rule in SKILL.md). Since the UI under test
-resolves its own `.json` imports the same way, you can assert data-driven UI straight from
-the file the app reads. A missing/invalid `.json` import is **fatal** to that spec (it fails
-to transpile) — unlike the app's warn-and-skip handling.
+UI's own `.json` import (see "Splitting a UI across modules" in SKILL.md). Since the UI
+under test resolves its own `.json` imports the same way, you can assert data-driven UI
+straight from the file the app reads. A missing/invalid `.json` import **warns and is
+skipped (non-fatal)** — the spec still transpiles. Only an **unresolved module import** (a
+`.tsx`/`.ts`/`.js`/bare specifier that no candidate file resolves) is fatal to a spec.
 
 ### Worked example
 
