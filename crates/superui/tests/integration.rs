@@ -158,7 +158,7 @@ fn graph_wide_hmr_reloads_when_an_imported_module_changes() {
 /// *dependency* of the mounted entry (not the entry's own `<link>` sheet) must
 /// still apply, merged in AFTER the `<link>` sheet so it wins on equal
 /// specificity — exactly the ordering `StyleSheet::extend` and
-/// `mount.rs::merge_module_css` implement (spec §5 / fork patch
+/// `mount.rs::build_applied_css` implement (spec §5 / fork patch
 /// `stylesheet-extend`).
 ///
 /// The `<link>` sheet and the module both declare a rule for `.c`, with
@@ -203,6 +203,137 @@ fn module_css_merges_after_link_stylesheet() {
         Val::Px(10.0),
         "the module's `.c` rule must win over the <link> sheet's `.c` rule, \
          proving the module CSS was merged in AFTER the link sheet"
+    );
+}
+
+/// The `Val` width of the first reconciled `<div class="c">`, or `None` if it
+/// hasn't reconciled. Shared by the module-CSS tests below.
+fn class_c_width(app: &mut App) -> Option<Val> {
+    let mut q = app
+        .world_mut()
+        .query::<(&Node, &superui_css::prelude::ClassList)>();
+    q.iter(app.world())
+        .find(|(_, classes)| classes.contains("c"))
+        .map(|(node, _)| node.width)
+}
+
+/// Module-CSS HMR (the fix this file's `module_css_merges_after_link_stylesheet`
+/// only covers at mount): editing a `.css` imported by a *dependency* module
+/// must re-apply live, not just once at mount. Re-`put`s the module `.css` with a
+/// new value and reloads the entry `.tsx` (the trigger a real file watcher would
+/// deliver via `loader_dependents`, exactly as
+/// `graph_wide_hmr_reloads_when_an_imported_module_changes` does for `.tsx`); the
+/// styled width must track the edit.
+#[cfg(feature = "hmr")]
+#[test]
+fn module_css_hot_reloads_when_its_css_file_changes() {
+    put("mcss_hot_link.css", b"body { }");
+    put("mcss_hot_c.css", b".c { width: 10px; }");
+    put("mcss_hot_lib.tsx", b"import \"./mcss_hot_c.css\";");
+    put(
+        "mcss_hot_app.tsx",
+        br#"import "./mcss_hot_lib.tsx";
+            var el = document.createElement('div');
+            el.className = 'c';
+            document.getElementById('host').appendChild(el);"#,
+    );
+
+    let mut app = app();
+    let _root = spawn_root(&mut app, "<div id='host'></div>", "mcss_hot_link.css", "mcss_hot_app.tsx");
+    tick(&mut app, 32);
+    assert_eq!(
+        class_c_width(&mut app),
+        Some(Val::Px(10.0)),
+        "mount should apply the module's initial `.c` width"
+    );
+
+    // Edit the module `.css` and force the loader to re-walk the graph.
+    put("mcss_hot_c.css", b".c { width: 20px; }");
+    {
+        let server = app.world().resource::<bevy::asset::AssetServer>().clone();
+        server.reload("mcss_hot_app.tsx");
+    }
+    tick(&mut app, 32);
+
+    assert_eq!(
+        class_c_width(&mut app),
+        Some(Val::Px(20.0)),
+        "editing a module's `.css` must hot-reload the applied style"
+    );
+}
+
+/// The other half of the old limitation: once module CSS is merged, editing the
+/// entry `<link>` sheet must NOT drop the module CSS. Reloads the `<link>`
+/// stylesheet (which flair reloads to pristine base, losing any in-slot merge)
+/// and asserts the module's `.c` rule still wins — only possible if the applied
+/// sheet is rebuilt from the fresh base plus the module CSS.
+#[cfg(feature = "hmr")]
+#[test]
+fn editing_link_stylesheet_preserves_merged_module_css() {
+    put("mcss_keep_link.css", b".c { width: 999px; }");
+    put("mcss_keep_c.css", b".c { width: 10px; }");
+    put("mcss_keep_lib.tsx", b"import \"./mcss_keep_c.css\";");
+    put(
+        "mcss_keep_app.tsx",
+        br#"import "./mcss_keep_lib.tsx";
+            var el = document.createElement('div');
+            el.className = 'c';
+            document.getElementById('host').appendChild(el);"#,
+    );
+
+    let mut app = app();
+    let _root = spawn_root(&mut app, "<div id='host'></div>", "mcss_keep_link.css", "mcss_keep_app.tsx");
+    tick(&mut app, 32);
+    assert_eq!(
+        class_c_width(&mut app),
+        Some(Val::Px(10.0)),
+        "mount should merge the module's `.c` rule over the <link> sheet"
+    );
+
+    // Edit the <link> sheet and reload it (flair replaces its asset with the
+    // pristine, module-less base).
+    put("mcss_keep_link.css", b".c { width: 888px; }");
+    {
+        let server = app.world().resource::<bevy::asset::AssetServer>().clone();
+        server.reload("mcss_keep_link.css");
+    }
+    tick(&mut app, 32);
+
+    assert_eq!(
+        class_c_width(&mut app),
+        Some(Val::Px(10.0)),
+        "editing the <link> sheet must not drop the merged module CSS"
+    );
+}
+
+/// Shipped (no-HMR) path: with `hmr` off, the mount seam loads the prebuilt
+/// `.superui/build/<stem>.js` via the plain `JsLoader`, which must pick up the
+/// sidecar `<stem>.css` that `supersolid::build` writes so module CSS still
+/// applies in release builds. Stand in for a real `build.rs` run by `put`ting
+/// the artifact + sidecar directly (the loader's sidecar read is the code under
+/// test). Gated to the no-HMR config because with `hmr` the seam would load the
+/// `.tsx` through `TsxLoader` instead.
+#[cfg(not(feature = "hmr"))]
+#[test]
+fn shipped_build_applies_module_css_from_sidecar() {
+    put("mcss_ship_link.css", b".c { width: 999px; }");
+    put(
+        ".superui/build/mcss_ship_app.js",
+        b"var el = document.createElement('div'); el.className = 'c'; \
+          document.getElementById('host').appendChild(el);",
+    );
+    put(".superui/build/mcss_ship_app.css", b".c { width: 10px; }");
+
+    let mut app = app();
+    // The entry references the `.tsx` source; the no-HMR seam maps it to the
+    // prebuilt `.superui/build/mcss_ship_app.js` artifact above.
+    let _root = spawn_root(&mut app, "<div id='host'></div>", "mcss_ship_link.css", "mcss_ship_app.tsx");
+    tick(&mut app, 32);
+
+    assert_eq!(
+        class_c_width(&mut app),
+        Some(Val::Px(10.0)),
+        "the shipped build must apply module CSS from the generated sidecar"
     );
 }
 

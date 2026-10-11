@@ -82,10 +82,10 @@ pub fn apply_hot_reload(world: &mut World) {
     }
 
     // Root entity + discovered subresources (nothing to do before Phase 1 ran).
-    let (entity, js_handle) = {
+    let (entity, js_handle, base_css, applied_css) = {
         let mut q = world.query::<(Entity, &SuperUiSubresources)>();
         match q.iter(world).next() {
-            Some((e, sub)) => (e, sub.js.clone()),
+            Some((e, sub)) => (e, sub.js.clone(), sub.css.clone(), sub.applied.clone()),
             None => return,
         }
     };
@@ -116,6 +116,41 @@ pub fn apply_hot_reload(world: &mut World) {
             rt.run_script(&js);
         }
     }
+
+    // Re-apply the module-graph CSS. Because the `<link>` base sheet is kept
+    // pristine (never merged into), rebuilding the applied sheet from base +
+    // the current `JsSource.css` fixes both halves of the old limitation: a
+    // module `.css` edit (reloaded `JsSource` carries new `css`) and a `<link>`
+    // edit (flair reloads the base to pristine, so the module CSS must be
+    // re-appended). Writing the applied slot via `get_mut` emits
+    // `AssetEvent::Modified`, which flair honors to restyle every node using it.
+    let module_css = world
+        .resource::<Assets<JsSource>>()
+        .get(&js_handle)
+        .map(|j| j.css.clone())
+        .unwrap_or_default();
+    match applied_css {
+        Some(applied) => {
+            let sheet = crate::mount::merged_sheet(world, base_css.as_ref(), &module_css);
+            if let Some(mut slot) = world.resource_mut::<Assets<StyleSheet>>().get_mut(&applied) {
+                *slot = sheet;
+            }
+        }
+        // No module CSS at mount; if an edit introduced some (a new `.css`
+        // import), promote: build the applied sheet now and repoint the runtime
+        // + subresources at it. The reconcile below re-inserts `Styled` from the
+        // runtime's handle, so the new sheet takes effect.
+        None if !module_css.is_empty() => {
+            let sheet = crate::mount::merged_sheet(world, base_css.as_ref(), &module_css);
+            let applied = world.resource_mut::<Assets<StyleSheet>>().add(sheet);
+            rt.stylesheet = applied.clone();
+            if let Some(mut sub) = world.get_mut::<SuperUiSubresources>(entity) {
+                sub.applied = Some(applied);
+            }
+        }
+        None => {}
+    }
+
     rt.dirty = true; // CSS-only change still needs a reconcile pass.
     world.insert_non_send(rt);
 }

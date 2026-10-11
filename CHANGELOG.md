@@ -35,8 +35,8 @@ for the maintenance lines.
   unsupported. An unresolved module import warns and the bundle still builds
   (runtime/HMR and build), but is fatal in the end-to-end test engine.
 - Module `.css` imports: a `.css` imported by any module in the graph is
-  concatenated and applied after the entry's `<link>` stylesheet, so an
-  equal-specificity module rule wins the cascade.
+  applied after the entry's `<link>` stylesheet, so an equal-specificity module
+  rule wins the cascade. Editing it hot-reloads like the rest of the graph.
 
 ## [0.4.0] - 2026-10-10
 

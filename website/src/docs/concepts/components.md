@@ -193,6 +193,9 @@ Supported specifiers:
   directory, via the same `.tsx`/`.ts`/`.js` then `/index.*` ladder as
   relative files. No package manager populates `superui_modules/` yet, so bare
   imports have nothing to resolve to in practice.
+- **Co-located `.css`** — `import "./theme.css"` from any module in the graph.
+  Its rules apply after the entry `<link>` sheet, so an equal-specificity
+  module rule wins the cascade. Editing the `.css` hot-reloads.
 - **`.json`** — see [Importing JSON](#importing-json) below.
 
 Not supported: `export * from` re-exports and dynamic `import()` (each warns

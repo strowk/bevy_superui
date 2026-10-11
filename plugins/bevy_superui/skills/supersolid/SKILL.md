@@ -78,11 +78,8 @@ CSS) — its rules merge into the app's stylesheet alongside the entry
 no sub-path/member selection. Out of scope: `export * from`, dynamic
 `import()`, `import.meta`, `package.json` `main`/`module` resolution.
 
-**Known limitation:** under `--features hmr`, editing a module's `.css` does
-not hot-reload — it's merged into the stylesheet once, at mount. Editing the
-entry `<link>` stylesheet after that drops the merged module CSS until the
-next full mount. Module `.tsx`/`.ts`/`.js` edits hot-reload normally;
-workaround for CSS is a full remount (edit the entry HTML) or restart.
+Under `--features hmr`, edits to any file in the graph — `.css` included —
+hot-reload with signal state preserved.
 
 ## The support surface is a SUBSET — check before you use it
 

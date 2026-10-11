@@ -61,7 +61,13 @@ fn fill_node() -> Node {
 #[derive(Component)]
 pub struct SuperUiSubresources {
     /// First `<link rel=stylesheet>`, or `None` when the document declares none.
+    /// Kept pristine (never merged into) so hot reload can rebuild the applied
+    /// sheet from the base plus the current module CSS.
     pub css: Option<Handle<StyleSheet>>,
+    /// The superui-owned sheet the runtime actually applies: the `<link>` base
+    /// merged with the module-graph CSS. `None` until any module CSS exists (the
+    /// runtime then applies `css` directly). Rebuilt on hot reload.
+    pub applied: Option<Handle<StyleSheet>>,
     /// The `<script src>` resolved through the tsx/js seam.
     pub js: Handle<JsSource>,
 }
@@ -352,7 +358,7 @@ pub fn mount_when_ready(world: &mut World) {
         let dom = superui_html::parse_document(&html_src);
         let assets = world.resource::<AssetServer>().clone();
         let (css, js) = discover_subresources(&dom, &dir, live_source(), &assets);
-        world.entity_mut(entity).insert(SuperUiSubresources { css, js });
+        world.entity_mut(entity).insert(SuperUiSubresources { css, applied: None, js });
         return;
     }
 
@@ -399,10 +405,19 @@ pub fn mount_when_ready(world: &mut World) {
     // so an equal-specificity module rule wins the cascade (source order) — the
     // module CSS is "closer" to the component that imported it. When the document
     // declares no `<link>`, the module CSS becomes the whole applied sheet.
+    //
+    // With module CSS present we build a *separate* applied sheet (base + module)
+    // and leave `css_handle` pristine, so a later edit to either the module `.css`
+    // or the `<link>` sheet can rebuild the merge (see `hot_reload`). With none,
+    // the runtime applies the `<link>` sheet directly (flair's own hot reload).
     let applied_css_handle = if module_css.is_empty() {
         css_handle.unwrap_or_default()
     } else {
-        merge_module_css(world, css_handle, &module_css)
+        let applied = build_applied_css(world, css_handle.as_ref(), &module_css);
+        if let Some(mut sub) = world.get_mut::<SuperUiSubresources>(entity) {
+            sub.applied = Some(applied.clone());
+        }
+        applied
     };
 
     let dom = Rc::new(RefCell::new(superui_html::parse_document(&html_src)));
@@ -416,23 +431,37 @@ pub fn mount_when_ready(world: &mut World) {
     world.insert_non_send(rt);
 }
 
-/// Parse `module_css` and merge it after the base applied sheet (the `<link>`
-/// sheet behind `css_handle`, or an empty sheet when the document declares
-/// none), returning the `Handle<StyleSheet>` the runtime should carry.
-///
-/// Reuses `css_handle`'s asset slot when present (overwriting it in place) so
-/// any other `Handle<StyleSheet>` pointing at the same `<link>` sheet keeps
-/// seeing the merged result; otherwise inserts a fresh asset. On a parse
-/// error, warns and skips the merge (falls back to the unmodified base),
-/// matching the loader's graceful-degradation stance elsewhere in the crate.
-fn merge_module_css(
+/// Build a *fresh* applied stylesheet = the base `<link>` sheet (behind `base`,
+/// or empty when the document declares none) followed by `module_css`, and
+/// return its handle. The base slot is never mutated, so a later `<link>`
+/// reload stays pristine and [`hot_reload`](crate::hot_reload) can rebuild the
+/// merge from scratch.
+fn build_applied_css(
     world: &mut World,
-    css_handle: Option<Handle<StyleSheet>>,
+    base: Option<&Handle<StyleSheet>>,
     module_css: &str,
 ) -> Handle<StyleSheet> {
+    let sheet = merged_sheet(world, base, module_css);
+    world.resource_mut::<Assets<StyleSheet>>().add(sheet)
+}
+
+/// Compute the base `<link>` sheet (pristine; empty when `base` is `None` or
+/// unloaded) extended with the parsed `module_css`, as an owned `StyleSheet`.
+/// Touches no asset slot. On a parse error, warns and returns the base alone —
+/// the loader's graceful-degradation stance. Shared by mount and hot reload.
+pub(crate) fn merged_sheet(
+    world: &mut World,
+    base: Option<&Handle<StyleSheet>>,
+    module_css: &str,
+) -> StyleSheet {
+    let mut merged = base
+        .and_then(|h| world.resource::<Assets<StyleSheet>>().get(h).cloned())
+        .unwrap_or_else(StyleSheet::empty);
+    if module_css.is_empty() {
+        return merged;
+    }
     // Parse in a scoped block: `InlineCssStyleSheetParser` borrows `world` to
-    // read flair's registries, and that borrow must end (returning an owned
-    // `StyleSheet`) before `Assets<StyleSheet>` is mutably borrowed below.
+    // read flair's registries, and that borrow must end before the extend.
     let parsed = {
         let mut state: SystemState<InlineCssStyleSheetParser> = SystemState::new(world);
         let parser = state
@@ -440,32 +469,11 @@ fn merge_module_css(
             .expect("InlineCssStyleSheetParser system params must be available");
         parser.load_stylesheet(module_css)
     };
-    let parsed = match parsed {
-        Ok(sheet) => sheet,
-        Err(e) => {
-            bevy::log::warn!(
-                "superui: module CSS failed to parse; skipping the merge: {e}"
-            );
-            return css_handle.unwrap_or_default();
-        }
-    };
-
-    match css_handle {
-        Some(h) => {
-            let mut assets = world.resource_mut::<Assets<StyleSheet>>();
-            let mut base = assets.get(&h).cloned().unwrap_or_else(StyleSheet::empty);
-            base.extend(parsed);
-            if let Some(mut slot) = assets.get_mut(&h) {
-                *slot = base;
-            }
-            h
-        }
-        None => {
-            let mut base = StyleSheet::empty();
-            base.extend(parsed);
-            world.resource_mut::<Assets<StyleSheet>>().add(base)
-        }
+    match parsed {
+        Ok(sheet) => merged.extend(sheet),
+        Err(e) => bevy::log::warn!("superui: module CSS failed to parse; skipping the merge: {e}"),
     }
+    merged
 }
 
 #[cfg(test)]

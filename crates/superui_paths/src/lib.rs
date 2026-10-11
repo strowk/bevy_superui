@@ -20,6 +20,29 @@ pub fn generated_js(src: &str) -> String {
     }
 }
 
+/// `ui/counter/app.tsx` → `ui/counter/.superui/build/app.css`: the sidecar
+/// `supersolid::build` writes the module-graph CSS to, alongside the generated
+/// `.js`. The shipped (no-HMR) loader reads it back to apply module CSS.
+pub fn generated_css(src: &str) -> String {
+    let js = generated_js(src);
+    match js.strip_suffix(".js") {
+        Some(stem) => format!("{stem}.css"),
+        None => js,
+    }
+}
+
+/// For a generated `.superui/build/<stem>.js` artifact path, the sibling
+/// `<stem>.css` sidecar. `None` for any path not under [`GENERATED_DIR`] or not
+/// ending in `.js`, so the loader only pairs CSS with build artifacts (never a
+/// hand-written `.js` that happens to have a same-named `.css` neighbor).
+pub fn generated_css_sidecar(js_path: &str) -> Option<String> {
+    if !parent_dir(js_path).ends_with(GENERATED_DIR) {
+        return None;
+    }
+    let stem = js_path.strip_suffix(".js")?;
+    Some(format!("{stem}.css"))
+}
+
 /// Everything before the final `/`, or `""` when there is none.
 pub fn parent_dir(path: &str) -> &str {
     match path.rfind('/') {
@@ -50,6 +73,24 @@ mod tests {
         assert_eq!(generated_js("ui/counter/app.tsx"), "ui/counter/.superui/build/app.js");
         assert_eq!(generated_js("ui/counter/app.ts"), "ui/counter/.superui/build/app.js");
         assert_eq!(generated_js("app.tsx"), ".superui/build/app.js");
+    }
+
+    #[test]
+    fn generated_css_maps_source_to_build_dir_sidecar() {
+        assert_eq!(generated_css("ui/counter/app.tsx"), "ui/counter/.superui/build/app.css");
+        assert_eq!(generated_css("app.ts"), ".superui/build/app.css");
+    }
+
+    #[test]
+    fn generated_css_sidecar_only_pairs_build_artifacts() {
+        assert_eq!(
+            generated_css_sidecar("ui/counter/.superui/build/app.js").as_deref(),
+            Some("ui/counter/.superui/build/app.css")
+        );
+        assert_eq!(generated_css_sidecar(".superui/build/app.js").as_deref(), Some(".superui/build/app.css"));
+        // Not a build artifact: a hand-written sibling `.js` is left alone.
+        assert_eq!(generated_css_sidecar("ui/counter/app.js"), None);
+        assert_eq!(generated_css_sidecar("ui/counter/.superui/build/app.css"), None);
     }
 
     #[test]
