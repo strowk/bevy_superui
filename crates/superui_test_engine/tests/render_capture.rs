@@ -16,6 +16,7 @@ render(() => <div id="box"></div>, document.getElementById("root"));"#
         tsx: true,
         mount_root: "ui".into(),
         extra_assets: vec![],
+        ..Default::default()
     }
 }
 

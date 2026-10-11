@@ -27,6 +27,7 @@ fn minimal_project() -> HostProject {
         tsx: true,
         mount_root: "ui".into(),
         extra_assets: vec![],
+        ..Default::default()
     }
 }
 

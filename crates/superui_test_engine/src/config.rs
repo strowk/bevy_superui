@@ -72,12 +72,27 @@ pub fn load_project(project_dir: &Path) -> Result<crate::host::HostProject, Stri
     let read =
         |name: &str| std::fs::read_to_string(project_dir.join(name)).map_err(|e| format!("{name}: {e}"));
 
-    let (js, tsx) = if project_dir.join("app.tsx").exists() {
-        (read("app.tsx")?, true)
+    // An `app.tsx`/`app.ts` entry may `import` sibling modules (a split
+    // multi-file app, spec §4) — bundle the whole graph via `walk_sync` rather
+    // than transpiling just the entry file, so those imports resolve. The
+    // `app.js` and `.superui/build/app.js` fallbacks stay plain single-file
+    // reads: they are already-built output, not a graph `load_project` owns.
+    let (js, css, tsx, bundled) = if let Some(entry) = ["app.tsx", "app.ts"]
+        .into_iter()
+        .find(|name| project_dir.join(name).exists())
+    {
+        let options_for = |id: &str| supersolid::TranspileOptions {
+            tsx: !id.ends_with(".ts"),
+            module_id: Some(id.to_string()),
+            ..Default::default()
+        };
+        let read_bytes = |id: &str| std::fs::read(project_dir.join(id));
+        let bundle = supersolid::walk_sync(entry, options_for, read_bytes);
+        (bundle.code, bundle.css, true, true)
     } else if project_dir.join("app.js").exists() {
-        (read("app.js")?, false)
+        (read("app.js")?, String::new(), false, false)
     } else {
-        (read(".superui/build/app.js")?, false)
+        (read(".superui/build/app.js")?, String::new(), false, false)
     };
 
     Ok(crate::host::HostProject {
@@ -87,6 +102,8 @@ pub fn load_project(project_dir: &Path) -> Result<crate::host::HostProject, Stri
             .unwrap_or_default(),
         js_or_tsx: js,
         tsx,
+        bundled_css: css,
+        bundled,
         mount_root: project_mount_root(project_dir),
         extra_assets: collect_binary_assets(project_dir),
     })

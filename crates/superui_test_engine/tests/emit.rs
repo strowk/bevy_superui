@@ -19,6 +19,7 @@ fn score_project() -> HostProject {
         tsx: true,
         mount_root: "ui".into(),
         extra_assets: vec![],
+        ..Default::default()
     }
 }
 
@@ -54,6 +55,7 @@ fn hp_project() -> HostProject {
         tsx: true,
         mount_root: "ui".into(),
         extra_assets: vec![],
+        ..Default::default()
     }
 }
 
@@ -103,6 +105,7 @@ fn ping_project() -> HostProject {
         tsx: true,
         mount_root: "ui".into(),
         extra_assets: vec![],
+        ..Default::default()
     }
 }
 
