@@ -36,9 +36,7 @@ for the maintenance lines.
   (runtime/HMR and build), but is fatal in the end-to-end test engine.
 - Module `.css` imports: a `.css` imported by any module in the graph is
   concatenated and applied after the entry's `<link>` stylesheet, so an
-  equal-specificity module rule wins the cascade. Applies on the live
-  `TsxLoader` (HMR) and test-engine paths; a non-HMR native binary still serves
-  only its single `<link>` sheet.
+  equal-specificity module rule wins the cascade.
 
 ## [0.4.0] - 2026-10-10
 
