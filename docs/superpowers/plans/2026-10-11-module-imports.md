@@ -70,7 +70,7 @@ Exports (new — none exist today):
 - `export default E` → `exports.default = E;`
 - `export * from "x"` and dynamic `import()` → push one `Warning` to `diagnostics`, skip (no re-export wiring).
 
-- [ ] **Step 1: Write failing tests** in `crates/supersolid/src/module.rs`. Each transpiles a snippet and asserts on `Module`. Reuse the crate-private `reparses_as_plain_js` helper (make it `pub(crate)` if not already) to assert `factory_code` is valid plain JS.
+- [x] **Step 1: Write failing tests** in `crates/supersolid/src/module.rs`. Each transpiles a snippet and asserts on `Module`. Reuse the crate-private `reparses_as_plain_js` helper (make it `pub(crate)` if not already) to assert `factory_code` is valid plain JS.
 
 ```rust
 // Imports → require
@@ -152,10 +152,10 @@ Exports (new — none exist today):
 }
 ```
 
-- [ ] **Step 2: Run tests, verify they fail.** Run: `cargo test -p supersolid module::tests` — Expected: FAIL (`transpile_module` not found).
-- [ ] **Step 3: Implement `transpile_module`.** Add a module-mode path in `pipeline.rs` that runs parse → TS-strip (JSX preserved) → `jsx::lower` (already appends `$ss.hot`) → import-lowering (`imports::lower_to_require`, new) → export-lowering, then codegen. The import-lowering replaces each `ImportDeclaration` in place with the `require` `const`/statement per the table; export-lowering replaces/augments each `ExportNamedDeclaration` / `ExportDefaultDeclaration` and warns on `ExportAllDeclaration`; detect dynamic `import()` via the call-expression `ImportExpression` node. Build `Module` from the codegen output + collected `deps`/`css_imports`/`json_imports`/`diagnostics`. Component-shaped-binding detection reuses `jsx::top_level_component_name`.
-- [ ] **Step 4: Run tests, verify they pass.** Run: `cargo test -p supersolid module::tests` — Expected: PASS. Also run `cargo test -p supersolid` — Expected: all existing transpiler tests still PASS (strip-path untouched).
-- [ ] **Step 5: Commit.**
+- [x] **Step 2: Run tests, verify they fail.** Run: `cargo test -p supersolid module::tests` — Expected: FAIL (`transpile_module` not found).
+- [x] **Step 3: Implement `transpile_module`.** Add a module-mode path in `pipeline.rs` that runs parse → TS-strip (JSX preserved) → `jsx::lower` (already appends `$ss.hot`) → import-lowering (`imports::lower_to_require`, new) → export-lowering, then codegen. The import-lowering replaces each `ImportDeclaration` in place with the `require` `const`/statement per the table; export-lowering replaces/augments each `ExportNamedDeclaration` / `ExportDefaultDeclaration` and warns on `ExportAllDeclaration`; detect dynamic `import()` via the call-expression `ImportExpression` node. Build `Module` from the codegen output + collected `deps`/`css_imports`/`json_imports`/`diagnostics`. Component-shaped-binding detection reuses `jsx::top_level_component_name`.
+- [x] **Step 4: Run tests, verify they pass.** Run: `cargo test -p supersolid module::tests` — Expected: PASS. Also run `cargo test -p supersolid` — Expected: all existing transpiler tests still PASS (strip-path untouched).
+- [x] **Step 5: Commit.**
 
 ```bash
 git add crates/supersolid/src/module.rs crates/supersolid/src/lib.rs crates/supersolid/src/imports.rs crates/supersolid/src/pipeline.rs
@@ -213,7 +213,7 @@ var $ssmod = (function () {
 
 `.css` / `.json` specifiers are resolved by `join_asset` (relative) only and are **not** run through this ladder.
 
-- [ ] **Step 1: Write failing tests** in `crates/supersolid/src/module.rs`:
+- [x] **Step 1: Write failing tests** in `crates/supersolid/src/module.rs`:
 
 ```rust
 // resolve_candidates
@@ -310,10 +310,10 @@ var $ssmod = (function () {
 
 Also update the two obsolete tests in `lib.rs` (`unknown_module_imports_warn`, `unused_unknown_module_import_still_warns_once`): a relative import is no longer a warning — `transpile`'s output now contains `require("./other")` and `r.diagnostics` is empty for it. Convert them to assert `r.code.contains(r#"require(\"./other\")"#)` and `r.diagnostics.is_empty()`, or delete them (the behavior is now owned by Task 1's `bare_specifier_is_a_dep_not_a_warning` / Task 2's walker tests).
 
-- [ ] **Step 2: Run tests, verify they fail.** Run: `cargo test -p supersolid module::tests` — Expected: FAIL.
-- [ ] **Step 3: Implement** `ResolvedModule`, `Bundle`, the prelude constant, `assemble`, `resolve_candidates`, `walk_sync`. Then rewrite `supersolid::transpile` (`lib.rs`) as: `let m = transpile_module(src, opts); let bundle = assemble(entry, &{one ResolvedModule from m with empty edges/css/json_prelude});` and map `m.css_imports`/`m.json_imports`/`m.diagnostics` onto the existing `TranspileResult` fields (single-file `transpile` still only *records* css/json — no I/O). `TranspileResult.code = bundle.code`. Delete `imports::rewrite` and its call site. `walk_sync`: BFS queue from `entry_id` + `seen` set; per id `read` → `transpile_module` → for each dep try `resolve_candidates` in order via `read`, first success = edge target (enqueue if unseen), else sentinel + warning; resolve/read each css import (`join_asset`, warn+skip on miss) into the module's `css`; resolve/read each json import + `json_binding` into `json_prelude` (warn+skip); accumulate diagnostics; finally `assemble`.
-- [ ] **Step 4: Run tests, verify they pass.** Run: `cargo test -p supersolid` — Expected: ALL pass (new + existing, with the two warn-tests updated).
-- [ ] **Step 5: Commit.**
+- [x] **Step 2: Run tests, verify they fail.** Run: `cargo test -p supersolid module::tests` — Expected: FAIL.
+- [x] **Step 3: Implement** `ResolvedModule`, `Bundle`, the prelude constant, `assemble`, `resolve_candidates`, `walk_sync`. Then rewrite `supersolid::transpile` (`lib.rs`) as: `let m = transpile_module(src, opts); let bundle = assemble(entry, &{one ResolvedModule from m with empty edges/css/json_prelude});` and map `m.css_imports`/`m.json_imports`/`m.diagnostics` onto the existing `TranspileResult` fields (single-file `transpile` still only *records* css/json — no I/O). `TranspileResult.code = bundle.code`. Delete `imports::rewrite` and its call site. `walk_sync`: BFS queue from `entry_id` + `seen` set; per id `read` → `transpile_module` → for each dep try `resolve_candidates` in order via `read`, first success = edge target (enqueue if unseen), else sentinel + warning; resolve/read each css import (`join_asset`, warn+skip on miss) into the module's `css`; resolve/read each json import + `json_binding` into `json_prelude` (warn+skip); accumulate diagnostics; finally `assemble`.
+- [x] **Step 4: Run tests, verify they pass.** Run: `cargo test -p supersolid` — Expected: ALL pass (new + existing, with the two warn-tests updated).
+- [x] **Step 5: Commit.**
 
 ```bash
 git add crates/supersolid/src/module.rs crates/supersolid/src/lib.rs crates/supersolid/src/imports.rs
@@ -337,10 +337,10 @@ Mechanical refactor: turn the tuple struct `JsSource(pub String)` into `JsSource
 **Interfaces:**
 - Produces: `pub struct JsSource { pub code: String, pub css: String }`. Construct with `JsSource { code, css: String::new() }`. The `HtmlLoader` is untouched; `JsLoader` and the JSON-loader body in `TsxLoader` set `css: String::new()`.
 
-- [ ] **Step 1: Change the struct and all call sites.** Update `assets.rs` loaders to `Ok(JsSource { code: …, css: String::new() })`. Update the three reads and the test assignment. In `assets.rs` tests, `jss.get(&handle).unwrap().0` → `.code`.
-- [ ] **Step 2: Build to find every remaining `.0`.** Run: `cargo build -p superui -p superui_playground_web` — Expected: compiles (fix any missed `.0`).
-- [ ] **Step 3: Run tests.** Run: `cargo test -p superui -p superui_playground_web` — Expected: PASS (unchanged behavior).
-- [ ] **Step 4: Commit.**
+- [x] **Step 1: Change the struct and all call sites.** Update `assets.rs` loaders to `Ok(JsSource { code: …, css: String::new() })`. Update the three reads and the test assignment. In `assets.rs` tests, `jss.get(&handle).unwrap().0` → `.code`.
+- [x] **Step 2: Build to find every remaining `.0`.** Run: `cargo build -p superui -p superui_playground_web` — Expected: compiles (fix any missed `.0`).
+- [x] **Step 3: Run tests.** Run: `cargo test -p superui -p superui_playground_web` — Expected: PASS (unchanged behavior).
+- [x] **Step 4: Commit.**
 
 ```bash
 git add crates/superui/src/assets.rs crates/superui/src/mount.rs crates/superui/src/hot_reload.rs crates/superui_playground_web/src/lib.rs crates/superui/tests/integration.rs
@@ -363,7 +363,7 @@ Replace `TsxLoader`'s single-file transpile with an async graph walk that reuses
 
 **Async walk shape:** BFS over a `Vec` work-queue of resolved ids + a `HashSet` seen, entry = `lc.path()`. Per id: `lc.read_asset_bytes(id).await` → `transpile_module` (opts: `tsx` from extension, `module_id = id`, default `runtime_specifiers`). For each dep: iterate `resolve_candidates(id, spec, "superui_modules")`, `read_asset_bytes` each in order; first `Ok` = edge target (enqueue if unseen); all-miss = sentinel + `bevy::log::warn!`. For each css import: `read_asset_bytes(join_asset(parent, spec))`, accumulate (warn+skip on miss). For each json import: `read_asset_bytes` + `supersolid::json_binding` → `json_prelude` (warn+skip). Build the `BTreeMap<String, ResolvedModule>`, call `assemble(entry, &map)`, log `bundle.diagnostics`, return `JsSource { code, css }`. Graceful degradation: never return `Err` for a resolve/transpile warning.
 
-- [ ] **Step 1: Write failing tests** (MemoryAssetReader, same harness as the existing `TsxLoader` tests):
+- [x] **Step 1: Write failing tests** (MemoryAssetReader, same harness as the existing `TsxLoader` tests):
 
 ```rust
 #[cfg(not(target_arch = "wasm32"))]
@@ -391,10 +391,10 @@ Replace `TsxLoader`'s single-file transpile with an async graph walk that reuses
 
 And a graph-wide HMR integration test in `crates/superui/tests/integration.rs` modeled on `hot_reload_js_re_executes_and_reconciles` (lines 33-76), but editing the **imported** module's asset (not the entry) and firing `AssetEvent::Modified` for the entry's `JsSource` handle (re-running the loader re-bundles). Assert the DOM reflects the edit, proving editing a non-entry graph file reloads. (A signal-preservation assertion is a bonus if the harness supports it; the behavior is inherited from the existing `$ss.hot` path and module-qualified ids.)
 
-- [ ] **Step 2: Run tests, verify they fail.** Run: `cargo test -p superui --test integration; cargo test -p superui assets::tests` — Expected: FAIL (single-file loader doesn't bundle the sibling).
-- [ ] **Step 3: Implement the async walk** in `TsxLoader::load`.
-- [ ] **Step 4: Run tests, verify they pass.** Run: `cargo test -p superui` — Expected: PASS (new + existing loader/json/HMR tests).
-- [ ] **Step 5: Commit.**
+- [x] **Step 2: Run tests, verify they fail.** Run: `cargo test -p superui --test integration; cargo test -p superui assets::tests` — Expected: FAIL (single-file loader doesn't bundle the sibling).
+- [x] **Step 3: Implement the async walk** in `TsxLoader::load`.
+- [x] **Step 4: Run tests, verify they pass.** Run: `cargo test -p superui` — Expected: PASS (new + existing loader/json/HMR tests).
+- [x] **Step 5: Commit.**
 
 ```bash
 git add crates/superui/src/assets.rs crates/superui/tests/integration.rs
@@ -418,13 +418,13 @@ Apply the module-graph `.css` (`JsSource.css`) by appending it after the entry `
 
 **Mount wiring (Phase 2, `mount_when_ready`):** after loading `js_src`, if `!js_src.css.is_empty()`: parse it to a `StyleSheet`; obtain the base applied sheet (the `<link>` sheet via `css_handle`, or `StyleSheet::empty()` when the document declares no `<link>`); `base.extend(parsed)`; store the merged sheet as the asset the runtime carries. Because `UiRuntime::new` takes a `Handle<StyleSheet>`, insert/overwrite the merged `StyleSheet` into `Assets<StyleSheet>` and pass that handle (reuse the existing `css_handle` slot when present; otherwise create one). Keep it inside the existing two-phase mount — no new asset type.
 
-- [ ] **Step 1: Write failing tests.**
+- [x] **Step 1: Write failing tests.**
   - Flair: `#[test] fn extend_appends_rules()` — build two `StyleSheet`s via the builder, `a.extend(b)`, assert `a` now matches a selector only `b` had.
   - Integration (`crates/superui/tests/integration.rs`): mount a `.tsx` entry whose imported module does `import "./c.css"` with a rule (e.g. `.c { width: 10px }`), and assert the reconciled element with that class resolves the property (mirror how `slider_positioning.rs` / existing integration tests read computed style). Minimal viable assertion: the merged applied `StyleSheet` contains the module rule's selector.
-- [ ] **Step 2: Run tests, verify they fail.** Run: `cargo test -p superui_flair_style style_sheet; cargo test -p superui --test integration` — Expected: FAIL.
-- [ ] **Step 3: Implement** `StyleSheet::extend` (mark the flair deviation) and the mount merge.
-- [ ] **Step 4: Run tests, verify they pass.** Run: `cargo test -p superui_flair_style -p superui` — Expected: PASS.
-- [ ] **Step 5: Commit.**
+- [x] **Step 2: Run tests, verify they fail.** Run: `cargo test -p superui_flair_style style_sheet; cargo test -p superui --test integration` — Expected: FAIL.
+- [x] **Step 3: Implement** `StyleSheet::extend` (mark the flair deviation) and the mount merge.
+- [x] **Step 4: Run tests, verify they pass.** Run: `cargo test -p superui_flair_style -p superui` — Expected: PASS.
+- [x] **Step 5: Commit.**
 
 ```bash
 git add crates/superui_flair_style/src/style_sheet.rs crates/superui/src/mount.rs crates/superui/tests/integration.rs docs/
@@ -446,7 +446,7 @@ Switch the build-script helper from per-file `transpile_file` to a per-top-level
 - Consumes: `supersolid::walk_sync`.
 - `build.rs` does not parse `index.html`, so it keeps treating **every top-level `.tsx`/`.ts` as its own entry** (unchanged) and bundles that file's graph. A dependency-only file still gets its own (correct, possibly unused) artifact. Reads via a `std::fs` closure rooted at `ui_dir` (ids are asset-root-relative under `ui_dir`; the read closure maps id → `std::fs::read` of the on-disk path). `module_id` for each walked id must match the asset path convention the runtime uses (so `$ss.hot` ids line up with the non-generated mount path).
 
-- [ ] **Step 1: Write a failing test** in `build.rs`:
+- [x] **Step 1: Write a failing test** in `build.rs`:
 
 ```rust
 #[test] fn bundles_a_two_file_graph_for_the_entry() {
@@ -464,10 +464,10 @@ Switch the build-script helper from per-file `transpile_file` to a per-top-level
 
 Keep `writes_generated_js_for_each_tsx`, `inlines_json_import_as_const`, `skip_flag_writes_nothing` green (a single-file `.tsx` is a one-module bundle; the inlined-json assertion still holds because json is inlined into the factory — adjust the assertion to match the factory-scoped `const data = …` if its position shifted, still a top-level-of-factory `const`).
 
-- [ ] **Step 2: Run test, verify it fails.** Run: `cargo test -p supersolid build::tests` — Expected: FAIL.
-- [ ] **Step 3: Implement.** For each top-level `.tsx`/`.ts`, `walk_sync` from `"<ui_dir-as-id>/<stem>.<ext>"` with a `std::fs` read closure; write `bundle.code` to `generated_js(src)`; `println!("cargo:rerun-if-changed=…")` for every `bundle.module_ids` entry and every css file read (thread the css paths out of the walk — extend `walk_sync` to surface read file paths, or have build.rs's read closure record each path it served). Keep diagnostics → `cargo:warning`.
-- [ ] **Step 4: Run tests, verify they pass.** Run: `cargo test -p supersolid` — Expected: PASS (incl. `tests/cli.rs`).
-- [ ] **Step 5: Commit.**
+- [x] **Step 2: Run test, verify it fails.** Run: `cargo test -p supersolid build::tests` — Expected: FAIL.
+- [x] **Step 3: Implement.** For each top-level `.tsx`/`.ts`, `walk_sync` from `"<ui_dir-as-id>/<stem>.<ext>"` with a `std::fs` read closure; write `bundle.code` to `generated_js(src)`; `println!("cargo:rerun-if-changed=…")` for every `bundle.module_ids` entry and every css file read (thread the css paths out of the walk — extend `walk_sync` to surface read file paths, or have build.rs's read closure record each path it served). Keep diagnostics → `cargo:warning`.
+- [x] **Step 4: Run tests, verify they pass.** Run: `cargo test -p supersolid` — Expected: PASS (incl. `tests/cli.rs`).
+- [x] **Step 5: Commit.**
 
 ```bash
 git add crates/supersolid/src/build.rs crates/supersolid/src/lib.rs
@@ -491,7 +491,7 @@ Two sites in the test-engine must bundle graphs: `transpile_spec` (`.spec.ts` im
 - `transpile_spec(source, module_id, base_dir)` keeps its signature; internally `walk_sync` from a synthetic spec entry id with a `std::fs` read closure rooted at `base_dir`; a dep that no candidate reads → return `Err` (fatal). Runtime specifiers stay `["supersolid","solid-js","superui/test"]`. `.json` still inlined (now via the walker's `json_prelude`).
 - `HostProject` gains `pub bundled_css: String` (default empty). When `app.tsx`/`app.ts` exists, `load_project` runs `walk_sync` from `app.tsx` reading siblings from `project_dir`; stores `js_or_tsx` = `bundle.code`, `bundled_css` = `bundle.css`. `host.rs` registers `js_or_tsx` directly at `<root>/.superui/build/app.js` (no second transpile) and appends `bundled_css` to the stylesheet text it registers at `<root>/theme.css`.
 
-- [ ] **Step 1: Write failing tests** in `crates/superui_test_engine/tests/`:
+- [x] **Step 1: Write failing tests** in `crates/superui_test_engine/tests/`:
 
 ```rust
 #[test] fn spec_bundles_a_helper_import() {
@@ -506,10 +506,10 @@ Two sites in the test-engine must bundle graphs: `transpile_spec` (`.spec.ts` im
 
 Keep `strips_superui_test_import_and_keeps_body` green (a single-file spec is a one-module bundle; assert `test(` body survives and types are stripped; the `import` is gone).
 
-- [ ] **Step 2: Run tests, verify they fail.** Run: `cargo test -p superui_test_engine` — Expected: the two new tests FAIL.
-- [ ] **Step 3: Implement** the `walk_sync` rewires in `transpile.rs`, `config.rs`, `host.rs`. Preserve the existing empty-output fatal check in `transpile_spec`.
-- [ ] **Step 4: Run tests, verify they pass.** Run: `cargo test -p superui_test_engine` — Expected: PASS.
-- [ ] **Step 5: Commit.**
+- [x] **Step 2: Run tests, verify they fail.** Run: `cargo test -p superui_test_engine` — Expected: the two new tests FAIL.
+- [x] **Step 3: Implement** the `walk_sync` rewires in `transpile.rs`, `config.rs`, `host.rs`. Preserve the existing empty-output fatal check in `transpile_spec`.
+- [x] **Step 4: Run tests, verify they pass.** Run: `cargo test -p superui_test_engine` — Expected: PASS.
+- [x] **Step 5: Commit.**
 
 ```bash
 git add crates/superui_test_engine/src/transpile.rs crates/superui_test_engine/src/config.rs crates/superui_test_engine/src/host.rs
@@ -529,7 +529,7 @@ git commit -m "feat(test-engine): bundle spec and app-under-test import graphs"
 **Interfaces:**
 - Consumes: the existing single-file `examples/game_menu/assets/ui/game_menu/app.tsx` (unchanged this task).
 
-- [ ] **Step 1: Add two tests** after `"main menu renders"` (which MUST stay first — the spec shares one mount; see the file's test-order note), following the existing SETTINGS pattern (`page.locator(".tabs .tab", { hasText: "…" }).click()`):
+- [x] **Step 1: Add two tests** after `"main menu renders"` (which MUST stay first — the spec shares one mount; see the file's test-order note), following the existing SETTINGS pattern (`page.locator(".tabs .tab", { hasText: "…" }).click()`):
 
 ```ts
 test("tab bar navigates to pause", async ({ page }) => {
@@ -547,9 +547,9 @@ test("tab bar navigates to game over", async ({ page }) => {
 });
 ```
 
-- [ ] **Step 2: Generate the baselines** by running the game_menu test runner in snapshot-update mode (the same command the repo already uses to produce `main-windows.png` / `settings-windows.png`; e.g. `cargo run -p game_menu --bin … --update-snapshots` or the project's `cargo superui test` update flag — discover it from `examples/game_menu/README.md` / `superui.test.toml`). Expected: `pause-windows.png` and `over-windows.png` written.
-- [ ] **Step 3: Run the spec, verify all four screenshot tests pass** against the committed baselines. Expected: 5 tests PASS (main, settings, pause, over, toggle).
-- [ ] **Step 4: Commit** (baselines + spec, still single-file).
+- [x] **Step 2: Generate the baselines** by running the game_menu test runner in snapshot-update mode (the same command the repo already uses to produce `main-windows.png` / `settings-windows.png`; e.g. `cargo run -p game_menu --bin … --update-snapshots` or the project's `cargo superui test` update flag — discover it from `examples/game_menu/README.md` / `superui.test.toml`). Expected: `pause-windows.png` and `over-windows.png` written.
+- [x] **Step 3: Run the spec, verify all four screenshot tests pass** against the committed baselines. Expected: 5 tests PASS (main, settings, pause, over, toggle).
+- [x] **Step 4: Commit** (baselines + spec, still single-file).
 
 ```bash
 git add examples/game_menu/tests/game_menu.spec.ts examples/game_menu/tests/__snapshots__/
@@ -570,12 +570,12 @@ Split `examples/game_menu/assets/ui/game_menu/app.tsx` across files (one module 
 **Interfaces:**
 - Consumes: the whole feature (Tasks 1-7). The example is built non-HMR for tests → the test-engine's `walk_sync` (Task 7) bundles it; built with `--features hmr` → `TsxLoader` (Task 4) bundles it.
 
-- [ ] **Step 1: Split the modules.** Move each screen component into its own module with `export function MainMenu(props) { … }` etc.; move shared leaf widgets (`MenuItem`, `Toggle`, `Slider`, `Segmented`, `ConfigRow`, `Stat`) and the static data (`STARS`, `RES_OPTS`, `DIFF_OPTS`, `TABS`) into shared module(s) each screen imports. `app.tsx` imports the screens + `Chrome` and keeps `App` + `render(...)`. Preserve the `<Show>`-wrapped-in-`{…}` authoring pattern and all class names (the snapshots depend on exact rendered output).
-- [ ] **Step 2: Rewrite the top-of-file gotcha note** in `app.tsx` to describe the now-supported multi-file layout (delete the "imports stripped" warning; keep the control-flow `{<Show>}` gotcha, which still applies).
-- [ ] **Step 3: Run the four-screen spec, verify it passes with baselines UNCHANGED.** Run the game_menu test runner (non-update mode). Expected: all 5 tests PASS, no screenshot diff. If a screen diffs, the split changed rendered output — fix the split, do not regenerate baselines.
-- [ ] **Step 4: Update docs** — any capability/authoring doc that says cross-module imports are stripped (search `website/src/docs` and the example READMEs). REQUIRED SUB-SKILL at execution time: `documenting-new-features` / `reference-docs` for the docs edits.
-- [ ] **Step 5: Run the full workspace test suite** as the final gate. Run: `cargo test --workspace` — Expected: PASS.
-- [ ] **Step 6: Commit.**
+- [x] **Step 1: Split the modules.** Move each screen component into its own module with `export function MainMenu(props) { … }` etc.; move shared leaf widgets (`MenuItem`, `Toggle`, `Slider`, `Segmented`, `ConfigRow`, `Stat`) and the static data (`STARS`, `RES_OPTS`, `DIFF_OPTS`, `TABS`) into shared module(s) each screen imports. `app.tsx` imports the screens + `Chrome` and keeps `App` + `render(...)`. Preserve the `<Show>`-wrapped-in-`{…}` authoring pattern and all class names (the snapshots depend on exact rendered output).
+- [x] **Step 2: Rewrite the top-of-file gotcha note** in `app.tsx` to describe the now-supported multi-file layout (delete the "imports stripped" warning; keep the control-flow `{<Show>}` gotcha, which still applies).
+- [x] **Step 3: Run the four-screen spec, verify it passes with baselines UNCHANGED.** Run the game_menu test runner (non-update mode). Expected: all 5 tests PASS, no screenshot diff. If a screen diffs, the split changed rendered output — fix the split, do not regenerate baselines.
+- [x] **Step 4: Update docs** — any capability/authoring doc that says cross-module imports are stripped (search `website/src/docs` and the example READMEs). REQUIRED SUB-SKILL at execution time: `documenting-new-features` / `reference-docs` for the docs edits.
+- [x] **Step 5: Run the full workspace test suite** as the final gate. Run: `cargo test --workspace` — Expected: PASS.
+- [x] **Step 6: Commit.**
 
 ```bash
 git add examples/game_menu/ website/ docs/
