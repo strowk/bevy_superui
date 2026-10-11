@@ -69,6 +69,17 @@ fn transpile_dir_impl(ui_dir: &str, skip: bool) {
         if let Err(e) = std::fs::write(&out, &bundle.code) {
             println!("cargo:warning=supersolid: could not write {out}: {e}");
         }
+
+        // Persist the module-graph CSS to a sidecar the shipped (no-HMR) loader
+        // reads back and merges (`superui::JsLoader` + `mount.rs`). Without this
+        // the CSS collected above is dropped and the release build renders
+        // unstyled. Remove a stale sidecar when the graph no longer has any CSS.
+        let css_out = superui_paths::generated_css(&src);
+        if bundle.css.is_empty() {
+            let _ = std::fs::remove_file(&css_out);
+        } else if let Err(e) = std::fs::write(&css_out, &bundle.css) {
+            println!("cargo:warning=supersolid: could not write {css_out}: {e}");
+        }
     }
 }
 
@@ -133,6 +144,44 @@ mod tests {
             js.contains(r#"$ssmod.def("#) && js.contains("$ss.el(\"span\")"),
             "entry artifact must bundle the imported module:\n{js}"
         );
+    }
+
+    #[test]
+    fn writes_sidecar_css_for_module_imports() {
+        // A `.css` imported anywhere in the graph must be persisted next to the
+        // generated `.js` so the shipped (no-HMR) path can apply it — otherwise
+        // module CSS is silently dropped in release builds.
+        let dir = temp_ui_dir("css_sidecar");
+        std::fs::write(dir.join("theme.css"), ".c { width: 10px; }").unwrap();
+        std::fs::write(
+            dir.join("app.tsx"),
+            "import \"./theme.css\"; const a = <div class=\"c\"/>;",
+        )
+        .unwrap();
+        let dir_str = dir.to_string_lossy().replace('\\', "/");
+
+        transpile_dir_impl(&dir_str, false);
+
+        let css = dir.join(".superui").join("build").join("app.css");
+        assert!(css.exists(), "expected generated sidecar {css:?}");
+        let css_text = std::fs::read_to_string(css).unwrap();
+        assert!(
+            css_text.contains(".c") && css_text.contains("10px"),
+            "sidecar must carry the module's CSS:\n{css_text}"
+        );
+    }
+
+    #[test]
+    fn no_sidecar_css_when_no_module_imports() {
+        // No module `.css` in the graph → no stale sidecar left behind.
+        let dir = temp_ui_dir("css_no_sidecar");
+        std::fs::write(dir.join("app.tsx"), "const a = <div/>;").unwrap();
+        let dir_str = dir.to_string_lossy().replace('\\', "/");
+
+        transpile_dir_impl(&dir_str, false);
+
+        let css = dir.join(".superui").join("build").join("app.css");
+        assert!(!css.exists(), "no module CSS must leave no sidecar, found {css:?}");
     }
 
     #[test]

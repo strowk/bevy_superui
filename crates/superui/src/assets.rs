@@ -57,12 +57,24 @@ impl AssetLoader for JsLoader {
         &self,
         reader: &mut dyn Reader,
         _settings: &(),
-        _lc: &mut LoadContext<'_>,
+        lc: &mut LoadContext<'_>,
     ) -> Result<JsSource, std::io::Error> {
-        Ok(JsSource {
-            code: read_to_string(reader).await?,
-            css: String::new(),
-        })
+        let code = read_to_string(reader).await?;
+
+        // Shipped (no-HMR) path: a generated `.superui/build/<stem>.js` carries
+        // its module-graph CSS in a sibling `<stem>.css` that `supersolid::build`
+        // wrote. Load it so `mount.rs` merges it exactly as it does `TsxLoader`'s
+        // `JsSource.css` on the live path. A missing sidecar (or a hand-written
+        // `.js` that isn't a build artifact) just means no module CSS.
+        let css = match superui_paths::generated_css_sidecar(&lc.path().path().to_string_lossy()) {
+            Some(sidecar) => match lc.read_asset_bytes(sidecar).await {
+                Ok(bytes) => String::from_utf8_lossy(&bytes).into_owned(),
+                Err(_) => String::new(),
+            },
+            None => String::new(),
+        };
+
+        Ok(JsSource { code, css })
     }
 
     fn extensions(&self) -> &[&str] {
@@ -278,6 +290,78 @@ mod tests {
         let jss = app.world().resource::<Assets<JsSource>>();
         assert_eq!(htmls.get(&html).unwrap().0, "<div id='x'></div>");
         assert_eq!(jss.get(&js).unwrap().code, "var a = 1;");
+    }
+
+    #[test]
+    fn js_loader_reads_generated_css_sidecar() {
+        // A generated build artifact (`.superui/build/<stem>.js`) carries its
+        // module CSS in a sibling `<stem>.css` that the shipped path must load
+        // onto `JsSource.css` so `mount.rs` can merge it.
+        let dir = Dir::new("assets".into());
+        dir.insert_asset(".superui/build/app.js".as_ref(), b"var a = 1;");
+        dir.insert_asset(".superui/build/app.css".as_ref(), b".c{width:5px}");
+
+        let mut app = App::new();
+        app.register_asset_source(
+            AssetSourceId::Default,
+            AssetSourceBuilder::new(move || Box::new(MemoryAssetReader { root: dir.clone() })),
+        );
+        app.add_plugins((bevy::app::TaskPoolPlugin::default(), AssetPlugin::default()));
+        app.init_asset::<JsSource>().register_asset_loader(JsLoader);
+        app.finish();
+
+        let handle = {
+            let server = app.world().resource::<AssetServer>().clone();
+            server.load::<JsSource>(".superui/build/app.js")
+        };
+        for _ in 0..64 {
+            app.update();
+            if matches!(
+                app.world().resource::<AssetServer>().load_state(handle.id()),
+                LoadState::Loaded
+            ) {
+                break;
+            }
+        }
+        let jss = app.world().resource::<Assets<JsSource>>();
+        let js = jss.get(&handle).unwrap();
+        assert_eq!(js.code, "var a = 1;");
+        assert!(js.css.contains(".c{width:5px}"), "sidecar css loaded onto JsSource.css: {:?}", js.css);
+    }
+
+    #[test]
+    fn js_loader_ignores_non_build_sibling_css() {
+        // A hand-written `app.js` with a same-named `app.css` neighbor (NOT a
+        // build artifact) must not have the CSS auto-applied — only `<link>`
+        // and module imports apply CSS.
+        let dir = Dir::new("assets".into());
+        dir.insert_asset("app.js".as_ref(), b"var a = 1;");
+        dir.insert_asset("app.css".as_ref(), b".c{width:5px}");
+
+        let mut app = App::new();
+        app.register_asset_source(
+            AssetSourceId::Default,
+            AssetSourceBuilder::new(move || Box::new(MemoryAssetReader { root: dir.clone() })),
+        );
+        app.add_plugins((bevy::app::TaskPoolPlugin::default(), AssetPlugin::default()));
+        app.init_asset::<JsSource>().register_asset_loader(JsLoader);
+        app.finish();
+
+        let handle = {
+            let server = app.world().resource::<AssetServer>().clone();
+            server.load::<JsSource>("app.js")
+        };
+        for _ in 0..64 {
+            app.update();
+            if matches!(
+                app.world().resource::<AssetServer>().load_state(handle.id()),
+                LoadState::Loaded
+            ) {
+                break;
+            }
+        }
+        let jss = app.world().resource::<Assets<JsSource>>();
+        assert!(jss.get(&handle).unwrap().css.is_empty(), "non-artifact sibling css must be ignored");
     }
 
     #[cfg(not(target_arch = "wasm32"))]

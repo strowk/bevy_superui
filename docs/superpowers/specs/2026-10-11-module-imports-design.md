@@ -248,6 +248,17 @@ Wiring: `.css` imports are discovered only *during JS bundling* (inside
 - `mount.rs` appends that bundled CSS after the `<link>` sheet when building the
   applied stylesheet. Keeps everything inside the existing two-phase mount; no
   new asset type.
+- For hot reload, the `<link>` sheet's asset slot stays pristine and the merge
+  lives in a *separate* applied `StyleSheet` the runtime carries
+  (`SuperUiSubresources.applied`). `hot_reload::apply_hot_reload` rebuilds it
+  from the current base + `JsSource.css` on any JS/CSS change, so a module
+  `.css` edit re-applies and a `<link>` edit no longer drops the merge. With no
+  module CSS the runtime applies the `<link>` sheet directly (flair's own path).
+- On the shipped (no-HMR) path the prebuilt `.js` loads via the plain
+  `JsLoader`, so `build.rs` writes the bundle's CSS to a sidecar beside the
+  `.js` (`superui_paths::generated_css`) and `JsLoader` reads it back for
+  `.superui/build/*.js` artifacts (`generated_css_sidecar`) onto `JsSource.css`
+  for `mount.rs` to merge identically.
 
 ## IDE / tsconfig alignment
 
