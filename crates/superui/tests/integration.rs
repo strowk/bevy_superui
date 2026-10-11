@@ -75,6 +75,85 @@ fn hot_reload_js_re_executes_and_reconciles() {
     assert!(count_spans(&mut app) >= 2, "hot reload should re-run the JS");
 }
 
+/// Graph-wide HMR (design §4): editing a module that is only an *import*, not
+/// the mounted entry itself, must still change what's on screen. Unlike
+/// [`hot_reload_js_re_executes_and_reconciles`] above — which proves the
+/// generic `AssetEvent::Modified` -> re-exec path by mutating the already-loaded
+/// `JsSource` in place — this proves the *loader* re-runs: the entry's `.tsx`
+/// text never changes; only its dependency's does, and `TsxLoader`'s async
+/// graph walk re-reads that dependency via `read_asset_bytes` (registering it
+/// as a load dependency the first time through) and re-bundles.
+///
+/// Harness limitation: `MemoryAssetReader` has no file watcher, so there is no
+/// "edit a file on disk and the watcher notices" to exercise. This test is
+/// honest about that — it re-`put`s the dependency's bytes into the shared
+/// `ASSETS` dir, then explicitly calls `AssetServer::reload` on the entry path
+/// to force `TsxLoader` to run again (exactly the trigger a real file watcher
+/// would deliver). It does NOT edit the loaded `JsSource` asset directly, so
+/// it genuinely exercises the loader, not just the re-exec seam.
+///
+/// Requires the `hmr` feature: without it, `mount.rs`'s tsx/js seam
+/// (`live_source`) maps a `<script src="*.tsx">` to a pre-built
+/// `.superui/build/*.js` path instead of loading the `.tsx` through
+/// `TsxLoader` directly, which would defeat the point of this test (see
+/// `resolve_script` / `live_source` in `src/mount.rs`).
+#[cfg(feature = "hmr")]
+#[test]
+fn graph_wide_hmr_reloads_when_an_imported_module_changes() {
+    put("gw.css", b"span { }");
+    put("gw_lib.tsx", b"export const LABEL = \"v1\";");
+    put(
+        "gw_app.tsx",
+        br#"import { LABEL } from "./gw_lib.tsx";
+            var el = document.createElement('span'); el.id = 'mark'; el.textContent = LABEL;
+            document.getElementById('host').appendChild(el);"#,
+    );
+
+    let mut app = app();
+    let _root = spawn_root(&mut app, "<div id='host'></div>", "gw.css", "gw_app.tsx");
+    tick(&mut app, 32);
+
+    // All text-node contents under a `<span id="mark">` (re-exec, like the
+    // plain-JS hot reload test above, appends rather than replacing — a
+    // second `#mark` span after reload is expected, not a bug).
+    fn mark_texts(app: &mut App) -> Vec<String> {
+        let mut by_name = app.world_mut().query::<(Entity, &Name)>();
+        let marks: Vec<Entity> = by_name
+            .iter(app.world())
+            .filter(|(_, n)| n.as_str() == "mark")
+            .map(|(e, _)| e)
+            .collect();
+        marks
+            .into_iter()
+            .filter_map(|e| {
+                let text_entity = *app.world().get::<Children>(e)?.first()?;
+                app.world().get::<Text>(text_entity).map(|t| t.0.clone())
+            })
+            .collect()
+    }
+
+    assert_eq!(
+        mark_texts(&mut app),
+        vec!["v1".to_string()],
+        "initial mount should reflect the dependency's export"
+    );
+
+    // Edit the DEPENDENCY (not the entry) and force the loader to re-run.
+    put("gw_lib.tsx", b"export const LABEL = \"v2\";");
+    {
+        let server = app.world().resource::<bevy::asset::AssetServer>().clone();
+        server.reload("gw_app.tsx");
+    }
+    tick(&mut app, 32);
+
+    let texts = mark_texts(&mut app);
+    assert!(
+        texts.contains(&"v2".to_string()),
+        "reloading the entry must re-walk the graph, re-read the edited \
+         dependency, and re-exec so the DOM reflects the edit: {texts:?}"
+    );
+}
+
 #[test]
 fn html_hot_reload_despawns_old_entities_no_leak() {
     // Mount with 3 lis, then hot-reload HTML+JS to produce 1 li;
