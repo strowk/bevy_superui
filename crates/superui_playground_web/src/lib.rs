@@ -170,7 +170,7 @@ fn drain_playground_edits(world: &mut World) {
         match edit {
             Edit::Js(code) => {
                 if let Some(mut a) = world.resource_mut::<Assets<JsSource>>().get_mut(&js_h) {
-                    a.0 = code;
+                    a.code = code;
                 }
                 world.write_message(AssetEvent::Modified { id: js_h.id() });
             }

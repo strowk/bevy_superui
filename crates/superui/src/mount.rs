@@ -375,7 +375,7 @@ pub fn mount_when_ready(world: &mut World) {
         None => return,
     };
     let js_src = match world.resource::<Assets<JsSource>>().get(&js_handle) {
-        Some(j) => j.0.clone(),
+        Some(j) => j.code.clone(),
         None => return,
     };
 

@@ -13,7 +13,10 @@ pub struct HtmlSource(pub String);
 
 /// Raw authored JS source (executed against the DOM at mount).
 #[derive(Asset, TypePath, Debug, Clone)]
-pub struct JsSource(pub String);
+pub struct JsSource {
+    pub code: String,
+    pub css: String,
+}
 
 #[derive(Default, TypePath)]
 pub struct HtmlLoader;
@@ -56,7 +59,10 @@ impl AssetLoader for JsLoader {
         _settings: &(),
         _lc: &mut LoadContext<'_>,
     ) -> Result<JsSource, std::io::Error> {
-        Ok(JsSource(read_to_string(reader).await?))
+        Ok(JsSource {
+            code: read_to_string(reader).await?,
+            css: String::new(),
+        })
     }
 
     fn extensions(&self) -> &[&str] {
@@ -135,7 +141,10 @@ impl AssetLoader for TsxLoader {
 
         // Graceful degradation (design §1): return whatever JS was produced even on
         // diagnostics; never fail the load for a transpile warning.
-        Ok(JsSource(result.code))
+        Ok(JsSource {
+            code: result.code,
+            css: String::new(),
+        })
     }
 
     fn extensions(&self) -> &[&str] {
@@ -190,7 +199,7 @@ mod tests {
         let htmls = app.world().resource::<Assets<HtmlSource>>();
         let jss = app.world().resource::<Assets<JsSource>>();
         assert_eq!(htmls.get(&html).unwrap().0, "<div id='x'></div>");
-        assert_eq!(jss.get(&js).unwrap().0, "var a = 1;");
+        assert_eq!(jss.get(&js).unwrap().code, "var a = 1;");
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -225,7 +234,7 @@ mod tests {
             }
         }
         let jss = app.world().resource::<Assets<JsSource>>();
-        let out = &jss.get(&handle).unwrap().0;
+        let out = &jss.get(&handle).unwrap().code;
         assert!(
             out.contains(r#"$ss.hot("counter.tsx#Counter", Counter)"#),
             "loader must bake the asset path into the HMR id:\n{out}"
@@ -264,7 +273,7 @@ mod tests {
             }
         }
         let jss = app.world().resource::<Assets<JsSource>>();
-        let out = &jss.get(&handle).unwrap().0;
+        let out = &jss.get(&handle).unwrap().code;
         assert!(!out.contains(": number"), "types stripped by loader:\n{out}");
         assert!(out.contains(r#"$ss.el("div")"#), "JSX lowered by loader:\n{out}");
     }
@@ -302,7 +311,7 @@ mod tests {
             }
         }
         let jss = app.world().resource::<Assets<JsSource>>();
-        let out = &jss.get(&handle).unwrap().0;
+        let out = &jss.get(&handle).unwrap().code;
         let re_spaced = out.contains(r#"const data = {"n": 7};"#);
         assert!(
             out.contains(r#"const data = {"n":7};"#) || re_spaced,
@@ -349,7 +358,7 @@ mod tests {
             "missing JSON import must not fail the load, got {load_state:?}"
         );
         let jss = app.world().resource::<Assets<JsSource>>();
-        let out = &jss.get(&handle).unwrap().0;
+        let out = &jss.get(&handle).unwrap().code;
         assert!(
             !out.contains("const data ="),
             "no inlined const for a missing JSON import:\n{out}"
