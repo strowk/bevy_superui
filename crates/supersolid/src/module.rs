@@ -197,7 +197,14 @@ pub fn resolve_candidates(importer_id: &str, specifier: &str, modules_root: &str
     } else {
         format!("{modules_root}/{specifier}")
     };
-    extension_ladder(&base)
+    // A specifier that already carries a JS/TS extension IS the exact file
+    // (spec §3's ladder is for a base "without an exact-file hit") — e.g.
+    // `./counter.tsx` must resolve to `counter.tsx`, not `counter.tsx.tsx`.
+    if base.ends_with(".tsx") || base.ends_with(".ts") || base.ends_with(".js") {
+        vec![base]
+    } else {
+        extension_ladder(&base)
+    }
 }
 
 /// BFS a module graph from `entry_id` using `read` for all I/O (pure walker —
@@ -425,6 +432,17 @@ mod tests {
         let c = resolve_candidates("ui/app.tsx", "ui-kit", "superui_modules");
         assert!(c.contains(&"superui_modules/ui-kit.tsx".to_string()));
         assert!(c.contains(&"superui_modules/ui-kit/index.tsx".to_string()));
+    }
+    #[test]
+    fn extensioned_specifier_resolves_to_exact_path() {
+        let c = resolve_candidates("ui/app.tsx", "./counter.tsx", "superui_modules");
+        assert_eq!(c, vec!["ui/counter.tsx".to_string()]);
+        // Same importer/specifier shape as `parent_relative_normalizes_dotdot`
+        // (importer two levels deep so `..` has somewhere to pop to), but with
+        // an explicit extension: dotdot-normalization and the extension-exact
+        // short-circuit must compose correctly.
+        let c2 = resolve_candidates("ui/screens/main.tsx", "../lib/util.ts", "superui_modules");
+        assert_eq!(c2, vec!["ui/lib/util.ts".to_string()]);
     }
     // assemble
     #[test]
