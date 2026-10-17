@@ -11,15 +11,44 @@
   var roots = new Map();   // mountNode -> { dispose, instances:Map, snapshot:Map|null, ordinals:{} }
   var frameStack = [];     // active instance frames during a (re)render
   var currentRoot = null;  // the root entry currently mounted / being rebuilt
+  var moduleStack = [];          // module frames open during the current (re-)exec
+  var moduleFrames = new Map();  // modulePath -> last committed frame
 
   function hmrOn() { return !!globalThis.__ssHmr; }
 
   // Collector for the runtime.js $ssOnSignal hook: push {read, write} onto the
-  // current instance frame. No frame active => no-op (module-top-level signals,
-  // plain scripts, and the gate-off path are all unaffected).
+  // current instance frame, falling back to the current module frame when no
+  // component frame is open. Neither active => no-op (plain scripts and the
+  // gate-off path are both unaffected).
   function onSignal(read, write) {
     var f = frameStack[frameStack.length - 1];
-    if (f) f.cells.push({ read: read, write: write });
+    if (f) { f.cells.push({ read: read, write: write }); return; }
+    var m = moduleStack[moduleStack.length - 1];
+    if (m) m.cells.push({ read: read, write: write });
+  }
+
+  // Open a module-top-level frame keyed by module path, collecting signals
+  // created directly in the module body (via onSignal's fallback above) until
+  // the matching modExit. No-op when the HMR gate is off.
+  function modEnter(path) {
+    if (!hmrOn()) return;
+    moduleStack.push({ path: path, cells: [] });
+  }
+
+  // Close the module frame opened by modEnter, rehydrating its cells from the
+  // previously committed frame for the same path IFF the signal shape matches
+  // (count mismatch => reset, mirroring commitRehydration).
+  function modExit(path) {
+    if (!hmrOn()) return;
+    var frame = moduleStack.pop();
+    var prev = moduleFrames.get(path);
+    if (prev && prev.cells.length === frame.cells.length) {
+      for (var i = 0; i < prev.cells.length; i++) {
+        var v = untrack(prev.cells[i].read);
+        (function (val, cell) { cell.write(function () { return val; }); })(v, frame.cells[i]);
+      }
+    }
+    moduleFrames.set(path, frame);
   }
 
   // Open an instance frame keyed by tree position (+ explicit key), run the
@@ -628,5 +657,7 @@
     cmp: cmp,
     frag: frag,
     hot: hot,
+    modEnter: modEnter,
+    modExit: modExit,
   };
 })();
