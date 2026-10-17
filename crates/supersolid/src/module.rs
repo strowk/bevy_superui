@@ -81,7 +81,12 @@ const SSMOD_PRELUDE: &str = r#"var $ssmod = (function () {
     var module = { exports: {} };
     cache[id] = module;
     var require = function (spec) { return req(m.edges[spec]); };
-    m.factory(module.exports, module, require);
+    if (typeof $ss !== "undefined" && $ss.modEnter) $ss.modEnter(id);
+    try {
+      m.factory(module.exports, module, require);
+    } finally {
+      if (typeof $ss !== "undefined" && $ss.modExit) $ss.modExit(id);
+    }
     return module.exports;
   }
   return { def: def, run: req };
@@ -455,6 +460,26 @@ mod tests {
         assert!(b.code.contains(r#"$ssmod.def("app.tsx""#), "{}", b.code);
         assert!(b.code.contains(r#"$ssmod.run("app.tsx")"#), "{}", b.code);
         assert!(reparses_as_plain_js(&b.code), "{}", b.code);
+    }
+    #[test]
+    fn prelude_brackets_factory_with_module_frame() {
+        let mut m = std::collections::BTreeMap::new();
+        m.insert("app.tsx".to_string(), ResolvedModule { factory_code: "exports.x=1;".into(),
+            edges: vec![], css: String::new(), json_prelude: String::new() });
+        let b = assemble("app.tsx", &m);
+        assert!(b.code.contains("$ss.modEnter(id)"), "{}", b.code);
+        assert!(b.code.contains("$ss.modExit(id)"), "{}", b.code);
+        assert!(b.code.contains("m.factory(module.exports, module, require)"), "{}", b.code);
+        assert!(b.code.contains("} finally {"), "{}", b.code);
+        assert!(reparses_as_plain_js(&b.code), "{}", b.code);
+    }
+    #[test]
+    fn prelude_bracket_is_guarded() {
+        let mut m = std::collections::BTreeMap::new();
+        m.insert("app.tsx".to_string(), ResolvedModule { factory_code: "exports.x=1;".into(),
+            edges: vec![], css: String::new(), json_prelude: String::new() });
+        let b = assemble("app.tsx", &m);
+        assert!(b.code.contains(r#"typeof $ss !== "undefined""#), "{}", b.code);
     }
     #[test]
     fn assemble_edges_map_raw_spec_to_id() {
