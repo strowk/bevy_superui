@@ -23,8 +23,14 @@
   function onSignal(read, write) {
     var f = frameStack[frameStack.length - 1];
     if (f) { f.cells.push({ read: read, write: write }); return; }
+    // Module-top-level signal: collect ONLY when no reactive owner is active.
+    // Genuine top-level createSignal runs with Owner === null; signals minted
+    // inside render()'s synchronous effect flush (e.g. <For>/<Index>/<Keyed>
+    // row signals, created with an empty frameStack but under a createRoot
+    // owner) must NOT pollute the module frame, or a list-length change would
+    // trip modExit's count-match guard and reset genuine top-level signals.
     var m = moduleStack[moduleStack.length - 1];
-    if (m) m.cells.push({ read: read, write: write });
+    if (m && !globalThis.$ssGetOwner()) m.cells.push({ read: read, write: write });
   }
 
   // Open a module-top-level frame keyed by module path, collecting signals

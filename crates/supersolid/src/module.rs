@@ -479,7 +479,8 @@ mod tests {
         m.insert("app.tsx".to_string(), ResolvedModule { factory_code: "exports.x=1;".into(),
             edges: vec![], css: String::new(), json_prelude: String::new() });
         let b = assemble("app.tsx", &m);
-        assert!(b.code.contains(r#"typeof $ss !== "undefined""#), "{}", b.code);
+        assert!(b.code.contains(r#"if (typeof $ss !== "undefined" && $ss.modEnter) $ss.modEnter(id)"#), "{}", b.code);
+        assert!(b.code.contains(r#"if (typeof $ss !== "undefined" && $ss.modExit) $ss.modExit(id)"#), "{}", b.code);
     }
     #[test]
     fn assemble_edges_map_raw_spec_to_id() {

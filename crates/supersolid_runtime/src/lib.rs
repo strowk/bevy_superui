@@ -2170,4 +2170,56 @@ mod render_tests {
         .unwrap();
         assert_eq!(text(&mut e, "globalThis.v"), "g1");
     }
+
+    #[test]
+    fn module_top_level_signal_survives_list_rebuild_in_render() {
+        // The entry module's top-level render() runs inside the modEnter/modExit
+        // bracket; its synchronous flush builds <For> rows whose per-row signals are
+        // created with an empty frameStack but under a createRoot owner. Those must
+        // NOT land in the module frame, else a list-length change trips the
+        // count-match guard and resets the genuine top-level signal. Regression for
+        // the final-review Critical (Index/Keyed share the same row-signal pattern).
+        let mut e = render_engine();
+        e.eval(
+            r#"
+            globalThis.__ssHmr = true;
+            globalThis.root = $ss.el("main");
+            function exec(items) {
+                $ss.modEnter("app.tsx");
+                try {
+                    globalThis.__screen = createSignal("menu");   // genuine top-level signal
+                    function App() {
+                        // `each` is a plain prop (not a rehydrated component-level signal):
+                        // the point of this test is a row-COUNT change between reloads, and
+                        // routing it through its own createSignal would let the unrelated
+                        // instance-state-preservation feature (withInstance/commitRehydration)
+                        // rehydrate it back to the first render's array, masking the bug.
+                        var ul = $ss.el("ul");
+                        $ss.insert(ul, function () {
+                            return $ss.cmp(For, {
+                                each: items,
+                                get children() {
+                                    return function (item) {
+                                        var li = $ss.el("li");
+                                        $ss.insert(li, function () { return item; });
+                                        return li;
+                                    };
+                                },
+                            });
+                        });
+                        return ul;
+                    }
+                    App.__ssId = "app#App";
+                    render(function () { return $ss.cmp(App, {}); }, root);
+                } finally { $ss.modExit("app.tsx"); }
+            }
+            exec(["a", "b"]);
+            globalThis.__screen[1]("game");          // user navigates
+            exec(["a", "b", "c"]);                    // reload: same markup, LONGER list
+            globalThis.v = globalThis.__screen[0](); // "game" — must survive the row-count change
+            "#,
+        )
+        .unwrap();
+        assert_eq!(text(&mut e, "globalThis.v"), "game");
+    }
 }
