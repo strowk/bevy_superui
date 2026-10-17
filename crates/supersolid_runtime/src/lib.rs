@@ -1898,4 +1898,276 @@ mod render_tests {
         .unwrap();
         assert_eq!(num(&mut e, "globalThis.v"), 0.0);
     }
+
+    #[test]
+    fn module_top_level_signal_survives_reexec() {
+        let mut e = render_engine();
+        e.eval(
+            r#"
+            globalThis.__ssHmr = true;
+            function exec() {
+                $ss.modEnter("app.tsx");
+                try {
+                    var s = createSignal("menu");
+                    globalThis.__s = s;
+                } finally { $ss.modExit("app.tsx"); }
+            }
+            exec();                              // fresh mount
+            globalThis.v0 = globalThis.__s[0](); // "menu"
+            globalThis.__s[1]("game");           // user navigates
+            globalThis.v1 = globalThis.__s[0](); // "game"
+            exec();                              // reload: re-exec module top level
+            globalThis.v2 = globalThis.__s[0](); // "game" — preserved on the fresh signal
+            "#,
+        )
+        .unwrap();
+        assert_eq!(text(&mut e, "globalThis.v0"), "menu");
+        assert_eq!(text(&mut e, "globalThis.v1"), "game");
+        assert_eq!(text(&mut e, "globalThis.v2"), "game");
+    }
+
+    #[test]
+    fn module_fresh_mount_uses_initial_values() {
+        // Empty moduleFrames on first exec => no rehydration => initial value.
+        let mut e = render_engine();
+        e.eval(
+            r#"
+            globalThis.__ssHmr = true;
+            $ss.modEnter("app.tsx");
+            try { globalThis.__s = createSignal("menu"); } finally { $ss.modExit("app.tsx"); }
+            globalThis.v0 = globalThis.__s[0]();
+            "#,
+        )
+        .unwrap();
+        assert_eq!(text(&mut e, "globalThis.v0"), "menu");
+    }
+
+    #[test]
+    fn module_shape_change_resets_only_edited_module() {
+        let mut e = render_engine();
+        e.eval(
+            r#"
+            globalThis.__ssHmr = true;
+            function execA(extra) {
+                $ss.modEnter("a.tsx");
+                try {
+                    if (extra) createSignal(0);          // added top-level signal on edit
+                    globalThis.__a = createSignal("a0");
+                } finally { $ss.modExit("a.tsx"); }
+            }
+            function execB() {
+                $ss.modEnter("b.tsx");
+                try { globalThis.__b = createSignal("b0"); } finally { $ss.modExit("b.tsx"); }
+            }
+            execA(false); execB();
+            globalThis.__a[1]("a1"); globalThis.__b[1]("b1");
+            execA(true);  execB();                       // A changes shape, B unchanged
+            globalThis.va = globalThis.__a[0]();         // "a0" — reset (count mismatch)
+            globalThis.vb = globalThis.__b[0]();         // "b1" — preserved
+            "#,
+        )
+        .unwrap();
+        assert_eq!(text(&mut e, "globalThis.va"), "a0");
+        assert_eq!(text(&mut e, "globalThis.vb"), "b1");
+    }
+
+    #[test]
+    fn module_multi_module_preserves_per_path() {
+        let mut e = render_engine();
+        e.eval(
+            r#"
+            globalThis.__ssHmr = true;
+            function execA() { $ss.modEnter("a.tsx"); try { globalThis.__a = createSignal("a0"); } finally { $ss.modExit("a.tsx"); } }
+            function execB() { $ss.modEnter("b.tsx"); try { globalThis.__b = createSignal("b0"); } finally { $ss.modExit("b.tsx"); } }
+            execA(); execB();
+            globalThis.__a[1]("a1"); globalThis.__b[1]("b1");
+            execA(); execB();
+            globalThis.va = globalThis.__a[0]();   // "a1"
+            globalThis.vb = globalThis.__b[0]();   // "b1"
+            "#,
+        )
+        .unwrap();
+        assert_eq!(text(&mut e, "globalThis.va"), "a1");
+        assert_eq!(text(&mut e, "globalThis.vb"), "b1");
+    }
+
+    #[test]
+    fn module_nested_require_keys_by_own_path() {
+        // Importer factory runs a nested modEnter/modExit for its dep; each keyed by
+        // its own path, so both top-level signals preserve independently.
+        let mut e = render_engine();
+        e.eval(
+            r#"
+            globalThis.__ssHmr = true;
+            function exec() {
+                $ss.modEnter("app.tsx");
+                try {
+                    $ss.modEnter("dep.tsx");
+                    try { globalThis.__dep = createSignal("d0"); } finally { $ss.modExit("dep.tsx"); }
+                    globalThis.__app = createSignal("a0");
+                } finally { $ss.modExit("app.tsx"); }
+            }
+            exec();
+            globalThis.__dep[1]("d1"); globalThis.__app[1]("a1");
+            exec();
+            globalThis.vd = globalThis.__dep[0]();   // "d1"
+            globalThis.va = globalThis.__app[0]();   // "a1"
+            "#,
+        )
+        .unwrap();
+        assert_eq!(text(&mut e, "globalThis.vd"), "d1");
+        assert_eq!(text(&mut e, "globalThis.va"), "a1");
+    }
+
+    #[test]
+    fn module_function_valued_signal_rehydrates() {
+        // Updater-form write restores a signal whose value is itself a function.
+        let mut e = render_engine();
+        e.eval(
+            r#"
+            globalThis.__ssHmr = true;
+            function exec() {
+                $ss.modEnter("app.tsx");
+                try { globalThis.__s = createSignal(function () { return 1; }); } finally { $ss.modExit("app.tsx"); }
+            }
+            exec();
+            // Updater-form setter: the outer function is the updater (write() always
+            // invokes a function argument as updater(prevValue)); it must RETURN the
+            // desired new value, so to set the value to a function you return one.
+            globalThis.__s[1](function () { return function () { return 42; }; });
+            exec();
+            globalThis.v = globalThis.__s[0]()();            // call the restored function
+            "#,
+        )
+        .unwrap();
+        assert_eq!(num(&mut e, "globalThis.v"), 42.0);
+    }
+
+    #[test]
+    fn module_signal_via_helper_is_preserved() {
+        // A signal minted through a top-level helper call is still created during
+        // top-level execution, so it is tracked and preserved.
+        let mut e = render_engine();
+        e.eval(
+            r#"
+            globalThis.__ssHmr = true;
+            function exec() {
+                $ss.modEnter("app.tsx");
+                try {
+                    function make() { return createSignal("init"); }
+                    globalThis.__s = make();
+                } finally { $ss.modExit("app.tsx"); }
+            }
+            exec();
+            globalThis.__s[1]("changed");
+            exec();
+            globalThis.v = globalThis.__s[0]();   // "changed"
+            "#,
+        )
+        .unwrap();
+        assert_eq!(text(&mut e, "globalThis.v"), "changed");
+    }
+
+    #[test]
+    fn module_and_component_signals_both_preserved() {
+        // Top-level signal collects into the module frame; the component's signal
+        // collects into the component frame (frameStack-first). Both survive reload,
+        // and the separate stacks don't interfere.
+        let mut e = render_engine();
+        e.eval(
+            r#"
+            globalThis.__ssHmr = true;
+            globalThis.root = $ss.el("main");
+            function exec() {
+                $ss.modEnter("app.tsx");
+                try {
+                    globalThis.__top = createSignal("T0");
+                    function Counter() {
+                        var c = createSignal(0);
+                        globalThis.__c = c;
+                        var d = $ss.el("div");
+                        $ss.insert(d, function () { return c[0](); });
+                        return d;
+                    }
+                    Counter.__ssId = "app#Counter";
+                    render(function () { return $ss.cmp(Counter, {}); }, root);
+                } finally { $ss.modExit("app.tsx"); }
+            }
+            exec();
+            globalThis.__top[1]("T1"); globalThis.__c[1](5);
+            exec();
+            globalThis.vtop = globalThis.__top[0]();   // "T1"
+            globalThis.vc = globalThis.__c[0]();       // 5
+            "#,
+        )
+        .unwrap();
+        assert_eq!(text(&mut e, "globalThis.vtop"), "T1");
+        assert_eq!(num(&mut e, "globalThis.vc"), 5.0);
+    }
+
+    #[test]
+    fn module_gate_off_does_not_preserve() {
+        let mut e = render_engine();
+        e.eval(
+            r#"
+            globalThis.__ssHmr = false;                 // gate OFF
+            function exec() {
+                $ss.modEnter("app.tsx");
+                try { globalThis.__s = createSignal("menu"); } finally { $ss.modExit("app.tsx"); }
+            }
+            exec();
+            globalThis.__s[1]("game");
+            exec();
+            globalThis.v = globalThis.__s[0]();         // "menu" — no preservation
+            "#,
+        )
+        .unwrap();
+        assert_eq!(text(&mut e, "globalThis.v"), "menu");
+    }
+
+    #[test]
+    fn module_deferred_signal_not_preserved() {
+        // A signal minted after modExit (both stacks empty) is untracked => resets.
+        let mut e = render_engine();
+        e.eval(
+            r#"
+            globalThis.__ssHmr = true;
+            function exec() {
+                $ss.modEnter("app.tsx");
+                try { globalThis.__make = function () { globalThis.__d = createSignal("init"); }; }
+                finally { $ss.modExit("app.tsx"); }
+            }
+            exec();
+            globalThis.__make();                 // deferred: after modExit
+            globalThis.__d[1]("changed");
+            exec();
+            globalThis.__make();                 // defer again on reload
+            globalThis.v = globalThis.__d[0]();  // "init" — not preserved
+            "#,
+        )
+        .unwrap();
+        assert_eq!(text(&mut e, "globalThis.v"), "init");
+    }
+
+    #[test]
+    fn module_throwing_factory_keeps_stack_balanced() {
+        // A module body that throws still runs modExit (prelude try/finally, mirrored
+        // here), so a later module collects and rehydrates correctly.
+        let mut e = render_engine();
+        e.eval(
+            r#"
+            globalThis.__ssHmr = true;
+            function execBad() { $ss.modEnter("bad.tsx"); try { throw new Error("boom"); } finally { $ss.modExit("bad.tsx"); } }
+            function execGood() { $ss.modEnter("good.tsx"); try { globalThis.__g = createSignal("g0"); } finally { $ss.modExit("good.tsx"); } }
+            try { execBad(); } catch (e) {}
+            execGood();
+            globalThis.__g[1]("g1");
+            try { execBad(); } catch (e) {}
+            execGood();
+            globalThis.v = globalThis.__g[0]();   // "g1" — good module unaffected
+            "#,
+        )
+        .unwrap();
+        assert_eq!(text(&mut e, "globalThis.v"), "g1");
+    }
 }
