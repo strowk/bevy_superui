@@ -10,10 +10,14 @@
 //! ## Per-frame algorithm
 //! 1. Resolve the current hovered [`NodeId`] set: walk every entity in
 //!    `HoverMap`'s `PointerId::Mouse` entry up to its nearest [`DomNode`]
-//!    ancestor (`resolve_dom_node`, same as clicks), deduping. Order is not
-//!    meaningful except that `current[0]` (if any) stands in for "the topmost
-//!    hovered node" below — `HoverMap`'s entity set carries no depth order of
-//!    its own, so this is first-resolved, not nearest-to-camera.
+//!    ancestor (`resolve_dom_node`, same as clicks), deduping (set semantics
+//!    for the hover diff — order doesn't matter there). Separately track
+//!    `top`: the resolved node whose `HitData.depth` is lowest. `HoverMap`'s
+//!    entry is an unordered map, and under pass-through picking a whole
+//!    non-blocking ancestor chain can be in it at once, so "first entry" would
+//!    be an arbitrary node, not the one under the cursor; `bevy_ui`'s picking
+//!    backend gives the frontmost hit `depth = 0.0` and increments going
+//!    back, so lowest depth is topmost.
 //! 2. **Seed**: the first time this system runs (`!state.seeded`), record the
 //!    current hover set/position/button mask and return — no events. Because
 //!    the system only runs while a listener exists (the run condition), this
@@ -28,19 +32,19 @@
 //! 4. **Buttons** (only if `counts.any_button()`): compute this frame's W3C
 //!    `buttons` bitmask (`left=1, right=2, middle=4`) from `ButtonInput`; for
 //!    each bit that flipped since `state.buttons`, enqueue `mousedown` (press)
-//!    or `mouseup` (release) at `current`'s first resolved node. No resolved
-//!    node (cursor outside the UI entirely) means skip — a known, narrow gap:
-//!    a drag that started inside the UI but is released with the cursor past
-//!    its edge loses the `mouseup`. The brief accepts this; the common case
-//!    (held button, pointer still over the full-viewport root) is covered by
-//!    the hover resolution itself.
+//!    or `mouseup` (release) at `top`. No `top` (cursor outside the UI
+//!    entirely) means skip — a known, narrow gap: a drag that started inside
+//!    the UI but is released with the cursor past its edge loses the
+//!    `mouseup`. The brief accepts this; the common case (held button,
+//!    pointer still over the full-viewport root) is covered by the hover
+//!    resolution itself.
 //! 5. **Move** (only if `counts.any_move()`): if `position` changed, enqueue
-//!    one `mousemove` at `current`'s first resolved node. This is also how a
-//!    `document`-level drag-move listener gets reached: the root DOM node is a
-//!    full-viewport hoverable node (see `reconcile.rs`), so hovering empty
-//!    background still resolves to it, and the root's shadow-DOM node has
-//!    `document` as its bubble-chain parent (Task 5) — no document sentinel
-//!    `NodeId` is ever constructed here.
+//!    one `mousemove` at `top`. This is also how a `document`-level drag-move
+//!    listener gets reached: the root DOM node is a full-viewport hoverable
+//!    node (see `reconcile.rs`), so hovering empty background still resolves
+//!    to it as `top`, and the root's shadow-DOM node has `document` as its
+//!    bubble-chain parent (Task 5) — no document sentinel `NodeId` is ever
+//!    constructed here.
 //! 6. Update `state` to this frame's hover/position/buttons.
 
 use bevy::ecs::hierarchy::ChildOf;
@@ -138,13 +142,21 @@ pub fn mouse_events_system(
 ) {
     let counts = rt.mouse_listener_counts();
 
-    // Current hovered node set (deduped; see module doc for ordering caveats).
+    // Current hovered node set (deduped), plus `top`: the resolved node with
+    // the lowest `HitData.depth` — see module doc point 1 for why this can't
+    // just be "the first entry".
     let mut current: Vec<NodeId> = Vec::new();
+    let mut top: Option<NodeId> = None;
+    let mut top_depth = f32::INFINITY;
     if let Some(hovered) = hover_map.get(&PointerId::Mouse) {
-        for (&entity, _hit) in hovered.iter() {
+        for (&entity, hit) in hovered.iter() {
             if let Some(node) = resolve_dom_node(entity, &nodes, &parents) {
                 if !current.contains(&node) {
                     current.push(node);
+                }
+                if hit.depth < top_depth {
+                    top_depth = hit.depth;
+                    top = Some(node);
                 }
             }
         }
@@ -190,7 +202,7 @@ pub fn mouse_events_system(
     if counts.any_button() {
         let changed = mask ^ state.buttons;
         if changed != 0 {
-            if let Some(&top) = current.first() {
+            if let Some(top) = top {
                 // (bit, W3C MouseEvent.button code: 0=left, 1=middle, 2=right)
                 for (bit, code) in [(BTN_LEFT, 0u8), (BTN_RIGHT, 2u8), (BTN_MIDDLE, 1u8)] {
                     if changed & bit != 0 {
@@ -204,7 +216,7 @@ pub fn mouse_events_system(
     }
 
     if counts.any_move() && position != state.position {
-        if let Some(&top) = current.first() {
+        if let Some(top) = top {
             pending.0.push(PendingDomEvent::new(top, "mousemove").with_mouse(payload(position, mask, 0)));
         }
     }
