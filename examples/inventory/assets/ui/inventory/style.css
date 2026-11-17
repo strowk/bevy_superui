@@ -1,0 +1,59 @@
+/* Chest <-> inventory drag-and-drop demo. Kept within superui/flair 0.6
+   limits: no `cursor`, no `filter`, no custom `font-family` (only loaded
+   fonts are valid, so the default font is used). bevy_ui defaults every node
+   to `flex-direction: row`, so every stacking container below sets
+   `flex-direction: column` explicitly. */
+
+#app {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  gap: 40px;
+  background-color: #0b1220;
+  padding: 24px;
+}
+
+.panel {
+  flex-direction: column;
+  width: 260px;
+  min-height: 220px;
+  background-color: #141c2b;
+  border-width: 2px;
+  border-color: #27344a;
+  border-radius: 10px;
+  padding: 14px;
+  gap: 10px;
+}
+
+.panel-title {
+  font-size: 16px;
+  color: #cfe8ff;
+}
+
+.tiles {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tile {
+  width: 48px;
+  height: 48px;
+  justify-content: center;
+  align-items: center;
+  background-image: linear-gradient(135deg, #4ff0e0, #2bd0c0);
+  border-width: 0;
+  border-radius: 8px;
+  font-size: 20px;
+}
+
+/* The in-flight drag preview, positioned from `event.clientX/clientY` and
+   following the cursor until `onUp` resolves the drop (see app.tsx). */
+.tile.floating {
+  position: absolute;
+  background-image: linear-gradient(135deg, #ffd27f, #ff9e4a);
+  box-shadow: 0 0 10px rgba(255, 158, 74, 0.5);
+}
