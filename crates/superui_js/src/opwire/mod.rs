@@ -6,7 +6,7 @@ pub mod bootstrap;
 mod codec;
 pub mod idmap;
 
-pub use applier::OpApplier;
+pub use applier::{MouseListenerCounts, OpApplier};
 pub use bootstrap::bootstrap_js;
 pub use codec::{CodecError, JsNodeId, ListenerKind, Op, OpBatch, StrId};
 pub use idmap::IdMap;
