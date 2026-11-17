@@ -8,8 +8,8 @@ use std::rc::Rc;
 
 use bevy::prelude::*;
 use superui_bridge::{
-    click_effect, drain_dom_events_system, on_pointer_click, PendingDomEvent, PendingDomEvents,
-    UiRuntime,
+    click_effect, drain_dom_events_system, on_pointer_click, MousePayload, PendingDomEvent,
+    PendingDomEvents, UiRuntime,
 };
 
 /// Register the full input pipeline on top of the base harness.
@@ -61,6 +61,45 @@ fn click_runs_js_listener_and_reconciles() {
     // #out now contains the text "clicked".
     let out_node = dom.borrow().get_element_by_id("out").unwrap();
     assert_eq!(dom.borrow().text_content(out_node), "clicked");
+}
+
+/// A `PendingDomEvent` carrying a `MousePayload` reaches the JS listener's
+/// `MouseEvent.clientX`/`clientY` — the Task 6 bridge-side plumbing from
+/// `PendingDomEvent.mouse` through `UiRuntime::dispatch_dom_event` into
+/// `JsEngine::dispatch_event`.
+#[test]
+fn mouse_payload_on_pending_event_reaches_the_js_listener() {
+    let dom = Rc::new(RefCell::new(superui_html::parse_document(
+        "<div id='b'>hi</div>",
+    )));
+    let mut app = test_app();
+    let _root = mount_with_input(&mut app, dom.clone());
+
+    app.world_mut().non_send_mut::<UiRuntime>().run_script(
+        "globalThis.lastX = -1; globalThis.lastY = -1; \
+         document.getElementById('b').addEventListener('mousedown', function(e) { \
+           globalThis.lastX = e.clientX; globalThis.lastY = e.clientY; \
+         });",
+    );
+    app.update(); // initial reconcile
+
+    let node = dom.borrow().get_element_by_id("b").unwrap();
+    app.world_mut().resource_mut::<PendingDomEvents>().0.push(
+        PendingDomEvent::new(node, "mousedown").with_mouse(MousePayload {
+            client_x: 12.0,
+            client_y: 34.0,
+            button: 0,
+            buttons: 1,
+        }),
+    );
+    app.update(); // drain -> dispatch JS (with mouse payload) -> reconcile
+
+    app.world_mut().non_send_mut::<UiRuntime>().run_script(
+        "document.getElementById('b').setAttribute('data-x', String(globalThis.lastX)); \
+         document.getElementById('b').setAttribute('data-y', String(globalThis.lastY));",
+    );
+    assert_eq!(dom.borrow().get_attribute(node, "data-x"), Some("12"));
+    assert_eq!(dom.borrow().get_attribute(node, "data-y"), Some("34"));
 }
 
 /// Test 3: keyboard events update a text input's DOM value and fire `input`.
