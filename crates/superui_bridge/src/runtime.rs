@@ -267,6 +267,7 @@ impl UiRuntime {
         node: NodeId,
         ty: &str,
         key: Option<&str>,
+        mouse: Option<superui_js::MousePayload>,
         bubbles: bool,
         cancelable: bool,
     ) -> bool {
@@ -274,11 +275,16 @@ impl UiRuntime {
             return false;
         };
         self.sync_live_props_to_shadow();
-        // Task 6 threads a real mouse payload through here; for now the dispatch
-        // ABI's new `mouse` param is always `None`.
-        let prevented = self.engine.dispatch_event(js, ty, key, None, bubbles, cancelable);
+        let prevented = self.engine.dispatch_event(js, ty, key, mouse, bubbles, cancelable);
         self.pump();
         prevented
+    }
+
+    /// Global per-type listener-presence counts (Task 1–5's op-wire tracking),
+    /// used to decide whether `mousemove`/hover tracking is worth running at
+    /// all this frame.
+    pub fn mouse_listener_counts(&self) -> superui_js::opwire::MouseListenerCounts {
+        self.applier.mouse_listener_counts()
     }
 
     pub fn entity_for(&self, node: NodeId) -> Option<Entity> {
