@@ -16,6 +16,7 @@ pub fn render(ex: &Example, sources: &[SourceFile]) -> String {
     TEMPLATE
         .replace("{{TITLE}}", &ex.title)
         .replace("{{SLUG}}", &ex.slug)
+        .replace("{{PACKAGE}}", &ex.package)
         .replace("{{CATEGORY}}", &ex.category)
         .replace("{{DESCRIPTION}}", &ex.description)
         .replace("{{BADGES}}", &badges)
@@ -63,5 +64,27 @@ mod tests {
         // Spec column is filled from the manifest.
         assert!(out.contains("Apps"), "category shown in the breadcrumb/spec column");
         assert!(out.contains("menu"), "description shown in the spec column");
+    }
+
+    #[test]
+    fn run_command_uses_the_cargo_package_not_the_dir_slug() {
+        // `inventory` is the example dir slug, but the crate is `chest_inventory`
+        // (renamed to avoid a workspace collision) — the "how to run it" command
+        // must name the real cargo package, not the slug, or `cargo run -p
+        // inventory` errors for anyone following the generated page.
+        let ex = Example {
+            slug: "inventory".into(),
+            package: "chest_inventory".into(),
+            title: "Chest <-> Inventory (Drag & Drop)".into(),
+            description: "drag and drop".into(),
+            category: "Apps".into(),
+            tags: vec![],
+        };
+        let out = render(&ex, &[]);
+        assert!(out.contains("cargo run -p chest_inventory"), "must run the real cargo package");
+        assert!(!out.contains("cargo run -p inventory"), "must not run the dir slug as a package name");
+        // The WASM asset path and routing still key off the dir slug, unaffected.
+        assert!(out.contains("import init from './inventory.js'"));
+        assert!(!out.contains("{{"), "no unsubstituted template tokens");
     }
 }
