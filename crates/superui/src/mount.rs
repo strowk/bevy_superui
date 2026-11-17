@@ -11,9 +11,9 @@ use rustc_hash::FxHashMap;
 use superui_bridge::{
     clamp_scroll_position_system, dim_placeholder_text_system, drain_bevy_outbox_system,
     drain_dom_events_system, editable_input_events_system, emit_bevy_inbox_system,
-    keyboard_events_system, on_focus_gained, on_focus_lost, on_pointer_click,
-    on_slider_value_change, position_slider_parts, reconcile_system, wheel_scroll_system,
-    PendingDomEvents, UiRuntime,
+    keyboard_events_system, mouse_events_system, mouse_listeners_active, on_focus_gained,
+    on_focus_lost, on_pointer_click, on_slider_value_change, position_slider_parts,
+    reconcile_system, wheel_scroll_system, PendingDomEvents, PointerState, UiRuntime,
 };
 use superui_css::core::PropertyRegistry;
 use superui_css::parser::InlineCssStyleSheetParser;
@@ -202,6 +202,7 @@ impl Plugin for SuperUiPlugin {
         app.register_asset_loader(crate::assets::TsxLoader);
         app
             .init_resource::<PendingDomEvents>()
+            .init_resource::<PointerState>()
             .init_resource::<HotReloadFlags>()
             .add_observer(on_pointer_click)
             .add_observer(on_slider_value_change)
@@ -253,6 +254,25 @@ impl Plugin for SuperUiPlugin {
             crate::utilities::regenerate_utilities.after(mount_when_ready),
         );
         app
+            // mouse_events_system is registered standalone rather than folded into
+            // the chained tuple below: it needs its OWN run condition
+            // (`mouse_listeners_active`, on top of `runtime_exists`) so a UI with no
+            // mouse listener anywhere pays nothing per frame, and a per-system
+            // `run_if` inside a `.chain()`ed set would gate only that system's
+            // *execution*, not the ordering edges the chain still builds around it —
+            // a standalone registration keeps the condition unambiguous. `.before`
+            // the chain's `drain_dom_events_system` so a mouse event it enqueues
+            // this frame dispatches to JS the same frame, not next.
+            .add_systems(
+                Update,
+                mouse_events_system
+                    .after(apply_hot_reload)
+                    .after(detect_hot_reload)
+                    .after(mount_when_ready)
+                    .before(drain_dom_events_system)
+                    .run_if(runtime_exists)
+                    .run_if(mouse_listeners_active),
+            )
             .add_systems(
                 Update,
                 // Ordering rule: JS-dispatching systems (drain_dom_events,
