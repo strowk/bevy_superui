@@ -56,8 +56,11 @@ read-back, no browser chrome.
 | `role` / `aria-*` / `title` / `alt` | 🟡 | stored, inert |
 
 **In JSX, event handlers are `on*` props with function values:** `onClick`, `onInput`,
-`onChange`, `onKeyDown`, `onKeyUp`. The event exposes `target`, `key`, `type`,
-`preventDefault`/`stopPropagation`. Example: `<input onInput={(e) => setDraft(e.target.value)} />`.
+`onChange`, `onKeyDown`, `onKeyUp`, `onMouseDown`, `onMouseUp`, `onMouseMove`,
+`onMouseOver`, `onMouseOut`, `onMouseEnter`, `onMouseLeave`. The event exposes
+`target`, `key`, `type`, `preventDefault`/`stopPropagation`, and — on the mouse
+events — `clientX`/`clientY`/`button`/`buttons`. Example:
+`<input onInput={(e) => setDraft(e.target.value)} />`.
 
 ## document
 
@@ -105,10 +108,12 @@ components manage it. Direct DOM APIs are for escape hatches.
 | `keydown` / `keyup` + `event.key` (e.g. `"Enter"`, `"Backspace"`) | ✅ |
 | `focus` / `blur` (JS events) | ✅ dispatched as keyboard focus enters/leaves |
 | `event.keyCode` / `code` | 🟡 use `event.key` |
-| `event.clientX/Y` / `offsetX/Y` | 🟡 not exposed yet |
+| `event.clientX/Y` | ✅ logical window pixels |
+| `event.offsetX/Y` | 🟡 not exposed yet |
 | `dispatchEvent` / `new CustomEvent` / `new Event` | 🟡 |
 | `submit` | 🟡 no `<form>` submit wiring |
-| `mouseover` / `mouseout` | 🟡 hover exists in CSS only |
+| `mouseover` / `mouseout` (bubbling) / `mouseenter` / `mouseleave` (non-bubbling) | ✅ |
+| `mousedown` / `mouseup` / `mousemove` | ✅ `event.button`/`buttons` follow W3C convention; `document`/`window` accept these listeners too, and receive them via bubbling (`event.target` stays the real node) while a button is held during a drag |
 | `wheel` event | 🟡 wheel scrolling works natively; JS `wheel` event is roadmap |
 | `scroll` event | 🟡 not fired on scroll-container scroll yet |
 

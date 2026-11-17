@@ -37,6 +37,16 @@ for the maintenance lines.
 - Module `.css` imports: a `.css` imported by any module in the graph is
   applied after the entry's `<link>` stylesheet, so an equal-specificity module
   rule wins the cascade. Editing it hot-reloads like the rest of the graph.
+- Browser-faithful mouse events: `mouseover`/`mouseout` (bubbling),
+  `mouseenter`/`mouseleave` (non-bubbling), and `mousedown`/`mouseup`/`mousemove`,
+  each carrying `clientX`/`clientY`/`button`/`buttons`. `document` and `window`
+  are now real event targets (`addEventListener`/`removeEventListener`) and sit
+  atop the bubble chain for every bubbling event, so a drag started with
+  `mousedown` on an element can keep tracking `mousemove`/`mouseup` at
+  `document`/`window` — with `event.target` still the node under the pointer —
+  even after the cursor leaves that element. A new `chest_inventory` example
+  (`examples/inventory`) demonstrates chest-to-inventory drag-and-drop built on
+  these primitives.
 
 ## [0.4.0] - 2026-10-10
 
