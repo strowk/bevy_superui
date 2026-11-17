@@ -18,6 +18,21 @@ pub enum Command {
     Hover {
         locator: crate::locator::LocatorSpec,
     },
+    MouseDown {
+        locator: crate::locator::LocatorSpec,
+    },
+    MouseUp {
+        locator: crate::locator::LocatorSpec,
+    },
+    MoveTo {
+        locator: crate::locator::LocatorSpec,
+    },
+    /// Composite drag gesture: `mousedown` on `from`, then the `moveTo`
+    /// hover+move bookkeeping and `mouseup` on `to`.
+    DragTo {
+        from: crate::locator::LocatorSpec,
+        to: crate::locator::LocatorSpec,
+    },
     Expect {
         /// "visible" | "text" | "count" | "class" | "attribute" | "screenshot"
         matcher: String,

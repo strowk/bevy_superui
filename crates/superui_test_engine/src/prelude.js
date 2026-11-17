@@ -105,6 +105,14 @@ if (!globalThis.__sstest) {
       async fill(text) { return enqueue({ type: "fill", locator: serialize(this), text: String(text) }); },
       async press(key) { return enqueue({ type: "press", locator: serialize(this), key: String(key) }); },
       async hover() { return enqueue({ type: "hover", locator: serialize(this) }); },
+      async mouseDown() { return enqueue({ type: "mouseDown", locator: serialize(this) }); },
+      async mouseUp() { return enqueue({ type: "mouseUp", locator: serialize(this) }); },
+      async moveTo() { return enqueue({ type: "moveTo", locator: serialize(this) }); },
+      // Playwright-shaped drag: `source.dragTo(target)` — mousedown on this
+      // locator, then the moveTo bookkeeping + mouseup on `target`.
+      async dragTo(target) {
+        return enqueue({ type: "dragTo", from: serialize(this), to: serialize(target) });
+      },
     };
   };
 
