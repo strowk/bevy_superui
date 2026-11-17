@@ -64,11 +64,15 @@ supported. Tier T0–T3. **Since** = the superui version a capability first ship
 | `keydown` / `keyup` | ✅ | T1 | 0.1 | dispatched to focused node |
 | `event.key` | ✅ | T1 | 0.1 | key identity, e.g. `"Enter"`, `"Backspace"`, `"a"` |
 | `event.keyCode` / `code` | 🟡 | T1 | — | not exposed yet — use `event.key` |
-| `event.clientX/Y` / `offsetX/Y` | 🟡 | T2 | — | pointer coordinates not exposed yet |
+| `event.clientX/Y` | ✅ | T2 | main | logical window pixels |
+| `event.offsetX/Y` | 🟡 | T2 | — | element-relative coordinates not exposed yet |
 | `dispatchEvent` / `new CustomEvent` / `new Event` | 🟡 | T2 | — | |
 | `submit` | 🟡 | T1 | — | no `<form>` submit wiring yet |
 | `focus` / `blur` | ✅ | T1 | 0.1 | dispatched to the node as keyboard focus enters/leaves it |
-| `mouseover` / `mouseout` | 🟡 | T1 | — | hover state exists in CSS; JS events roadmap |
+| `mouseover` / `mouseout` | ✅ | T1 | main | bubbling |
+| `mouseenter` / `mouseleave` | ✅ | T1 | main | non-bubbling |
+| `mousedown` / `mouseup` | ✅ | T1 | main | `event.button`/`buttons` follow W3C convention |
+| `mousemove` | ✅ | T1 | main | one dispatch per frame the pointer position changed |
 | `wheel` event | 🟡 | T2 | — | mouse-wheel scrolling works natively; the JS `wheel` event — and `preventDefault` on it to block scrolling — is roadmap |
 | `scroll` event | 🟡 | T2 | — | not fired when a scroll container scrolls yet |
 
@@ -82,7 +86,7 @@ supported. Tier T0–T3. **Since** = the superui version a capability first ship
 | `requestAnimationFrame` / `cancelAnimationFrame` | 🟡 | T1 | — | use `setInterval` for now |
 | `console.trace/table/group` | 🟡 | T2 | — | not installed on the native engine — calls throw `TypeError`; roadmap to stub for graceful degradation |
 | `setTimeout` / `setInterval` / `clearTimeout` / `clearInterval` | ✅ | T1 | 0.1 | driven by Bevy's clock |
-| `window` (alias of `globalThis`) | ✅ | T1 | 0.1 | |
+| `window` (alias of `globalThis`) | ✅ | T1 | 0.1 | `document`/`window` are also real event targets (`addEventListener`/`removeEventListener`): any bubbling event, incl. `mousemove`/`mouseup` while a button is held during a drag, reaches a `document`/`window` listener with `event.target` still the node under the pointer |
 | `window.innerWidth` / `innerHeight` + `resize` | 🟡 | T2 | — | viewport size not exposed yet |
 | `alert` / `confirm` / `prompt` | ⛔ | — | — | no modal UI; blocking dialogs don't fit the frame loop |
 | `window.bevy.send(name, data)` | ✅ | T1 | 0.1 | JS → ECS |

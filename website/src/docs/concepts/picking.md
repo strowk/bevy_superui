@@ -81,7 +81,32 @@ The `world_picking` example is a probe for exactly this: four sprites, half of t
 covered by an overlay, plus a plain-Bevy button clear of it, each counting its own
 hovers and clicks.
 
+## Mouse events & dragging
+
+<div class="since-note since-note--unreleased">This section documents behavior currently on <code>main</code> only — not yet in a tagged release.</div>
+
+The two rules above compose directly with the full mouse-event family
+(`mouseover`/`mouseout`, `mouseenter`/`mouseleave`, `mousedown`/`mouseup`,
+`mousemove` — see the [JS/DOM ledger](../reference/js-dom.md)):
+
+- **Hover is unconditional.** A node stays hoverable — and keeps firing
+  `mouseover`/`mouseout`/`mouseenter`/`mouseleave` — regardless of
+  `PickingPolicy`, for the same reason `:hover` does: hover tracking doesn't
+  read the blocking decision.
+- **A mouse listener blocks like a click listener.** Adding `onMouseDown`,
+  `onMouseMove`, or any other mouse listener to a node makes it (and its
+  ancestors) `interactive` under `PassThrough`, exactly like `onClick` does.
+  Nothing extra is needed to make a draggable element also swallow the pointer.
+- **Drag capture is `document`/`window` bubbling, not a special pointer mode.**
+  `document` and `window` sit atop the DOM's bubble chain, so a `mousedown`
+  handler on a drag handle can register `document`-level `mousemove`/`mouseup`
+  listeners for the duration of the drag; those events keep bubbling up from
+  whatever node is under the cursor, with `event.target` intact, even after the
+  pointer outruns the element the drag started on. The [chest ↔ inventory
+  example](../../examples/inventory/) is a worked end-to-end demo of this.
+
 ## Reference
 
 - [The Bevy Bridge](bevy-bridge.md) — the JSON command/event seam between UI and game.
 - [CSS](../reference/css.md) — including `:hover` and the other supported pseudo-classes.
+- [JS/DOM ledger](../reference/js-dom.md) — the full mouse-event capability list.
