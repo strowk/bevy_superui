@@ -314,7 +314,8 @@
       this._listeners.set(type, arr);
     }
     arr.push({ fn: fn, capture: !!capture });
-    if (!had) emit(OP_SET_LISTENER, [this._nid, 1]);
+    // Kind operand is a placeholder (Other=0) until per-type codes land.
+    if (!had) emit(OP_SET_LISTENER, [this._nid, 1, 0]);
   };
 
   proto.removeEventListener = function (type, fn, capture) {
@@ -325,7 +326,7 @@
     for (var i = 0; i < arr.length; i++) {
       if (arr[i].fn === fn && arr[i].capture === cap) {
         arr.splice(i, 1);
-        if (!hasAnyListener(this)) emit(OP_SET_LISTENER, [this._nid, 0]);
+        if (!hasAnyListener(this)) emit(OP_SET_LISTENER, [this._nid, 0, 0]);
         return;
       }
     }

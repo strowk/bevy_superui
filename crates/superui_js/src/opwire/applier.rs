@@ -125,7 +125,7 @@ impl OpApplier {
                     removed.push(node);
                 }
             }
-            Op::SetListener { id, has_listener } => {
+            Op::SetListener { id, has_listener, kind: _ } => {
                 let Some(node) = self.map.node(id) else { return };
                 if has_listener {
                     if let std::collections::hash_map::Entry::Vacant(slot) =
