@@ -5,8 +5,6 @@ use std::path::Path;
 #[derive(Debug, Clone, Deserialize)]
 pub struct Example {
     pub slug: String,
-    // Read from the manifest by the CI workflow (jq), not by xtask itself.
-    #[allow(dead_code)]
     pub package: String,
     pub title: String,
     pub description: String,
