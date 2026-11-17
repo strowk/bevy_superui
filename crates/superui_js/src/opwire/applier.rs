@@ -1,7 +1,7 @@
 //! Applies a decoded [`OpBatch`] to a render-mirror [`superui_dom::Dom`],
 //! translating [`JsNodeId`]s through an [`IdMap`].
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use superui_dom::{Dom, ListenerId, NodeId};
 
@@ -57,11 +57,16 @@ pub struct OpApplier {
     /// `dom.listeners(node).is_empty()` picking check tracks interactivity
     /// without the reconciler knowing about the op-wire.
     listeners: HashMap<NodeId, ListenerId>,
-    /// Union of live listener kind codes per node, used to decide whether the
+    /// Live-listener count per kind code, per node, used to decide whether the
     /// `"__ss"` marker should still be present: a node with two different
-    /// listener kinds must keep reading as interactive when only one of them
-    /// is removed.
-    kinds_per_node: HashMap<NodeId, HashSet<u8>>,
+    /// listener kinds — or two distinct event types that collapse to the same
+    /// code (all non-mouse types share code 0, `ListenerKind::Other`) — must
+    /// keep reading as interactive until the LAST one is removed. A plain
+    /// `HashSet<u8>` of codes can't tell "two code-0 listeners" apart from
+    /// "one code-0 listener registered twice", so it incorrectly drops to
+    /// empty (and tears the marker down) when only one of two distinct code-0
+    /// listeners is removed.
+    kinds_per_node: HashMap<NodeId, HashMap<u8, u32>>,
     /// Global per-kind mouse listener counts; see [`MouseListenerCounts`].
     mouse_counts: MouseListenerCounts,
 }
@@ -193,16 +198,20 @@ impl OpApplier {
                     }
                 }
                 let Some(node) = self.map.node(id) else { return };
-                // Track the union of kinds live on this node, so removing one
-                // kind doesn't tear down the marker while another remains.
-                let set = self.kinds_per_node.entry(node).or_default();
+                // Track a live-listener count per kind code on this node, so
+                // removing one listener doesn't tear down the marker while
+                // another of the same code (e.g. a second code-0 type) remains.
+                let counts = self.kinds_per_node.entry(node).or_default();
                 if has_listener {
-                    set.insert(code);
-                } else {
-                    set.remove(&code);
+                    *counts.entry(code).or_insert(0) += 1;
+                } else if let Some(slot) = counts.get_mut(&code) {
+                    *slot = slot.saturating_sub(1);
+                    if *slot == 0 {
+                        counts.remove(&code);
+                    }
                 }
-                let interactive = !set.is_empty();
-                if set.is_empty() {
+                let interactive = !counts.is_empty();
+                if counts.is_empty() {
                     self.kinds_per_node.remove(&node);
                 }
                 // Keep exactly one synthetic "__ss" marker while the node has
@@ -381,5 +390,47 @@ mod tests {
         applier.apply(&mut dom, &b5);
         assert!(!applier.mouse_listener_counts().any());
         assert!(dom.listeners(node2).is_empty());
+    }
+
+    #[test]
+    fn applier_keeps_interactive_marker_while_two_distinct_code0_listeners_overlap() {
+        // Two DISTINCT non-mouse event types (e.g. `input` and `keydown`) both
+        // collapse to wire code 0 (`ListenerKind::Other`). A `HashSet<u8>` of
+        // codes can't tell them apart from a single type registered twice, so
+        // removing just one of them must not tear down the "__ss" interactive
+        // marker while the other is still live.
+        let mut dom = Dom::new();
+        let root = dom.document();
+        let mut applier = OpApplier::new(root);
+        let mut b = OpBatch::default();
+        let div = b.intern("div");
+        b.ops.push(Op::CreateElement { id: 2, tag: div });
+        b.ops.push(Op::InsertBefore { parent: 1, node: 2, reference: 0 });
+        applier.apply(&mut dom, &b);
+        let node2 = applier.node(2).unwrap();
+
+        // Two distinct code-0 listener types register (e.g. `input`, `keydown`).
+        let mut b2 = OpBatch::default();
+        b2.ops.push(Op::SetListener { id: 2, kind: ListenerKind::Other, has_listener: true });
+        applier.apply(&mut dom, &b2);
+        let mut b3 = OpBatch::default();
+        b3.ops.push(Op::SetListener { id: 2, kind: ListenerKind::Other, has_listener: true });
+        applier.apply(&mut dom, &b3);
+        assert!(!dom.listeners(node2).is_empty(), "node must be interactive with two live code-0 listeners");
+
+        // Remove just one of them (e.g. `removeEventListener('keydown', ...)`).
+        let mut b4 = OpBatch::default();
+        b4.ops.push(Op::SetListener { id: 2, kind: ListenerKind::Other, has_listener: false });
+        applier.apply(&mut dom, &b4);
+        assert!(
+            !dom.listeners(node2).is_empty(),
+            "the other code-0 listener (e.g. `input`) is still live; node must stay interactive"
+        );
+
+        // Remove the second (last) one; now the node must go non-interactive.
+        let mut b5 = OpBatch::default();
+        b5.ops.push(Op::SetListener { id: 2, kind: ListenerKind::Other, has_listener: false });
+        applier.apply(&mut dom, &b5);
+        assert!(dom.listeners(node2).is_empty(), "last code-0 listener removed; node must go non-interactive");
     }
 }
