@@ -792,7 +792,7 @@ mod render_tests {
         )
         .unwrap();
         let btn = num(&mut e, "globalThis.b._nid") as superui_js::JsNodeId;
-        e.dispatch_event(btn, "click", None, true, true);
+        e.dispatch_event(btn, "click", None, None, true, true);
         assert_eq!(num(&mut e, "globalThis.clicks"), 1.0);
     }
 

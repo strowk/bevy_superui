@@ -591,7 +591,7 @@
   // stopPropagation ends after the current node finishes; stopImmediate also ends
   // the current node's remaining listeners; preventDefault (cancelable only) is
   // reported as the return value.
-  function dispatch(jsId, type, key, bubbles, cancelable) {
+  function dispatch(jsId, type, key, bubbles, cancelable, mouse) {
     var target = nodesById.get(jsId >>> 0);
     if (!target) return false;
 
@@ -612,6 +612,10 @@
       currentTarget: null,
       bubbles: !!bubbles,
       cancelable: !!cancelable,
+      clientX: mouse ? mouse.clientX : undefined,
+      clientY: mouse ? mouse.clientY : undefined,
+      button: mouse ? mouse.button : undefined,
+      buttons: mouse ? mouse.buttons : undefined,
       defaultPrevented: false,
       preventDefault: function () {
         if (cancelable) {

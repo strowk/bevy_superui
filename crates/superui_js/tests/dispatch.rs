@@ -66,6 +66,18 @@ fn eval_string(ctx: &mut Ctx, src: &str) -> String {
     serde_v8::from_v8::<String>(scope, local).expect("string result")
 }
 
+fn eval_number(ctx: &mut Ctx, src: &str) -> f64 {
+    let handle = ctx.tokio.handle().clone();
+    let _rt = handle.enter();
+    let global = ctx
+        .runtime
+        .execute_script("<eval>", src.to_string())
+        .unwrap_or_else(|e| panic!("eval failed for `{src}`: {e}"));
+    deno_core::scope!(scope, ctx.runtime);
+    let local = v8::Local::new(scope, &global);
+    serde_v8::from_v8::<f64>(scope, local).expect("number result")
+}
+
 /// Calls `__ss_flush()` and decodes the returned byte array into an
 /// [`superui_js::opwire::OpBatch`], mirroring what `V8Engine::flush_ops` does
 /// for the real engine (see `src/engine_v8.rs`).
@@ -236,6 +248,33 @@ fn prevent_default_ignored_when_not_cancelable() {
     );
     let prevented = eval_bool(&mut ctx, "__ss_dispatch(child._nid, 'click', null, true, false)");
     assert!(!prevented, "preventDefault on a non-cancelable event has no effect");
+}
+
+#[test]
+fn mouse_event_exposes_coordinates() {
+    let mut ctx = ctx();
+    eval(
+        &mut ctx,
+        r#"
+        globalThis.a = document.createElement('div');
+        __ss_root.appendChild(a);
+        globalThis.seen = {};
+        a.addEventListener('mousedown', function (e) {
+            seen.x = e.clientX;
+            seen.y = e.clientY;
+            seen.b = e.button;
+            seen.bs = e.buttons;
+        });
+        "#,
+    );
+    let _ = eval_bool(
+        &mut ctx,
+        "__ss_dispatch(a._nid, 'mousedown', null, true, true, {clientX: 12, clientY: 34, button: 0, buttons: 1})",
+    );
+    assert_eq!(eval_number(&mut ctx, "seen.x"), 12.0);
+    assert_eq!(eval_number(&mut ctx, "seen.y"), 34.0);
+    assert_eq!(eval_number(&mut ctx, "seen.b"), 0.0);
+    assert_eq!(eval_number(&mut ctx, "seen.bs"), 1.0);
 }
 
 #[test]
