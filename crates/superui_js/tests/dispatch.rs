@@ -66,6 +66,24 @@ fn eval_string(ctx: &mut Ctx, src: &str) -> String {
     serde_v8::from_v8::<String>(scope, local).expect("string result")
 }
 
+/// Calls `__ss_flush()` and decodes the returned byte array into an
+/// [`superui_js::opwire::OpBatch`], mirroring what `V8Engine::flush_ops` does
+/// for the real engine (see `src/engine_v8.rs`).
+fn flush(ctx: &mut Ctx) -> superui_js::opwire::OpBatch {
+    let handle = ctx.tokio.handle().clone();
+    let _rt = handle.enter();
+    let global = ctx
+        .runtime
+        .execute_script("<eval>", "__ss_flush()".to_string())
+        .unwrap_or_else(|e| panic!("__ss_flush() failed: {e}"));
+    let bytes = {
+        deno_core::scope!(scope, ctx.runtime);
+        let local = v8::Local::new(scope, &global);
+        serde_v8::from_v8::<Vec<u8>>(scope, local).expect("byte array result")
+    };
+    superui_js::opwire::OpBatch::decode(&bytes).expect("decode op batch")
+}
+
 /// parent > child under the root; a shared `globalThis.ran` order log.
 fn tree(ctx: &mut Ctx) {
     eval(
@@ -218,4 +236,93 @@ fn prevent_default_ignored_when_not_cancelable() {
     );
     let prevented = eval_bool(&mut ctx, "__ss_dispatch(child._nid, 'click', null, true, false)");
     assert!(!prevented, "preventDefault on a non-cancelable event has no effect");
+}
+
+#[test]
+fn addeventlistener_emits_kind_per_type() {
+    let mut ctx = ctx();
+    eval(
+        &mut ctx,
+        r#"
+        globalThis.a = document.createElement('div');
+        __ss_root.appendChild(a);
+        "#,
+    );
+    // The appendChild above already queued ops; flush them so this test's
+    // assertions only see the SetListener ops from addEventListener below.
+    let _ = flush(&mut ctx);
+    eval(
+        &mut ctx,
+        r#"
+        a.addEventListener('mousemove', function(){});
+        a.addEventListener('click', function(){});
+        "#,
+    );
+    let batch = flush(&mut ctx);
+    let kinds: Vec<(u32, bool, u8)> = batch
+        .ops
+        .iter()
+        .filter_map(|op| match op {
+            superui_js::opwire::Op::SetListener { id, kind, has_listener } => {
+                Some((*id, *has_listener, kind.code()))
+            }
+            _ => None,
+        })
+        .collect();
+    // mousemove -> kind 7 present; click -> kind 0 (Other) present. Both are
+    // per-type 0->1 transitions on the same node, so both must be emitted.
+    assert!(
+        kinds.iter().any(|&(_, present, code)| present && code == 7),
+        "expected a SetListener(kind=7 MouseMove, present) op, got {kinds:?}"
+    );
+    assert!(
+        kinds.iter().any(|&(_, present, code)| present && code == 0),
+        "expected a SetListener(kind=0 Other, present) op, got {kinds:?}"
+    );
+}
+
+#[test]
+fn removeeventlistener_emits_kind_on_last_listener_of_its_type_removed() {
+    let mut ctx = ctx();
+    eval(
+        &mut ctx,
+        r#"
+        globalThis.a = document.createElement('div');
+        __ss_root.appendChild(a);
+        globalThis.h1 = function(){};
+        globalThis.h2 = function(){};
+        a.addEventListener('mousemove', h1);
+        a.addEventListener('mousemove', h2);
+        a.addEventListener('mouseup', h1);
+        "#,
+    );
+    let _ = flush(&mut ctx);
+    eval(
+        &mut ctx,
+        r#"
+        a.removeEventListener('mousemove', h1);
+        a.removeEventListener('mouseup', h1);
+        "#,
+    );
+    let batch = flush(&mut ctx);
+    let kinds: Vec<(bool, u8)> = batch
+        .ops
+        .iter()
+        .filter_map(|op| match op {
+            superui_js::opwire::Op::SetListener { has_listener, kind, .. } => {
+                Some((*has_listener, kind.code()))
+            }
+            _ => None,
+        })
+        .collect();
+    // mousemove still has h2 registered -> no 1->0 transition, no op emitted.
+    assert!(
+        !kinds.iter().any(|&(present, code)| !present && code == 7),
+        "removing one of two mousemove listeners should not emit, got {kinds:?}"
+    );
+    // mouseup had only h1 -> 1->0 transition, must emit kind=6 (MouseUp) absent.
+    assert!(
+        kinds.iter().any(|&(present, code)| !present && code == 6),
+        "expected a SetListener(kind=6 MouseUp, absent) op, got {kinds:?}"
+    );
 }
