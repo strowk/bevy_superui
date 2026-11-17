@@ -14,6 +14,10 @@
   var ROOT_ID = 1;
   var ELEMENT_NODE = 1;
   var TEXT_NODE = 3;
+  // Sentinels for document/window as bubble-chain targets, far above nextId
+  // (which starts at 2) so they never collide with a real node's jsId.
+  var DOC_ID = 0xfffffffe;
+  var WIN_ID = 0xffffffff;
 
   // ---- op queue + string-intern pool (mirrors OpBatch: intern dedups) --------
   var pendingOps = [];      // each: { op: <opcode u8>, a: [<u32 operands...>] }
@@ -581,6 +585,30 @@
       return root;
     },
   };
+
+  // ---- document / window as bubble-chain targets ----------------------------
+  // document and window sit above `root` in the dispatch ancestor walk (see
+  // `dispatch` below), so a bubbling event dispatched at any element reaches
+  // their listeners with `event.target` still the original element — not a
+  // separate dispatch. They are never children in the op-wire (no CreateElement,
+  // no InsertBefore): only this JS-side parentNode wiring links them in, so the
+  // applier's structural tree is untouched. `window` is `globalThis` itself, so
+  // `window.addEventListener` coexists with `window` being the global object.
+  document._nid = DOC_ID;
+  document._listeners = null;
+  document.addEventListener = proto.addEventListener;
+  document.removeEventListener = proto.removeEventListener;
+  nodesById.set(DOC_ID, document);
+
+  globalThis._nid = WIN_ID;
+  globalThis._listeners = null;
+  globalThis.addEventListener = proto.addEventListener;
+  globalThis.removeEventListener = proto.removeEventListener;
+  nodesById.set(WIN_ID, globalThis);
+
+  root.parentNode = document;
+  document.parentNode = globalThis;
+  globalThis.parentNode = null;
 
   // ---- W3C event dispatch (capture -> target -> bubble) ----------------------
   //
