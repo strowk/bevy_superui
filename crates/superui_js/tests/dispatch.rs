@@ -278,6 +278,42 @@ fn mouse_event_exposes_coordinates() {
 }
 
 #[test]
+fn bubbled_event_keeps_element_target() {
+    let mut ctx = ctx();
+    eval(
+        &mut ctx,
+        r#"
+        globalThis.a = document.createElement('div');
+        a.setAttribute('id', 'a');
+        __ss_root.appendChild(a);
+        globalThis.hit = null;
+        document.addEventListener('mouseup', function (e) { hit = e.target && e.target.getAttribute('id'); });
+        "#,
+    );
+    let _ = eval_bool(
+        &mut ctx,
+        "__ss_dispatch(a._nid, 'mouseup', null, true, true, {clientX: 0, clientY: 0, button: 0, buttons: 0})",
+    );
+    assert_eq!(eval_string(&mut ctx, "hit"), "a");
+}
+
+#[test]
+fn non_bubbling_event_does_not_reach_document() {
+    let mut ctx = ctx();
+    eval(
+        &mut ctx,
+        r#"
+        globalThis.a = document.createElement('div');
+        __ss_root.appendChild(a);
+        globalThis.n = 0;
+        document.addEventListener('mouseenter', function () { n++; });
+        "#,
+    );
+    let _ = eval_bool(&mut ctx, "__ss_dispatch(a._nid, 'mouseenter', null, false, true)");
+    assert_eq!(eval_number(&mut ctx, "n"), 0.0);
+}
+
+#[test]
 fn addeventlistener_emits_kind_per_type() {
     let mut ctx = ctx();
     eval(
