@@ -50,6 +50,18 @@ pub fn new_engine(dom: Rc<RefCell<Dom>>) -> Box<dyn JsEngine> {
     Box::new(WebEngine::new(dom))
 }
 
+/// Mouse coordinates and button state carried through [`JsEngine::dispatch_event`]
+/// for pointer event types (`mousedown`/`mouseup`/`mousemove`/...). `button` is
+/// the W3C `MouseEvent.button` of the event itself; `buttons` is the bitmask of
+/// all buttons currently held.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct MousePayload {
+    pub client_x: f32,
+    pub client_y: f32,
+    pub button: u8,
+    pub buttons: u8,
+}
+
 /// The coarse boundary the Bevy layers consume so they never name a concrete
 /// engine. JS-side mutations arrive as an [`OpBatch`]; nodes are addressed by
 /// [`JsNodeId`].
@@ -58,13 +70,16 @@ pub trait JsEngine {
     fn eval(&mut self, script: &str) -> Result<(), String>;
 
     /// Dispatch a DOM event of `ty` at the shadow-DOM node `target` (W3C
-    /// capture→target→bubble, run entirely in JS). Returns whether
+    /// capture→target→bubble, run entirely in JS). `mouse` carries
+    /// `clientX`/`clientY`/`button`/`buttons` onto the event object for pointer
+    /// event types; `None` leaves them `undefined`. Returns whether
     /// `preventDefault()` was called.
     fn dispatch_event(
         &mut self,
         target: JsNodeId,
         ty: &str,
         key: Option<&str>,
+        mouse: Option<MousePayload>,
         bubbles: bool,
         cancelable: bool,
     ) -> bool;

@@ -274,7 +274,9 @@ impl UiRuntime {
             return false;
         };
         self.sync_live_props_to_shadow();
-        let prevented = self.engine.dispatch_event(js, ty, key, bubbles, cancelable);
+        // Task 6 threads a real mouse payload through here; for now the dispatch
+        // ABI's new `mouse` param is always `None`.
+        let prevented = self.engine.dispatch_event(js, ty, key, None, bubbles, cancelable);
         self.pump();
         prevented
     }

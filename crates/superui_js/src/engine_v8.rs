@@ -198,17 +198,27 @@ impl JsEngine for V8Engine {
         target: crate::JsNodeId,
         ty: &str,
         key: Option<&str>,
+        mouse: Option<crate::MousePayload>,
         bubbles: bool,
         cancelable: bool,
     ) -> bool {
         let handle = self.tokio.handle().clone();
         let _rt = handle.enter();
+        let mouse_arg = mouse.map_or(Value::Null, |m| {
+            json!({
+                "clientX": m.client_x,
+                "clientY": m.client_y,
+                "button": m.button,
+                "buttons": m.buttons,
+            })
+        });
         let args = [
             json!(target),
             json!(ty),
             key.map_or(Value::Null, |k| json!(k)),
             json!(bubbles),
             json!(cancelable),
+            mouse_arg,
         ];
         match self.call_global::<bool>("__ss_dispatch", &args) {
             Ok(Some(prevented)) => prevented,

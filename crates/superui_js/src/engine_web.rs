@@ -131,19 +131,29 @@ impl JsEngine for WebEngine {
         target: crate::JsNodeId,
         ty: &str,
         key: Option<&str>,
+        mouse: Option<crate::MousePayload>,
         bubbles: bool,
         cancelable: bool,
     ) -> bool {
         let Some(dispatch) = scope_fn(&self.scope, "__ss_dispatch") else {
             return false;
         };
-        // __ss_dispatch takes 5 args — past call3 — so apply an argument array.
+        let mouse_arg = mouse.map_or(JsValue::null(), |m| {
+            let obj = Object::new();
+            let _ = Reflect::set(&obj, &JsValue::from_str("clientX"), &JsValue::from_f64(m.client_x as f64));
+            let _ = Reflect::set(&obj, &JsValue::from_str("clientY"), &JsValue::from_f64(m.client_y as f64));
+            let _ = Reflect::set(&obj, &JsValue::from_str("button"), &JsValue::from_f64(m.button as f64));
+            let _ = Reflect::set(&obj, &JsValue::from_str("buttons"), &JsValue::from_f64(m.buttons as f64));
+            obj.into()
+        });
+        // __ss_dispatch takes 6 args — past call3 — so apply an argument array.
         let args = Array::new();
         args.push(&JsValue::from(target));
         args.push(&JsValue::from_str(ty));
         args.push(&key.map_or(JsValue::null(), JsValue::from_str));
         args.push(&JsValue::from_bool(bubbles));
         args.push(&JsValue::from_bool(cancelable));
+        args.push(&mouse_arg);
         match Reflect::apply(&dispatch, &JsValue::undefined(), &args) {
             Ok(ret) => ret.as_bool().unwrap_or(false),
             Err(e) => {
