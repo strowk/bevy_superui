@@ -4,6 +4,41 @@ pub type JsNodeId = u32;
 /// Index into an [`OpBatch`]'s string pool.
 pub type StrId = u32;
 
+/// Which DOM event type a [`Op::SetListener`] change is reporting on.
+/// Codes are part of the op-wire format and must stay stable.
+#[derive(PartialEq, Debug, Clone, Copy)]
+pub enum ListenerKind {
+    Other = 0,
+    MouseOver = 1,
+    MouseOut = 2,
+    MouseEnter = 3,
+    MouseLeave = 4,
+    MouseDown = 5,
+    MouseUp = 6,
+    MouseMove = 7,
+}
+
+impl ListenerKind {
+    /// Maps a wire code back to a [`ListenerKind`], falling back to `Other`
+    /// for any code not currently assigned.
+    pub fn from_code(code: u8) -> ListenerKind {
+        match code {
+            1 => ListenerKind::MouseOver,
+            2 => ListenerKind::MouseOut,
+            3 => ListenerKind::MouseEnter,
+            4 => ListenerKind::MouseLeave,
+            5 => ListenerKind::MouseDown,
+            6 => ListenerKind::MouseUp,
+            7 => ListenerKind::MouseMove,
+            _ => ListenerKind::Other,
+        }
+    }
+
+    pub fn code(self) -> u8 {
+        self as u8
+    }
+}
+
 /// A single recorded DOM mutation, referencing nodes by [`JsNodeId`] and
 /// strings by [`StrId`] into the owning [`OpBatch`]'s pool.
 #[derive(PartialEq, Debug, Clone)]
@@ -20,7 +55,7 @@ pub enum Op {
     RemoveChild { parent: JsNodeId, node: JsNodeId },
     /// Node's total listener count crossed 0<->1. The render mirror drives its
     /// picking policy off this "is the node interactive at all" marker.
-    SetListener { id: JsNodeId, has_listener: bool },
+    SetListener { id: JsNodeId, kind: ListenerKind, has_listener: bool },
 }
 
 impl Op {
@@ -53,7 +88,7 @@ impl Op {
             6 => Some(2), // SetText { id, data }
             7 => Some(3), // InsertBefore { parent, node, reference }
             8 => Some(2), // RemoveChild { parent, node }
-            9 => Some(2), // SetListener { id, has_listener }
+            9 => Some(3), // SetListener { id, has_listener, kind }
             _ => None,
         }
     }
@@ -69,7 +104,7 @@ impl Op {
             Op::SetText { id, data } => [id, data, 0],
             Op::InsertBefore { parent, node, reference } => [parent, node, reference],
             Op::RemoveChild { parent, node } => [parent, node, 0],
-            Op::SetListener { id, has_listener } => [id, has_listener as u32, 0],
+            Op::SetListener { id, kind, has_listener } => [id, has_listener as u32, kind.code() as u32],
         };
         let n = Self::arity(self.opcode()).unwrap() as usize;
         for &operand in &operands[..n] {
@@ -105,7 +140,11 @@ impl Op {
             6 => Op::SetText { id: operands[0], data: operands[1] },
             7 => Op::InsertBefore { parent: operands[0], node: operands[1], reference: operands[2] },
             8 => Op::RemoveChild { parent: operands[0], node: operands[1] },
-            9 => Op::SetListener { id: operands[0], has_listener: operands[1] != 0 },
+            9 => Op::SetListener {
+                id: operands[0],
+                has_listener: operands[1] != 0,
+                kind: ListenerKind::from_code(operands[2] as u8),
+            },
             _ => unreachable!("opcode range checked by caller"),
         }
     }
@@ -306,8 +345,8 @@ mod tests {
         b.ops.push(Op::SetText { id: 3, data: v });
         b.ops.push(Op::InsertBefore { parent: 1, node: 2, reference: 3 });
         b.ops.push(Op::RemoveChild { parent: 1, node: 3 });
-        b.ops.push(Op::SetListener { id: 2, has_listener: true });
-        b.ops.push(Op::SetListener { id: 2, has_listener: false });
+        b.ops.push(Op::SetListener { id: 2, kind: ListenerKind::Other, has_listener: true });
+        b.ops.push(Op::SetListener { id: 2, kind: ListenerKind::Other, has_listener: false });
         let back = OpBatch::decode(&b.encode()).unwrap();
         assert_eq!(back.ops, b.ops);
     }
@@ -315,10 +354,20 @@ mod tests {
     #[test]
     fn set_listener_roundtrips_both_states() {
         let mut b = OpBatch::default();
-        b.ops.push(Op::SetListener { id: 7, has_listener: true });
-        b.ops.push(Op::SetListener { id: 7, has_listener: false });
+        b.ops.push(Op::SetListener { id: 7, kind: ListenerKind::Other, has_listener: true });
+        b.ops.push(Op::SetListener { id: 7, kind: ListenerKind::Other, has_listener: false });
         let back = OpBatch::decode(&b.encode()).unwrap();
         assert_eq!(back.ops, b.ops);
+    }
+
+    #[test]
+    fn set_listener_carries_kind() {
+        let mut b = OpBatch::default();
+        b.ops.push(Op::SetListener { id: 7, kind: ListenerKind::MouseMove, has_listener: true });
+        b.ops.push(Op::SetListener { id: 7, kind: ListenerKind::Other, has_listener: false });
+        let bytes = b.encode();
+        let decoded = OpBatch::decode(&bytes).expect("roundtrip");
+        assert_eq!(decoded.ops, b.ops);
     }
 
     #[test]
