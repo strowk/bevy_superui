@@ -3,7 +3,7 @@
 //! frame settles.
 
 use bevy::prelude::*;
-use superui_bridge::{click_effect, PendingDomEvent, PendingDomEvents, UiRuntime};
+use superui_bridge::{click_effect, MousePayload, PendingDomEvent, PendingDomEvents, UiRuntime};
 use superui_dom::NodeId;
 
 use crate::abi::{self, RegisteredTest};
@@ -24,6 +24,12 @@ const ACTION_TIMEOUT_ITERS: usize = 120;
 enum PendingActionKind {
     Click,
     Hover,
+    MouseDown,
+    MouseUp,
+    MoveTo,
+    /// Composite drag: `mousedown` on the resolved locator, then the `MoveTo`
+    /// hover+move bookkeeping and `mouseup` on `to`.
+    DragTo { to: LocatorSpec },
     Fill { text: String },
     Press { key: String },
 }
@@ -113,6 +119,10 @@ fn run_one(app: &mut App, test: &RegisteredTest, opts: &RunOptions) -> TestResul
     let mut expects: Vec<ExpectInFlight> = Vec::new();
     // Actions whose locator matched zero nodes: auto-waiting for it to resolve.
     let mut pending_actions: Vec<ActionInFlight> = Vec::new();
+    // The node last faithfully hovered (for out/leave bookkeeping on the next
+    // hover/moveTo), mirroring the browser's hover transition. `None` until
+    // the first hover/moveTo/dragTo of the test.
+    let mut last_hovered: Option<NodeId> = None;
 
     for _ in 0..MAX_ITERS_PER_TEST {
         // 1. Drain newly enqueued commands and start executing them.
@@ -134,6 +144,7 @@ fn run_one(app: &mut App, test: &RegisteredTest, opts: &RunOptions) -> TestResul
                         action,
                         &mut inflight,
                         &mut pending_actions,
+                        &mut last_hovered,
                     );
                 }
                 Command::Hover { locator } => {
@@ -146,6 +157,60 @@ fn run_one(app: &mut App, test: &RegisteredTest, opts: &RunOptions) -> TestResul
                         action,
                         &mut inflight,
                         &mut pending_actions,
+                        &mut last_hovered,
+                    );
+                }
+                Command::MouseDown { locator } => {
+                    let action = format!("mouseDown {}", locator_label(locator));
+                    start_action(
+                        app,
+                        q.id,
+                        locator.clone(),
+                        PendingActionKind::MouseDown,
+                        action,
+                        &mut inflight,
+                        &mut pending_actions,
+                        &mut last_hovered,
+                    );
+                }
+                Command::MouseUp { locator } => {
+                    let action = format!("mouseUp {}", locator_label(locator));
+                    start_action(
+                        app,
+                        q.id,
+                        locator.clone(),
+                        PendingActionKind::MouseUp,
+                        action,
+                        &mut inflight,
+                        &mut pending_actions,
+                        &mut last_hovered,
+                    );
+                }
+                Command::MoveTo { locator } => {
+                    let action = format!("moveTo {}", locator_label(locator));
+                    start_action(
+                        app,
+                        q.id,
+                        locator.clone(),
+                        PendingActionKind::MoveTo,
+                        action,
+                        &mut inflight,
+                        &mut pending_actions,
+                        &mut last_hovered,
+                    );
+                }
+                Command::DragTo { from, to } => {
+                    let action =
+                        format!("dragTo {} -> {}", locator_label(from), locator_label(to));
+                    start_action(
+                        app,
+                        q.id,
+                        from.clone(),
+                        PendingActionKind::DragTo { to: to.clone() },
+                        action,
+                        &mut inflight,
+                        &mut pending_actions,
+                        &mut last_hovered,
                     );
                 }
                 Command::Fill { locator, text } => {
@@ -158,6 +223,7 @@ fn run_one(app: &mut App, test: &RegisteredTest, opts: &RunOptions) -> TestResul
                         action,
                         &mut inflight,
                         &mut pending_actions,
+                        &mut last_hovered,
                     );
                 }
                 Command::Press { locator, key } => {
@@ -170,6 +236,7 @@ fn run_one(app: &mut App, test: &RegisteredTest, opts: &RunOptions) -> TestResul
                         action,
                         &mut inflight,
                         &mut pending_actions,
+                        &mut last_hovered,
                     );
                 }
                 Command::Expect {
@@ -238,7 +305,7 @@ fn run_one(app: &mut App, test: &RegisteredTest, opts: &RunOptions) -> TestResul
         let mut still_actions = Vec::new();
         for mut a in pending_actions.drain(..) {
             if !resolve_nodes(app, &a.locator).is_empty() {
-                perform_action(app, &a.locator, &a.kind);
+                perform_action(app, &a.locator, &a.kind, &mut last_hovered);
                 inflight.push((a.id, SETTLE_TICKS, a.action));
                 continue;
             }
@@ -411,6 +478,7 @@ fn start_action(
     action: String,
     inflight: &mut Vec<(u64, usize, String)>,
     pending_actions: &mut Vec<ActionInFlight>,
+    last_hovered: &mut Option<NodeId>,
 ) {
     if resolve_nodes(app, &locator).is_empty() {
         pending_actions.push(ActionInFlight {
@@ -421,20 +489,89 @@ fn start_action(
             action,
         });
     } else {
-        perform_action(app, &locator, &kind);
+        perform_action(app, &locator, &kind, last_hovered);
         inflight.push((id, SETTLE_TICKS, action));
     }
 }
 
 /// Dispatch the concrete input effect for an action whose locator is known to
 /// resolve to at least one node.
-fn perform_action(app: &mut App, spec: &LocatorSpec, kind: &PendingActionKind) {
+fn perform_action(
+    app: &mut App,
+    spec: &LocatorSpec,
+    kind: &PendingActionKind,
+    last_hovered: &mut Option<NodeId>,
+) {
     match kind {
         PendingActionKind::Click => dispatch(app, spec, "click"),
-        PendingActionKind::Hover => dispatch(app, spec, "mouseover"),
+        PendingActionKind::Hover => hover(app, spec, last_hovered),
+        PendingActionKind::MouseDown => mouse_dispatch(app, spec, "mousedown", 1),
+        PendingActionKind::MouseUp => mouse_dispatch(app, spec, "mouseup", 1),
+        PendingActionKind::MoveTo => {
+            hover(app, spec, last_hovered);
+            mouse_dispatch(app, spec, "mousemove", 1);
+        }
+        PendingActionKind::DragTo { to } => {
+            mouse_dispatch(app, spec, "mousedown", 1);
+            hover(app, to, last_hovered);
+            mouse_dispatch(app, to, "mousemove", 1);
+            mouse_dispatch(app, to, "mouseup", 1);
+        }
         PendingActionKind::Fill { text } => fill(app, spec, text),
         PendingActionKind::Press { key } => press(app, spec, key),
     }
+}
+
+/// Push a single synthetic mouse DOM event at `node`, carrying the placeholder
+/// `MousePayload` the test engine uses everywhere: `getBoundingClientRect`
+/// returns zeros today, so there is no real screen position to compute. Drop
+/// resolution in specs keys off `event.target` (which the locator controls),
+/// not coordinates, so the zeroed `clientX`/`clientY` cost nothing.
+fn push_mouse_event(app: &mut App, node: NodeId, event: &str, bubbles: bool, buttons: u8) {
+    let mut e = PendingDomEvent::new(node, event).with_mouse(MousePayload {
+        client_x: 0.0,
+        client_y: 0.0,
+        button: 0,
+        buttons,
+    });
+    e.bubbles = bubbles;
+    app.world_mut()
+        .resource_mut::<PendingDomEvents>()
+        .0
+        .push(e);
+}
+
+/// Resolve `spec`'s first node and push a single bubbling mouse event
+/// (`mousedown`/`mouseup`/`mousemove`) at it with the given `buttons` mask.
+/// No-op if the locator resolves to nothing.
+fn mouse_dispatch(app: &mut App, spec: &LocatorSpec, event: &str, buttons: u8) {
+    let Some(&node) = resolve_nodes(app, spec).first() else {
+        return;
+    };
+    push_mouse_event(app, node, event, true, buttons);
+}
+
+/// Faithful hover transition against `last_hovered`: if the previously
+/// hovered node differs from the one `spec` resolves to, fire its
+/// `mouseout`+`mouseleave`; then fire the newly hovered node's
+/// `mouseover`+`mouseenter` and record it as the new `last_hovered`. Mirrors
+/// the real pointer's hover bookkeeping (see
+/// `superui_bridge::mouse::mouse_events_system`), driven here by locator
+/// identity instead of actual pointer movement. No-op if the locator resolves
+/// to nothing.
+fn hover(app: &mut App, spec: &LocatorSpec, last_hovered: &mut Option<NodeId>) {
+    let Some(&node) = resolve_nodes(app, spec).first() else {
+        return;
+    };
+    if let Some(prev) = *last_hovered {
+        if prev != node {
+            push_mouse_event(app, prev, "mouseout", true, 0);
+            push_mouse_event(app, prev, "mouseleave", false, 0);
+        }
+    }
+    push_mouse_event(app, node, "mouseover", true, 0);
+    push_mouse_event(app, node, "mouseenter", false, 0);
+    *last_hovered = Some(node);
 }
 
 fn dispatch(app: &mut App, spec: &LocatorSpec, event: &str) {
