@@ -124,6 +124,19 @@ fn set_hover(app: &mut App, entities: &[Entity]) {
     app.world_mut().insert_resource(HoverMap(map));
 }
 
+/// Replace `HoverMap`'s `PointerId::Mouse` entry with `entries` (entity, depth)
+/// pairs — for simulating pass-through picking, where several ancestors are
+/// hovered at once at different depths.
+fn set_hover_with_depth(app: &mut App, entries: &[(Entity, f32)]) {
+    let mut inner = EntityHashMap::<HitData>::default();
+    for &(e, depth) in entries {
+        inner.insert(e, HitData::new(Entity::PLACEHOLDER, depth, None, None));
+    }
+    let mut map: HashMap<PointerId, EntityHashMap<HitData>> = HashMap::default();
+    map.insert(PointerId::Mouse, inner);
+    app.world_mut().insert_resource(HoverMap(map));
+}
+
 /// The ECS entity a DOM id resolves to (must already be reconciled).
 fn entity_of(app: &App, dom: &Rc<RefCell<superui_dom::Dom>>, id: &str) -> Entity {
     let node = dom.borrow().get_element_by_id(id).unwrap();
@@ -342,5 +355,47 @@ fn mousedown_only_does_no_move_or_hover_work() {
     assert!(
         app.world().resource::<PendingDomEvents>().0.is_empty(),
         "no hover-diff or move events may be enqueued while only mousedown is listened for"
+    );
+}
+
+/// `HoverMap`'s entry is an unordered map, and pass-through picking puts a
+/// whole non-blocking ancestor chain in it at once — so the button/move target
+/// has to be chosen by lowest `HitData.depth` (topmost), not "the first entry".
+#[test]
+fn mousedown_targets_the_topmost_hovered_node() {
+    let dom = Rc::new(RefCell::new(superui_html::parse_document(
+        "<div id='a'></div><div id='b'></div>",
+    )));
+    let mut app = mouse_test_app();
+    mount_mouse(&mut app, dom.clone());
+    app.update();
+
+    // A single document-level listener, so dispatch to the wrong target is
+    // still observable via `e.target.id` rather than silently matching
+    // whichever node happens to carry a listener.
+    app.world_mut().non_send_mut::<UiRuntime>().run_script(
+        "globalThis.downTarget = ''; \
+         document.addEventListener('mousedown', function(e){ globalThis.downTarget = e.target.id; });",
+    );
+
+    let a = entity_of(&app, &dom, "a");
+    let b = entity_of(&app, &dom, "b");
+    spawn_mouse_pointer(&mut app, Vec2::new(3.0, 3.0));
+    // Both hovered at once (as pass-through picking reports for a non-blocking
+    // ancestor chain); #b is the frontmost hit (lowest depth), #a is not.
+    set_hover_with_depth(&mut app, &[(a, 5.0), (b, 0.0)]);
+    app.update(); // seed
+
+    app.world_mut()
+        .resource_mut::<ButtonInput<MouseButton>>()
+        .press(MouseButton::Left);
+    app.update(); // button edge: mousedown must target #b
+
+    mirror(&mut app, "globalThis.downTarget", "data-down-target", "a");
+    let node = dom.borrow().get_element_by_id("a").unwrap();
+    assert_eq!(
+        dom.borrow().get_attribute(node, "data-down-target"),
+        Some("b"),
+        "mousedown must target the lowest-depth (topmost) hovered node"
     );
 }
