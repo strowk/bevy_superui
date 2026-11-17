@@ -138,7 +138,19 @@ function App() {
         <div
           id="floating-tile"
           class="tile floating"
-          style={`left: ${floatPos().x - 20}px; top: ${floatPos().y - 20}px`}
+          // Positive offset, not centered-on-cursor: with the cursor at
+          // (x, y) and this box's top-left at (x+12, y+12), the box sits
+          // down-right of the pointer and (x, y) itself lands OUTSIDE it.
+          // flair has no `pointer-events` (and there's no TSX way to mark a
+          // node non-hoverable), so every element reconciles to a hoverable
+          // Pickable — including this preview. If it were centered on the
+          // cursor (e.g. a `-20px` offset for a ~48px tile), it would be the
+          // topmost (depth-0) hit under the real pointer on `mouseup`,
+          // stealing `event.target` from the slot beneath it and making
+          // every real (non-test) drop silently fail: `onUp`'s `data-slot`
+          // walk would hit the preview's own ancestors (`#app`/root), find
+          // nothing, and bail before moving the item.
+          style={`left: ${floatPos().x + 12}px; top: ${floatPos().y + 12}px`}
         >
           {draggingItem() ? draggingItem().emoji : ""}
         </div>
