@@ -292,30 +292,35 @@
   };
 
   // ---- event listeners --------------------------------------------------------
-  // The listener table itself is JS-only, but a 0<->1 transition in the node's
-  // TOTAL listener count emits SetListener so the render mirror knows whether the
-  // node is interactive (its picking policy). The count is across all types.
-  function hasAnyListener(node) {
-    if (!node._listeners) return false;
-    var found = false;
-    node._listeners.forEach(function (arr) {
-      if (arr && arr.length) found = true;
-    });
-    return found;
+  // The listener table itself is JS-only, but a 0<->1 transition in a given
+  // event TYPE's per-node listener count emits SetListener with that type's
+  // kind code, so the render mirror knows which event kinds the node is
+  // interactive for (its picking policy unions kinds per node).
+  // Must match ListenerKind::code() in opwire/codec.rs.
+  function listenerKindCode(type) {
+    switch (type) {
+      case "mouseover": return 1;
+      case "mouseout": return 2;
+      case "mouseenter": return 3;
+      case "mouseleave": return 4;
+      case "mousedown": return 5;
+      case "mouseup": return 6;
+      case "mousemove": return 7;
+      default: return 0;
+    }
   }
 
   proto.addEventListener = function (type, fn, capture) {
     if (typeof fn !== "function") return;
     if (!this._listeners) this._listeners = new Map();
-    var had = hasAnyListener(this);
     var arr = this._listeners.get(type);
+    var before = arr ? arr.length : 0;
     if (!arr) {
       arr = [];
       this._listeners.set(type, arr);
     }
     arr.push({ fn: fn, capture: !!capture });
-    // Kind operand is a placeholder (Other=0) until per-type codes land.
-    if (!had) emit(OP_SET_LISTENER, [this._nid, 1, 0]);
+    if (before === 0) emit(OP_SET_LISTENER, [this._nid, 1, listenerKindCode(type)]);
   };
 
   proto.removeEventListener = function (type, fn, capture) {
@@ -326,7 +331,7 @@
     for (var i = 0; i < arr.length; i++) {
       if (arr[i].fn === fn && arr[i].capture === cap) {
         arr.splice(i, 1);
-        if (!hasAnyListener(this)) emit(OP_SET_LISTENER, [this._nid, 0, 0]);
+        if (arr.length === 0) emit(OP_SET_LISTENER, [this._nid, 0, listenerKindCode(type)]);
         return;
       }
     }
