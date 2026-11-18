@@ -43,6 +43,7 @@ use std::rc::Rc;
 
 use bevy::ecs::hierarchy::ChildOf;
 use bevy::ecs::system::RunSystemOnce;
+use bevy::input::keyboard::KeyCode;
 use bevy::input::mouse::MouseButton;
 use bevy::input::ButtonInput;
 use bevy::picking::hover::HoverMap;
@@ -71,6 +72,7 @@ fn world_with_runtime() -> World {
     world.insert_resource(MouseListenerIndex::default());
     world.insert_resource(HoverMap::default());
     world.insert_resource(ButtonInput::<MouseButton>::default());
+    world.insert_resource(ButtonInput::<KeyCode>::default());
     world.insert_resource(PendingDomEvents::default());
     world.insert_resource(PointerState::default());
 

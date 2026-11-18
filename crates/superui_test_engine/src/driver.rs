@@ -3,7 +3,9 @@
 //! frame settles.
 
 use bevy::prelude::*;
-use superui_bridge::{click_effect, MousePayload, PendingDomEvent, PendingDomEvents, UiRuntime};
+use superui_bridge::{
+    click_effect, Modifiers, MousePayload, PendingDomEvent, PendingDomEvents, UiRuntime,
+};
 use superui_dom::NodeId;
 
 use crate::abi::{self, RegisteredTest};
@@ -587,7 +589,7 @@ fn dispatch(app: &mut App, spec: &LocatorSpec, event: &str) {
         let rt = app.world_mut().remove_non_send::<UiRuntime>().expect("runtime");
         {
             let mut pending = app.world_mut().resource_mut::<PendingDomEvents>();
-            click_effect(&rt, node, &mut pending);
+            click_effect(&rt, node, Modifiers::default(), &mut pending);
         }
         app.world_mut().insert_non_send(rt);
         return;

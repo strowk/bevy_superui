@@ -16,7 +16,7 @@ pub use mount::{SuperUiPlugin, SuperUiRoot, SuperUiSubresources};
 // would also need its own engine feature picked to match `superui`'s).
 pub use superui_bridge::{
     click_effect, drain_dom_events_system, emit_bevy_inbox_system, reconcile_system, DomNode,
-    PendingDomEvent, PendingDomEvents, UiRuntime,
+    Modifiers, PendingDomEvent, PendingDomEvents, UiRuntime,
 };
 
 /// The HTML-shaped surface authors/games reach for.

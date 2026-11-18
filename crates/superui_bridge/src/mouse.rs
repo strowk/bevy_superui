@@ -48,6 +48,7 @@
 //! 6. Update `state` to this frame's hover/position/buttons.
 
 use bevy::ecs::hierarchy::ChildOf;
+use bevy::input::keyboard::KeyCode;
 use bevy::input::mouse::MouseButton;
 use bevy::input::ButtonInput;
 use bevy::math::Vec2;
@@ -58,7 +59,7 @@ use superui_dom::NodeId;
 use superui_js::opwire::MouseListenerCounts;
 use superui_js::MousePayload;
 
-use crate::events::{resolve_dom_node, PendingDomEvent, PendingDomEvents};
+use crate::events::{modifiers_now, resolve_dom_node, PendingDomEvent, PendingDomEvents};
 use crate::runtime::{DomNode, UiRuntime};
 
 /// W3C `MouseEvent.buttons` bit for the left/primary button.
@@ -190,6 +191,7 @@ pub fn mouse_events_system(
     mut pending: ResMut<PendingDomEvents>,
     mut state: ResMut<PointerState>,
     idx: Res<MouseListenerIndex>,
+    keys: Res<ButtonInput<KeyCode>>,
 ) {
     let counts = idx.0;
 
@@ -215,6 +217,7 @@ pub fn mouse_events_system(
 
     let position = mouse_position(&pointers);
     let mask = current_mask(&buttons);
+    let mods = modifiers_now(&keys);
 
     if !state.seeded {
         state.hover = current;
@@ -227,23 +230,28 @@ pub fn mouse_events_system(
     if counts.any_hover() {
         for &node in &state.hover {
             if !current.contains(&node) {
-                let mut out = PendingDomEvent::new(node, "mouseout").with_mouse(payload(position, mask, 0));
+                let mut out = PendingDomEvent::new(node, "mouseout")
+                    .with_mouse(payload(position, mask, 0))
+                    .with_modifiers(mods);
                 out.bubbles = true;
                 pending.0.push(out);
-                let mut leave =
-                    PendingDomEvent::new(node, "mouseleave").with_mouse(payload(position, mask, 0));
+                let mut leave = PendingDomEvent::new(node, "mouseleave")
+                    .with_mouse(payload(position, mask, 0))
+                    .with_modifiers(mods);
                 leave.bubbles = false;
                 pending.0.push(leave);
             }
         }
         for &node in &current {
             if !state.hover.contains(&node) {
-                let mut over =
-                    PendingDomEvent::new(node, "mouseover").with_mouse(payload(position, mask, 0));
+                let mut over = PendingDomEvent::new(node, "mouseover")
+                    .with_mouse(payload(position, mask, 0))
+                    .with_modifiers(mods);
                 over.bubbles = true;
                 pending.0.push(over);
-                let mut enter =
-                    PendingDomEvent::new(node, "mouseenter").with_mouse(payload(position, mask, 0));
+                let mut enter = PendingDomEvent::new(node, "mouseenter")
+                    .with_mouse(payload(position, mask, 0))
+                    .with_modifiers(mods);
                 enter.bubbles = false;
                 pending.0.push(enter);
             }
@@ -259,7 +267,11 @@ pub fn mouse_events_system(
                     if changed & bit != 0 {
                         let pressed = mask & bit != 0;
                         let ty = if pressed { "mousedown" } else { "mouseup" };
-                        pending.0.push(PendingDomEvent::new(top, ty).with_mouse(payload(position, mask, code)));
+                        pending.0.push(
+                            PendingDomEvent::new(top, ty)
+                                .with_mouse(payload(position, mask, code))
+                                .with_modifiers(mods),
+                        );
                     }
                 }
             }
@@ -268,7 +280,11 @@ pub fn mouse_events_system(
 
     if counts.any_move() && position != state.position {
         if let Some(top) = top {
-            pending.0.push(PendingDomEvent::new(top, "mousemove").with_mouse(payload(position, mask, 0)));
+            pending.0.push(
+                PendingDomEvent::new(top, "mousemove")
+                    .with_mouse(payload(position, mask, 0))
+                    .with_modifiers(mods),
+            );
         }
     }
 

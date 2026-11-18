@@ -13,6 +13,7 @@ use bevy::asset::AssetPlugin;
 use bevy::camera::NormalizedRenderTarget;
 use bevy::ecs::entity::EntityHashMap;
 use bevy::image::{ImagePlugin, TextureAtlasPlugin};
+use bevy::input::keyboard::KeyCode;
 use bevy::input::mouse::MouseButton;
 use bevy::input::{ButtonInput, InputPlugin};
 use bevy::math::Vec2;
@@ -262,6 +263,65 @@ fn mousedown_up_dispatch() {
     mirror(&mut app, "globalThis.upButton", "data-up-button", "a");
     assert_eq!(dom.borrow().get_attribute(node, "data-ups"), Some("1"));
     assert_eq!(dom.borrow().get_attribute(node, "data-up-button"), Some("0"));
+}
+
+/// `mouse_events_system` snapshots the live `ButtonInput<KeyCode>` at enqueue
+/// time, so a `mousedown` fired while Shift is held carries `shiftKey` through
+/// to the JS listener, and one fired with no modifier held does not.
+#[test]
+fn mousedown_carries_modifier_state() {
+    let dom = Rc::new(RefCell::new(superui_html::parse_document(
+        "<div id='a'></div>",
+    )));
+    let mut app = mouse_test_app();
+    mount_mouse(&mut app, dom.clone());
+    app.update();
+
+    app.world_mut().non_send_mut::<UiRuntime>().run_script(
+        "globalThis.shift = null; \
+         document.getElementById('a').addEventListener('mousedown', function(e){ \
+           globalThis.shift = e.shiftKey; });",
+    );
+
+    let a = entity_of(&app, &dom, "a");
+    spawn_mouse_pointer(&mut app, Vec2::new(2.0, 2.0));
+    set_hover(&mut app, &[a]);
+    app.update(); // seed
+
+    // Unmodified press: shiftKey must read false.
+    app.world_mut()
+        .resource_mut::<ButtonInput<MouseButton>>()
+        .press(MouseButton::Left);
+    app.update(); // button edge: mousedown (no modifier)
+
+    mirror(&mut app, "globalThis.shift", "data-shift", "a");
+    let node = dom.borrow().get_element_by_id("a").unwrap();
+    assert_eq!(
+        dom.borrow().get_attribute(node, "data-shift"),
+        Some("false"),
+        "an unmodified mousedown must carry shiftKey=false"
+    );
+
+    app.world_mut()
+        .resource_mut::<ButtonInput<MouseButton>>()
+        .release(MouseButton::Left);
+    app.update(); // button edge: mouseup
+
+    // Hold Shift, then press again: shiftKey must read true.
+    app.world_mut()
+        .resource_mut::<ButtonInput<KeyCode>>()
+        .press(KeyCode::ShiftLeft);
+    app.world_mut()
+        .resource_mut::<ButtonInput<MouseButton>>()
+        .press(MouseButton::Left);
+    app.update(); // button edge: mousedown (Shift held)
+
+    mirror(&mut app, "globalThis.shift", "data-shift", "a");
+    assert_eq!(
+        dom.borrow().get_attribute(node, "data-shift"),
+        Some("true"),
+        "a mousedown fired while Shift is held must carry shiftKey=true"
+    );
 }
 
 #[test]
