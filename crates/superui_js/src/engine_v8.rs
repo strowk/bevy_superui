@@ -198,27 +198,40 @@ impl JsEngine for V8Engine {
         target: crate::JsNodeId,
         ty: &str,
         key: Option<&str>,
-        mouse: Option<crate::MousePayload>,
+        init: crate::EventInit,
         bubbles: bool,
         cancelable: bool,
     ) -> bool {
         let handle = self.tokio.handle().clone();
         let _rt = handle.enter();
-        let mouse_arg = mouse.map_or(Value::Null, |m| {
-            json!({
-                "clientX": m.client_x,
-                "clientY": m.client_y,
-                "button": m.button,
-                "buttons": m.buttons,
-            })
-        });
+        let init_arg = if init.mouse.is_none() && init.modifiers.is_none() {
+            Value::Null
+        } else {
+            let mut o = serde_json::Map::new();
+            if let Some(m) = init.mouse {
+                o.insert("clientX".into(), json!(m.client_x));
+                o.insert("clientY".into(), json!(m.client_y));
+                o.insert("button".into(), json!(m.button));
+                o.insert("buttons".into(), json!(m.buttons));
+            }
+            if let Some(md) = init.modifiers {
+                o.insert(
+                    "modifiers".into(),
+                    json!({
+                        "shiftKey": md.shift, "ctrlKey": md.ctrl,
+                        "altKey": md.alt, "metaKey": md.meta,
+                    }),
+                );
+            }
+            Value::Object(o)
+        };
         let args = [
             json!(target),
             json!(ty),
             key.map_or(Value::Null, |k| json!(k)),
             json!(bubbles),
             json!(cancelable),
-            mouse_arg,
+            init_arg,
         ];
         match self.call_global::<bool>("__ss_dispatch", &args) {
             Ok(Some(prevented)) => prevented,

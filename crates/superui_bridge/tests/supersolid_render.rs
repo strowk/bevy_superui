@@ -55,7 +55,7 @@ fn supersolid_click_updates_reconciled_text() {
             let d = dom.borrow();
             d.query_selector(d.document(), "button").unwrap()
         };
-        rt.dispatch_dom_event(btn, "click", None, None, true, true);
+        rt.dispatch_dom_event(btn, "click", None, Default::default(), true, true);
         rt.dirty = true; // mirror the input system's post-dispatch dirtying
     }
     app.update(); // reconcile the post-click DOM

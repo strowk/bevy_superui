@@ -267,7 +267,7 @@ impl UiRuntime {
         node: NodeId,
         ty: &str,
         key: Option<&str>,
-        mouse: Option<superui_js::MousePayload>,
+        init: superui_js::EventInit,
         bubbles: bool,
         cancelable: bool,
     ) -> bool {
@@ -275,7 +275,7 @@ impl UiRuntime {
             return false;
         };
         self.sync_live_props_to_shadow();
-        let prevented = self.engine.dispatch_event(js, ty, key, mouse, bubbles, cancelable);
+        let prevented = self.engine.dispatch_event(js, ty, key, init, bubbles, cancelable);
         self.pump();
         prevented
     }

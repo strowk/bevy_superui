@@ -69,7 +69,7 @@ fn dispatch_reports_prevent_default_and_fills_outbox() {
     let div = created_id(&e.flush_ops(), "div");
 
     // preventDefault() was called and the event is cancelable → true.
-    assert!(e.dispatch_event(div, "click", None, None, true, true));
+    assert!(e.dispatch_event(div, "click", None, Default::default(), true, true));
 
     assert_eq!(e.drain_outbox(), vec![("clicked".to_string(), json!({"id": 1}))]);
     // Draining leaves the outbox empty.

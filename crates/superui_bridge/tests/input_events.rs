@@ -8,8 +8,8 @@ use std::rc::Rc;
 
 use bevy::prelude::*;
 use superui_bridge::{
-    click_effect, drain_dom_events_system, on_pointer_click, MousePayload, PendingDomEvent,
-    PendingDomEvents, UiRuntime,
+    click_effect, drain_dom_events_system, on_pointer_click, Modifiers, MousePayload,
+    PendingDomEvent, PendingDomEvents, UiRuntime,
 };
 
 /// Register the full input pipeline on top of the base harness.
@@ -100,6 +100,42 @@ fn mouse_payload_on_pending_event_reaches_the_js_listener() {
     );
     assert_eq!(dom.borrow().get_attribute(node, "data-x"), Some("12"));
     assert_eq!(dom.borrow().get_attribute(node, "data-y"), Some("34"));
+}
+
+/// A `PendingDomEvent` carrying `Modifiers` reaches the JS listener's
+/// `MouseEvent.shiftKey`/`metaKey`.
+#[test]
+fn modifiers_on_pending_event_reach_the_js_listener() {
+    let dom = Rc::new(RefCell::new(superui_html::parse_document(
+        "<div id='b'>hi</div>",
+    )));
+    let mut app = test_app();
+    let _root = mount_with_input(&mut app, dom.clone());
+
+    app.world_mut().non_send_mut::<UiRuntime>().run_script(
+        "globalThis.seen = {}; \
+         document.getElementById('b').addEventListener('mousedown', function(e) { \
+           globalThis.seen.shift = e.shiftKey; globalThis.seen.meta = e.metaKey; \
+         });",
+    );
+    app.update();
+
+    let node = dom.borrow().get_element_by_id("b").unwrap();
+    app.world_mut().resource_mut::<PendingDomEvents>().0.push(
+        PendingDomEvent::new(node, "mousedown").with_modifiers(Modifiers {
+            shift: true,
+            meta: true,
+            ..Default::default()
+        }),
+    );
+    app.update();
+
+    app.world_mut().non_send_mut::<UiRuntime>().run_script(
+        "document.getElementById('b').setAttribute('data-s', String(globalThis.seen.shift)); \
+         document.getElementById('b').setAttribute('data-m', String(globalThis.seen.meta));",
+    );
+    assert_eq!(dom.borrow().get_attribute(node, "data-s"), Some("true"));
+    assert_eq!(dom.borrow().get_attribute(node, "data-m"), Some("true"));
 }
 
 /// Test 3: keyboard events update a text input's DOM value and fire `input`.

@@ -9,7 +9,7 @@ use bevy::picking::events::{Click, Pointer};
 use bevy::prelude::*;
 use bevy::text::EditableText;
 use superui_dom::NodeId;
-use superui_js::MousePayload;
+use superui_js::{EventInit, Modifiers, MousePayload};
 
 use crate::runtime::{DomNode, PlaceholderText, UiRuntime};
 
@@ -25,6 +25,9 @@ pub struct PendingDomEvent {
     /// `clientX`/`clientY`/`button`/`buttons`, when this event carries a mouse
     /// payload (e.g. `mousedown`/`mousemove`). `None` for non-pointer events.
     pub mouse: Option<MousePayload>,
+    /// Modifier-key state for a mouse or keyboard event; `None` carries no
+    /// `*Key` properties (focus/change/input).
+    pub modifiers: Option<Modifiers>,
     pub bubbles: bool,
     pub cancelable: bool,
 }
@@ -36,6 +39,7 @@ impl PendingDomEvent {
             type_: type_.to_string(),
             key: None,
             mouse: None,
+            modifiers: None,
             bubbles: true,
             cancelable: true,
         }
@@ -52,6 +56,13 @@ impl PendingDomEvent {
     /// pointer event (`mousedown`/`mouseup`/`mousemove`/…).
     pub fn with_mouse(mut self, m: MousePayload) -> Self {
         self.mouse = Some(m);
+        self
+    }
+
+    /// Attach [`Modifiers`] (`shiftKey`/`ctrlKey`/`altKey`/`metaKey`) to a mouse
+    /// or keyboard event.
+    pub fn with_modifiers(mut self, m: Modifiers) -> Self {
+        self.modifiers = Some(m);
         self
     }
 }
@@ -321,7 +332,7 @@ pub fn keyboard_events_system(
         };
         let type_ = if pressed { "keydown" } else { "keyup" };
         let kn = key_name(&key, code);
-        rt.dispatch_dom_event(focused, type_, Some(&kn), None, true, true);
+        rt.dispatch_dom_event(focused, type_, Some(&kn), EventInit::default(), true, true);
         any = true;
         if !pressed {
             continue;
@@ -350,13 +361,13 @@ pub fn keyboard_events_system(
         // Enter/Space activates a focused button; Space toggles a focused
         // checkbox — the browser's default keyboard activation.
         if is_button && matches!(code, KeyCode::Enter | KeyCode::Space) {
-            rt.dispatch_dom_event(focused, "click", None, None, true, true);
+            rt.dispatch_dom_event(focused, "click", None, EventInit::default(), true, true);
             continue;
         }
         if is_checkbox && code == KeyCode::Space {
             let now = !rt.dom.borrow().checked(focused);
             rt.dom.borrow_mut().set_checked(focused, now);
-            rt.dispatch_dom_event(focused, "change", None, None, true, false);
+            rt.dispatch_dom_event(focused, "change", None, EventInit::default(), true, false);
         }
     }
     if any {
@@ -431,7 +442,14 @@ pub fn drain_dom_events_system(world: &mut World) {
         return;
     };
     for e in queued {
-        rt.dispatch_dom_event(e.target, &e.type_, e.key.as_deref(), e.mouse, e.bubbles, e.cancelable);
+        rt.dispatch_dom_event(
+            e.target,
+            &e.type_,
+            e.key.as_deref(),
+            EventInit { mouse: e.mouse, modifiers: e.modifiers },
+            e.bubbles,
+            e.cancelable,
+        );
     }
     rt.dirty = true;
     world.insert_non_send(rt);
