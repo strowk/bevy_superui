@@ -65,7 +65,7 @@ supported. Tier T0–T3. **Since** = the superui version a capability first ship
 | `event.key` | ✅ | T1 | 0.1 | key identity, e.g. `"Enter"`, `"Backspace"`, `"a"` |
 | `event.keyCode` / `code` | 🟡 | T1 | — | not exposed yet — use `event.key` |
 | `event.clientX/Y` | ✅ | T2 | main | logical window pixels |
-| `event.shiftKey` / `ctrlKey` / `altKey` / `metaKey` | ✅ | T1 | main | on mouse + keyboard events; `metaKey` is Cmd (macOS) / Super (Linux) / Win key; non-input events (focus/change/input) carry none |
+| `event.shiftKey` / `ctrlKey` / `altKey` / `metaKey` | ✅ | T1 | main | on mouse + keyboard events; `metaKey` is Cmd (macOS) / Super (Linux) / Win key; non-input events (focus/blur/change/input) carry none |
 | `event.offsetX/Y` | 🟡 | T2 | — | element-relative coordinates not exposed yet |
 | `dispatchEvent` / `new CustomEvent` / `new Event` | 🟡 | T2 | — | |
 | `submit` | 🟡 | T1 | — | no `<form>` submit wiring yet |
