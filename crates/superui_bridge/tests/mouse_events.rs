@@ -27,7 +27,7 @@ use bevy::ui::UiPlugin;
 use bevy::window::{PrimaryWindow, WindowPlugin, WindowRef};
 use superui_bridge::{
     drain_dom_events_system, mouse_events_system, mouse_listeners_active, reconcile_system,
-    PendingDomEvents, PointerState, UiRuntime,
+    sync_mouse_listener_index, MouseListenerIndex, PendingDomEvents, PointerState, UiRuntime,
 };
 use superui_css::SuperUiCssPlugin;
 
@@ -67,9 +67,11 @@ fn mount_mouse(app: &mut App, dom: Rc<RefCell<superui_dom::Dom>>) -> Entity {
     let root = mount(app, dom);
     app.init_resource::<PendingDomEvents>();
     app.init_resource::<PointerState>();
+    app.init_resource::<MouseListenerIndex>();
     app.add_systems(
         Update,
         (
+            sync_mouse_listener_index,
             mouse_events_system.run_if(mouse_listeners_active),
             drain_dom_events_system,
         )
@@ -321,10 +323,14 @@ fn mousedown_only_does_no_move_or_hover_work() {
     let _ = root;
     app.init_resource::<PendingDomEvents>();
     app.init_resource::<PointerState>();
+    app.init_resource::<MouseListenerIndex>();
     app.add_systems(
         Update,
-        mouse_events_system
-            .run_if(mouse_listeners_active)
+        (
+            sync_mouse_listener_index,
+            mouse_events_system.run_if(mouse_listeners_active),
+        )
+            .chain()
             .before(reconcile_system),
     );
     app.update();

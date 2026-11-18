@@ -21,7 +21,10 @@ pub use events::{
     on_focus_lost, on_pointer_click, on_slider_value_change, resolve_dom_node, PendingDomEvent,
     PendingDomEvents,
 };
-pub use mouse::{mouse_events_system, mouse_listeners_active, PointerState};
+pub use mouse::{
+    mouse_events_system, mouse_listeners_active, sync_mouse_listener_index, MouseListenerIndex,
+    PointerState,
+};
 pub use reconcile::reconcile_system;
 pub use runtime::{DomNode, InputValueText, PickingPolicy, PlaceholderText, UiRuntime};
 pub use scroll::{clamp_scroll_position_system, wheel_scroll_system};
