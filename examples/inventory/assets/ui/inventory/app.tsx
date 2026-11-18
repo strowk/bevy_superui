@@ -81,6 +81,17 @@ function App() {
   const storeFor = (name: SlotName) => (name === "chest" ? chest : inv);
   const setterFor = (name: SlotName) => (name === "chest" ? setChest : setInv);
 
+  // Shift-click the opposite of a drag: move the item straight to the other
+  // panel without a drag, reading the modifier off the mousedown event.
+  const quickMove = (id: string, from: SlotName) => {
+    const to: SlotName = from === "chest" ? "inv" : "chest";
+    const fromItems = storeFor(from)();
+    const item = fromItems.find((it) => it.id === id);
+    if (!item) return;
+    setterFor(from)(fromItems.filter((it) => it.id !== id));
+    setterFor(to)([...storeFor(to)(), item]);
+  };
+
   // Stable function identities: declared once per app lifetime (the component
   // body runs once) so `removeEventListener` below matches the exact listener
   // `addEventListener` installed.
@@ -104,6 +115,10 @@ function App() {
   };
 
   const startDrag = (e: any, id: string, from: SlotName) => {
+    if (e.shiftKey) {
+      quickMove(id, from);
+      return;
+    }
     setDragging({ id, from });
     setFloatPos({ x: e.clientX, y: e.clientY });
     document.addEventListener("mousemove", onMove);
