@@ -5,11 +5,11 @@
 //! listeners, and the drop slot resolves from `event.target` walking up
 //! `parentNode` for a `data-slot` ancestor (see `assets/ui/inventory/app.tsx`).
 //!
-//! - `cargo run -p inventory --features hmr` — native, live `.tsx` via the
+//! - `cargo run -p chest_inventory --features hmr` — native, live `.tsx` via the
 //!   transpiling asset loader, state-preserving hot reload.
-//! - `cargo run -p inventory` — native, loads the pre-transpiled
+//! - `cargo run -p chest_inventory` — native, loads the pre-transpiled
 //!   `.superui/build/app.js` (build.rs output); no HMR.
-//! - `cargo build -p inventory --target wasm32-unknown-unknown` — web build.
+//! - `cargo build -p chest_inventory --target wasm32-unknown-unknown` — web build.
 
 use bevy::prelude::*;
 use superui::prelude::{SuperUiPlugin, SuperUiRoot};
