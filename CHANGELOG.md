@@ -47,6 +47,15 @@ for the maintenance lines.
   even after the cursor leaves that element. A new `chest_inventory` example
   (`examples/inventory`) demonstrates chest-to-inventory drag-and-drop built on
   these primitives.
+- HMR now preserves module-top-level signals across a hot reload, not just
+  signals created inside components. A `createSignal` at the top level of a
+  module (e.g. app-wide navigation state held outside the component tree) keeps
+  its current value when you edit and reload, instead of resetting to its
+  initial value. State is keyed per module path, so each file in an import graph
+  — including nested imported modules — rehydrates its own top-level signals.
+  Only signals created during a module's top-level execution are preserved; a
+  signal first created later (e.g. deferred from an event handler) still resets.
+  Active whenever HMR is on; the shipped (non-HMR) and wasm paths are unaffected.
 
 ## [0.4.0] - 2026-10-10
 
