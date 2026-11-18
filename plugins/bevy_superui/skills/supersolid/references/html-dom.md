@@ -109,6 +109,7 @@ components manage it. Direct DOM APIs are for escape hatches.
 | `focus` / `blur` (JS events) | ✅ dispatched as keyboard focus enters/leaves |
 | `event.keyCode` / `code` | 🟡 use `event.key` |
 | `event.clientX/Y` | ✅ logical window pixels |
+| `event.shiftKey` / `ctrlKey` / `altKey` / `metaKey` | ✅ on mouse + keyboard events; `metaKey` is Cmd (macOS) / Super (Linux) / Win key; non-input events (focus/change/input) carry none |
 | `event.offsetX/Y` | 🟡 not exposed yet |
 | `dispatchEvent` / `new CustomEvent` / `new Event` | 🟡 |
 | `submit` | 🟡 no `<form>` submit wiring |
