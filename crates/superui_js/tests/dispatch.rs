@@ -401,3 +401,34 @@ fn removeeventlistener_emits_kind_on_last_listener_of_its_type_removed() {
         "expected a SetListener(kind=6 MouseUp, absent) op, got {kinds:?}"
     );
 }
+
+#[test]
+fn event_exposes_modifier_keys() {
+    let mut ctx = ctx();
+    eval(
+        &mut ctx,
+        r#"
+        globalThis.a = document.createElement('div');
+        __ss_root.appendChild(a);
+        globalThis.seen = {};
+        a.addEventListener('mousedown', function (e) {
+            seen.shift = e.shiftKey;
+            seen.ctrl = e.ctrlKey;
+            seen.alt = e.altKey;
+            seen.meta = e.metaKey;
+        });
+        a.addEventListener('click', function (e) { seen.clickShift = e.shiftKey; });
+        "#,
+    );
+    let _ = eval_bool(
+        &mut ctx,
+        "__ss_dispatch(a._nid, 'mousedown', null, true, true, \
+         {modifiers: {shiftKey: true, ctrlKey: false, altKey: false, metaKey: true}})",
+    );
+    assert!(eval_bool(&mut ctx, "seen.shift === true"));
+    assert!(eval_bool(&mut ctx, "seen.ctrl === false"));
+    assert!(eval_bool(&mut ctx, "seen.meta === true"));
+    // init without modifiers -> property is undefined, not false.
+    let _ = eval_bool(&mut ctx, "__ss_dispatch(a._nid, 'click', null, true, true, null)");
+    assert!(eval_bool(&mut ctx, "seen.clickShift === undefined"));
+}
