@@ -22,7 +22,9 @@ import { createSignal, For, Show, render } from "supersolid";
 
 interface Item {
   id: string;
-  emoji: string;
+  // Short plain-text tag, not an emoji: Bevy's bundled default font has no
+  // emoji glyphs, so an emoji here would reconcile to a blank/tofu tile.
+  icon: string;
   name: string;
 }
 
@@ -57,19 +59,19 @@ function Tile(props: { item: Item; onMouseDown: (e: any) => void }) {
       onMouseDown={props.onMouseDown}
       title={props.item.name}
     >
-      {props.item.emoji}
+      {props.item.icon}
     </div>
   );
 }
 
 function App() {
   const [chest, setChest] = createSignal<Item[]>([
-    { id: "sword", emoji: "⚔️", name: "Sword" },
-    { id: "shield", emoji: "🛡️", name: "Shield" },
-    { id: "potion", emoji: "🧪", name: "Potion" },
+    { id: "sword", icon: "SWD", name: "Sword" },
+    { id: "shield", icon: "SHD", name: "Shield" },
+    { id: "potion", icon: "POT", name: "Potion" },
   ]);
   const [inv, setInv] = createSignal<Item[]>([
-    { id: "coin", emoji: "🪙", name: "Coin" },
+    { id: "coin", icon: "COI", name: "Coin" },
   ]);
 
   // The in-flight drag, or null when nothing is being dragged.
@@ -152,7 +154,7 @@ function App() {
           // nothing, and bail before moving the item.
           style={`left: ${floatPos().x + 12}px; top: ${floatPos().y + 12}px`}
         >
-          {draggingItem() ? draggingItem().emoji : ""}
+          {draggingItem() ? draggingItem().icon : ""}
         </div>
       </Show>}
     </div>
