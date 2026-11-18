@@ -49,7 +49,7 @@ fn run_script_pumps_dom_and_dispatch_delivers_outbox() {
 
     // Dispatch a click at the mirror node; the runtime routes it to the shadow
     // DOM's jsId and runs the listener, whose bevy.send lands in the outbox.
-    rt.dispatch_dom_event(box_node, "click", None, None, true, true);
+    rt.dispatch_dom_event(box_node, "click", None, Default::default(), true, true);
     assert_eq!(rt.engine.drain_outbox(), vec![("clicked".to_string(), json!({}))]);
 
     // Removing the last listener flows SetListener{false}: the node goes

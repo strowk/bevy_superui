@@ -29,4 +29,4 @@ pub use reconcile::reconcile_system;
 pub use runtime::{DomNode, InputValueText, PickingPolicy, PlaceholderText, UiRuntime};
 pub use scroll::{clamp_scroll_position_system, wheel_scroll_system};
 pub use slider::position_slider_parts;
-pub use superui_js::MousePayload;
+pub use superui_js::{EventInit, Modifiers, MousePayload};

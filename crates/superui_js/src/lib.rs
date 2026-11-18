@@ -62,6 +62,24 @@ pub struct MousePayload {
     pub buttons: u8,
 }
 
+/// W3C modifier-key state (`MouseEvent`/`KeyboardEvent` `shiftKey` etc.).
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Modifiers {
+    pub shift: bool,
+    pub ctrl: bool,
+    pub alt: bool,
+    pub meta: bool,
+}
+
+/// Extra event-object data for `JsEngine::dispatch_event`: pointer geometry for
+/// mouse events, modifier state for mouse and keyboard events. Both `None` for
+/// events that carry neither (focus/change/input).
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct EventInit {
+    pub mouse: Option<MousePayload>,
+    pub modifiers: Option<Modifiers>,
+}
+
 /// The coarse boundary the Bevy layers consume so they never name a concrete
 /// engine. JS-side mutations arrive as an [`OpBatch`]; nodes are addressed by
 /// [`JsNodeId`].
@@ -70,16 +88,17 @@ pub trait JsEngine {
     fn eval(&mut self, script: &str) -> Result<(), String>;
 
     /// Dispatch a DOM event of `ty` at the shadow-DOM node `target` (W3C
-    /// capture→target→bubble, run entirely in JS). `mouse` carries
+    /// capture→target→bubble, run entirely in JS). `init.mouse` carries
     /// `clientX`/`clientY`/`button`/`buttons` onto the event object for pointer
-    /// event types; `None` leaves them `undefined`. Returns whether
-    /// `preventDefault()` was called.
+    /// event types; `init.modifiers` carries `shiftKey`/`ctrlKey`/`altKey`/
+    /// `metaKey`. Either or both `None` leave the corresponding properties
+    /// `undefined`. Returns whether `preventDefault()` was called.
     fn dispatch_event(
         &mut self,
         target: JsNodeId,
         ty: &str,
         key: Option<&str>,
-        mouse: Option<MousePayload>,
+        init: EventInit,
         bubbles: bool,
         cancelable: bool,
     ) -> bool;

@@ -131,21 +131,33 @@ impl JsEngine for WebEngine {
         target: crate::JsNodeId,
         ty: &str,
         key: Option<&str>,
-        mouse: Option<crate::MousePayload>,
+        init: crate::EventInit,
         bubbles: bool,
         cancelable: bool,
     ) -> bool {
         let Some(dispatch) = scope_fn(&self.scope, "__ss_dispatch") else {
             return false;
         };
-        let mouse_arg = mouse.map_or(JsValue::null(), |m| {
+        let init_arg = if init.mouse.is_none() && init.modifiers.is_none() {
+            JsValue::null()
+        } else {
             let obj = Object::new();
-            let _ = Reflect::set(&obj, &JsValue::from_str("clientX"), &JsValue::from_f64(m.client_x as f64));
-            let _ = Reflect::set(&obj, &JsValue::from_str("clientY"), &JsValue::from_f64(m.client_y as f64));
-            let _ = Reflect::set(&obj, &JsValue::from_str("button"), &JsValue::from_f64(m.button as f64));
-            let _ = Reflect::set(&obj, &JsValue::from_str("buttons"), &JsValue::from_f64(m.buttons as f64));
+            if let Some(m) = init.mouse {
+                let _ = Reflect::set(&obj, &JsValue::from_str("clientX"), &JsValue::from_f64(m.client_x as f64));
+                let _ = Reflect::set(&obj, &JsValue::from_str("clientY"), &JsValue::from_f64(m.client_y as f64));
+                let _ = Reflect::set(&obj, &JsValue::from_str("button"), &JsValue::from_f64(m.button as f64));
+                let _ = Reflect::set(&obj, &JsValue::from_str("buttons"), &JsValue::from_f64(m.buttons as f64));
+            }
+            if let Some(md) = init.modifiers {
+                let mods = Object::new();
+                let _ = Reflect::set(&mods, &JsValue::from_str("shiftKey"), &JsValue::from_bool(md.shift));
+                let _ = Reflect::set(&mods, &JsValue::from_str("ctrlKey"), &JsValue::from_bool(md.ctrl));
+                let _ = Reflect::set(&mods, &JsValue::from_str("altKey"), &JsValue::from_bool(md.alt));
+                let _ = Reflect::set(&mods, &JsValue::from_str("metaKey"), &JsValue::from_bool(md.meta));
+                let _ = Reflect::set(&obj, &JsValue::from_str("modifiers"), &mods.into());
+            }
             obj.into()
-        });
+        };
         // __ss_dispatch takes 6 args — past call3 — so apply an argument array.
         let args = Array::new();
         args.push(&JsValue::from(target));
@@ -153,7 +165,7 @@ impl JsEngine for WebEngine {
         args.push(&key.map_or(JsValue::null(), JsValue::from_str));
         args.push(&JsValue::from_bool(bubbles));
         args.push(&JsValue::from_bool(cancelable));
-        args.push(&mouse_arg);
+        args.push(&init_arg);
         match Reflect::apply(&dispatch, &JsValue::undefined(), &args) {
             Ok(ret) => ret.as_bool().unwrap_or(false),
             Err(e) => {
