@@ -55,6 +55,7 @@ use bevy::picking::hover::HoverMap;
 use bevy::picking::pointer::{PointerId, PointerLocation};
 use bevy::prelude::*;
 use superui_dom::NodeId;
+use superui_js::opwire::MouseListenerCounts;
 use superui_js::MousePayload;
 
 use crate::events::{resolve_dom_node, PendingDomEvent, PendingDomEvents};
@@ -83,11 +84,61 @@ pub struct PointerState {
     pub seeded: bool,
 }
 
+/// Send mirror of [`UiRuntime`]'s (`NonSend`) mouse-listener counts, kept
+/// fresh each frame by [`sync_mouse_listener_index`] (a main-thread-only
+/// system) so that [`mouse_listeners_active`] — a run condition, which Bevy's
+/// multithreaded executor may evaluate on any worker thread — never has to
+/// touch `NonSend` data itself. Touching `NonSend` off the main thread aborts
+/// the process (`bevy_ecs` enforces this); reading this plain `Resource`
+/// instead is always safe regardless of which thread the scheduler runs it on.
+#[derive(Resource, Clone, Copy, Default)]
+pub struct MouseListenerIndex(pub MouseListenerCounts);
+
+impl MouseListenerIndex {
+    /// Any mouse listener at all is registered anywhere.
+    pub fn any(&self) -> bool {
+        self.0.any()
+    }
+
+    /// Any of the hover-family listeners (mouseover/out/enter/leave).
+    pub fn any_hover(&self) -> bool {
+        self.0.any_hover()
+    }
+
+    /// Any of the button-family listeners (mousedown/up).
+    pub fn any_button(&self) -> bool {
+        self.0.any_button()
+    }
+
+    /// A mousemove listener is registered anywhere.
+    pub fn any_move(&self) -> bool {
+        self.0.any_move()
+    }
+}
+
+/// Main-thread-only system that copies `UiRuntime`'s live mouse-listener
+/// counts into the Send [`MouseListenerIndex`] resource. Taking `NonSend<UiRuntime>`
+/// forces Bevy to schedule this on the main thread (the only thread allowed to
+/// touch it), which is exactly why this system exists: it is the single place
+/// that bridges the NonSend runtime to the Send index the rest of the mouse
+/// pipeline — including the [`mouse_listeners_active`] run condition, which the
+/// executor may run on a worker thread — reads instead. The copy is a plain
+/// `[u32; 7]` copy, O(1) regardless of listener count, so running it every
+/// frame (even with zero listeners) doesn't reintroduce the per-frame cost the
+/// gate exists to avoid; the expensive hover-diff/picking work downstream
+/// stays gated on the index's `any()`/`any_hover()`/etc.
+pub fn sync_mouse_listener_index(rt: NonSend<UiRuntime>, mut idx: ResMut<MouseListenerIndex>) {
+    idx.0 = rt.mouse_listener_counts();
+}
+
 /// Run condition: [`mouse_events_system`] (and its seeding) only matters once
 /// at least one mouse listener of any family exists anywhere in the mounted
-/// DOM. Absent `UiRuntime` (no UI mounted) also reads as "inactive".
-pub fn mouse_listeners_active(rt: Option<NonSend<UiRuntime>>) -> bool {
-    rt.map(|rt| rt.mouse_listener_counts().any()).unwrap_or(false)
+/// DOM. Reads the Send [`MouseListenerIndex`] (kept fresh by
+/// [`sync_mouse_listener_index`]) rather than the `NonSend` `UiRuntime`, so this
+/// run condition is safe to evaluate from any thread — see the type's doc.
+/// Absent index (no UI ever mounted) also reads as "inactive".
+pub fn mouse_listeners_active(idx: Option<Res<MouseListenerIndex>>) -> bool {
+    idx.is_some_and(|idx| idx.any())
 }
 
 /// This frame's W3C `buttons` bitmask from `ButtonInput<MouseButton>`.
@@ -138,9 +189,9 @@ pub fn mouse_events_system(
     parents: Query<&ChildOf>,
     mut pending: ResMut<PendingDomEvents>,
     mut state: ResMut<PointerState>,
-    rt: NonSend<UiRuntime>,
+    idx: Res<MouseListenerIndex>,
 ) {
-    let counts = rt.mouse_listener_counts();
+    let counts = idx.0;
 
     // Current hovered node set (deduped), plus `top`: the resolved node with
     // the lowest `HitData.depth` — see module doc point 1 for why this can't

@@ -13,7 +13,8 @@ use superui_bridge::{
     drain_dom_events_system, editable_input_events_system, emit_bevy_inbox_system,
     keyboard_events_system, mouse_events_system, mouse_listeners_active, on_focus_gained,
     on_focus_lost, on_pointer_click, on_slider_value_change, position_slider_parts,
-    reconcile_system, wheel_scroll_system, PendingDomEvents, PointerState, UiRuntime,
+    reconcile_system, sync_mouse_listener_index, wheel_scroll_system, MouseListenerIndex,
+    PendingDomEvents, PointerState, UiRuntime,
 };
 use superui_css::core::PropertyRegistry;
 use superui_css::parser::InlineCssStyleSheetParser;
@@ -203,6 +204,7 @@ impl Plugin for SuperUiPlugin {
         app
             .init_resource::<PendingDomEvents>()
             .init_resource::<PointerState>()
+            .init_resource::<MouseListenerIndex>()
             .init_resource::<HotReloadFlags>()
             .add_observer(on_pointer_click)
             .add_observer(on_slider_value_change)
@@ -263,6 +265,23 @@ impl Plugin for SuperUiPlugin {
             // a standalone registration keeps the condition unambiguous. `.before`
             // the chain's `drain_dom_events_system` so a mouse event it enqueues
             // this frame dispatches to JS the same frame, not next.
+            // sync_mouse_listener_index takes NonSend<UiRuntime>, which forces Bevy
+            // to run it on the main thread — the only thread allowed to touch
+            // NonSend data. That makes it the one safe place to read UiRuntime's
+            // mouse-listener counts; everything downstream (mouse_listeners_active,
+            // a run condition the multithreaded executor may evaluate on a worker
+            // thread, and mouse_events_system itself) reads the copy it leaves in
+            // the Send MouseListenerIndex resource instead. `.before` so the index
+            // is fresh the same frame mouse_events_system's run condition checks it.
+            .add_systems(
+                Update,
+                sync_mouse_listener_index
+                    .after(apply_hot_reload)
+                    .after(detect_hot_reload)
+                    .after(mount_when_ready)
+                    .before(mouse_events_system)
+                    .run_if(runtime_exists),
+            )
             .add_systems(
                 Update,
                 mouse_events_system
