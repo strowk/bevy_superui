@@ -47,6 +47,13 @@ for the maintenance lines.
   even after the cursor leaves that element. A new `chest_inventory` example
   (`examples/inventory`) demonstrates chest-to-inventory drag-and-drop built on
   these primitives.
+- Modifier keys on events: mouse events (`click`, `mousedown`/`up`/`move`,
+  `mouseover`/`out`/`enter`/`leave`) and keyboard events (`keydown`/`keyup`)
+  now carry `shiftKey`/`ctrlKey`/`altKey`/`metaKey`, sourced from live key
+  state at input time — so a handler can branch on Shift/Ctrl/Alt/Cmd, e.g.
+  `transfer(e.shiftKey ? 100 : 1)` or Shift-click to quick-move. Non-input
+  events (`change`/`input`/`focus`/`blur`) carry none, matching the browser.
+  The `chest_inventory` example gains Shift-click quick-transfer.
 - HMR now preserves module-top-level signals across a hot reload, not just
   signals created inside components. A `createSignal` at the top level of a
   module (e.g. app-wide navigation state held outside the component tree) keeps
