@@ -47,7 +47,11 @@
   background-image: linear-gradient(135deg, #4ff0e0, #2bd0c0);
   border-width: 0;
   border-radius: 8px;
-  font-size: 20px;
+  /* Plain-text item tags (e.g. "SWD"), not emoji — see app.tsx — so this
+     needs to be small enough that a 3-character tag fits the 48px tile
+     without overflow. */
+  font-size: 13px;
+  color: #0b1220;
 }
 
 /* The in-flight drag preview, positioned from `event.clientX/clientY` and
