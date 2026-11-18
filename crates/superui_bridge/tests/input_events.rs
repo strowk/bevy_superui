@@ -214,6 +214,72 @@ fn typing_into_focused_input_updates_value_and_fires_input() {
     assert!(n >= 1, "the input listener fired at least once, got {n}");
 }
 
+/// `keyboard_events_system` snapshots the live `ButtonInput<KeyCode>` at
+/// enqueue time, so a keydown fired while Shift is held carries `shiftKey`
+/// through to the JS listener — not just a manually-attached `Modifiers`
+/// (covered by `modifiers_on_pending_event_reach_the_js_listener` above).
+#[test]
+fn keydown_carries_live_modifier_state() {
+    use bevy::input::keyboard::{Key, KeyCode, KeyboardInput};
+    use bevy::input::ButtonInput;
+    use bevy::input::ButtonState;
+    use bevy::input_focus::{FocusCause, InputFocus};
+
+    let dom = Rc::new(RefCell::new(superui_html::parse_document(
+        "<div id='t' tabindex='0'></div>",
+    )));
+    let mut app = test_app();
+    let _root = mount(&mut app, dom.clone());
+    app.init_resource::<PendingDomEvents>();
+    app.add_systems(
+        Update,
+        (superui_bridge::keyboard_events_system, drain_dom_events_system)
+            .chain()
+            .before(superui_bridge::reconcile_system),
+    );
+
+    app.world_mut().non_send_mut::<UiRuntime>().run_script(
+        "globalThis.seenShift = null; \
+         document.getElementById('t').addEventListener('keydown', function(e){ \
+           globalThis.seenShift = e.shiftKey; });",
+    );
+    app.update();
+
+    let node = dom.borrow().get_element_by_id("t").unwrap();
+    let ent = {
+        let mut q = app.world_mut().query::<(Entity, &superui_bridge::DomNode)>();
+        q.iter(app.world()).find(|(_, d)| d.0 == node).map(|(e, _)| e).unwrap()
+    };
+    app.world_mut()
+        .resource_mut::<InputFocus>()
+        .set(ent, FocusCause::Pressed);
+    app.world_mut().non_send_mut::<UiRuntime>().set_focus(Some(node));
+    app.update();
+
+    // Hold Shift in the live keyboard state, then send an unrelated key press.
+    app.world_mut()
+        .resource_mut::<ButtonInput<KeyCode>>()
+        .press(KeyCode::ShiftLeft);
+    app.world_mut().write_message(KeyboardInput {
+        key_code: KeyCode::KeyA,
+        logical_key: Key::Character("a".into()),
+        state: ButtonState::Pressed,
+        repeat: false,
+        window: Entity::PLACEHOLDER,
+        text: Some("a".into()),
+    });
+    app.update();
+
+    app.world_mut().non_send_mut::<UiRuntime>().run_script(
+        "document.getElementById('t').setAttribute('data-shift', String(globalThis.seenShift));",
+    );
+    assert_eq!(
+        dom.borrow().get_attribute(node, "data-shift"),
+        Some("true"),
+        "a keydown fired while Shift is held must carry shiftKey=true"
+    );
+}
+
 /// A JSX-style controlled input sets `.value` from JS every render. Pushing that
 /// into the EditableText buffer must NOT re-emit `input` (which would loop).
 #[test]
@@ -317,7 +383,7 @@ fn checkbox_click_toggles_checked_and_fires_change() {
     {
         let rt = app.world().non_send::<UiRuntime>();
         let mut pending = PendingDomEvents::default();
-        click_effect(rt, node, &mut pending);
+        click_effect(rt, node, Modifiers::default(), &mut pending);
         // Transfer events into the world resource.
         app.world_mut()
             .resource_mut::<PendingDomEvents>()

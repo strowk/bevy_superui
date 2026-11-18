@@ -78,14 +78,19 @@ pub struct PendingDomEvents(pub Vec<PendingDomEvent>);
 ///
 /// Extracted as a free function so both the observer and the test harness can
 /// call it without needing to construct a `Pointer<Click>` event.
-pub fn click_effect(rt: &UiRuntime, node: NodeId, pending: &mut PendingDomEvents) {
+pub fn click_effect(
+    rt: &UiRuntime,
+    node: NodeId,
+    modifiers: Modifiers,
+    pending: &mut PendingDomEvents,
+) {
     let is_checkbox = {
         let d = rt.dom.borrow();
         matches!(tag_of(&d, node).as_deref(), Some("input"))
             && d.get_attribute(node, "type") == Some("checkbox")
     };
 
-    pending.0.push(PendingDomEvent::new(node, "click"));
+    pending.0.push(PendingDomEvent::new(node, "click").with_modifiers(modifiers));
     if is_checkbox {
         let now = !rt.dom.borrow().checked(node);
         rt.dom.borrow_mut().set_checked(node, now);
@@ -104,6 +109,7 @@ pub fn on_pointer_click(
     dom: Option<NonSendMut<UiRuntime>>,
     mut pending: ResMut<PendingDomEvents>,
     mut input_focus: ResMut<InputFocus>,
+    keys: Res<ButtonInput<KeyCode>>,
 ) {
     // No UI is mounted when `UiRuntime` is absent — e.g. the `superui_test --ui`
     // shell (which runs `SuperUiPlugin` in the same world as its egui runner)
@@ -128,7 +134,8 @@ pub fn on_pointer_click(
     // handle the click exactly once. (DOM-level bubbling is done separately by our
     // own W3C dispatch in `click_effect`/`dispatch_event`.)
     ev.propagate(false);
-    focus_and_click(node, &mut dom, &mut pending, &mut input_focus);
+    let mods = modifiers_now(&keys);
+    focus_and_click(node, &mut dom, &mut pending, &mut input_focus, mods);
 }
 
 /// Walk up from `entity` to the nearest ancestor that carries a [`DomNode`],
@@ -160,12 +167,13 @@ fn focus_and_click(
     rt: &mut UiRuntime,
     pending: &mut PendingDomEvents,
     input_focus: &mut InputFocus,
+    modifiers: Modifiers,
 ) {
     rt.set_focus(Some(node));
     if let Some(entity) = rt.entity_for(node) {
         input_focus.set(entity, FocusCause::Pressed);
     }
-    click_effect(rt, node, pending);
+    click_effect(rt, node, modifiers, pending);
 }
 
 /// The core of a pointer click on a UI `entity`: resolve it to a DOM node, focus
@@ -180,9 +188,10 @@ pub fn apply_pointer_click(
     rt: &mut UiRuntime,
     pending: &mut PendingDomEvents,
     input_focus: &mut InputFocus,
+    modifiers: Modifiers,
 ) {
     if let Some(node) = resolve_dom_node(entity, nodes, parents) {
-        focus_and_click(node, rt, pending, input_focus);
+        focus_and_click(node, rt, pending, input_focus, modifiers);
     }
 }
 
@@ -309,6 +318,7 @@ pub fn keyboard_events_system(
     mut reader: MessageReader<KeyboardInput>,
     mut rt: NonSendMut<UiRuntime>,
     mut input_focus: ResMut<InputFocus>,
+    keys: Res<ButtonInput<KeyCode>>,
 ) {
     // Collect key messages first (the reader borrow must not overlap with rt).
     let presses: Vec<(Key, KeyCode, bool)> = reader
@@ -325,6 +335,7 @@ pub fn keyboard_events_system(
     if presses.is_empty() {
         return;
     }
+    let mods = modifiers_now(&keys);
     let mut any = false;
     for (key, code, pressed) in presses {
         let Some(focused) = rt.focused else {
@@ -332,7 +343,14 @@ pub fn keyboard_events_system(
         };
         let type_ = if pressed { "keydown" } else { "keyup" };
         let kn = key_name(&key, code);
-        rt.dispatch_dom_event(focused, type_, Some(&kn), EventInit::default(), true, true);
+        rt.dispatch_dom_event(
+            focused,
+            type_,
+            Some(&kn),
+            EventInit { modifiers: Some(mods), ..Default::default() },
+            true,
+            true,
+        );
         any = true;
         if !pressed {
             continue;
@@ -361,7 +379,14 @@ pub fn keyboard_events_system(
         // Enter/Space activates a focused button; Space toggles a focused
         // checkbox — the browser's default keyboard activation.
         if is_button && matches!(code, KeyCode::Enter | KeyCode::Space) {
-            rt.dispatch_dom_event(focused, "click", None, EventInit::default(), true, true);
+            rt.dispatch_dom_event(
+                focused,
+                "click",
+                None,
+                EventInit { modifiers: Some(mods), ..Default::default() },
+                true,
+                true,
+            );
             continue;
         }
         if is_checkbox && code == KeyCode::Space {
@@ -388,6 +413,17 @@ fn collect_focusable(dom: &superui_dom::Dom) -> Vec<NodeId> {
     let mut out = Vec::new();
     walk(dom, dom.document(), &mut out);
     out
+}
+
+/// W3C modifier state from the live Bevy keyboard input — each modifier reads
+/// true when either its left or right key is held.
+pub fn modifiers_now(keys: &ButtonInput<KeyCode>) -> Modifiers {
+    Modifiers {
+        shift: keys.pressed(KeyCode::ShiftLeft) || keys.pressed(KeyCode::ShiftRight),
+        ctrl: keys.pressed(KeyCode::ControlLeft) || keys.pressed(KeyCode::ControlRight),
+        alt: keys.pressed(KeyCode::AltLeft) || keys.pressed(KeyCode::AltRight),
+        meta: keys.pressed(KeyCode::SuperLeft) || keys.pressed(KeyCode::SuperRight),
+    }
 }
 
 /// The `KeyboardEvent.key` value for a press: the printable character, or a
@@ -502,6 +538,34 @@ pub fn dim_placeholder_text_system(
         let faded = base.with_alpha(base.alpha() * 0.5);
         if color.0 != faded {
             color.0 = faded;
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bevy::input::ButtonInput;
+
+    #[test]
+    fn modifiers_now_maps_each_side_of_every_modifier() {
+        let keys = ButtonInput::<KeyCode>::default();
+        assert_eq!(modifiers_now(&keys), Modifiers::default());
+
+        // Each modifier reads true when either its left or right key is held.
+        for (code, expect) in [
+            (KeyCode::ShiftLeft, Modifiers { shift: true, ..Default::default() }),
+            (KeyCode::ShiftRight, Modifiers { shift: true, ..Default::default() }),
+            (KeyCode::ControlLeft, Modifiers { ctrl: true, ..Default::default() }),
+            (KeyCode::ControlRight, Modifiers { ctrl: true, ..Default::default() }),
+            (KeyCode::AltLeft, Modifiers { alt: true, ..Default::default() }),
+            (KeyCode::AltRight, Modifiers { alt: true, ..Default::default() }),
+            (KeyCode::SuperLeft, Modifiers { meta: true, ..Default::default() }),
+            (KeyCode::SuperRight, Modifiers { meta: true, ..Default::default() }),
+        ] {
+            let mut keys = ButtonInput::<KeyCode>::default();
+            keys.press(code);
+            assert_eq!(modifiers_now(&keys), expect, "modifier for {code:?}");
         }
     }
 }

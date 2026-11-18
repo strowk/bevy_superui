@@ -233,7 +233,7 @@ pub fn click_op(app: &mut App, op: &str) -> bool {
 
     world.resource_scope::<PendingDomEvents, _>(|world, mut pending| {
         let rt = world.non_send::<UiRuntime>();
-        superui::click_effect(rt, node, &mut pending);
+        superui::click_effect(rt, node, superui::Modifiers::default(), &mut pending);
     });
     true
 }

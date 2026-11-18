@@ -10,7 +10,9 @@
 
 use bevy::prelude::*;
 use bevy::ui::UiTargetCamera;
-use superui_bridge::{click_effect, MousePayload, PendingDomEvent, PendingDomEvents, UiRuntime};
+use superui_bridge::{
+    click_effect, Modifiers, MousePayload, PendingDomEvent, PendingDomEvents, UiRuntime,
+};
 use superui_dom::NodeId;
 
 use crate::abi::{self, RegisteredTest};
@@ -860,7 +862,7 @@ fn dispatch(world: &mut World, spec: &LocatorSpec, event: &str) {
         let rt = world.remove_non_send::<UiRuntime>().expect("runtime");
         {
             let mut pending = world.resource_mut::<PendingDomEvents>();
-            click_effect(&rt, node, &mut pending);
+            click_effect(&rt, node, Modifiers::default(), &mut pending);
         }
         world.insert_non_send(rt);
         return;
