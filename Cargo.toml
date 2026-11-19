@@ -30,3 +30,12 @@ bevy_ui = "0.20"
 bevy_ui_widgets = "0.20"
 bevy_utils = "0.20"
 bevy_window = "0.20"
+
+# Bevy debug binaries carry enormous debuginfo; linking the test binaries (full
+# Bevy + egui) can exhaust the Windows linker and fail with `os error 1453`
+# (ERROR_NO_SYSTEM_RESOURCES), especially when `cargo test --workspace` links many
+# in parallel. line-tables-only keeps usable backtraces while dropping most of
+# that debuginfo, cutting linker memory enough to link. Applies to test builds too
+# (the test profile inherits dev).
+[profile.dev]
+debug = "line-tables-only"
