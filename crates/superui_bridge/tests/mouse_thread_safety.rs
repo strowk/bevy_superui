@@ -94,7 +94,11 @@ fn world_with_runtime() -> World {
 #[test]
 fn nonsend_access_off_origin_thread_panics() {
     let world = world_with_runtime();
-    std::thread::spawn(move || {
+    // Hand the `World` back out so it drops on this (origin) thread: `bevy_ecs`
+    // validates the origin thread on NonSend *drop* as well as access, so
+    // dropping it on the spawned thread would panic for a reason unrelated to
+    // what this test asserts.
+    let world = std::thread::spawn(move || {
         let mut world = world;
         let result = std::panic::catch_unwind(AssertUnwindSafe(|| {
             world.run_system_once(|rt: Option<NonSend<UiRuntime>>| rt.is_some())
@@ -104,9 +108,11 @@ fn nonsend_access_off_origin_thread_panics() {
             "accessing NonSend<UiRuntime> from a non-origin thread must panic -- \
              this is the exact mechanism that aborted `cargo run -p chest_inventory`"
         );
+        world
     })
     .join()
     .unwrap();
+    drop(world);
 }
 
 /// The regression test: `mouse_listeners_active` (the run condition) and
@@ -119,7 +125,10 @@ fn nonsend_access_off_origin_thread_panics() {
 #[test]
 fn mouse_run_condition_and_system_are_thread_safe() {
     let world = world_with_runtime();
-    std::thread::spawn(move || {
+    // Return the `World` so it drops on this (origin) thread; `bevy_ecs`
+    // validates the origin thread on NonSend drop, and the `World` still holds
+    // the real `NonSend<UiRuntime>`.
+    let world = std::thread::spawn(move || {
         let mut world = world;
 
         let active = world
@@ -133,7 +142,9 @@ fn mouse_run_condition_and_system_are_thread_safe() {
         world
             .run_system_once(mouse_events_system)
             .expect("mouse_events_system must run without touching NonSend data");
+        world
     })
     .join()
     .unwrap();
+    drop(world);
 }
