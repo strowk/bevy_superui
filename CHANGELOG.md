@@ -17,6 +17,52 @@ and `0.2.x` (Bevy 0.18) lines are frozen maintenance mirrors. This file follows
 the `main` lineage only; see the [GitHub releases](https://github.com/strowk/bevy_superui/releases)
 for the maintenance lines.
 
+## [Unreleased]
+
+### Added
+
+- Cross-file module imports: `import { X } from "./other"` resolves, loads, and
+  bundles the whole import graph instead of stripping the import. Relative
+  specifiers (`./widget`, extension optional — `.tsx`/`.ts`/`.js`, then
+  `/index.*`) and bare packages (resolved from a sibling `superui_modules/`
+  directory, which no tooling populates yet) both resolve; each module's
+  `export` / `export default` is wired through a CommonJS-style registry, so one
+  UI can split across sibling files — one module per screen, shared widgets and
+  data in their own files. Editing any file in the graph, not just the entry,
+  hot-reloads. `export * from` re-exports and dynamic `import()` warn and are
+  skipped; `import.meta` and `package.json` `main`/`module` resolution are
+  unsupported. An unresolved module import warns and the bundle still builds
+  (runtime/HMR and build), but is fatal in the end-to-end test engine.
+- Module `.css` imports: a `.css` imported by any module in the graph is
+  applied after the entry's `<link>` stylesheet, so an equal-specificity module
+  rule wins the cascade. Editing it hot-reloads like the rest of the graph.
+- Browser-faithful mouse events: `mouseover`/`mouseout` (bubbling),
+  `mouseenter`/`mouseleave` (non-bubbling), and `mousedown`/`mouseup`/`mousemove`,
+  each carrying `clientX`/`clientY`/`button`/`buttons`. `document` and `window`
+  are now real event targets (`addEventListener`/`removeEventListener`) and sit
+  atop the bubble chain for every bubbling event, so a drag started with
+  `mousedown` on an element can keep tracking `mousemove`/`mouseup` at
+  `document`/`window` — with `event.target` still the node under the pointer —
+  even after the cursor leaves that element. A new `chest_inventory` example
+  (`examples/inventory`) demonstrates chest-to-inventory drag-and-drop built on
+  these primitives.
+- Modifier keys on events: mouse events (`click`, `mousedown`/`up`/`move`,
+  `mouseover`/`out`/`enter`/`leave`) and keyboard events (`keydown`/`keyup`)
+  now carry `shiftKey`/`ctrlKey`/`altKey`/`metaKey`, sourced from live key
+  state at input time — so a handler can branch on Shift/Ctrl/Alt/Cmd, e.g.
+  `transfer(e.shiftKey ? 100 : 1)` or Shift-click to quick-move. Non-input
+  events (`change`/`input`/`focus`/`blur`) carry none, matching the browser.
+  The `chest_inventory` example gains Shift-click quick-transfer.
+- HMR now preserves module-top-level signals across a hot reload, not just
+  signals created inside components. A `createSignal` at the top level of a
+  module (e.g. app-wide navigation state held outside the component tree) keeps
+  its current value when you edit and reload, instead of resetting to its
+  initial value. State is keyed per module path, so each file in an import graph
+  — including nested imported modules — rehydrates its own top-level signals.
+  Only signals created during a module's top-level execution are preserved; a
+  signal first created later (e.g. deferred from an event handler) still resets.
+  Active whenever HMR is on; the shipped (non-HMR) and wasm paths are unaffected.
+
 ## [0.3.6] - 2026-10-10
 
 ### Added
