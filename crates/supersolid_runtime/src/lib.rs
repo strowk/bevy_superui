@@ -1071,6 +1071,96 @@ mod render_tests {
     }
 
     #[test]
+    fn show_renders_when_non_sole_child_of_fragment() {
+        // Repro: Show is the LAST of several children collected into a frag array
+        // routed through one insert (children is rebuilt per run, as the transpiler
+        // emits via a getter). A truthy `when` must render its children, and the
+        // branch must toggle off and back on with the signal.
+        let mut e = render_engine();
+        e.eval(r#"
+            var got = createSignal("true");
+            globalThis.set = got[1];
+            globalThis.p = $ss.el("div");
+            $ss.insert(p, function () {
+                return $ss.frag([
+                    (function(){ var t=$ss.el("h1"); $ss.child(t,$ss.txt("Title")); return t; })(),
+                    (function(){ var o=$ss.el("p"); $ss.child(o,$ss.txt("Output")); return o; })(),
+                    $ss.cmp(Show, {
+                        get when() { return got[0]() === "true"; },
+                        get children() { var s=$ss.el("i"); $ss.child(s,$ss.txt("Stone")); return s; }
+                    })
+                ]);
+            });
+            globalThis.t0 = p.textContent;   // "TitleOutputStone"
+            globalThis.set("false");
+            globalThis.t1 = p.textContent;   // "TitleOutput"
+            globalThis.set("true");
+            globalThis.t2 = p.textContent;   // "TitleOutputStone"
+        "#).unwrap();
+        assert_eq!(text(&mut e, "globalThis.t0"), "TitleOutputStone");
+        assert_eq!(text(&mut e, "globalThis.t1"), "TitleOutput");
+        assert_eq!(text(&mut e, "globalThis.t2"), "TitleOutputStone");
+    }
+
+    #[test]
+    fn show_renders_in_middle_of_fragment() {
+        // Control-flow between two static siblings: order must be preserved on toggle.
+        let mut e = render_engine();
+        e.eval(r#"
+            var on = createSignal(true);
+            globalThis.set = on[1];
+            globalThis.p = $ss.el("div");
+            $ss.insert(p, function () {
+                return $ss.frag([
+                    (function(){ var a=$ss.el("i"); a.setAttribute("k","A"); return a; })(),
+                    $ss.cmp(Show, {
+                        get when() { return on[0](); },
+                        get children() { var m=$ss.el("i"); m.setAttribute("k","M"); return m; }
+                    }),
+                    (function(){ var z=$ss.el("i"); z.setAttribute("k","Z"); return z; })()
+                ]);
+            });
+            function order(){var s="";for(var i=0;i<p.childNodes.length;i++){var n=p.childNodes[i];if(n.getAttribute){var k=n.getAttribute("k");if(k)s+=k;}}return s;}
+            globalThis.o0 = order();   // "AMZ"
+            globalThis.set(false);
+            globalThis.o1 = order();   // "AZ"
+            globalThis.set(true);
+            globalThis.o2 = order();   // "AMZ"
+        "#).unwrap();
+        assert_eq!(text(&mut e, "globalThis.o0"), "AMZ");
+        assert_eq!(text(&mut e, "globalThis.o1"), "AZ");
+        assert_eq!(text(&mut e, "globalThis.o2"), "AMZ");
+    }
+
+    #[test]
+    fn for_renders_when_non_sole_child_of_fragment() {
+        // A list control-flow embedded among siblings: its rows flatten into parent
+        // and track removal when the source array shrinks.
+        let mut e = render_engine();
+        e.eval(r#"
+            globalThis.a={n:"a"}; globalThis.b={n:"b"};
+            var pair = createSignal([globalThis.a, globalThis.b]);
+            globalThis.set = pair[1];
+            globalThis.p = $ss.el("ul");
+            $ss.insert(p, function () {
+                return $ss.frag([
+                    (function(){ var h=$ss.el("li"); $ss.child(h,$ss.txt("H")); return h; })(),
+                    $ss.cmp(For, {
+                        get each(){ return pair[0](); },
+                        get children(){ return function(item){ var li=$ss.el("li"); $ss.child(li,$ss.txt(item.n)); return li; }; }
+                    })
+                ]);
+            });
+            function join(){var s="";for(var i=0;i<p.childNodes.length;i++){var n=p.childNodes[i];if(n.nodeType===1)s+=n.textContent;}return s;}
+            globalThis.o0 = join();   // "Hab"
+            globalThis.set([globalThis.b]);
+            globalThis.o1 = join();   // "Hb"
+        "#).unwrap();
+        assert_eq!(text(&mut e, "globalThis.o0"), "Hab");
+        assert_eq!(text(&mut e, "globalThis.o1"), "Hb");
+    }
+
+    #[test]
     fn index_keys_by_position_and_updates_item_in_place() {
         let mut e = render_engine();
         e.eval(

@@ -244,6 +244,12 @@
   }
 
   function flattenInto(out, value) {
+    // A control-flow memo (Show/For/...) reaches here as a plain function when
+    // it is one of several fragment children; invoking it runs inside the
+    // enclosing insert effect, so the effect subscribes to whatever the
+    // accessor reads, and the resolved node/array/string/null is classified
+    // by the branches below and reconciled on change like any other child.
+    if (typeof value === "function") value = resolve(value);
     if (value == null || value === true || value === false) return;
     if (Array.isArray(value)) {
       for (var i = 0; i < value.length; i++) flattenInto(out, value[i]);
