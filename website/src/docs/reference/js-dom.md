@@ -64,16 +64,16 @@ supported. Tier T0–T3. **Since** = the superui version a capability first ship
 | `keydown` / `keyup` | ✅ | T1 | 0.1 | dispatched to focused node |
 | `event.key` | ✅ | T1 | 0.1 | key identity, e.g. `"Enter"`, `"Backspace"`, `"a"` |
 | `event.keyCode` / `code` | 🟡 | T1 | — | not exposed yet — use `event.key` |
-| `event.clientX/Y` | ✅ | T2 | main | logical window pixels |
-| `event.shiftKey` / `ctrlKey` / `altKey` / `metaKey` | ✅ | T1 | main | on mouse + keyboard events; `metaKey` is Cmd (macOS) / Super (Linux) / Win key; non-input events (focus/blur/change/input) carry none |
+| `event.clientX/Y` | ✅ | T2 | 0.4.1 | logical window pixels |
+| `event.shiftKey` / `ctrlKey` / `altKey` / `metaKey` | ✅ | T1 | 0.4.1 | on mouse + keyboard events; `metaKey` is Cmd (macOS) / Super (Linux) / Win key; non-input events (focus/blur/change/input) carry none |
 | `event.offsetX/Y` | 🟡 | T2 | — | element-relative coordinates not exposed yet |
 | `dispatchEvent` / `new CustomEvent` / `new Event` | 🟡 | T2 | — | |
 | `submit` | 🟡 | T1 | — | no `<form>` submit wiring yet |
 | `focus` / `blur` | ✅ | T1 | 0.1 | dispatched to the node as keyboard focus enters/leaves it |
-| `mouseover` / `mouseout` | ✅ | T1 | main | bubbling |
-| `mouseenter` / `mouseleave` | ✅ | T1 | main | non-bubbling |
-| `mousedown` / `mouseup` | ✅ | T1 | main | `event.button`/`buttons` follow W3C convention |
-| `mousemove` | ✅ | T1 | main | one dispatch per frame the pointer position changed |
+| `mouseover` / `mouseout` | ✅ | T1 | 0.4.1 | bubbling |
+| `mouseenter` / `mouseleave` | ✅ | T1 | 0.4.1 | non-bubbling |
+| `mousedown` / `mouseup` | ✅ | T1 | 0.4.1 | `event.button`/`buttons` follow W3C convention |
+| `mousemove` | ✅ | T1 | 0.4.1 | one dispatch per frame the pointer position changed |
 | `wheel` event | 🟡 | T2 | — | mouse-wheel scrolling works natively; the JS `wheel` event — and `preventDefault` on it to block scrolling — is roadmap |
 | `scroll` event | 🟡 | T2 | — | not fired when a scroll container scrolls yet |
 

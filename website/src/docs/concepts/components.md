@@ -167,7 +167,7 @@ function App() {
 
 ## Splitting a UI across modules
 
-<div class="since-note since-note--unreleased">This section documents behavior currently on <code>main</code> only — not yet in a tagged release.</div>
+<div class="since-note"><strong>0.4.1</strong></div>
 
 A UI doesn't have to live in one `app.tsx`. Besides `from "supersolid"`, a
 module can `import` other local files, and superui resolves, loads, and

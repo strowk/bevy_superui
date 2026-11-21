@@ -18,7 +18,7 @@ is a maintained branch (`release/bevy-0.19`), and the `0.1.x` (Bevy 0.17) and `0
 lineage only; see the [GitHub releases](https://github.com/strowk/bevy_superui/releases)
 for the maintenance lines.
 
-## [Unreleased]
+## [0.4.1] - 2026-11-21
 
 ### Added
 
@@ -196,7 +196,8 @@ for the maintenance lines.
 
 - Target Bevy 0.19; rebased the Flair fork onto bevy_flair 0.8.0.
 
-[Unreleased]: https://github.com/strowk/bevy_superui/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/strowk/bevy_superui/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/strowk/bevy_superui/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/strowk/bevy_superui/compare/v0.3.6...v0.4.0
 [0.3.6]: https://github.com/strowk/bevy_superui/compare/v0.3.5...v0.3.6
 [0.3.5]: https://github.com/strowk/bevy_superui/compare/v0.3.4...v0.3.5

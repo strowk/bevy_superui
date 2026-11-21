@@ -83,7 +83,7 @@ hovers and clicks.
 
 ## Mouse events & dragging
 
-<div class="since-note since-note--unreleased">This section documents behavior currently on <code>main</code> only — not yet in a tagged release.</div>
+<div class="since-note"><strong>0.4.1</strong></div>
 
 The two rules above compose directly with the full mouse-event family
 (`mouseover`/`mouseout`, `mouseenter`/`mouseleave`, `mousedown`/`mouseup`,
