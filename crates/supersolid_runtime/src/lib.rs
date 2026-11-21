@@ -1161,6 +1161,117 @@ mod render_tests {
     }
 
     #[test]
+    fn switch_renders_when_non_sole_child_of_fragment() {
+        // Switch/Match embedded alongside a static sibling in one frag: the
+        // selected branch (or fallback) must flatten in next to the sibling.
+        let mut e = render_engine();
+        e.eval(
+            r#"
+            var pair = createSignal(1);
+            globalThis.set = pair[1];
+            globalThis.p = $ss.el("div");
+            $ss.insert(p, function () {
+                return $ss.frag([
+                    (function(){ var h=$ss.el("b"); $ss.child(h,$ss.txt("H:")); return h; })(),
+                    $ss.cmp(Switch, {
+                        get fallback() { var f=$ss.el("em"); $ss.child(f,$ss.txt("none")); return f; },
+                        get children() {
+                            return [
+                                $ss.cmp(Match, { get when(){ return pair[0]() === 1; },
+                                    get children(){ var s=$ss.el("span"); $ss.child(s,$ss.txt("one")); return s; } }),
+                                $ss.cmp(Match, { get when(){ return pair[0]() === 2; },
+                                    get children(){ var s=$ss.el("span"); $ss.child(s,$ss.txt("two")); return s; } }),
+                            ];
+                        },
+                    })
+                ]);
+            });
+            globalThis.t0 = p.textContent;   // "H:one"
+            globalThis.set(2);
+            globalThis.t1 = p.textContent;   // "H:two"
+            globalThis.set(9);
+            globalThis.t2 = p.textContent;   // "H:none" (fallback)
+        "#,
+        )
+        .unwrap();
+        assert_eq!(text(&mut e, "globalThis.t0"), "H:one");
+        assert_eq!(text(&mut e, "globalThis.t1"), "H:two");
+        assert_eq!(text(&mut e, "globalThis.t2"), "H:none");
+    }
+
+    #[test]
+    fn index_renders_when_non_sole_child_of_fragment() {
+        // Index embedded alongside a static sibling in one frag: rows must
+        // flatten in next to the sibling and track array growth.
+        let mut e = render_engine();
+        e.eval(
+            r#"
+            var pair = createSignal(["x"]);
+            globalThis.set = pair[1];
+            globalThis.p = $ss.el("ul");
+            $ss.insert(p, function () {
+                return $ss.frag([
+                    (function(){ var h=$ss.el("li"); $ss.child(h,$ss.txt("H")); return h; })(),
+                    $ss.cmp(Index, {
+                        get each() { return pair[0](); },
+                        get children() {
+                            return function (item) {
+                                var li = $ss.el("li");
+                                $ss.insert(li, function () { return item(); });
+                                return li;
+                            };
+                        },
+                    })
+                ]);
+            });
+            function join(){var s="";for(var i=0;i<p.childNodes.length;i++){var n=p.childNodes[i];if(n.nodeType===1)s+=n.textContent;}return s;}
+            globalThis.o0 = join();          // "Hx"
+            globalThis.set(["x", "y", "z"]); // grow from 1 to 3
+            globalThis.o1 = join();          // "Hxyz"
+        "#,
+        )
+        .unwrap();
+        assert_eq!(text(&mut e, "globalThis.o0"), "Hx");
+        assert_eq!(text(&mut e, "globalThis.o1"), "Hxyz");
+    }
+
+    #[test]
+    fn nested_control_flow_renders_in_fragment() {
+        // Control-flow nested inside control-flow (Show > For), itself a
+        // non-sole child of a frag: exercises the recursive resolve path.
+        let mut e = render_engine();
+        e.eval(
+            r#"
+            globalThis.a={n:"a"}; globalThis.b={n:"b"};
+            var on = createSignal(true);
+            globalThis.set = on[1];
+            globalThis.p = $ss.el("ul");
+            $ss.insert(p, function () {
+                return $ss.frag([
+                    (function(){ var h=$ss.el("li"); $ss.child(h,$ss.txt("H")); return h; })(),
+                    $ss.cmp(Show, {
+                        get when() { return on[0](); },
+                        get children() {
+                            return $ss.cmp(For, {
+                                get each(){ return [globalThis.a, globalThis.b]; },
+                                get children(){ return function(item){ var li=$ss.el("li"); $ss.child(li,$ss.txt(item.n)); return li; }; }
+                            });
+                        }
+                    })
+                ]);
+            });
+            function join(){var s="";for(var i=0;i<p.childNodes.length;i++){var n=p.childNodes[i];if(n.nodeType===1)s+=n.textContent;}return s;}
+            globalThis.o0 = join();   // "Hab"
+            globalThis.set(false);
+            globalThis.o1 = join();   // "H"
+        "#,
+        )
+        .unwrap();
+        assert_eq!(text(&mut e, "globalThis.o0"), "Hab");
+        assert_eq!(text(&mut e, "globalThis.o1"), "H");
+    }
+
+    #[test]
     fn index_keys_by_position_and_updates_item_in_place() {
         let mut e = render_engine();
         e.eval(
