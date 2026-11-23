@@ -5,7 +5,8 @@ use bevy::ecs::message::MessageReader;
 use bevy::input::keyboard::{Key, KeyCode, KeyboardInput};
 use bevy::input::ButtonState;
 use bevy::input_focus::{FocusCause, InputFocus};
-use bevy::picking::events::PointerClick;
+use bevy::picking::events::{PointerClick, PointerPress};
+use bevy::picking::pointer::PointerId;
 use bevy::prelude::*;
 use bevy::text::EditableText;
 use superui_dom::NodeId;
@@ -136,6 +137,67 @@ pub fn on_pointer_click(
     ev.propagate(false);
     let mods = modifiers_now(&keys);
     focus_and_click(node, &mut dom, &mut pending, &mut input_focus, mods);
+}
+
+/// The active primary touch finger, if any. A touch tap synthesizes the browser
+/// compatibility mouse sequence (`mousemove`/`mouseover`/`mouseenter`/`mousedown`
+/// on press, `mouseup`/`click` on release — the latter in a later stage); this
+/// slot ensures only the first concurrent finger does so, mirroring a browser's
+/// single synthesized mouse pointer.
+#[derive(Resource, Default)]
+pub struct PrimaryTouch(pub Option<PointerId>);
+
+/// A touch-synthesized `MousePayload`: the touch position as `clientX`/`clientY`,
+/// with the caller-supplied `button`/`buttons` state.
+fn touch_payload(pos: Vec2, button: u8, buttons: u8) -> MousePayload {
+    MousePayload { client_x: pos.x, client_y: pos.y, button, buttons }
+}
+
+/// Enqueue the browser compatibility mouse sequence for a primary-touch press:
+/// `mousemove`, `mouseover`, `mouseenter` (non-bubbling), then `mousedown`
+/// (button 0 down: `button = 0`, `buttons = 1`). All carry empty `Modifiers`
+/// (touch has no keyboard-modifier concept of its own) and the touch position.
+fn enqueue_touch_press(node: NodeId, pos: Vec2, pending: &mut PendingDomEvents) {
+    let idle = touch_payload(pos, 0, 0);
+    let down = touch_payload(pos, 0, 1);
+    let mods = Modifiers::default();
+    pending.0.push(PendingDomEvent::new(node, "mousemove").with_mouse(idle).with_modifiers(mods));
+    pending.0.push(PendingDomEvent::new(node, "mouseover").with_mouse(idle).with_modifiers(mods));
+    let mut enter = PendingDomEvent::new(node, "mouseenter").with_mouse(idle).with_modifiers(mods);
+    enter.bubbles = false;
+    pending.0.push(enter);
+    pending.0.push(PendingDomEvent::new(node, "mousedown").with_mouse(down).with_modifiers(mods));
+}
+
+/// Observer: the primary-touch finger's initial press synthesizes the browser
+/// compatibility mouse sequence into `PendingDomEvents` — the touch-tap half of
+/// making touch devices behave like a mouse to code that only listens for mouse
+/// events. Only the first concurrent finger does this (`PrimaryTouch`); a second
+/// finger landing while the first is still down is ignored, like a browser's
+/// single synthesized mouse pointer.
+pub fn on_touch_press(
+    mut ev: On<PointerPress>,
+    nodes: Query<&DomNode>,
+    parents: Query<&ChildOf>,
+    mut pending: ResMut<PendingDomEvents>,
+    mut primary: ResMut<PrimaryTouch>,
+) {
+    // Touch only; a mouse (or other custom) pointer returns immediately without
+    // touching propagation, same reasoning as `on_pointer_click`'s foreign-entity
+    // guard below.
+    let PointerId::Touch(_) = ev.pointer.id else { return };
+    // Resolve BEFORE touching `PrimaryTouch` — a `None` resolve (host-game entity)
+    // returns without claiming the event or consuming the primary slot, so a
+    // foreign touch doesn't block a later real tap from becoming primary.
+    let Some(node) = resolve_dom_node(ev.entity, &nodes, &parents) else { return };
+    // Ours: stop propagation so this fires once (mirror `on_pointer_click`).
+    ev.propagate(false);
+    // Adopt the first active finger as primary; ignore a second concurrent finger.
+    if primary.0.is_some() {
+        return;
+    }
+    primary.0 = Some(ev.pointer.id);
+    enqueue_touch_press(node, ev.pointer.position, &mut pending);
 }
 
 /// Walk up from `entity` to the nearest ancestor that carries a [`DomNode`],

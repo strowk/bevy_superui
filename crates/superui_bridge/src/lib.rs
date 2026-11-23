@@ -18,8 +18,8 @@ pub use bevy_bridge::{
 pub use events::{
     apply_pointer_click, click_effect, dim_placeholder_text_system, drain_dom_events_system,
     editable_input_events_system, format_slider_value, keyboard_events_system, modifiers_now,
-    on_focus_gained, on_focus_lost, on_pointer_click, on_slider_value_change, resolve_dom_node,
-    PendingDomEvent, PendingDomEvents,
+    on_focus_gained, on_focus_lost, on_pointer_click, on_slider_value_change, on_touch_press,
+    resolve_dom_node, PendingDomEvent, PendingDomEvents, PrimaryTouch,
 };
 pub use mouse::{
     mouse_events_system, mouse_listeners_active, sync_mouse_listener_index, MouseListenerIndex,

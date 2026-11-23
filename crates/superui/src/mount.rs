@@ -12,9 +12,9 @@ use superui_bridge::{
     clamp_scroll_position_system, dim_placeholder_text_system, drain_bevy_outbox_system,
     drain_dom_events_system, editable_input_events_system, emit_bevy_inbox_system,
     keyboard_events_system, mouse_events_system, mouse_listeners_active, on_focus_gained,
-    on_focus_lost, on_pointer_click, on_slider_value_change, position_slider_parts,
-    reconcile_system, sync_mouse_listener_index, wheel_scroll_system, MouseListenerIndex,
-    PendingDomEvents, PointerState, UiRuntime,
+    on_focus_lost, on_pointer_click, on_slider_value_change, on_touch_press,
+    position_slider_parts, reconcile_system, sync_mouse_listener_index, wheel_scroll_system,
+    MouseListenerIndex, PendingDomEvents, PointerState, PrimaryTouch, UiRuntime,
 };
 use superui_css::core::PropertyRegistry;
 use superui_css::parser::InlineCssStyleSheetParser;
@@ -206,10 +206,12 @@ impl Plugin for SuperUiPlugin {
             .init_resource::<PointerState>()
             .init_resource::<MouseListenerIndex>()
             .init_resource::<HotReloadFlags>()
+            .init_resource::<PrimaryTouch>()
             .add_observer(on_pointer_click)
             .add_observer(on_slider_value_change)
             .add_observer(on_focus_gained)
             .add_observer(on_focus_lost)
+            .add_observer(on_touch_press)
             .add_observer(on_superui_root_removed)
             // Wheel scrolling is pure Bevy (no UiRuntime), so it runs plainly in
             // Update rather than inside the runtime_exists DOM chain below.
