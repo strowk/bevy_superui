@@ -216,14 +216,21 @@ impl Plugin for SuperUiPlugin {
             .add_observer(on_slider_value_change)
             .add_observer(on_focus_gained)
             .add_observer(on_focus_lost)
-            .add_observer(on_touch_press)
-            .add_observer(on_touch_release)
+            // The six pointer observers are registered BEFORE the stage-1 touch
+            // observers (on_touch_press/on_touch_release) below: Bevy runs
+            // same-event (On<PointerPress>/On<PointerRelease>) observers in
+            // registration order, and the spec requires a pointer event precede
+            // its compat mouse event in PendingDomEvents' FIFO (pointer-first
+            // W3C ordering). Swapping this order silently reverses that FIFO —
+            // see superui_bridge's pointer_before_compat_mouse test.
             .add_observer(on_pointer_over)
             .add_observer(on_pointer_out)
             .add_observer(on_pointer_press)
             .add_observer(on_pointer_release)
             .add_observer(on_pointer_move)
             .add_observer(on_pointer_cancel)
+            .add_observer(on_touch_press)
+            .add_observer(on_touch_release)
             .add_observer(on_superui_root_removed)
             // Wheel scrolling is pure Bevy (no UiRuntime), so it runs plainly in
             // Update rather than inside the runtime_exists DOM chain below.

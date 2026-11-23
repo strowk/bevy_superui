@@ -176,6 +176,13 @@ pub fn captured_pointer_delivery_system(
     primary: Res<PrimaryTouch>,
     mut pending: ResMut<PendingDomEvents>,
 ) {
+    // Prune any `last` entry whose pointerId is no longer captured — an explicit
+    // `releasePointerCapture` removes the pointer from `PointerCaptures` (via
+    // `drain_pointer_captures_system`'s `None`-op branch) but never touches this
+    // resource, which would otherwise leave a stale position behind to dedupe
+    // away the first `pointermove` of a future re-capture of the same pointerId.
+    state.0.retain(|id, _| captures.0.contains_key(id));
+
     if captures.0.is_empty() {
         return;
     }

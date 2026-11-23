@@ -751,6 +751,79 @@ mod pointer_observers {
     }
 }
 
+// Final whole-branch review, Finding 1: NO test locks the pointer-before-
+// compat-mouse ordering here (deliberately — see the final-fix-report for
+// the full writeup). Bevy 0.20's global observer dispatch order for two
+// observers watching the same `EntityEvent` type (here, `On<PointerPress>`)
+// is governed by `bevy_ecs::observer::centralized_storage::ObserverMap`
+// (= `EntityHashMap<ObserverRunner>`, a hashbrown map keyed by each
+// observer's own spawned `Entity` via the non-order-preserving `EntityHash`)
+// and dispatched by iterating that map (see `bevy_ecs::event::trigger`'s
+// `GlobalTrigger`/`EntityTrigger`) — NOT by `add_observer` call order, and
+// `Observer` exposes no `.after()`/`.before()` the way a `System` does.
+// Reordering mount.rs's `add_observer` calls (this review's prescribed fix)
+// was verified empirically, in both an isolated harness here and a full
+// `SuperUiPlugin` integration test, to have NO effect on the actual firing
+// order — touch's compat mouse sequence still fires before the real
+// pointerdown regardless of registration order. mount.rs's reorder is kept
+// (as instructed, and harmless), but the underlying spec-compliance gap
+// remains open; closing it for real needs a mechanism this review's scope
+// excluded (observer bodies are off limits), e.g. merging pointer dispatch
+// and touch-compat synthesis into one observer.
+
+// Final whole-branch review, Finding 2: an explicit `releasePointerCapture`
+// removes the pointerId from `PointerCaptures` (via
+// `drain_pointer_captures_system`'s `None`-op branch) but never touches
+// `CapturedPointerState` — leaving a stale `last` position behind that could
+// dedupe away the first `pointermove` of a future re-capture of the same
+// pointerId. `captured_pointer_delivery_system` now prunes any `last` entry
+// whose pointerId is no longer in `PointerCaptures` before doing anything else.
+mod captured_state_pruning {
+    use bevy::prelude::*;
+    use superui_bridge::{
+        captured_pointer_delivery_system, CapturedPointerState, PendingDomEvents, PointerCaptures,
+        PrimaryTouch,
+    };
+    use superui_dom::NodeId;
+
+    use crate::test_app;
+
+    #[test]
+    fn explicit_release_prunes_the_stale_last_entry() {
+        let mut app = test_app();
+        app.init_resource::<PointerCaptures>();
+        app.init_resource::<CapturedPointerState>();
+        app.init_resource::<PrimaryTouch>();
+        app.init_resource::<PendingDomEvents>();
+        app.add_systems(Update, captured_pointer_delivery_system);
+
+        let node = NodeId::from_ffi(1);
+        app.world_mut().resource_mut::<PointerCaptures>().0.insert(1, node);
+        app.world_mut()
+            .resource_mut::<CapturedPointerState>()
+            .0
+            .insert(1, Vec2::new(5.0, 5.0));
+
+        app.update();
+        assert!(
+            app.world().resource::<CapturedPointerState>().0.contains_key(&1),
+            "still captured: the last entry must survive"
+        );
+
+        // Explicit releasePointerCapture: PointerCaptures loses the entry
+        // (mirrors drain_pointer_captures_system's None-op branch); that call
+        // never touches CapturedPointerState itself.
+        app.world_mut().resource_mut::<PointerCaptures>().0.remove(&1);
+
+        app.update();
+        assert!(
+            !app.world().resource::<CapturedPointerState>().0.contains_key(&1),
+            "a released pointerId's stale last entry must be pruned, not left \
+             behind to dedupe away a future re-capture's first pointermove"
+        );
+    }
+}
+
 // Task 5: off-UI captured delivery via the raw-location system. While a
 // pointer is captured, `captured_pointer_delivery_system` reads its RAW
 // position/released/canceled state each frame and delivers
