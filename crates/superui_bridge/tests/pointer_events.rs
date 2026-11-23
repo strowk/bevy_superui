@@ -201,6 +201,65 @@ mod pointer_capture {
         assert_eq!(dom.borrow().get_attribute(node_a, "data-lost-count"), Some("1"));
     }
 
+    /// Fix round 1: a `pointercancel` on the capturing pointer implicitly
+    /// releases its capture exactly like `pointerup` does (W3C: either one ends
+    /// the gesture) — firing `lostpointercapture` exactly once and clearing
+    /// `PointerCaptures`; a second `pointercancel` (nothing left to release)
+    /// does not fire it again. Mirrors
+    /// `pointerup_implicitly_releases_capture_and_fires_lostpointercapture`.
+    #[test]
+    fn pointercancel_implicitly_releases_capture_and_fires_lostpointercapture() {
+        let dom = Rc::new(RefCell::new(superui_html::parse_document(
+            "<div id='a'></div><div id='b'></div>",
+        )));
+        let mut app = test_app();
+        let _root = mount_with_capture(&mut app, dom.clone());
+
+        app.world_mut().non_send_mut::<UiRuntime>().run_script(
+            "document.getElementById('a').addEventListener('pointerdown', function (e) { \
+               e.target.setPointerCapture(e.pointerId); \
+             }); \
+             document.getElementById('a').addEventListener('lostpointercapture', function (e) { \
+               globalThis.lostCount = (globalThis.lostCount || 0) + 1; \
+             });",
+        );
+        app.update();
+
+        let node_a = dom.borrow().get_element_by_id("a").unwrap();
+        app.world_mut().resource_mut::<PendingDomEvents>().0.push(
+            PendingDomEvent::new(node_a, "pointerdown")
+                .with_mouse(capture_test_payload(1.0, 1.0, 1, 1)),
+        );
+        app.update(); // captures pointer 1 on #a
+        assert!(app.world().resource::<PointerCaptures>().0.contains_key(&1));
+
+        app.world_mut().resource_mut::<PendingDomEvents>().0.push(
+            PendingDomEvent::new(node_a, "pointercancel")
+                .with_mouse(capture_test_payload(1.0, 1.0, 0, 1)),
+        );
+        app.update(); // implicit release -> lostpointercapture
+
+        app.world_mut().non_send_mut::<UiRuntime>().run_script(
+            "var a = document.getElementById('a'); \
+             a.setAttribute('data-lost-count', String(globalThis.lostCount || 0));",
+        );
+        assert_eq!(dom.borrow().get_attribute(node_a, "data-lost-count"), Some("1"));
+        assert!(!app.world().resource::<PointerCaptures>().0.contains_key(&1));
+
+        // A second pointercancel has nothing to release: lostpointercapture
+        // does not fire again.
+        app.world_mut().resource_mut::<PendingDomEvents>().0.push(
+            PendingDomEvent::new(node_a, "pointercancel")
+                .with_mouse(capture_test_payload(1.0, 1.0, 0, 1)),
+        );
+        app.update();
+        app.world_mut().non_send_mut::<UiRuntime>().run_script(
+            "var a = document.getElementById('a'); \
+             a.setAttribute('data-lost-count', String(globalThis.lostCount || 0));",
+        );
+        assert_eq!(dom.borrow().get_attribute(node_a, "data-lost-count"), Some("1"));
+    }
+
     /// An explicit `releasePointerCapture` call clears the capture from
     /// `PointerCaptures` (via the same `CaptureOp` drain as the implicit path).
     #[test]
@@ -770,5 +829,26 @@ mod captured_delivery {
         let events = captured_delivery(&captures, &positions, &released, &canceled, &mut last, &primary);
 
         assert!(events.is_empty(), "no captures means nothing to deliver");
+    }
+
+    /// Fix round 1: a pointercancel ends the gesture exactly like a pointerup
+    /// does (W3C: both implicitly release capture) — so it must also forget the
+    /// pointer's `last` entry, not just its released counterpart.
+    #[test]
+    fn captured_cancel_delivers_pointercancel_and_forgets_the_pointer() {
+        let node_a = NodeId::from_ffi(1);
+        let mut captures = PointerCaptures::default();
+        captures.0.insert(1, node_a);
+        let positions = HashMap::from([(1, Vec2::new(99.0, 99.0))]);
+        let released = HashSet::new();
+        let canceled = HashSet::from([1]);
+        let mut last = HashMap::new();
+        let primary = PrimaryTouch::default();
+
+        let events = captured_delivery(&captures, &positions, &released, &canceled, &mut last, &primary);
+
+        let types: Vec<&str> = events.iter().map(|e| e.type_.as_str()).collect();
+        assert_eq!(types, vec!["pointermove", "pointercancel"]);
+        assert!(!last.contains_key(&1), "a canceled pointer must be forgotten, same as a released one");
     }
 }

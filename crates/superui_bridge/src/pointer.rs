@@ -100,10 +100,13 @@ fn captured_payload(pos: Vec2, buttons: u8, js_id: u32, primary: &PrimaryTouch) 
 /// Per captured pointer: a changed position (vs. `last`) delivers one
 /// `pointermove` (`buttons = 1` — captured delivery only ever fires mid-drag,
 /// button held); a canceled pointer then also gets `pointercancel`; a released
-/// pointer then also gets `pointerup` (`buttons = 0`) and is dropped from
-/// `last` (nothing left to dedup against). A still-held pointer's `last` is
-/// updated to the current position either way. Order within a pointer: move,
-/// then cancel/up (matches a real browser's event order for a single frame).
+/// pointer then also gets `pointerup` (`buttons = 0`). Either a cancel or a
+/// release ends the pointer's gesture (W3C: both implicitly release capture,
+/// mirrored on the JS side by `dom.js`'s `dispatch`), so either one drops the
+/// pointer from `last` — nothing left to dedup against. A still-held pointer's
+/// `last` is updated to the current position instead. Order within a pointer:
+/// move, then cancel/up (matches a real browser's event order for a single
+/// frame).
 pub fn captured_delivery(
     captures: &PointerCaptures,
     positions: &HashMap<u32, Vec2>,
@@ -122,13 +125,21 @@ pub fn captured_delivery(
             let m = captured_payload(pos, 1, js_id, primary);
             out.push(PendingDomEvent::new(node, "pointermove").with_mouse(m).with_modifiers(Modifiers::default()));
         }
-        if canceled.contains(&js_id) {
+        let is_canceled = canceled.contains(&js_id);
+        if is_canceled {
             let m = captured_payload(pos, 0, js_id, primary);
             out.push(PendingDomEvent::new(node, "pointercancel").with_mouse(m).with_modifiers(Modifiers::default()));
         }
-        if released.contains(&js_id) {
+        let is_released = released.contains(&js_id);
+        if is_released {
             let m = captured_payload(pos, 0, js_id, primary);
             out.push(PendingDomEvent::new(node, "pointerup").with_mouse(m).with_modifiers(Modifiers::default()));
+        }
+        // A canceled OR released pointer's gesture is over: W3C has both
+        // implicitly release capture (pointer.rs's caller mirrors this on the
+        // JS side in dom.js's dispatch), so there's nothing left to dedup
+        // against — forget it, same as a plain release.
+        if is_canceled || is_released {
             last.remove(&js_id);
         } else {
             last.insert(js_id, pos);

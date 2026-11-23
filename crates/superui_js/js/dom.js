@@ -768,10 +768,12 @@
     }
     event.currentTarget = null;
 
-    // Implicit release (W3C): a pointerup ends the gesture, so any capture this
-    // pointerId still holds on the (post-retarget) target is dropped here,
-    // firing lostpointercapture exactly once.
-    if (type === "pointerup" && init && init.pointerId != null) {
+    // Implicit release (W3C): a pointerup OR pointercancel ends the gesture, so
+    // any capture this pointerId still holds on the (post-retarget) target is
+    // dropped here, firing lostpointercapture exactly once. The `captureMap.get
+    // === target` check is the once-only guard: a second pointerup/pointercancel
+    // for the same id finds nothing left to release.
+    if ((type === "pointerup" || type === "pointercancel") && init && init.pointerId != null) {
       var upId = init.pointerId >>> 0;
       if (captureMap.get(upId) === target) releaseCapture(target, upId);
     }
