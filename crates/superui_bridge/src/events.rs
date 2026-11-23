@@ -5,7 +5,7 @@ use bevy::ecs::message::MessageReader;
 use bevy::input::keyboard::{Key, KeyCode, KeyboardInput};
 use bevy::input::ButtonState;
 use bevy::input_focus::{FocusCause, InputFocus};
-use bevy::picking::events::{PointerClick, PointerPress};
+use bevy::picking::events::{PointerClick, PointerPress, PointerRelease};
 use bevy::picking::pointer::PointerId;
 use bevy::prelude::*;
 use bevy::text::EditableText;
@@ -198,6 +198,39 @@ pub fn on_touch_press(
     }
     primary.0 = Some(ev.pointer.id);
     enqueue_touch_press(node, ev.pointer.position, &mut pending);
+}
+
+/// Enqueue the browser compatibility mouse sequence for a primary-touch release:
+/// a single `mouseup` (button 0 up: `button = 0`, `buttons = 0`), bubbling, with
+/// empty `Modifiers` and the touch position (mirrors `enqueue_touch_press`).
+fn enqueue_touch_release(node: NodeId, pos: Vec2, pending: &mut PendingDomEvents) {
+    let up = touch_payload(pos, 0, 0);
+    let mods = Modifiers::default();
+    pending.0.push(PendingDomEvent::new(node, "mouseup").with_mouse(up).with_modifiers(mods));
+}
+
+/// Observer: the primary-touch finger's release synthesizes the compatibility
+/// `mouseup` into `PendingDomEvents` and frees the primary slot — the release
+/// half of `on_touch_press`'s tap-to-mouse sequence. A non-primary finger's
+/// release (a second finger lifting while the primary is still down) is
+/// ignored, same as `on_touch_press` ignoring a second finger's press.
+pub fn on_touch_release(
+    mut ev: On<PointerRelease>,
+    nodes: Query<&DomNode>,
+    parents: Query<&ChildOf>,
+    mut pending: ResMut<PendingDomEvents>,
+    mut primary: ResMut<PrimaryTouch>,
+) {
+    let PointerId::Touch(_) = ev.pointer.id else { return };
+    let Some(node) = resolve_dom_node(ev.entity, &nodes, &parents) else { return };
+    ev.propagate(false);
+    // Only the primary finger's release synthesizes; a non-primary release is
+    // ignored and leaves the primary slot untouched.
+    if primary.0 != Some(ev.pointer.id) {
+        return;
+    }
+    enqueue_touch_release(node, ev.pointer.position, &mut pending);
+    primary.0 = None;
 }
 
 /// Walk up from `entity` to the nearest ancestor that carries a [`DomNode`],

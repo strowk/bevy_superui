@@ -10,11 +10,13 @@ use std::rc::Rc;
 
 use bevy::camera::NormalizedRenderTarget;
 use bevy::picking::backend::HitData;
-use bevy::picking::events::{Pointer, PointerPress};
+use bevy::picking::events::{Pointer, PointerPress, PointerRelease};
 use bevy::picking::pointer::{Location, PointerButton, PointerId};
 use bevy::prelude::*;
 use bevy::window::{PrimaryWindow, WindowRef};
-use superui_bridge::{on_touch_press, Modifiers, PendingDomEvents, PrimaryTouch, UiRuntime};
+use superui_bridge::{
+    on_touch_press, on_touch_release, Modifiers, PendingDomEvents, PrimaryTouch, UiRuntime,
+};
 
 /// The ECS entity a DOM id resolves to (must already be reconciled).
 fn entity_of(app: &App, dom: &Rc<RefCell<superui_dom::Dom>>, id: &str) -> Entity {
@@ -22,12 +24,14 @@ fn entity_of(app: &App, dom: &Rc<RefCell<superui_dom::Dom>>, id: &str) -> Entity
     app.world().non_send::<UiRuntime>().entity_for(node).unwrap()
 }
 
-/// Register `on_touch_press` + its resources on top of the base harness.
+/// Register `on_touch_press`/`on_touch_release` + their resources on top of the
+/// base harness.
 fn mount_touch(app: &mut App, dom: Rc<RefCell<superui_dom::Dom>>) -> Entity {
     let root = mount(app, dom);
     app.init_resource::<PendingDomEvents>();
     app.init_resource::<PrimaryTouch>();
     app.add_observer(on_touch_press);
+    app.add_observer(on_touch_release);
     root
 }
 
@@ -52,6 +56,29 @@ fn press(app: &mut App, entity: Entity, id: PointerId, pos: Vec2) {
         button: PointerButton::Primary,
         hit: HitData::new(camera, 0.0, None, None),
         count: 1,
+    });
+}
+
+/// Trigger a real `PointerRelease` from pointer `id` on `entity` at `pos`.
+/// Same target/camera construction as `press`; `PointerRelease` has no `count`.
+fn release(app: &mut App, entity: Entity, id: PointerId, pos: Vec2) {
+    let camera = app.world_mut().spawn(Camera2d).id();
+    let window = app
+        .world_mut()
+        .query_filtered::<Entity, With<PrimaryWindow>>()
+        .single(app.world())
+        .expect("primary window");
+    let target = WindowRef::Entity(window)
+        .normalize(Some(window))
+        .expect("normalized window");
+    app.world_mut().trigger(PointerRelease {
+        entity,
+        pointer: Pointer::new(
+            id,
+            Location { target: NormalizedRenderTarget::Window(target), position: pos },
+        ),
+        button: PointerButton::Primary,
+        hit: HitData::new(camera, 0.0, None, None),
     });
 }
 
@@ -142,4 +169,91 @@ fn touch_press_on_a_foreign_entity_enqueues_nothing_and_leaves_primary_free() {
     let a = entity_of(&app, &dom, "a");
     press(&mut app, a, PointerId::Touch(2), Vec2::new(3.0, 3.0));
     assert_eq!(app.world().resource::<PendingDomEvents>().0.len(), 4);
+}
+
+#[test]
+fn primary_release_enqueues_mouseup() {
+    let dom = Rc::new(RefCell::new(superui_html::parse_document("<div id='a'></div>")));
+    let mut app = test_app();
+    mount_touch(&mut app, dom.clone());
+    app.update();
+
+    let a = entity_of(&app, &dom, "a");
+    press(&mut app, a, PointerId::Touch(1), Vec2::new(5.0, 6.0));
+    release(&mut app, a, PointerId::Touch(1), Vec2::new(5.0, 6.0));
+
+    let events = &app.world().resource::<PendingDomEvents>().0;
+    let types: Vec<&str> = events.iter().map(|e| e.type_.as_str()).collect();
+    assert_eq!(types, vec!["mousemove", "mouseover", "mouseenter", "mousedown", "mouseup"]);
+
+    let up = events.last().unwrap();
+    assert_eq!(up.type_, "mouseup");
+    let m = up.mouse.expect("mouseup missing mouse payload");
+    assert_eq!((m.button, m.buttons), (0, 0));
+    assert!(up.bubbles, "mouseup must bubble");
+    assert_eq!(m.client_x, 5.0);
+    assert_eq!(m.client_y, 6.0);
+    assert_eq!(up.modifiers, Some(Modifiers::default()));
+}
+
+#[test]
+fn following_touch_becomes_new_primary_after_release() {
+    let dom = Rc::new(RefCell::new(superui_html::parse_document("<div id='a'></div>")));
+    let mut app = test_app();
+    mount_touch(&mut app, dom.clone());
+    app.update();
+
+    let a = entity_of(&app, &dom, "a");
+    press(&mut app, a, PointerId::Touch(1), Vec2::new(1.0, 1.0));
+    release(&mut app, a, PointerId::Touch(1), Vec2::new(1.0, 1.0));
+    assert!(
+        app.world().resource::<PrimaryTouch>().0.is_none(),
+        "release must clear the primary slot"
+    );
+    let after_release = app.world().resource::<PendingDomEvents>().0.len();
+
+    press(&mut app, a, PointerId::Touch(2), Vec2::new(2.0, 2.0));
+    assert_eq!(
+        app.world().resource::<PendingDomEvents>().0.len(),
+        after_release + 4,
+        "the next finger must be adopted as primary and enqueue a fresh compat sequence"
+    );
+    assert_eq!(app.world().resource::<PrimaryTouch>().0, Some(PointerId::Touch(2)));
+}
+
+#[test]
+fn non_primary_release_is_ignored() {
+    let dom = Rc::new(RefCell::new(superui_html::parse_document("<div id='a'></div>")));
+    let mut app = test_app();
+    mount_touch(&mut app, dom.clone());
+    app.update();
+
+    let a = entity_of(&app, &dom, "a");
+    press(&mut app, a, PointerId::Touch(1), Vec2::new(1.0, 1.0));
+    let before = app.world().resource::<PendingDomEvents>().0.len();
+
+    release(&mut app, a, PointerId::Touch(2), Vec2::new(1.0, 1.0));
+
+    assert_eq!(
+        app.world().resource::<PendingDomEvents>().0.len(),
+        before,
+        "a non-primary finger's release must not enqueue a mouseup"
+    );
+    assert_eq!(app.world().resource::<PrimaryTouch>().0, Some(PointerId::Touch(1)));
+}
+
+#[test]
+fn mouse_release_enqueues_nothing_from_touch_observer() {
+    let dom = Rc::new(RefCell::new(superui_html::parse_document("<div id='a'></div>")));
+    let mut app = test_app();
+    mount_touch(&mut app, dom.clone());
+    app.update();
+
+    let a = entity_of(&app, &dom, "a");
+    release(&mut app, a, PointerId::Mouse, Vec2::new(1.0, 1.0));
+
+    assert!(
+        app.world().resource::<PendingDomEvents>().0.is_empty(),
+        "the touch observer must ignore mouse pointers"
+    );
 }
