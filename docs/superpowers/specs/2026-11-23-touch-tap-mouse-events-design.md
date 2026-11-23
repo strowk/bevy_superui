@@ -18,9 +18,10 @@ input flows through a different channel (`Touches` / `PointerId::Touch`) and is
 never consulted, and nothing anywhere synthesizes mouse events from touch. So
 `mousedown`/`mouseup`/`mousemove`/`mouseover`/`mouseenter` never fire for a tap.
 
-This matches how real browsers behave for *drag* gestures (a pan suppresses the
-compatibility mouse events), but superui is further behind: it emits nothing
-mouse-shaped from touch even for a plain tap.
+Real browsers *do* fire a compatibility mouse sequence for a tap (`mousemove`
+-> `mousedown` -> `mouseup` -> `click`); superui fires none of it. Closing that
+tap gap is this stage. (Drag/pan gestures are a separate matter, handled in a
+later stage — not here.)
 
 What already works, and is not re-touched: `click` + focus already fire on a
 touch tap. `on_pointer_click` (`crates/superui_bridge/src/events.rs`) observes
