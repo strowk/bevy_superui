@@ -7,6 +7,7 @@
 mod bevy_bridge;
 mod events;
 mod mouse;
+mod pointer;
 mod reconcile;
 mod runtime;
 mod scroll;
@@ -28,8 +29,9 @@ pub use mouse::{
     mouse_events_system, mouse_listeners_active, sync_mouse_listener_index, MouseListenerIndex,
     PointerState,
 };
+pub use pointer::sync_hit_rects_system;
 pub use reconcile::reconcile_system;
 pub use runtime::{DomNode, InputValueText, PickingPolicy, PlaceholderText, UiRuntime};
 pub use scroll::{clamp_scroll_position_system, wheel_scroll_system};
 pub use slider::position_slider_parts;
-pub use superui_js::{EventInit, Modifiers, MousePayload};
+pub use superui_js::{element_from_point, EventInit, HitRect, Modifiers, MousePayload};

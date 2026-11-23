@@ -31,7 +31,7 @@ use wasm_bindgen::JsCast;
 
 use superui_dom::Dom;
 
-use crate::{JsEngine, OpBatch};
+use crate::{element_from_point, HitRect, JsEngine, OpBatch};
 
 /// The JS shadow DOM. Defines `document`, `__ss_root`, `__ss_flush`,
 /// `__ss_dispatch` on the scope it runs in; guards `__ss_measure`. Byte-for-byte
@@ -54,10 +54,15 @@ pub struct WebEngine {
     /// JS→Bevy messages queued by `__superui_bevy_send`, drained per frame.
     /// Shared with the installed closure.
     outbox: Rc<RefCell<Vec<(String, Value)>>>,
+    /// This frame's geometry snapshot, written by `set_hit_rects`; read by the
+    /// `__ss_element_from_point` closure. Shared so `set_hit_rects` can swap
+    /// the contents without reinstalling the closure.
+    hit_rects: Rc<RefCell<Vec<HitRect>>>,
     /// Dropping a `Closure` frees the JS shim referencing it, so the host
     /// functions installed on the scope must be held for the engine's lifetime.
     _bevy_send: Closure<dyn FnMut(JsValue, JsValue)>,
     _measure: Closure<dyn FnMut(JsValue) -> JsValue>,
+    _element_from_point: Closure<dyn FnMut(JsValue, JsValue) -> JsValue>,
 }
 
 impl WebEngine {
@@ -98,6 +103,27 @@ impl WebEngine {
             measure.as_ref(),
         );
 
+        // __ss_element_from_point(x, y): the host side of
+        // document.elementFromPoint. Reads the latest `set_hit_rects`
+        // snapshot; returns 0 ("no hit") when nothing contains (x, y).
+        let hit_rects: Rc<RefCell<Vec<HitRect>>> = Rc::new(RefCell::new(Vec::new()));
+        let element_from_point_fn = {
+            let hit_rects = hit_rects.clone();
+            Closure::<dyn FnMut(JsValue, JsValue) -> JsValue>::new(
+                move |x: JsValue, y: JsValue| -> JsValue {
+                    let x = x.as_f64().unwrap_or(0.0) as f32;
+                    let y = y.as_f64().unwrap_or(0.0) as f32;
+                    let id = element_from_point(&hit_rects.borrow(), x, y).unwrap_or(0);
+                    JsValue::from_f64(id as f64)
+                },
+            )
+        };
+        let _ = Reflect::set(
+            scope.as_ref(),
+            &JsValue::from_str("__ss_element_from_point"),
+            element_from_point_fn.as_ref(),
+        );
+
         // dom.js runs into the scope first — it defines the shadow `document` and
         // the __ss_* entry points the later runtime/render/app scripts build on.
         // Non-fatal on failure: keep the engine so later eval() calls still
@@ -110,8 +136,10 @@ impl WebEngine {
             dom,
             scope,
             outbox,
+            hit_rects,
             _bevy_send: bevy_send,
             _measure: measure,
+            _element_from_point: element_from_point_fn,
         }
     }
 
@@ -220,6 +248,10 @@ impl JsEngine for WebEngine {
 
     fn drain_outbox(&mut self) -> Vec<(String, Value)> {
         std::mem::take(&mut self.outbox.borrow_mut())
+    }
+
+    fn set_hit_rects(&mut self, rects: Vec<HitRect>) {
+        *self.hit_rects.borrow_mut() = rects;
     }
 }
 

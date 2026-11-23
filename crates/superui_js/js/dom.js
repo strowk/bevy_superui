@@ -584,6 +584,12 @@
     get documentElement() {
       return root;
     },
+    elementFromPoint: function (x, y) {
+      var fn = globalThis.__ss_element_from_point;
+      if (typeof fn !== "function") return null;
+      var id = fn(+x, +y) >>> 0;
+      return id ? (nodesById.get(id) || null) : null;
+    },
   };
 
   // ---- document / window as bubble-chain targets ----------------------------

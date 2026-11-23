@@ -15,8 +15,8 @@ use superui_bridge::{
     on_focus_lost, on_pointer_cancel, on_pointer_click, on_pointer_move, on_pointer_out,
     on_pointer_over, on_pointer_press, on_pointer_release, on_slider_value_change,
     on_touch_press, on_touch_release, position_slider_parts, reconcile_system,
-    sync_mouse_listener_index, wheel_scroll_system, MouseListenerIndex, PendingDomEvents,
-    PointerCaptures, PointerState, PrimaryTouch, UiRuntime,
+    sync_hit_rects_system, sync_mouse_listener_index, wheel_scroll_system, MouseListenerIndex,
+    PendingDomEvents, PointerCaptures, PointerState, PrimaryTouch, UiRuntime,
 };
 use superui_css::core::PropertyRegistry;
 use superui_css::parser::InlineCssStyleSheetParser;
@@ -316,6 +316,10 @@ impl Plugin for SuperUiPlugin {
                 // (A game-event → bevy.on callback that itself calls bevy.send
                 // still lags one frame too — acceptable Phase 1 trade-off.)
                 (
+                    // Geometry snapshot for document.elementFromPoint: must
+                    // run before drain_dom_events_system so a listener a DOM
+                    // event dispatches into this frame sees fresh rects.
+                    sync_hit_rects_system,
                     editable_input_events_system,
                     drain_dom_events_system,
                     keyboard_events_system,

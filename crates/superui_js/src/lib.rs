@@ -147,4 +147,67 @@ pub trait JsEngine {
 
     /// JS→Bevy: take the messages `__superui_bevy_send` queued this frame.
     fn drain_outbox(&mut self) -> Vec<(String, serde_json::Value)>;
+
+    /// Replace the engine's geometry snapshot for `document.elementFromPoint`
+    /// (the `__ss_element_from_point` host binding reads it). Called once per
+    /// frame by `sync_hit_rects_system`; an empty `Vec` makes every probe miss.
+    fn set_hit_rects(&mut self, rects: Vec<HitRect>);
+}
+
+/// One node's axis-aligned screen-space bounding box, snapshotted per frame by
+/// `sync_hit_rects_system` from `bevy_ui` layout for `element_from_point`'s
+/// hit-test. Coordinates are in the same logical-window-pixel space as
+/// `MouseEvent.clientX`/`clientY`.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct HitRect {
+    pub js_id: JsNodeId,
+    pub min: (f32, f32),
+    pub max: (f32, f32),
+    /// DOM-tree depth (document root = 0); the containing rect with the
+    /// greatest depth wins a hit, matching painter's-order "topmost" semantics.
+    pub depth: u32,
+}
+
+/// Pure hit-test backing `document.elementFromPoint(x, y)`: the `js_id` of the
+/// containing rect with the greatest `depth` (ties broken by last-wins, i.e.
+/// snapshot order), or `None` if no rect contains `(x, y)`.
+pub fn element_from_point(rects: &[HitRect], x: f32, y: f32) -> Option<JsNodeId> {
+    rects
+        .iter()
+        .filter(|r| r.min.0 <= x && x <= r.max.0 && r.min.1 <= y && y <= r.max.1)
+        .max_by_key(|r| r.depth)
+        .map(|r| r.js_id)
+}
+
+#[cfg(test)]
+mod element_from_point_tests {
+    use super::{element_from_point, HitRect};
+
+    #[test]
+    fn point_inside_single_node_returns_it() {
+        let rects = [HitRect { js_id: 2, min: (0.0, 0.0), max: (10.0, 10.0), depth: 0 }];
+        assert_eq!(element_from_point(&rects, 5.0, 5.0), Some(2));
+    }
+
+    #[test]
+    fn overlapping_nodes_topmost_by_depth_wins() {
+        let parent = HitRect { js_id: 1, min: (0.0, 0.0), max: (100.0, 100.0), depth: 0 };
+        let child = HitRect { js_id: 2, min: (10.0, 10.0), max: (20.0, 20.0), depth: 1 };
+        let rects = [parent, child];
+        assert_eq!(element_from_point(&rects, 15.0, 15.0), Some(2));
+        assert_eq!(element_from_point(&rects, 50.0, 50.0), Some(1));
+    }
+
+    #[test]
+    fn point_outside_all_nodes_is_none() {
+        let rects = [HitRect { js_id: 1, min: (0.0, 0.0), max: (10.0, 10.0), depth: 0 }];
+        assert_eq!(element_from_point(&rects, 500.0, 500.0), None);
+    }
+
+    #[test]
+    fn ties_in_depth_resolve_to_the_last_rect() {
+        let a = HitRect { js_id: 1, min: (0.0, 0.0), max: (10.0, 10.0), depth: 0 };
+        let b = HitRect { js_id: 2, min: (0.0, 0.0), max: (10.0, 10.0), depth: 0 };
+        assert_eq!(element_from_point(&[a, b], 5.0, 5.0), Some(2));
+    }
 }

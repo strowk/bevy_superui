@@ -156,6 +156,75 @@ fn mouse_event_has_no_pointer_props() {
     assert_eq!(dom.borrow().get_attribute(node, "data-pointer-type-type"), Some("undefined"));
 }
 
+// Task 3: document.elementFromPoint, backed by a host-binding AABB hit-test
+// over a per-frame geometry snapshot (`sync_hit_rects_system`/`HitRect`). The
+// pure hit-test itself (`element_from_point`) is unit-tested in
+// `superui_js::lib`; these tests exercise the host binding + `dom.js` surface
+// end-to-end, against a snapshot pushed directly via `UiRuntime::set_hit_rects`
+// rather than real headless layout (deliberately — see task-3-brief.md step 7;
+// real-geometry correctness is Task 6's job).
+#[test]
+fn element_from_point_resolves_a_known_snapshot_and_misses_outside_it() {
+    let dom = Rc::new(RefCell::new(superui_html::parse_document("<div id='a'></div>")));
+    let mut app = test_app();
+    let _root = mount_with_input(&mut app, dom.clone());
+    app.update(); // initial reconcile: #a now has a js binding
+
+    let node = dom.borrow().get_element_by_id("a").unwrap();
+    let js_id = app
+        .world()
+        .non_send::<UiRuntime>()
+        .applier
+        .js(node)
+        .expect("#a must have a js binding");
+
+    app.world_mut().non_send_mut::<UiRuntime>().set_hit_rects(vec![superui_js::HitRect {
+        js_id,
+        min: (0.0, 0.0),
+        max: (10.0, 10.0),
+        depth: 0,
+    }]);
+
+    app.world_mut().non_send_mut::<UiRuntime>().run_script(
+        "globalThis.hit = (function () { \
+           var n = document.elementFromPoint(5, 5); \
+           return n ? n.id : null; \
+         })(); \
+         globalThis.miss = (function () { \
+           var n = document.elementFromPoint(500, 500); \
+           return n === null; \
+         })();",
+    );
+
+    app.world_mut().non_send_mut::<UiRuntime>().run_script(
+        "var b = document.getElementById('a'); \
+         b.setAttribute('data-hit', String(globalThis.hit)); \
+         b.setAttribute('data-miss', String(globalThis.miss));",
+    );
+    assert_eq!(dom.borrow().get_attribute(node, "data-hit"), Some("a"));
+    assert_eq!(dom.borrow().get_attribute(node, "data-miss"), Some("true"));
+}
+
+#[test]
+fn element_from_point_is_null_when_snapshot_is_empty() {
+    let dom = Rc::new(RefCell::new(superui_html::parse_document("<div id='a'></div>")));
+    let mut app = test_app();
+    let _root = mount_with_input(&mut app, dom.clone());
+    app.update();
+
+    // No set_hit_rects call yet this run: the engine starts with an empty
+    // snapshot, so every probe misses.
+    app.world_mut()
+        .non_send_mut::<UiRuntime>()
+        .run_script("globalThis.hit = document.elementFromPoint(1, 1);");
+    app.world_mut().non_send_mut::<UiRuntime>().run_script(
+        "var b = document.getElementById('a'); \
+         b.setAttribute('data-hit', String(globalThis.hit === null));",
+    );
+    let node = dom.borrow().get_element_by_id("a").unwrap();
+    assert_eq!(dom.borrow().get_attribute(node, "data-hit"), Some("true"));
+}
+
 // Task 2: uncaptured pointer-event synthesis observers. Six global picking
 // observers (`on_pointer_{over,out,press,release,move,cancel}`) map picking
 // events to the W3C pointer-event family, for every pointer type, through
