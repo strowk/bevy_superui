@@ -30,6 +30,13 @@ supersolid = { path = "../../crates/supersolid" }
 # test engine (`page.locator(...).dragTo(...)`), mounting the actual authored
 # assets below.
 superui_test_engine = { path = "../../crates/superui_test_engine" }
+# Drives pointer events directly against the mounted `UiRuntime`
+# (`dispatch_dom_event`/`set_hit_rects`) and reads the render-mirror `Dom`
+# for assertions — see `tests/inventory.rs`'s header comment for why the
+# drag isn't driven through the test engine's `dragTo`/locator API.
+superui_bridge = { path = "../../crates/superui_bridge" }
+superui_dom = { path = "../../crates/superui_dom" }
+superui_js = { path = "../../crates/superui_js" }
 
 # `rand`/bevy's wasm entropy backend; `webgl2` selects the broadly-compatible
 # WebGL2 wgpu backend for the web build.

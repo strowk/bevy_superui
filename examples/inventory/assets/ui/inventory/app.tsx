@@ -1,18 +1,23 @@
 // Chest <-> player-inventory drag-and-drop demo — the worked example for
-// superui's browser-faithful mouse events + document-level drag capture.
+// superui's W3C pointer events + `setPointerCapture`, the one path that
+// drives both mouse and touch drags identically.
 //
 // NOTE — everything lives in this one file on purpose: superui's transpiler
 // strips cross-module imports, so components are plain functions in one module.
 //
 // Drag protocol (mirrors native HTML5 drag-and-drop minus the DataTransfer
 // ceremony):
-//   - `startDrag` (a tile's `onMouseDown`) records `{id, from}` and installs
-//     `document`-level `mousemove`/`mouseup` listeners — so the drag tracks the
-//     cursor and resolves its drop no matter what element is under it when the
-//     button comes up, exactly like a real browser's capture-on-mousedown.
+//   - `startDrag` (a tile's `onPointerDown`) records `{id, from}` and calls
+//     `e.target.setPointerCapture(e.pointerId)`, then installs `document`-level
+//     `pointermove`/`pointerup` listeners. Capture pins `e.target` to the tile
+//     for the rest of the gesture (mouse or touch — the same pointer-event
+//     family carries both), no matter what's visually underneath the pointer;
+//     the document-level listeners track the drag past the tile's own bounds.
 //   - `onMove` repositions a floating tile from `event.clientX/clientY`.
-//   - `onUp` resolves the drop *slot* (not a screen position) by walking
-//     `event.target.parentNode` upward for the nearest `data-slot` ancestor —
+//   - `onUp` resolves the drop *slot* from a screen position, not `event.target`
+//     (capture made that the dragged tile itself): `document.elementFromPoint`
+//     finds whatever's actually under the pointer, then `findSlot` walks its
+//     `parentNode` chain upward for the nearest `data-slot` ancestor —
 //     `closest()` is not implemented yet, so this walk is written by hand. Each
 //     panel's own container carries `data-slot="chest"` / `data-slot="inv"`, so
 //     dropping anywhere inside a panel (on its background or on a tile) finds
@@ -50,13 +55,13 @@ function findSlot(node: any): SlotName | null {
 // Leaf component for one tile — no control-flow of its own, so it is safe to
 // pass reactive props straight through (unlike a container with its own
 // `<For>`, this one only needs the single item it was handed).
-function Tile(props: { item: Item; onMouseDown: (e: any) => void }) {
+function Tile(props: { item: Item; onPointerDown: (e: any) => void }) {
   return (
     <div
       class="tile"
       id={`tile-${props.item.id}`}
       data-item={props.item.id}
-      onMouseDown={props.onMouseDown}
+      onPointerDown={props.onPointerDown}
       title={props.item.name}
     >
       {props.item.icon}
@@ -82,7 +87,7 @@ function App() {
   const setterFor = (name: SlotName) => (name === "chest" ? setChest : setInv);
 
   // Shift-click the opposite of a drag: move the item straight to the other
-  // panel without a drag, reading the modifier off the mousedown event.
+  // panel without a drag, reading the modifier off the pointerdown event.
   const quickMove = (id: string, from: SlotName) => {
     const to: SlotName = from === "chest" ? "inv" : "chest";
     const fromItems = storeFor(from)();
@@ -100,12 +105,15 @@ function App() {
   };
 
   const onUp = (e: any) => {
-    document.removeEventListener("mousemove", onMove);
-    document.removeEventListener("mouseup", onUp);
+    document.removeEventListener("pointermove", onMove);
+    document.removeEventListener("pointerup", onUp);
     const d = dragging();
     setDragging(null);
     if (!d) return;
-    const to = findSlot(e.target);
+    // `e.target` is pinned to the dragged tile by `setPointerCapture` — the
+    // drop slot has to come from where the pointer actually is, not who's
+    // receiving the event.
+    const to = findSlot(document.elementFromPoint(e.clientX, e.clientY));
     if (!to || to === d.from) return;
     const fromItems = storeFor(d.from)();
     const item = fromItems.find((it) => it.id === d.id);
@@ -119,10 +127,11 @@ function App() {
       quickMove(id, from);
       return;
     }
+    e.target.setPointerCapture(e.pointerId);
     setDragging({ id, from });
     setFloatPos({ x: e.clientX, y: e.clientY });
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
+    document.addEventListener("pointermove", onMove);
+    document.addEventListener("pointerup", onUp);
   };
 
   // The dragged item's own data, looked up from whichever store it still
@@ -139,7 +148,7 @@ function App() {
         <div class="panel-title">Chest</div>
         <div class="tiles">
           {<For each={chest()}>
-            {(item) => <Tile item={item} onMouseDown={(e) => startDrag(e, item.id, "chest")} />}
+            {(item) => <Tile item={item} onPointerDown={(e) => startDrag(e, item.id, "chest")} />}
           </For>}
         </div>
       </div>
@@ -147,7 +156,7 @@ function App() {
         <div class="panel-title">Inventory</div>
         <div class="tiles">
           {<For each={inv()}>
-            {(item) => <Tile item={item} onMouseDown={(e) => startDrag(e, item.id, "inv")} />}
+            {(item) => <Tile item={item} onPointerDown={(e) => startDrag(e, item.id, "inv")} />}
           </For>}
         </div>
       </div>
@@ -158,15 +167,15 @@ function App() {
           // Positive offset, not centered-on-cursor: with the cursor at
           // (x, y) and this box's top-left at (x+12, y+12), the box sits
           // down-right of the pointer and (x, y) itself lands OUTSIDE it.
-          // flair has no `pointer-events` (and there's no TSX way to mark a
-          // node non-hoverable), so every element reconciles to a hoverable
-          // Pickable — including this preview. If it were centered on the
-          // cursor (e.g. a `-20px` offset for a ~48px tile), it would be the
-          // topmost (depth-0) hit under the real pointer on `mouseup`,
-          // stealing `event.target` from the slot beneath it and making
-          // every real (non-test) drop silently fail: `onUp`'s `data-slot`
-          // walk would hit the preview's own ancestors (`#app`/root), find
-          // nothing, and bail before moving the item.
+          // That's cosmetic now, not load-bearing: `onUp` resolves the drop
+          // from `document.elementFromPoint(e.clientX, e.clientY)`, a real
+          // screen-position hit-test — NOT `event.target` (capture pins that
+          // to the dragged tile itself for the whole gesture, floating
+          // preview or not). So even a cursor-centered preview sitting
+          // topmost under the pointer couldn't steal the drop the way it
+          // would have under the old `event.target`-based resolution; the
+          // offset just keeps the preview from visually covering what the
+          // player is aiming at.
           style={`left: ${floatPos().x + 12}px; top: ${floatPos().y + 12}px`}
         >
           {draggingItem() ? draggingItem().icon : ""}
