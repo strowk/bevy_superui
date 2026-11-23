@@ -624,6 +624,9 @@
     if (!target) return false;
 
     var mods = init && init.modifiers;
+    // PointerEvent types only: "pointer*" (pointerdown/pointermove/...) plus
+    // the two capture-lifecycle events, which per spec are PointerEvents too.
+    var isPointer = type.indexOf("pointer") === 0 || type === "gotpointercapture" || type === "lostpointercapture";
     var ancestors = []; // parent(target) -> root
     var cur = target.parentNode;
     while (cur) {
@@ -649,6 +652,12 @@
       ctrlKey: mods ? !!mods.ctrlKey : undefined,
       altKey: mods ? !!mods.altKey : undefined,
       metaKey: mods ? !!mods.metaKey : undefined,
+      pointerId: isPointer ? (init ? init.pointerId : undefined) : undefined,
+      pointerType: isPointer ? (init ? init.pointerType : undefined) : undefined,
+      isPrimary: isPointer ? (init ? !!init.isPrimary : undefined) : undefined,
+      width: isPointer ? 1 : undefined,
+      height: isPointer ? 1 : undefined,
+      pressure: isPointer ? ((init && (init.buttons & 0xff) !== 0) ? 0.5 : 0) : undefined,
       defaultPrevented: false,
       preventDefault: function () {
         if (cancelable) {

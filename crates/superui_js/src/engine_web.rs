@@ -147,6 +147,9 @@ impl JsEngine for WebEngine {
                 let _ = Reflect::set(&obj, &JsValue::from_str("clientY"), &JsValue::from_f64(m.client_y as f64));
                 let _ = Reflect::set(&obj, &JsValue::from_str("button"), &JsValue::from_f64(m.button as f64));
                 let _ = Reflect::set(&obj, &JsValue::from_str("buttons"), &JsValue::from_f64(m.buttons as f64));
+                let _ = Reflect::set(&obj, &JsValue::from_str("pointerId"), &JsValue::from_f64(m.pointer_id as f64));
+                let _ = Reflect::set(&obj, &JsValue::from_str("pointerType"), &JsValue::from_str(m.pointer_type.as_str()));
+                let _ = Reflect::set(&obj, &JsValue::from_str("isPrimary"), &JsValue::from_bool(m.is_primary));
             }
             if let Some(md) = init.modifiers {
                 let mods = Object::new();

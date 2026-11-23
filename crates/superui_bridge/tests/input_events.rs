@@ -90,6 +90,7 @@ fn mouse_payload_on_pending_event_reaches_the_js_listener() {
             client_y: 34.0,
             button: 0,
             buttons: 1,
+            ..Default::default()
         }),
     );
     app.update(); // drain -> dispatch JS (with mouse payload) -> reconcile

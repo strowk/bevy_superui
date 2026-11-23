@@ -50,16 +50,43 @@ pub fn new_engine(dom: Rc<RefCell<Dom>>) -> Box<dyn JsEngine> {
     Box::new(WebEngine::new(dom))
 }
 
+/// The device class behind a `PointerEvent` (`PointerEvent.pointerType`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum PointerKind {
+    #[default]
+    Mouse,
+    Touch,
+}
+
+impl PointerKind {
+    /// The W3C `PointerEvent.pointerType` string (`"mouse"`/`"touch"`).
+    pub fn as_str(self) -> &'static str {
+        match self {
+            PointerKind::Mouse => "mouse",
+            PointerKind::Touch => "touch",
+        }
+    }
+}
+
 /// Mouse coordinates and button state carried through [`JsEngine::dispatch_event`]
 /// for pointer event types (`mousedown`/`mouseup`/`mousemove`/...). `button` is
 /// the W3C `MouseEvent.button` of the event itself; `buttons` is the bitmask of
 /// all buttons currently held.
-#[derive(Clone, Copy, Debug, PartialEq)]
+///
+/// `pointer_id`/`pointer_type`/`is_primary` additionally carry the W3C
+/// `PointerEvent` fields (`PointerEvent.pointerId`/`pointerType`/`isPrimary`);
+/// `dispatch_event`/`dom.js` only attach them to the event object for pointer
+/// event types (`pointerdown`/`pointermove`/...) — a plain `MouseEvent` never
+/// sees them, so these fields are inert on the existing mouse/compat stream.
+#[derive(Clone, Copy, Debug, PartialEq, Default)]
 pub struct MousePayload {
     pub client_x: f32,
     pub client_y: f32,
     pub button: u8,
     pub buttons: u8,
+    pub pointer_id: u32,
+    pub pointer_type: PointerKind,
+    pub is_primary: bool,
 }
 
 /// W3C modifier-key state (`MouseEvent`/`KeyboardEvent` `shiftKey` etc.).
@@ -90,9 +117,13 @@ pub trait JsEngine {
     /// Dispatch a DOM event of `ty` at the shadow-DOM node `target` (W3C
     /// capture→target→bubble, run entirely in JS). `init.mouse` carries
     /// `clientX`/`clientY`/`button`/`buttons` onto the event object for pointer
-    /// event types; `init.modifiers` carries `shiftKey`/`ctrlKey`/`altKey`/
-    /// `metaKey`. Either or both `None` leave the corresponding properties
-    /// `undefined`. Returns whether `preventDefault()` was called.
+    /// event types, plus `pointerId`/`pointerType`/`isPrimary` — the latter three
+    /// (and the JS-computed `width`/`height`/`pressure`) are attached by `dom.js`
+    /// only when `ty` is itself a PointerEvent type (`pointer*`/capture events),
+    /// so they never leak onto a plain `MouseEvent`. `init.modifiers` carries
+    /// `shiftKey`/`ctrlKey`/`altKey`/`metaKey`. Either or both `None` leave the
+    /// corresponding properties `undefined`. Returns whether `preventDefault()`
+    /// was called.
     fn dispatch_event(
         &mut self,
         target: JsNodeId,

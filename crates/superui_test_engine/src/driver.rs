@@ -535,6 +535,7 @@ fn push_mouse_event(app: &mut App, node: NodeId, event: &str, bubbles: bool, but
         client_y: 0.0,
         button: 0,
         buttons,
+        ..Default::default()
     });
     e.bubbles = bubbles;
     app.world_mut()

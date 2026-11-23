@@ -150,7 +150,7 @@ pub struct PrimaryTouch(pub Option<PointerId>);
 /// A touch-synthesized `MousePayload`: the touch position as `clientX`/`clientY`,
 /// with the caller-supplied `button`/`buttons` state.
 fn touch_payload(pos: Vec2, button: u8, buttons: u8) -> MousePayload {
-    MousePayload { client_x: pos.x, client_y: pos.y, button, buttons }
+    MousePayload { client_x: pos.x, client_y: pos.y, button, buttons, ..Default::default() }
 }
 
 /// Enqueue the browser compatibility mouse sequence for a primary-touch press:

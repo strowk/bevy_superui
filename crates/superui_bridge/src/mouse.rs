@@ -177,6 +177,7 @@ fn payload(position: Option<Vec2>, mask: u8, button: u8) -> MousePayload {
         client_y: position.map(|p| p.y).unwrap_or(0.0),
         button,
         buttons: mask,
+        ..Default::default()
     }
 }
 

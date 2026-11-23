@@ -213,6 +213,9 @@ impl JsEngine for V8Engine {
                 o.insert("clientY".into(), json!(m.client_y));
                 o.insert("button".into(), json!(m.button));
                 o.insert("buttons".into(), json!(m.buttons));
+                o.insert("pointerId".into(), json!(m.pointer_id));
+                o.insert("pointerType".into(), json!(m.pointer_type.as_str()));
+                o.insert("isPrimary".into(), json!(m.is_primary));
             }
             if let Some(md) = init.modifiers {
                 o.insert(
