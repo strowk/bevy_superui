@@ -9,7 +9,10 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use bevy::prelude::*;
-use superui_bridge::{drain_dom_events_system, PendingDomEvent, PendingDomEvents, UiRuntime};
+use superui_bridge::{
+    drain_dom_events_system, drain_pointer_captures_system, PendingDomEvent, PendingDomEvents,
+    PointerCaptures, UiRuntime,
+};
 use superui_js::{MousePayload, PointerKind};
 
 /// Register the input-drain pipeline on top of the base harness (mirrors
@@ -23,6 +26,211 @@ fn mount_with_input(app: &mut App, dom: Rc<RefCell<superui_dom::Dom>>) -> Entity
         drain_dom_events_system.before(superui_bridge::reconcile_system),
     );
     root
+}
+
+/// Like `mount_with_input`, but also registers `drain_pointer_captures_system`
+/// right after `drain_dom_events_system` (mirrors `mount.rs`'s chain ordering),
+/// so a `setPointerCapture`/`releasePointerCapture` call made by a listener
+/// this frame's dispatch ran lands in `PointerCaptures` the same `app.update()`.
+fn mount_with_capture(app: &mut App, dom: Rc<RefCell<superui_dom::Dom>>) -> Entity {
+    let root = mount(app, dom);
+    app.init_resource::<PendingDomEvents>();
+    app.init_resource::<PointerCaptures>();
+    app.add_systems(
+        Update,
+        (drain_dom_events_system, drain_pointer_captures_system)
+            .chain()
+            .before(superui_bridge::reconcile_system),
+    );
+    root
+}
+
+/// A pointer-event `MousePayload` with the given coords/pointer_id, the rest
+/// defaulted to a primary mouse pointer (button/buttons as given).
+fn capture_test_payload(x: f32, y: f32, buttons: u8, pointer_id: u32) -> MousePayload {
+    MousePayload {
+        client_x: x,
+        client_y: y,
+        button: 0,
+        buttons,
+        pointer_id,
+        pointer_type: PointerKind::Mouse,
+        is_primary: true,
+    }
+}
+
+// Task 4: setPointerCapture registry, event retarget, implicit release.
+mod pointer_capture {
+    use super::*;
+
+    /// `setPointerCapture` called from a `pointerdown` listener registers the
+    /// capture on both sides: the JS `captureMap` (exercised indirectly by the
+    /// retarget test below) and the bridge's `PointerCaptures`, via the
+    /// `CaptureOp` the host binding queues and `drain_pointer_captures_system`
+    /// replays.
+    #[test]
+    fn pointerdown_setpointercapture_registers_on_both_sides() {
+        let dom = Rc::new(RefCell::new(superui_html::parse_document(
+            "<div id='a'></div><div id='b'></div>",
+        )));
+        let mut app = test_app();
+        let _root = mount_with_capture(&mut app, dom.clone());
+
+        app.world_mut().non_send_mut::<UiRuntime>().run_script(
+            "document.getElementById('a').addEventListener('pointerdown', function (e) { \
+               e.target.setPointerCapture(e.pointerId); \
+             });",
+        );
+        app.update(); // initial reconcile: #a/#b now have js bindings
+
+        let node_a = dom.borrow().get_element_by_id("a").unwrap();
+        app.world_mut().resource_mut::<PendingDomEvents>().0.push(
+            PendingDomEvent::new(node_a, "pointerdown")
+                .with_mouse(capture_test_payload(1.0, 1.0, 1, 1)),
+        );
+        app.update(); // drain -> dispatch (setPointerCapture) -> drain_pointer_captures_system
+
+        let captures = &app.world().resource::<PointerCaptures>().0;
+        assert_eq!(captures.get(&1), Some(&node_a));
+    }
+
+    /// Once pointer 1 is captured on `#a`, a `pointermove` whose picking-derived
+    /// target is `#b` retargets to `#a` (W3C: capture changes *who* receives the
+    /// event, not the reported coordinates) — `#a`'s listener sees
+    /// `e.target.id === "a"` and the original `clientX`; `#b`'s listener never
+    /// fires.
+    #[test]
+    fn captured_pointer_event_retargets_to_the_capturing_node() {
+        let dom = Rc::new(RefCell::new(superui_html::parse_document(
+            "<div id='a'></div><div id='b'></div>",
+        )));
+        let mut app = test_app();
+        let _root = mount_with_capture(&mut app, dom.clone());
+
+        app.world_mut().non_send_mut::<UiRuntime>().run_script(
+            "document.getElementById('a').addEventListener('pointerdown', function (e) { \
+               e.target.setPointerCapture(e.pointerId); \
+             }); \
+             document.getElementById('a').addEventListener('pointermove', function (e) { \
+               globalThis.aSeen = { target: e.target.id, clientX: e.clientX }; \
+             }); \
+             document.getElementById('b').addEventListener('pointermove', function (e) { \
+               globalThis.bFired = true; \
+             });",
+        );
+        app.update();
+
+        let node_a = dom.borrow().get_element_by_id("a").unwrap();
+        let node_b = dom.borrow().get_element_by_id("b").unwrap();
+        app.world_mut().resource_mut::<PendingDomEvents>().0.push(
+            PendingDomEvent::new(node_a, "pointerdown")
+                .with_mouse(capture_test_payload(1.0, 1.0, 1, 1)),
+        );
+        app.update(); // captures pointer 1 on #a
+
+        app.world_mut().resource_mut::<PendingDomEvents>().0.push(
+            PendingDomEvent::new(node_b, "pointermove")
+                .with_mouse(capture_test_payload(40.0, 50.0, 0, 1)),
+        );
+        app.update();
+
+        app.world_mut().non_send_mut::<UiRuntime>().run_script(
+            "var a = document.getElementById('a'); \
+             a.setAttribute('data-seen-target', String((globalThis.aSeen || {}).target)); \
+             a.setAttribute('data-seen-x', String((globalThis.aSeen || {}).clientX)); \
+             a.setAttribute('data-b-fired', String(!!globalThis.bFired));",
+        );
+        assert_eq!(dom.borrow().get_attribute(node_a, "data-seen-target"), Some("a"));
+        assert_eq!(dom.borrow().get_attribute(node_a, "data-seen-x"), Some("40"));
+        assert_eq!(dom.borrow().get_attribute(node_a, "data-b-fired"), Some("false"));
+    }
+
+    /// A `pointerup` on the capturing pointer implicitly releases its capture,
+    /// firing `lostpointercapture` exactly once and clearing `PointerCaptures`;
+    /// a second `pointerup` (nothing left to release) does not fire it again.
+    #[test]
+    fn pointerup_implicitly_releases_capture_and_fires_lostpointercapture() {
+        let dom = Rc::new(RefCell::new(superui_html::parse_document(
+            "<div id='a'></div><div id='b'></div>",
+        )));
+        let mut app = test_app();
+        let _root = mount_with_capture(&mut app, dom.clone());
+
+        app.world_mut().non_send_mut::<UiRuntime>().run_script(
+            "document.getElementById('a').addEventListener('pointerdown', function (e) { \
+               e.target.setPointerCapture(e.pointerId); \
+             }); \
+             document.getElementById('a').addEventListener('lostpointercapture', function (e) { \
+               globalThis.lostCount = (globalThis.lostCount || 0) + 1; \
+             });",
+        );
+        app.update();
+
+        let node_a = dom.borrow().get_element_by_id("a").unwrap();
+        app.world_mut().resource_mut::<PendingDomEvents>().0.push(
+            PendingDomEvent::new(node_a, "pointerdown")
+                .with_mouse(capture_test_payload(1.0, 1.0, 1, 1)),
+        );
+        app.update(); // captures pointer 1 on #a
+        assert!(app.world().resource::<PointerCaptures>().0.contains_key(&1));
+
+        app.world_mut().resource_mut::<PendingDomEvents>().0.push(
+            PendingDomEvent::new(node_a, "pointerup")
+                .with_mouse(capture_test_payload(1.0, 1.0, 0, 1)),
+        );
+        app.update(); // implicit release -> lostpointercapture
+
+        app.world_mut().non_send_mut::<UiRuntime>().run_script(
+            "var a = document.getElementById('a'); \
+             a.setAttribute('data-lost-count', String(globalThis.lostCount || 0));",
+        );
+        assert_eq!(dom.borrow().get_attribute(node_a, "data-lost-count"), Some("1"));
+        assert!(!app.world().resource::<PointerCaptures>().0.contains_key(&1));
+
+        // A second pointerup has nothing to release: lostpointercapture does not
+        // fire again.
+        app.world_mut().resource_mut::<PendingDomEvents>().0.push(
+            PendingDomEvent::new(node_a, "pointerup")
+                .with_mouse(capture_test_payload(1.0, 1.0, 0, 1)),
+        );
+        app.update();
+        app.world_mut().non_send_mut::<UiRuntime>().run_script(
+            "var a = document.getElementById('a'); \
+             a.setAttribute('data-lost-count', String(globalThis.lostCount || 0));",
+        );
+        assert_eq!(dom.borrow().get_attribute(node_a, "data-lost-count"), Some("1"));
+    }
+
+    /// An explicit `releasePointerCapture` call clears the capture from
+    /// `PointerCaptures` (via the same `CaptureOp` drain as the implicit path).
+    #[test]
+    fn explicit_releasepointercapture_clears_it() {
+        let dom = Rc::new(RefCell::new(superui_html::parse_document("<div id='a'></div>")));
+        let mut app = test_app();
+        let _root = mount_with_capture(&mut app, dom.clone());
+
+        app.world_mut().non_send_mut::<UiRuntime>().run_script(
+            "document.getElementById('a').addEventListener('pointerdown', function (e) { \
+               e.target.setPointerCapture(e.pointerId); \
+             });",
+        );
+        app.update();
+
+        let node_a = dom.borrow().get_element_by_id("a").unwrap();
+        app.world_mut().resource_mut::<PendingDomEvents>().0.push(
+            PendingDomEvent::new(node_a, "pointerdown")
+                .with_mouse(capture_test_payload(1.0, 1.0, 1, 1)),
+        );
+        app.update();
+        assert!(app.world().resource::<PointerCaptures>().0.contains_key(&1));
+
+        app.world_mut()
+            .non_send_mut::<UiRuntime>()
+            .run_script("document.getElementById('a').releasePointerCapture(1);");
+        app.update(); // drain_pointer_captures_system picks up the queued release
+
+        assert!(!app.world().resource::<PointerCaptures>().0.contains_key(&1));
+    }
 }
 
 /// A `pointerdown` carrying a `MousePayload` with pointer fields set exposes

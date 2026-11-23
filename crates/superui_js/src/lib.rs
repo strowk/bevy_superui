@@ -152,6 +152,23 @@ pub trait JsEngine {
     /// (the `__ss_element_from_point` host binding reads it). Called once per
     /// frame by `sync_hit_rects_system`; an empty `Vec` makes every probe miss.
     fn set_hit_rects(&mut self, rects: Vec<HitRect>);
+
+    /// Take the [`CaptureOp`]s `setPointerCapture`/`releasePointerCapture` queued
+    /// since the last drain (the `__ss_set_pointer_capture`/
+    /// `__ss_release_pointer_capture` host bindings push them). Called once per
+    /// frame by `drain_pointer_captures_system`, right after the DOM-event drain
+    /// that may have run the author listener which called `setPointerCapture`.
+    fn drain_capture_ops(&mut self) -> Vec<CaptureOp>;
+}
+
+/// One `setPointerCapture`/`releasePointerCapture` call queued by `dom.js`'s
+/// capture surface, to be replayed onto the bridge's `PointerCaptures` map.
+/// `Some(js)` ("set") names the js node capturing `pointer_id`; `None`
+/// ("release", explicit or implicit) clears it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CaptureOp {
+    pub pointer_id: u32,
+    pub node: Option<JsNodeId>,
 }
 
 /// One node's axis-aligned screen-space bounding box, snapshotted per frame by

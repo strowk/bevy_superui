@@ -10,13 +10,13 @@ use bevy::prelude::*;
 use rustc_hash::FxHashMap;
 use superui_bridge::{
     clamp_scroll_position_system, dim_placeholder_text_system, drain_bevy_outbox_system,
-    drain_dom_events_system, editable_input_events_system, emit_bevy_inbox_system,
-    keyboard_events_system, mouse_events_system, mouse_listeners_active, on_focus_gained,
-    on_focus_lost, on_pointer_cancel, on_pointer_click, on_pointer_move, on_pointer_out,
-    on_pointer_over, on_pointer_press, on_pointer_release, on_slider_value_change,
-    on_touch_press, on_touch_release, position_slider_parts, reconcile_system,
-    sync_hit_rects_system, sync_mouse_listener_index, wheel_scroll_system, MouseListenerIndex,
-    PendingDomEvents, PointerCaptures, PointerState, PrimaryTouch, UiRuntime,
+    drain_dom_events_system, drain_pointer_captures_system, editable_input_events_system,
+    emit_bevy_inbox_system, keyboard_events_system, mouse_events_system, mouse_listeners_active,
+    on_focus_gained, on_focus_lost, on_pointer_cancel, on_pointer_click, on_pointer_move,
+    on_pointer_out, on_pointer_over, on_pointer_press, on_pointer_release,
+    on_slider_value_change, on_touch_press, on_touch_release, position_slider_parts,
+    reconcile_system, sync_hit_rects_system, sync_mouse_listener_index, wheel_scroll_system,
+    MouseListenerIndex, PendingDomEvents, PointerCaptures, PointerState, PrimaryTouch, UiRuntime,
 };
 use superui_css::core::PropertyRegistry;
 use superui_css::parser::InlineCssStyleSheetParser;
@@ -322,6 +322,11 @@ impl Plugin for SuperUiPlugin {
                     sync_hit_rects_system,
                     editable_input_events_system,
                     drain_dom_events_system,
+                    // Must land the same frame a listener running inside
+                    // drain_dom_events_system's dispatch called
+                    // setPointerCapture/releasePointerCapture — see Task 4's
+                    // CaptureOp drain.
+                    drain_pointer_captures_system,
                     keyboard_events_system,
                     emit_bevy_inbox_system,
                     drain_bevy_outbox_system,

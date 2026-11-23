@@ -31,7 +31,7 @@ use wasm_bindgen::JsCast;
 
 use superui_dom::Dom;
 
-use crate::{element_from_point, HitRect, JsEngine, OpBatch};
+use crate::{element_from_point, CaptureOp, HitRect, JsEngine, OpBatch};
 
 /// The JS shadow DOM. Defines `document`, `__ss_root`, `__ss_flush`,
 /// `__ss_dispatch` on the scope it runs in; guards `__ss_measure`. Byte-for-byte
@@ -58,11 +58,17 @@ pub struct WebEngine {
     /// `__ss_element_from_point` closure. Shared so `set_hit_rects` can swap
     /// the contents without reinstalling the closure.
     hit_rects: Rc<RefCell<Vec<HitRect>>>,
+    /// `setPointerCapture`/`releasePointerCapture` calls queued by `dom.js`,
+    /// drained by `drain_capture_ops`. Shared so `drain_capture_ops` can take
+    /// the contents without reinstalling the closures.
+    capture_ops: Rc<RefCell<Vec<CaptureOp>>>,
     /// Dropping a `Closure` frees the JS shim referencing it, so the host
     /// functions installed on the scope must be held for the engine's lifetime.
     _bevy_send: Closure<dyn FnMut(JsValue, JsValue)>,
     _measure: Closure<dyn FnMut(JsValue) -> JsValue>,
     _element_from_point: Closure<dyn FnMut(JsValue, JsValue) -> JsValue>,
+    _set_pointer_capture: Closure<dyn FnMut(JsValue, JsValue)>,
+    _release_pointer_capture: Closure<dyn FnMut(JsValue)>,
 }
 
 impl WebEngine {
@@ -124,6 +130,39 @@ impl WebEngine {
             element_from_point_fn.as_ref(),
         );
 
+        // __ss_set_pointer_capture(pointerId, jsId) / __ss_release_pointer_capture
+        // (pointerId): the host side of `setPointerCapture`/`releasePointerCapture`
+        // — queue a `CaptureOp` for `drain_pointer_captures_system` to replay onto
+        // the bridge's `PointerCaptures` map.
+        let capture_ops: Rc<RefCell<Vec<CaptureOp>>> = Rc::new(RefCell::new(Vec::new()));
+        let set_pointer_capture = {
+            let capture_ops = capture_ops.clone();
+            Closure::<dyn FnMut(JsValue, JsValue)>::new(
+                move |pointer_id: JsValue, js_id: JsValue| {
+                    let pointer_id = pointer_id.as_f64().unwrap_or(0.0) as u32;
+                    let js_id = js_id.as_f64().unwrap_or(0.0) as u32;
+                    capture_ops.borrow_mut().push(CaptureOp { pointer_id, node: Some(js_id) });
+                },
+            )
+        };
+        let _ = Reflect::set(
+            scope.as_ref(),
+            &JsValue::from_str("__ss_set_pointer_capture"),
+            set_pointer_capture.as_ref(),
+        );
+        let release_pointer_capture = {
+            let capture_ops = capture_ops.clone();
+            Closure::<dyn FnMut(JsValue)>::new(move |pointer_id: JsValue| {
+                let pointer_id = pointer_id.as_f64().unwrap_or(0.0) as u32;
+                capture_ops.borrow_mut().push(CaptureOp { pointer_id, node: None });
+            })
+        };
+        let _ = Reflect::set(
+            scope.as_ref(),
+            &JsValue::from_str("__ss_release_pointer_capture"),
+            release_pointer_capture.as_ref(),
+        );
+
         // dom.js runs into the scope first — it defines the shadow `document` and
         // the __ss_* entry points the later runtime/render/app scripts build on.
         // Non-fatal on failure: keep the engine so later eval() calls still
@@ -137,9 +176,12 @@ impl WebEngine {
             scope,
             outbox,
             hit_rects,
+            capture_ops,
             _bevy_send: bevy_send,
             _measure: measure,
             _element_from_point: element_from_point_fn,
+            _set_pointer_capture: set_pointer_capture,
+            _release_pointer_capture: release_pointer_capture,
         }
     }
 
@@ -252,6 +294,10 @@ impl JsEngine for WebEngine {
 
     fn set_hit_rects(&mut self, rects: Vec<HitRect>) {
         *self.hit_rects.borrow_mut() = rects;
+    }
+
+    fn drain_capture_ops(&mut self) -> Vec<CaptureOp> {
+        std::mem::take(&mut self.capture_ops.borrow_mut())
     }
 }
 

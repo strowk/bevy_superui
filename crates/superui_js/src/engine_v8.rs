@@ -18,7 +18,7 @@ use serde_json::{json, Value};
 
 use superui_dom::Dom;
 
-use crate::{element_from_point, HitRect, JsEngine, OpBatch};
+use crate::{element_from_point, CaptureOp, HitRect, JsEngine, OpBatch};
 
 /// The JS shadow DOM. Defines `document`, `__ss_root`, `__ss_flush`,
 /// `__ss_dispatch` on `globalThis`; guards `__ss_measure`.
@@ -42,6 +42,8 @@ const BOOTSTRAP_JS: &str = r#"
   globalThis.console = { log: log, warn: log, error: log, info: log, debug: log };
   globalThis.__ss_measure = function (id) { return ops.op_ss_measure(id >>> 0); };
   globalThis.__ss_element_from_point = function (x, y) { return ops.op_ss_element_from_point(+x, +y); };
+  globalThis.__ss_set_pointer_capture = function (pointerId, jsId) { ops.op_ss_set_pointer_capture(pointerId >>> 0, jsId >>> 0); };
+  globalThis.__ss_release_pointer_capture = function (pointerId) { ops.op_ss_release_pointer_capture(pointerId >>> 0); };
   globalThis.setTimeout = function (cb, delay) { return ops.op_ss_set_timeout(cb, +delay || 0); };
   globalThis.setInterval = function (cb, delay) { return ops.op_ss_set_interval(cb, +delay || 0); };
   globalThis.clearTimeout = function (id) { ops.op_ss_clear_timer(+id || 0); };
@@ -77,6 +79,9 @@ struct V8HostState {
     /// This frame's geometry snapshot, written by `set_hit_rects`; read by
     /// `op_ss_element_from_point`.
     hit_rects: Vec<HitRect>,
+    /// `setPointerCapture`/`releasePointerCapture` calls queued by `dom.js`,
+    /// drained by `drain_capture_ops`.
+    capture_ops: Vec<CaptureOp>,
 }
 
 impl V8HostState {
@@ -88,6 +93,7 @@ impl V8HostState {
             next_timer_id: 1,
             outbox: Vec::new(),
             hit_rects: Vec::new(),
+            capture_ops: Vec::new(),
         }
     }
 }
@@ -102,6 +108,8 @@ extension!(
         op_ss_clear_timer,
         op_ss_bevy_send,
         op_ss_element_from_point,
+        op_ss_set_pointer_capture,
+        op_ss_release_pointer_capture,
     ],
     options = { dom: Rc<RefCell<Dom>> },
     state = |state, options| {
@@ -332,6 +340,12 @@ impl JsEngine for V8Engine {
         let state = self.runtime.op_state();
         state.borrow_mut().borrow_mut::<V8HostState>().hit_rects = rects;
     }
+
+    fn drain_capture_ops(&mut self) -> Vec<CaptureOp> {
+        let state = self.runtime.op_state();
+        let mut op_state = state.borrow_mut();
+        std::mem::take(&mut op_state.borrow_mut::<V8HostState>().capture_ops)
+    }
 }
 
 // ---- host ops --------------------------------------------------------------
@@ -414,4 +428,25 @@ fn op_ss_clear_timer(state: &mut OpState, id: f64) {
 #[op2]
 fn op_ss_bevy_send(state: &mut OpState, #[string] name: String, #[serde] value: serde_json::Value) {
     state.borrow_mut::<V8HostState>().outbox.push((name, value));
+}
+
+/// `Node.prototype.setPointerCapture`'s host side: queue a "set capture"
+/// [`CaptureOp`] for `drain_pointer_captures_system` to replay onto the
+/// bridge's `PointerCaptures` map.
+#[op2(fast)]
+fn op_ss_set_pointer_capture(state: &mut OpState, pointer_id: u32, js_id: u32) {
+    state
+        .borrow_mut::<V8HostState>()
+        .capture_ops
+        .push(CaptureOp { pointer_id, node: Some(js_id) });
+}
+
+/// `Node.prototype.releasePointerCapture`'s host side (explicit or implicit,
+/// via `dom.js`'s `releaseCapture`): queue a "release" [`CaptureOp`].
+#[op2(fast)]
+fn op_ss_release_pointer_capture(state: &mut OpState, pointer_id: u32) {
+    state
+        .borrow_mut::<V8HostState>()
+        .capture_ops
+        .push(CaptureOp { pointer_id, node: None });
 }

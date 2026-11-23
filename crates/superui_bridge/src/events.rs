@@ -335,11 +335,40 @@ fn pointer_payload(
 }
 
 /// Captured pointers: JS `pointerId` -> the node that holds its capture (via
-/// `setPointerCapture`, a later task). Each uncaptured-pointer observer below
-/// skips a pointer already in this map — the raw-location path (Stage B) owns
-/// it instead. Empty until that stage populates it.
+/// `setPointerCapture`). Each uncaptured-pointer observer below skips a
+/// pointer already in this map — the raw-location path (Stage B) owns it
+/// instead. Populated/cleared each frame by `drain_pointer_captures_system`.
 #[derive(Resource, Default)]
 pub struct PointerCaptures(pub std::collections::HashMap<u32, NodeId>);
+
+/// Exclusive-ish system: replay this frame's `setPointerCapture`/
+/// `releasePointerCapture` calls (drained from the engine's `CaptureOp` queue)
+/// onto `PointerCaptures`. `Some(js)` maps the js node to the bridge's mirror
+/// `NodeId` and inserts it; an unmapped js node (shouldn't happen in practice —
+/// every node `setPointerCapture` can be called on already has a js binding —
+/// but defensive) is skipped rather than desyncing the map. `None` removes the
+/// entry (explicit or implicit release).
+///
+/// Registered right after `drain_dom_events_system` so a capture set by a
+/// listener this frame's dispatch ran lands in `PointerCaptures` the same
+/// frame, not next.
+pub fn drain_pointer_captures_system(
+    mut rt: NonSendMut<UiRuntime>,
+    mut captures: ResMut<PointerCaptures>,
+) {
+    for op in rt.engine.drain_capture_ops() {
+        match op.node {
+            Some(js) => {
+                if let Some(node) = rt.applier.node(js) {
+                    captures.0.insert(op.pointer_id, node);
+                }
+            }
+            None => {
+                captures.0.remove(&op.pointer_id);
+            }
+        }
+    }
+}
 
 /// Shared preamble for every observer below: resolve the hit entity to a
 /// `DomNode`, then skip a pointer that's already captured. `None` covers both
