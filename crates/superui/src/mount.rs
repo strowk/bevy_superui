@@ -12,9 +12,11 @@ use superui_bridge::{
     clamp_scroll_position_system, dim_placeholder_text_system, drain_bevy_outbox_system,
     drain_dom_events_system, editable_input_events_system, emit_bevy_inbox_system,
     keyboard_events_system, mouse_events_system, mouse_listeners_active, on_focus_gained,
-    on_focus_lost, on_pointer_click, on_slider_value_change, on_touch_press, on_touch_release,
-    position_slider_parts, reconcile_system, sync_mouse_listener_index, wheel_scroll_system,
-    MouseListenerIndex, PendingDomEvents, PointerState, PrimaryTouch, UiRuntime,
+    on_focus_lost, on_pointer_cancel, on_pointer_click, on_pointer_move, on_pointer_out,
+    on_pointer_over, on_pointer_press, on_pointer_release, on_slider_value_change,
+    on_touch_press, on_touch_release, position_slider_parts, reconcile_system,
+    sync_mouse_listener_index, wheel_scroll_system, MouseListenerIndex, PendingDomEvents,
+    PointerCaptures, PointerState, PrimaryTouch, UiRuntime,
 };
 use superui_css::core::PropertyRegistry;
 use superui_css::parser::InlineCssStyleSheetParser;
@@ -207,12 +209,19 @@ impl Plugin for SuperUiPlugin {
             .init_resource::<MouseListenerIndex>()
             .init_resource::<HotReloadFlags>()
             .init_resource::<PrimaryTouch>()
+            .init_resource::<PointerCaptures>()
             .add_observer(on_pointer_click)
             .add_observer(on_slider_value_change)
             .add_observer(on_focus_gained)
             .add_observer(on_focus_lost)
             .add_observer(on_touch_press)
             .add_observer(on_touch_release)
+            .add_observer(on_pointer_over)
+            .add_observer(on_pointer_out)
+            .add_observer(on_pointer_press)
+            .add_observer(on_pointer_release)
+            .add_observer(on_pointer_move)
+            .add_observer(on_pointer_cancel)
             .add_observer(on_superui_root_removed)
             // Wheel scrolling is pure Bevy (no UiRuntime), so it runs plainly in
             // Update rather than inside the runtime_exists DOM chain below.
