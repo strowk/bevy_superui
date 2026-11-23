@@ -691,3 +691,84 @@ mod pointer_observers {
         );
     }
 }
+
+// Task 5: off-UI captured delivery via the raw-location system. While a
+// pointer is captured, `captured_pointer_delivery_system` reads its RAW
+// position/released/canceled state each frame and delivers
+// `pointermove`/`pointerup`/`pointercancel` to the captured node even when
+// bevy_picking emits nothing (pointer over no UI). These tests drive the
+// pure `captured_delivery` helper directly — mirrors how `input_events.rs`
+// tests `click_effect` as a free function — with no DOM/app needed; a
+// synthetic `NodeId::from_ffi` stands in for "the captured node" (mirrors
+// `superui_js::opwire::idmap`'s tests).
+mod captured_delivery {
+    use std::collections::{HashMap, HashSet};
+
+    use bevy::math::Vec2;
+    use superui_bridge::{captured_delivery, PointerCaptures, PrimaryTouch};
+    use superui_dom::NodeId;
+
+    #[test]
+    fn captured_move_off_ui_delivers_pointermove() {
+        let node_a = NodeId::from_ffi(1);
+        let mut captures = PointerCaptures::default();
+        captures.0.insert(1, node_a);
+        let positions = HashMap::from([(1, Vec2::new(99.0, 99.0))]);
+        let released = HashSet::new();
+        let canceled = HashSet::new();
+        let mut last = HashMap::new();
+        let primary = PrimaryTouch::default();
+
+        let events = captured_delivery(&captures, &positions, &released, &canceled, &mut last, &primary);
+
+        assert_eq!(events.len(), 1, "exactly one pointermove, off any UI");
+        let e = &events[0];
+        assert_eq!(e.target, node_a);
+        assert_eq!(e.type_, "pointermove");
+        let m = e.mouse.expect("pointermove missing mouse payload");
+        assert_eq!((m.client_x, m.client_y), (99.0, 99.0));
+        assert_eq!(m.buttons, 1);
+        assert_eq!(last.get(&1), Some(&Vec2::new(99.0, 99.0)));
+
+        // A second call with the same position is deduped: nothing delivered.
+        let events2 =
+            captured_delivery(&captures, &positions, &released, &canceled, &mut last, &primary);
+        assert!(events2.is_empty(), "same position must not re-deliver a pointermove");
+    }
+
+    #[test]
+    fn captured_release_delivers_pointerup_and_forgets_the_pointer() {
+        let node_a = NodeId::from_ffi(1);
+        let mut captures = PointerCaptures::default();
+        captures.0.insert(1, node_a);
+        let positions = HashMap::from([(1, Vec2::new(99.0, 99.0))]);
+        let released = HashSet::from([1]);
+        let canceled = HashSet::new();
+        let mut last = HashMap::new();
+        let primary = PrimaryTouch::default();
+
+        let events = captured_delivery(&captures, &positions, &released, &canceled, &mut last, &primary);
+
+        let types: Vec<&str> = events.iter().map(|e| e.type_.as_str()).collect();
+        assert_eq!(types, vec!["pointermove", "pointerup"]);
+        let up = &events[1];
+        assert_eq!(up.target, node_a);
+        let m = up.mouse.expect("pointerup missing mouse payload");
+        assert_eq!(m.buttons, 0);
+        assert!(!last.contains_key(&1), "a released pointer must be forgotten");
+    }
+
+    #[test]
+    fn uncaptured_pointer_yields_nothing() {
+        let captures = PointerCaptures::default();
+        let positions = HashMap::new();
+        let released = HashSet::new();
+        let canceled = HashSet::new();
+        let mut last = HashMap::new();
+        let primary = PrimaryTouch::default();
+
+        let events = captured_delivery(&captures, &positions, &released, &canceled, &mut last, &primary);
+
+        assert!(events.is_empty(), "no captures means nothing to deliver");
+    }
+}

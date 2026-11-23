@@ -159,8 +159,10 @@ fn current_mask(buttons: &ButtonInput<MouseButton>) -> u8 {
 
 /// The mouse pointer's current `client` position, read off the `PointerId::Mouse`
 /// entity's `PointerLocation` (`None` while the pointer has never been located,
-/// e.g. before the first `CursorMoved`).
-fn mouse_position(pointers: &Query<(&PointerId, &PointerLocation)>) -> Option<Vec2> {
+/// e.g. before the first `CursorMoved`). `pub(crate)`: `pointer.rs`'s
+/// `captured_pointer_delivery_system` reuses this to gather the mouse's raw
+/// position for off-UI captured delivery.
+pub(crate) fn mouse_position(pointers: &Query<(&PointerId, &PointerLocation)>) -> Option<Vec2> {
     pointers
         .iter()
         .find(|(id, _)| matches!(id, PointerId::Mouse))

@@ -29,7 +29,10 @@ pub use mouse::{
     mouse_events_system, mouse_listeners_active, sync_mouse_listener_index, MouseListenerIndex,
     PointerState,
 };
-pub use pointer::sync_hit_rects_system;
+pub use pointer::{
+    captured_delivery, captured_pointer_delivery_system, sync_hit_rects_system,
+    CapturedPointerState,
+};
 pub use reconcile::reconcile_system;
 pub use runtime::{DomNode, InputValueText, PickingPolicy, PlaceholderText, UiRuntime};
 pub use scroll::{clamp_scroll_position_system, wheel_scroll_system};
