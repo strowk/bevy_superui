@@ -141,9 +141,9 @@ pub fn on_pointer_click(
 
 /// The active primary touch finger, if any. A touch tap synthesizes the browser
 /// compatibility mouse sequence (`mousemove`/`mouseover`/`mouseenter`/`mousedown`
-/// on press, `mouseup`/`click` on release — the latter in a later stage); this
-/// slot ensures only the first concurrent finger does so, mirroring a browser's
-/// single synthesized mouse pointer.
+/// on press, `mouseup` on release, plus `click` via the existing `on_pointer_click`
+/// observer); this slot records which finger is doing so, so only the first
+/// concurrent finger does, mirroring a browser's single synthesized mouse pointer.
 #[derive(Resource, Default)]
 pub struct PrimaryTouch(pub Option<PointerId>);
 
@@ -222,15 +222,23 @@ pub fn on_touch_release(
     mut primary: ResMut<PrimaryTouch>,
 ) {
     let PointerId::Touch(_) = ev.pointer.id else { return };
-    let Some(node) = resolve_dom_node(ev.entity, &nodes, &parents) else { return };
-    ev.propagate(false);
-    // Only the primary finger's release synthesizes; a non-primary release is
-    // ignored and leaves the primary slot untouched.
+    // Non-primary release ignored; leaves the primary slot untouched.
     if primary.0 != Some(ev.pointer.id) {
         return;
     }
-    enqueue_touch_release(node, ev.pointer.position, &mut pending);
+    // The primary finger's gesture has ended regardless of where it resolves —
+    // always free the slot here, BEFORE resolving to a `DomNode`. Bevy picking
+    // only fires `PointerRelease` on a previously-hovered entity, which can be a
+    // host-game entity with no `DomNode` (`resolve_dom_node` returns `None`); if
+    // clearing were gated on a successful resolve, that case would leave
+    // `PrimaryTouch` stuck `Some` forever, permanently blocking every future
+    // `on_touch_press` (it only adopts when the slot is `None`).
     primary.0 = None;
+    let Some(node) = resolve_dom_node(ev.entity, &nodes, &parents) else { return };
+    // Ours: stop propagation so this fires once (mirror `on_pointer_click`), but
+    // only once resolved — an unresolved release has nothing to claim.
+    ev.propagate(false);
+    enqueue_touch_release(node, ev.pointer.position, &mut pending);
 }
 
 /// Walk up from `entity` to the nearest ancestor that carries a [`DomNode`],

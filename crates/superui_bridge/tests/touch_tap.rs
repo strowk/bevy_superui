@@ -257,3 +257,41 @@ fn mouse_release_enqueues_nothing_from_touch_observer() {
         "the touch observer must ignore mouse pointers"
     );
 }
+
+#[test]
+fn primary_release_on_a_foreign_entity_still_frees_the_primary_slot() {
+    let dom = Rc::new(RefCell::new(superui_html::parse_document("<div id='a'></div>")));
+    let mut app = test_app();
+    mount_touch(&mut app, dom.clone());
+    app.update();
+
+    let a = entity_of(&app, &dom, "a");
+    press(&mut app, a, PointerId::Touch(1), Vec2::new(1.0, 1.0));
+    let before = app.world().resource::<PendingDomEvents>().0.len();
+
+    // The primary finger lifts over a host-game entity with no `DomNode` — bevy
+    // picking still fires `PointerRelease` for it (it was previously hovered),
+    // but there is nothing here to dispatch a `mouseup` to.
+    let foreign = app.world_mut().spawn(Node::default()).id();
+    release(&mut app, foreign, PointerId::Touch(1), Vec2::new(1.0, 1.0));
+
+    assert_eq!(
+        app.world().resource::<PendingDomEvents>().0.len(),
+        before,
+        "a release that resolves to no DomNode must not enqueue a mouseup"
+    );
+    assert!(
+        app.world().resource::<PrimaryTouch>().0.is_none(),
+        "the primary slot must be freed even when the release doesn't resolve to a node"
+    );
+
+    // The slot being freed means a following finger is adopted and synthesizes
+    // a fresh compat sequence, rather than being stuck behind a dead primary.
+    press(&mut app, a, PointerId::Touch(2), Vec2::new(2.0, 2.0));
+    assert_eq!(
+        app.world().resource::<PendingDomEvents>().0.len(),
+        before + 4,
+        "a following touch must be adopted as primary and synthesize a fresh compat sequence"
+    );
+    assert_eq!(app.world().resource::<PrimaryTouch>().0, Some(PointerId::Touch(2)));
+}
