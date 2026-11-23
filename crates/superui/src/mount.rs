@@ -216,13 +216,21 @@ impl Plugin for SuperUiPlugin {
             .add_observer(on_slider_value_change)
             .add_observer(on_focus_gained)
             .add_observer(on_focus_lost)
-            // The six pointer observers are registered BEFORE the stage-1 touch
-            // observers (on_touch_press/on_touch_release) below: Bevy runs
-            // same-event (On<PointerPress>/On<PointerRelease>) observers in
-            // registration order, and the spec requires a pointer event precede
-            // its compat mouse event in PendingDomEvents' FIFO (pointer-first
-            // W3C ordering). Swapping this order silently reverses that FIFO —
-            // see superui_bridge's pointer_before_compat_mouse test.
+            // The six pointer observers are registered before the stage-1 touch
+            // observers (on_touch_press/on_touch_release) below to DOCUMENT the
+            // intended pointer-first ordering, but note this is NOT currently
+            // enforced: Bevy 0.20 dispatches same-event global observers
+            // (On<PointerPress>/On<PointerRelease>) in unordered EntityHashMap
+            // order, with no .before()/.after() for observers — so for a touch
+            // press the compat mouse sequence (on_touch_press) and the pointer
+            // events (on_pointer_press) interleave nondeterministically in
+            // PendingDomEvents' FIFO. The spec (§3) wants a pointer event to
+            // precede its compat mouse event (W3C ordering); that holds for the
+            // mouse (pointer events enqueue in PreUpdate observers, compat mouse
+            // in the Update chain) but NOT for touch. Making touch deterministic
+            // needs a redesign (one ordered path for touch-compat + pointer
+            // synthesis) that would modify the stage-1 observers — deferred as a
+            // follow-up, out of scope for the additive pointer-events item.
             .add_observer(on_pointer_over)
             .add_observer(on_pointer_out)
             .add_observer(on_pointer_press)
