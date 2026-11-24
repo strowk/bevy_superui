@@ -31,7 +31,7 @@ use wasm_bindgen::JsCast;
 
 use superui_dom::Dom;
 
-use crate::{JsEngine, OpBatch};
+use crate::{element_from_point, CaptureOp, HitRect, JsEngine, OpBatch};
 
 /// The JS shadow DOM. Defines `document`, `__ss_root`, `__ss_flush`,
 /// `__ss_dispatch` on the scope it runs in; guards `__ss_measure`. Byte-for-byte
@@ -54,10 +54,21 @@ pub struct WebEngine {
     /// JS→Bevy messages queued by `__superui_bevy_send`, drained per frame.
     /// Shared with the installed closure.
     outbox: Rc<RefCell<Vec<(String, Value)>>>,
+    /// This frame's geometry snapshot, written by `set_hit_rects`; read by the
+    /// `__ss_element_from_point` closure. Shared so `set_hit_rects` can swap
+    /// the contents without reinstalling the closure.
+    hit_rects: Rc<RefCell<Vec<HitRect>>>,
+    /// `setPointerCapture`/`releasePointerCapture` calls queued by `dom.js`,
+    /// drained by `drain_capture_ops`. Shared so `drain_capture_ops` can take
+    /// the contents without reinstalling the closures.
+    capture_ops: Rc<RefCell<Vec<CaptureOp>>>,
     /// Dropping a `Closure` frees the JS shim referencing it, so the host
     /// functions installed on the scope must be held for the engine's lifetime.
     _bevy_send: Closure<dyn FnMut(JsValue, JsValue)>,
     _measure: Closure<dyn FnMut(JsValue) -> JsValue>,
+    _element_from_point: Closure<dyn FnMut(JsValue, JsValue) -> JsValue>,
+    _set_pointer_capture: Closure<dyn FnMut(JsValue, JsValue)>,
+    _release_pointer_capture: Closure<dyn FnMut(JsValue)>,
 }
 
 impl WebEngine {
@@ -98,6 +109,60 @@ impl WebEngine {
             measure.as_ref(),
         );
 
+        // __ss_element_from_point(x, y): the host side of
+        // document.elementFromPoint. Reads the latest `set_hit_rects`
+        // snapshot; returns 0 ("no hit") when nothing contains (x, y).
+        let hit_rects: Rc<RefCell<Vec<HitRect>>> = Rc::new(RefCell::new(Vec::new()));
+        let element_from_point_fn = {
+            let hit_rects = hit_rects.clone();
+            Closure::<dyn FnMut(JsValue, JsValue) -> JsValue>::new(
+                move |x: JsValue, y: JsValue| -> JsValue {
+                    let x = x.as_f64().unwrap_or(0.0) as f32;
+                    let y = y.as_f64().unwrap_or(0.0) as f32;
+                    let id = element_from_point(&hit_rects.borrow(), x, y).unwrap_or(0);
+                    JsValue::from_f64(id as f64)
+                },
+            )
+        };
+        let _ = Reflect::set(
+            scope.as_ref(),
+            &JsValue::from_str("__ss_element_from_point"),
+            element_from_point_fn.as_ref(),
+        );
+
+        // __ss_set_pointer_capture(pointerId, jsId) / __ss_release_pointer_capture
+        // (pointerId): the host side of `setPointerCapture`/`releasePointerCapture`
+        // — queue a `CaptureOp` for `drain_pointer_captures_system` to replay onto
+        // the bridge's `PointerCaptures` map.
+        let capture_ops: Rc<RefCell<Vec<CaptureOp>>> = Rc::new(RefCell::new(Vec::new()));
+        let set_pointer_capture = {
+            let capture_ops = capture_ops.clone();
+            Closure::<dyn FnMut(JsValue, JsValue)>::new(
+                move |pointer_id: JsValue, js_id: JsValue| {
+                    let pointer_id = pointer_id.as_f64().unwrap_or(0.0) as u32;
+                    let js_id = js_id.as_f64().unwrap_or(0.0) as u32;
+                    capture_ops.borrow_mut().push(CaptureOp { pointer_id, node: Some(js_id) });
+                },
+            )
+        };
+        let _ = Reflect::set(
+            scope.as_ref(),
+            &JsValue::from_str("__ss_set_pointer_capture"),
+            set_pointer_capture.as_ref(),
+        );
+        let release_pointer_capture = {
+            let capture_ops = capture_ops.clone();
+            Closure::<dyn FnMut(JsValue)>::new(move |pointer_id: JsValue| {
+                let pointer_id = pointer_id.as_f64().unwrap_or(0.0) as u32;
+                capture_ops.borrow_mut().push(CaptureOp { pointer_id, node: None });
+            })
+        };
+        let _ = Reflect::set(
+            scope.as_ref(),
+            &JsValue::from_str("__ss_release_pointer_capture"),
+            release_pointer_capture.as_ref(),
+        );
+
         // dom.js runs into the scope first — it defines the shadow `document` and
         // the __ss_* entry points the later runtime/render/app scripts build on.
         // Non-fatal on failure: keep the engine so later eval() calls still
@@ -110,8 +175,13 @@ impl WebEngine {
             dom,
             scope,
             outbox,
+            hit_rects,
+            capture_ops,
             _bevy_send: bevy_send,
             _measure: measure,
+            _element_from_point: element_from_point_fn,
+            _set_pointer_capture: set_pointer_capture,
+            _release_pointer_capture: release_pointer_capture,
         }
     }
 
@@ -147,6 +217,9 @@ impl JsEngine for WebEngine {
                 let _ = Reflect::set(&obj, &JsValue::from_str("clientY"), &JsValue::from_f64(m.client_y as f64));
                 let _ = Reflect::set(&obj, &JsValue::from_str("button"), &JsValue::from_f64(m.button as f64));
                 let _ = Reflect::set(&obj, &JsValue::from_str("buttons"), &JsValue::from_f64(m.buttons as f64));
+                let _ = Reflect::set(&obj, &JsValue::from_str("pointerId"), &JsValue::from_f64(m.pointer_id as f64));
+                let _ = Reflect::set(&obj, &JsValue::from_str("pointerType"), &JsValue::from_str(m.pointer_type.as_str()));
+                let _ = Reflect::set(&obj, &JsValue::from_str("isPrimary"), &JsValue::from_bool(m.is_primary));
             }
             if let Some(md) = init.modifiers {
                 let mods = Object::new();
@@ -217,6 +290,14 @@ impl JsEngine for WebEngine {
 
     fn drain_outbox(&mut self) -> Vec<(String, Value)> {
         std::mem::take(&mut self.outbox.borrow_mut())
+    }
+
+    fn set_hit_rects(&mut self, rects: Vec<HitRect>) {
+        *self.hit_rects.borrow_mut() = rects;
+    }
+
+    fn drain_capture_ops(&mut self) -> Vec<CaptureOp> {
+        std::mem::take(&mut self.capture_ops.borrow_mut())
     }
 }
 

@@ -50,16 +50,43 @@ pub fn new_engine(dom: Rc<RefCell<Dom>>) -> Box<dyn JsEngine> {
     Box::new(WebEngine::new(dom))
 }
 
+/// The device class behind a `PointerEvent` (`PointerEvent.pointerType`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum PointerKind {
+    #[default]
+    Mouse,
+    Touch,
+}
+
+impl PointerKind {
+    /// The W3C `PointerEvent.pointerType` string (`"mouse"`/`"touch"`).
+    pub fn as_str(self) -> &'static str {
+        match self {
+            PointerKind::Mouse => "mouse",
+            PointerKind::Touch => "touch",
+        }
+    }
+}
+
 /// Mouse coordinates and button state carried through [`JsEngine::dispatch_event`]
 /// for pointer event types (`mousedown`/`mouseup`/`mousemove`/...). `button` is
 /// the W3C `MouseEvent.button` of the event itself; `buttons` is the bitmask of
 /// all buttons currently held.
-#[derive(Clone, Copy, Debug, PartialEq)]
+///
+/// `pointer_id`/`pointer_type`/`is_primary` additionally carry the W3C
+/// `PointerEvent` fields (`PointerEvent.pointerId`/`pointerType`/`isPrimary`);
+/// `dispatch_event`/`dom.js` only attach them to the event object for pointer
+/// event types (`pointerdown`/`pointermove`/...) — a plain `MouseEvent` never
+/// sees them, so these fields are inert on the existing mouse/compat stream.
+#[derive(Clone, Copy, Debug, PartialEq, Default)]
 pub struct MousePayload {
     pub client_x: f32,
     pub client_y: f32,
     pub button: u8,
     pub buttons: u8,
+    pub pointer_id: u32,
+    pub pointer_type: PointerKind,
+    pub is_primary: bool,
 }
 
 /// W3C modifier-key state (`MouseEvent`/`KeyboardEvent` `shiftKey` etc.).
@@ -90,9 +117,13 @@ pub trait JsEngine {
     /// Dispatch a DOM event of `ty` at the shadow-DOM node `target` (W3C
     /// capture→target→bubble, run entirely in JS). `init.mouse` carries
     /// `clientX`/`clientY`/`button`/`buttons` onto the event object for pointer
-    /// event types; `init.modifiers` carries `shiftKey`/`ctrlKey`/`altKey`/
-    /// `metaKey`. Either or both `None` leave the corresponding properties
-    /// `undefined`. Returns whether `preventDefault()` was called.
+    /// event types, plus `pointerId`/`pointerType`/`isPrimary` — the latter three
+    /// (and the JS-computed `width`/`height`/`pressure`) are attached by `dom.js`
+    /// only when `ty` is itself a PointerEvent type (`pointer*`/capture events),
+    /// so they never leak onto a plain `MouseEvent`. `init.modifiers` carries
+    /// `shiftKey`/`ctrlKey`/`altKey`/`metaKey`. Either or both `None` leave the
+    /// corresponding properties `undefined`. Returns whether `preventDefault()`
+    /// was called.
     fn dispatch_event(
         &mut self,
         target: JsNodeId,
@@ -116,4 +147,84 @@ pub trait JsEngine {
 
     /// JS→Bevy: take the messages `__superui_bevy_send` queued this frame.
     fn drain_outbox(&mut self) -> Vec<(String, serde_json::Value)>;
+
+    /// Replace the engine's geometry snapshot for `document.elementFromPoint`
+    /// (the `__ss_element_from_point` host binding reads it). Called once per
+    /// frame by `sync_hit_rects_system`; an empty `Vec` makes every probe miss.
+    fn set_hit_rects(&mut self, rects: Vec<HitRect>);
+
+    /// Take the [`CaptureOp`]s `setPointerCapture`/`releasePointerCapture` queued
+    /// since the last drain (the `__ss_set_pointer_capture`/
+    /// `__ss_release_pointer_capture` host bindings push them). Called once per
+    /// frame by `drain_pointer_captures_system`, right after the DOM-event drain
+    /// that may have run the author listener which called `setPointerCapture`.
+    fn drain_capture_ops(&mut self) -> Vec<CaptureOp>;
+}
+
+/// One `setPointerCapture`/`releasePointerCapture` call queued by `dom.js`'s
+/// capture surface, to be replayed onto the bridge's `PointerCaptures` map.
+/// `Some(js)` ("set") names the js node capturing `pointer_id`; `None`
+/// ("release", explicit or implicit) clears it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CaptureOp {
+    pub pointer_id: u32,
+    pub node: Option<JsNodeId>,
+}
+
+/// One node's axis-aligned screen-space bounding box, snapshotted per frame by
+/// `sync_hit_rects_system` from `bevy_ui` layout for `element_from_point`'s
+/// hit-test. Coordinates are in the same logical-window-pixel space as
+/// `MouseEvent.clientX`/`clientY`.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct HitRect {
+    pub js_id: JsNodeId,
+    pub min: (f32, f32),
+    pub max: (f32, f32),
+    /// DOM-tree depth (document root = 0); the containing rect with the
+    /// greatest depth wins a hit, matching painter's-order "topmost" semantics.
+    pub depth: u32,
+}
+
+/// Pure hit-test backing `document.elementFromPoint(x, y)`: the `js_id` of the
+/// containing rect with the greatest `depth` (ties broken by last-wins, i.e.
+/// snapshot order), or `None` if no rect contains `(x, y)`.
+pub fn element_from_point(rects: &[HitRect], x: f32, y: f32) -> Option<JsNodeId> {
+    rects
+        .iter()
+        .filter(|r| r.min.0 <= x && x <= r.max.0 && r.min.1 <= y && y <= r.max.1)
+        .max_by_key(|r| r.depth)
+        .map(|r| r.js_id)
+}
+
+#[cfg(test)]
+mod element_from_point_tests {
+    use super::{element_from_point, HitRect};
+
+    #[test]
+    fn point_inside_single_node_returns_it() {
+        let rects = [HitRect { js_id: 2, min: (0.0, 0.0), max: (10.0, 10.0), depth: 0 }];
+        assert_eq!(element_from_point(&rects, 5.0, 5.0), Some(2));
+    }
+
+    #[test]
+    fn overlapping_nodes_topmost_by_depth_wins() {
+        let parent = HitRect { js_id: 1, min: (0.0, 0.0), max: (100.0, 100.0), depth: 0 };
+        let child = HitRect { js_id: 2, min: (10.0, 10.0), max: (20.0, 20.0), depth: 1 };
+        let rects = [parent, child];
+        assert_eq!(element_from_point(&rects, 15.0, 15.0), Some(2));
+        assert_eq!(element_from_point(&rects, 50.0, 50.0), Some(1));
+    }
+
+    #[test]
+    fn point_outside_all_nodes_is_none() {
+        let rects = [HitRect { js_id: 1, min: (0.0, 0.0), max: (10.0, 10.0), depth: 0 }];
+        assert_eq!(element_from_point(&rects, 500.0, 500.0), None);
+    }
+
+    #[test]
+    fn ties_in_depth_resolve_to_the_last_rect() {
+        let a = HitRect { js_id: 1, min: (0.0, 0.0), max: (10.0, 10.0), depth: 0 };
+        let b = HitRect { js_id: 2, min: (0.0, 0.0), max: (10.0, 10.0), depth: 0 };
+        assert_eq!(element_from_point(&[a, b], 5.0, 5.0), Some(2));
+    }
 }

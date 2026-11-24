@@ -280,6 +280,12 @@ impl UiRuntime {
         prevented
     }
 
+    /// Push a fresh geometry snapshot for `document.elementFromPoint`
+    /// (`sync_hit_rects_system` calls this once per frame).
+    pub fn set_hit_rects(&mut self, rects: Vec<superui_js::HitRect>) {
+        self.engine.set_hit_rects(rects);
+    }
+
     /// Global per-type listener-presence counts (Task 1–5's op-wire tracking),
     /// used to decide whether `mousemove`/hover tracking is worth running at
     /// all this frame.

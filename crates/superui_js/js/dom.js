@@ -53,6 +53,17 @@
   // ---- node registry (jsId -> node) for __ss_dispatch lookups ----------------
   var nodesById = new Map();
   var nextId = 2; // 1 is the pre-bound root
+
+  // ---- pointer capture (setPointerCapture / releasePointerCapture) ----------
+  // pointerId -> the node currently holding capture for it. Synced to the host
+  // side (PointerCaptures) via __ss_set_pointer_capture/__ss_release_pointer_capture
+  // so the uncaptured-pointer observers can skip a captured pointer's raw
+  // location-based path.
+  var captureMap = new Map();
+  // pointerId -> { pointerType, isPrimary }, cached from the last dispatched
+  // event carrying that pointerId, so a host-fired gotpointercapture/
+  // lostpointercapture (which has no payload of its own) can still report them.
+  var pointerMeta = new Map();
   // Nodes a removeChild detached this tick; the id unbind is deferred to flush
   // (see removeChild / flush).
   var detached = [];
@@ -346,6 +357,45 @@
     return node._listeners.get(type) || null;
   }
 
+  // ---- pointer capture --------------------------------------------------------
+  // dispatch a capture-lifecycle event ("gotpointercapture"/"lostpointercapture")
+  // at `node`, bubbling, not cancelable, carrying `pointerId` plus the cached
+  // pointerType/isPrimary for it (if any prior event recorded them).
+  function fireCapture(node, type, id) {
+    var meta = pointerMeta.get(id);
+    var init = { pointerId: id };
+    if (meta) {
+      init.pointerType = meta.pointerType;
+      init.isPrimary = meta.isPrimary;
+    }
+    dispatch(node._nid, type, null, true, false, init);
+  }
+
+  // Shared by the explicit releasePointerCapture and dispatch's implicit
+  // release on pointerup: drop the capture entry, sync the host side, then
+  // fire lostpointercapture exactly once.
+  function releaseCapture(node, id) {
+    captureMap.delete(id);
+    if (typeof globalThis.__ss_release_pointer_capture === "function") {
+      globalThis.__ss_release_pointer_capture(id);
+    }
+    fireCapture(node, "lostpointercapture", id);
+  }
+
+  proto.setPointerCapture = function (id) {
+    id = id >>> 0;
+    captureMap.set(id, this);
+    if (typeof globalThis.__ss_set_pointer_capture === "function") {
+      globalThis.__ss_set_pointer_capture(id, this._nid);
+    }
+    fireCapture(this, "gotpointercapture", id);
+  };
+
+  proto.releasePointerCapture = function (id) {
+    id = id >>> 0;
+    if (captureMap.get(id) === this) releaseCapture(this, id);
+  };
+
   // ---- text / textContent ----------------------------------------------------
   // `.data` is a text-node property; ignore it on elements.
   Object.defineProperty(proto, "data", {
@@ -584,6 +634,12 @@
     get documentElement() {
       return root;
     },
+    elementFromPoint: function (x, y) {
+      var fn = globalThis.__ss_element_from_point;
+      if (typeof fn !== "function") return null;
+      var id = fn(+x, +y) >>> 0;
+      return id ? (nodesById.get(id) || null) : null;
+    },
   };
 
   // ---- document / window as bubble-chain targets ----------------------------
@@ -624,6 +680,20 @@
     if (!target) return false;
 
     var mods = init && init.modifiers;
+    // PointerEvent types only: "pointer*" (pointerdown/pointermove/...) plus
+    // the two capture-lifecycle events, which per spec are PointerEvents too.
+    var isPointer = type.indexOf("pointer") === 0 || type === "gotpointercapture" || type === "lostpointercapture";
+    // Pointer capture: cache pointerType/isPrimary for this pointerId (so a later
+    // host-fired capture-lifecycle event, which carries no payload of its own,
+    // can still report them), then retarget to the capturing node if one holds
+    // capture for this pointerId. Retargeting swaps `target` only — clientX/Y
+    // stay the original hit-test coordinates (W3C: capture changes *who*
+    // receives the event, not *where* it reports happening).
+    if (isPointer && init && init.pointerId != null) {
+      var pid = init.pointerId >>> 0;
+      pointerMeta.set(pid, { pointerType: init.pointerType, isPrimary: !!init.isPrimary });
+      if (captureMap.has(pid)) target = captureMap.get(pid);
+    }
     var ancestors = []; // parent(target) -> root
     var cur = target.parentNode;
     while (cur) {
@@ -649,6 +719,12 @@
       ctrlKey: mods ? !!mods.ctrlKey : undefined,
       altKey: mods ? !!mods.altKey : undefined,
       metaKey: mods ? !!mods.metaKey : undefined,
+      pointerId: isPointer ? (init ? init.pointerId : undefined) : undefined,
+      pointerType: isPointer ? (init ? init.pointerType : undefined) : undefined,
+      isPrimary: isPointer ? (init ? !!init.isPrimary : undefined) : undefined,
+      width: isPointer ? 1 : undefined,
+      height: isPointer ? 1 : undefined,
+      pressure: isPointer ? ((init && (init.buttons & 0xff) !== 0) ? 0.5 : 0) : undefined,
       defaultPrevented: false,
       preventDefault: function () {
         if (cancelable) {
@@ -691,6 +767,17 @@
       }
     }
     event.currentTarget = null;
+
+    // Implicit release (W3C): a pointerup OR pointercancel ends the gesture, so
+    // any capture this pointerId still holds on the (post-retarget) target is
+    // dropped here, firing lostpointercapture exactly once. The `captureMap.get
+    // === target` check is the once-only guard: a second pointerup/pointercancel
+    // for the same id finds nothing left to release.
+    if ((type === "pointerup" || type === "pointercancel") && init && init.pointerId != null) {
+      var upId = init.pointerId >>> 0;
+      if (captureMap.get(upId) === target) releaseCapture(target, upId);
+    }
+
     return prevented;
   }
 

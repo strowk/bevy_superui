@@ -9,12 +9,15 @@ use bevy::ecs::system::SystemState;
 use bevy::prelude::*;
 use rustc_hash::FxHashMap;
 use superui_bridge::{
-    clamp_scroll_position_system, dim_placeholder_text_system, drain_bevy_outbox_system,
-    drain_dom_events_system, editable_input_events_system, emit_bevy_inbox_system,
-    keyboard_events_system, mouse_events_system, mouse_listeners_active, on_focus_gained,
-    on_focus_lost, on_pointer_click, on_slider_value_change, position_slider_parts,
-    reconcile_system, sync_mouse_listener_index, wheel_scroll_system, MouseListenerIndex,
-    PendingDomEvents, PointerState, UiRuntime,
+    captured_pointer_delivery_system, clamp_scroll_position_system, dim_placeholder_text_system,
+    drain_bevy_outbox_system, drain_dom_events_system, drain_pointer_captures_system,
+    editable_input_events_system, emit_bevy_inbox_system, keyboard_events_system,
+    mouse_events_system, mouse_listeners_active, on_focus_gained, on_focus_lost,
+    on_pointer_cancel, on_pointer_click, on_pointer_move, on_pointer_out, on_pointer_over,
+    on_pointer_press, on_pointer_release, on_slider_value_change, on_touch_press,
+    on_touch_release, position_slider_parts, reconcile_system, sync_hit_rects_system,
+    sync_mouse_listener_index, wheel_scroll_system, CapturedPointerState, MouseListenerIndex,
+    PendingDomEvents, PointerCaptures, PointerState, PrimaryTouch, UiRuntime,
 };
 use superui_css::core::PropertyRegistry;
 use superui_css::parser::InlineCssStyleSheetParser;
@@ -206,10 +209,36 @@ impl Plugin for SuperUiPlugin {
             .init_resource::<PointerState>()
             .init_resource::<MouseListenerIndex>()
             .init_resource::<HotReloadFlags>()
+            .init_resource::<PrimaryTouch>()
+            .init_resource::<PointerCaptures>()
+            .init_resource::<CapturedPointerState>()
             .add_observer(on_pointer_click)
             .add_observer(on_slider_value_change)
             .add_observer(on_focus_gained)
             .add_observer(on_focus_lost)
+            // The six pointer observers are registered before the stage-1 touch
+            // observers (on_touch_press/on_touch_release) below to DOCUMENT the
+            // intended pointer-first ordering, but note this is NOT currently
+            // enforced: Bevy 0.20 dispatches same-event global observers
+            // (On<PointerPress>/On<PointerRelease>) in unordered EntityHashMap
+            // order, with no .before()/.after() for observers — so for a touch
+            // press the compat mouse sequence (on_touch_press) and the pointer
+            // events (on_pointer_press) interleave nondeterministically in
+            // PendingDomEvents' FIFO. The spec (§3) wants a pointer event to
+            // precede its compat mouse event (W3C ordering); that holds for the
+            // mouse (pointer events enqueue in PreUpdate observers, compat mouse
+            // in the Update chain) but NOT for touch. Making touch deterministic
+            // needs a redesign (one ordered path for touch-compat + pointer
+            // synthesis) that would modify the stage-1 observers — deferred as a
+            // follow-up, out of scope for the additive pointer-events item.
+            .add_observer(on_pointer_over)
+            .add_observer(on_pointer_out)
+            .add_observer(on_pointer_press)
+            .add_observer(on_pointer_release)
+            .add_observer(on_pointer_move)
+            .add_observer(on_pointer_cancel)
+            .add_observer(on_touch_press)
+            .add_observer(on_touch_release)
             .add_observer(on_superui_root_removed)
             // Wheel scrolling is pure Bevy (no UiRuntime), so it runs plainly in
             // Update rather than inside the runtime_exists DOM chain below.
@@ -304,8 +333,25 @@ impl Plugin for SuperUiPlugin {
                 // (A game-event → bevy.on callback that itself calls bevy.send
                 // still lags one frame too — acceptable Phase 1 trade-off.)
                 (
+                    // Geometry snapshot for document.elementFromPoint: must
+                    // run before drain_dom_events_system so a listener a DOM
+                    // event dispatches into this frame sees fresh rects.
+                    sync_hit_rects_system,
                     editable_input_events_system,
+                    // Off-UI captured delivery (Task 5): reads the RAW
+                    // pointer location/button/touch state each frame and
+                    // enqueues pointermove/up/cancel for a captured pointer
+                    // even when bevy_picking has nothing to say (pointer not
+                    // over any UI). Must run before drain_dom_events_system
+                    // so a raw pointerup it enqueues dispatches — and
+                    // implicitly releases capture — the same frame.
+                    captured_pointer_delivery_system,
                     drain_dom_events_system,
+                    // Must land the same frame a listener running inside
+                    // drain_dom_events_system's dispatch called
+                    // setPointerCapture/releasePointerCapture — see Task 4's
+                    // CaptureOp drain.
+                    drain_pointer_captures_system,
                     keyboard_events_system,
                     emit_bevy_inbox_system,
                     drain_bevy_outbox_system,

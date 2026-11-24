@@ -819,6 +819,7 @@ fn push_mouse_event(world: &mut World, node: NodeId, event: &str, bubbles: bool,
         client_y: 0.0,
         button: 0,
         buttons,
+        ..Default::default()
     });
     e.bubbles = bubbles;
     world.resource_mut::<PendingDomEvents>().0.push(e);

@@ -55,7 +55,12 @@
 }
 
 /* The in-flight drag preview, positioned from `event.clientX/clientY` and
-   following the cursor until `onUp` resolves the drop (see app.tsx). */
+   following the cursor until `onUp` resolves the drop. No `pointer-events`
+   here — flair doesn't support that property — and none is needed: `onUp`
+   resolves the drop via `document.elementFromPoint`, a real screen-position
+   hit-test, not `event.target` (which `setPointerCapture` pins to the
+   dragged tile for the whole gesture regardless of what's drawn on top).
+   See app.tsx's header comment for the full protocol. */
 .tile.floating {
   position: absolute;
   background-image: linear-gradient(135deg, #ffd27f, #ff9e4a);

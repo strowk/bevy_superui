@@ -5,11 +5,15 @@ use bevy::ecs::message::MessageReader;
 use bevy::input::keyboard::{Key, KeyCode, KeyboardInput};
 use bevy::input::ButtonState;
 use bevy::input_focus::{FocusCause, InputFocus};
-use bevy::picking::events::PointerClick;
+use bevy::picking::events::{
+    PointerCancel, PointerClick, PointerMove, PointerOut, PointerOver, PointerPress,
+    PointerRelease,
+};
+use bevy::picking::pointer::PointerId;
 use bevy::prelude::*;
 use bevy::text::EditableText;
 use superui_dom::NodeId;
-use superui_js::{EventInit, Modifiers, MousePayload};
+use superui_js::{EventInit, Modifiers, MousePayload, PointerKind};
 
 use crate::runtime::{DomNode, PlaceholderText, UiRuntime};
 
@@ -138,6 +142,108 @@ pub fn on_pointer_click(
     focus_and_click(node, &mut dom, &mut pending, &mut input_focus, mods);
 }
 
+/// The active primary touch finger, if any. A touch tap synthesizes the browser
+/// compatibility mouse sequence (`mousemove`/`mouseover`/`mouseenter`/`mousedown`
+/// on press, `mouseup` on release, plus `click` via the existing `on_pointer_click`
+/// observer); this slot records which finger is doing so, so only the first
+/// concurrent finger does, mirroring a browser's single synthesized mouse pointer.
+#[derive(Resource, Default)]
+pub struct PrimaryTouch(pub Option<PointerId>);
+
+/// A touch-synthesized `MousePayload`: the touch position as `clientX`/`clientY`,
+/// with the caller-supplied `button`/`buttons` state.
+fn touch_payload(pos: Vec2, button: u8, buttons: u8) -> MousePayload {
+    MousePayload { client_x: pos.x, client_y: pos.y, button, buttons, ..Default::default() }
+}
+
+/// Enqueue the browser compatibility mouse sequence for a primary-touch press:
+/// `mousemove`, `mouseover`, `mouseenter` (non-bubbling), then `mousedown`
+/// (button 0 down: `button = 0`, `buttons = 1`). All carry empty `Modifiers`
+/// (touch has no keyboard-modifier concept of its own) and the touch position.
+fn enqueue_touch_press(node: NodeId, pos: Vec2, pending: &mut PendingDomEvents) {
+    let idle = touch_payload(pos, 0, 0);
+    let down = touch_payload(pos, 0, 1);
+    let mods = Modifiers::default();
+    pending.0.push(PendingDomEvent::new(node, "mousemove").with_mouse(idle).with_modifiers(mods));
+    pending.0.push(PendingDomEvent::new(node, "mouseover").with_mouse(idle).with_modifiers(mods));
+    let mut enter = PendingDomEvent::new(node, "mouseenter").with_mouse(idle).with_modifiers(mods);
+    enter.bubbles = false;
+    pending.0.push(enter);
+    pending.0.push(PendingDomEvent::new(node, "mousedown").with_mouse(down).with_modifiers(mods));
+}
+
+/// Observer: the primary-touch finger's initial press synthesizes the browser
+/// compatibility mouse sequence into `PendingDomEvents` — the touch-tap half of
+/// making touch devices behave like a mouse to code that only listens for mouse
+/// events. Only the first concurrent finger does this (`PrimaryTouch`); a second
+/// finger landing while the first is still down is ignored, like a browser's
+/// single synthesized mouse pointer.
+pub fn on_touch_press(
+    mut ev: On<PointerPress>,
+    nodes: Query<&DomNode>,
+    parents: Query<&ChildOf>,
+    mut pending: ResMut<PendingDomEvents>,
+    mut primary: ResMut<PrimaryTouch>,
+) {
+    // Touch only; a mouse (or other custom) pointer returns immediately without
+    // touching propagation, same reasoning as `on_pointer_click`'s foreign-entity
+    // guard below.
+    let PointerId::Touch(_) = ev.pointer.id else { return };
+    // Resolve BEFORE touching `PrimaryTouch` — a `None` resolve (host-game entity)
+    // returns without claiming the event or consuming the primary slot, so a
+    // foreign touch doesn't block a later real tap from becoming primary.
+    let Some(node) = resolve_dom_node(ev.entity, &nodes, &parents) else { return };
+    // Ours: stop propagation so this fires once (mirror `on_pointer_click`).
+    ev.propagate(false);
+    // Adopt the first active finger as primary; ignore a second concurrent finger.
+    if primary.0.is_some() {
+        return;
+    }
+    primary.0 = Some(ev.pointer.id);
+    enqueue_touch_press(node, ev.pointer.position, &mut pending);
+}
+
+/// Enqueue the browser compatibility mouse sequence for a primary-touch release:
+/// a single `mouseup` (button 0 up: `button = 0`, `buttons = 0`), bubbling, with
+/// empty `Modifiers` and the touch position (mirrors `enqueue_touch_press`).
+fn enqueue_touch_release(node: NodeId, pos: Vec2, pending: &mut PendingDomEvents) {
+    let up = touch_payload(pos, 0, 0);
+    let mods = Modifiers::default();
+    pending.0.push(PendingDomEvent::new(node, "mouseup").with_mouse(up).with_modifiers(mods));
+}
+
+/// Observer: the primary-touch finger's release synthesizes the compatibility
+/// `mouseup` into `PendingDomEvents` and frees the primary slot — the release
+/// half of `on_touch_press`'s tap-to-mouse sequence. A non-primary finger's
+/// release (a second finger lifting while the primary is still down) is
+/// ignored, same as `on_touch_press` ignoring a second finger's press.
+pub fn on_touch_release(
+    mut ev: On<PointerRelease>,
+    nodes: Query<&DomNode>,
+    parents: Query<&ChildOf>,
+    mut pending: ResMut<PendingDomEvents>,
+    mut primary: ResMut<PrimaryTouch>,
+) {
+    let PointerId::Touch(_) = ev.pointer.id else { return };
+    // Non-primary release ignored; leaves the primary slot untouched.
+    if primary.0 != Some(ev.pointer.id) {
+        return;
+    }
+    // The primary finger's gesture has ended regardless of where it resolves —
+    // always free the slot here, BEFORE resolving to a `DomNode`. Bevy picking
+    // only fires `PointerRelease` on a previously-hovered entity, which can be a
+    // host-game entity with no `DomNode` (`resolve_dom_node` returns `None`); if
+    // clearing were gated on a successful resolve, that case would leave
+    // `PrimaryTouch` stuck `Some` forever, permanently blocking every future
+    // `on_touch_press` (it only adopts when the slot is `None`).
+    primary.0 = None;
+    let Some(node) = resolve_dom_node(ev.entity, &nodes, &parents) else { return };
+    // Ours: stop propagation so this fires once (mirror `on_pointer_click`), but
+    // only once resolved — an unresolved release has nothing to claim.
+    ev.propagate(false);
+    enqueue_touch_release(node, ev.pointer.position, &mut pending);
+}
+
 /// Walk up from `entity` to the nearest ancestor that carries a [`DomNode`],
 /// returning `None` when the entity belongs to no mounted UI.
 ///
@@ -159,6 +265,249 @@ pub fn resolve_dom_node(
             Err(_) => return None,
         }
     }
+}
+
+/// JS `PointerEvent.pointerId` for a Bevy `PointerId` — the numbering this
+/// bridge invents: `Mouse` is always `1` (the convention most browsers use for
+/// their single mouse pointer); `Touch(n)` is `(n as u32).wrapping_add(2)`, so
+/// it never collides with `1`. `Custom` (mocked/software pointers) has no
+/// canonical browser id and isn't expected to flow through this bridge; it
+/// maps to `0`.
+pub fn js_pointer_id(id: PointerId) -> u32 {
+    match id {
+        PointerId::Mouse => 1,
+        PointerId::Touch(n) => (n as u32).wrapping_add(2),
+        PointerId::Custom(_) => 0,
+    }
+}
+
+/// Inverse of [`js_pointer_id`] for the `Mouse`/`Touch` numbering it defines
+/// (there is no way back to `Custom`, which that numbering never produces).
+pub fn bevy_pointer_id(js: u32) -> PointerId {
+    if js == 1 {
+        PointerId::Mouse
+    } else {
+        PointerId::Touch(js.wrapping_sub(2) as u64)
+    }
+}
+
+/// `PointerEvent.pointerType` for a picking `PointerId`. `Custom` (mocked or
+/// software-controlled pointers) reports as `Mouse`, the closer W3C analogue
+/// absent a third `PointerKind` variant.
+pub fn pointer_kind(id: PointerId) -> PointerKind {
+    match id {
+        PointerId::Touch(_) => PointerKind::Touch,
+        _ => PointerKind::Mouse,
+    }
+}
+
+/// `PointerEvent.isPrimary` for `id`. A mouse pointer is always primary (there
+/// is only ever one). A touch pointer is primary iff no other touch currently
+/// holds `PrimaryTouch`'s slot, or it holds it itself — order-independent,
+/// unlike the touch-compat mouse stream (`PrimaryTouch`'s own consumer), which
+/// only ever adopts the first concurrent finger and ignores every other.
+pub fn pointer_is_primary(id: PointerId, primary: &PrimaryTouch) -> bool {
+    match id {
+        PointerId::Touch(_) => primary.0.is_none() || primary.0 == Some(id),
+        _ => true,
+    }
+}
+
+/// A pointer-event `MousePayload`: position + button state + the W3C pointer
+/// identity fields (`pointerId`/`pointerType`/`isPrimary`).
+fn pointer_payload(
+    pos: Vec2,
+    button: u8,
+    buttons: u8,
+    pointer_id: u32,
+    pointer_type: PointerKind,
+    is_primary: bool,
+) -> MousePayload {
+    MousePayload {
+        client_x: pos.x,
+        client_y: pos.y,
+        button,
+        buttons,
+        pointer_id,
+        pointer_type,
+        is_primary,
+    }
+}
+
+/// Captured pointers: JS `pointerId` -> the node that holds its capture (via
+/// `setPointerCapture`). Each uncaptured-pointer observer below skips a
+/// pointer already in this map — the raw-location path (Stage B) owns it
+/// instead. Populated/cleared each frame by `drain_pointer_captures_system`.
+#[derive(Resource, Default)]
+pub struct PointerCaptures(pub std::collections::HashMap<u32, NodeId>);
+
+/// Exclusive-ish system: replay this frame's `setPointerCapture`/
+/// `releasePointerCapture` calls (drained from the engine's `CaptureOp` queue)
+/// onto `PointerCaptures`. `Some(js)` maps the js node to the bridge's mirror
+/// `NodeId` and inserts it; an unmapped js node (shouldn't happen in practice —
+/// every node `setPointerCapture` can be called on already has a js binding —
+/// but defensive) is skipped rather than desyncing the map. `None` removes the
+/// entry (explicit or implicit release).
+///
+/// Registered right after `drain_dom_events_system` so a capture set by a
+/// listener this frame's dispatch ran lands in `PointerCaptures` the same
+/// frame, not next.
+pub fn drain_pointer_captures_system(
+    mut rt: NonSendMut<UiRuntime>,
+    mut captures: ResMut<PointerCaptures>,
+) {
+    for op in rt.engine.drain_capture_ops() {
+        match op.node {
+            Some(js) => {
+                if let Some(node) = rt.applier.node(js) {
+                    captures.0.insert(op.pointer_id, node);
+                }
+            }
+            None => {
+                captures.0.remove(&op.pointer_id);
+            }
+        }
+    }
+}
+
+/// Shared preamble for every observer below: resolve the hit entity to a
+/// `DomNode`, then skip a pointer that's already captured. `None` covers both
+/// a foreign entity (nothing of ours to claim) and a captured pointer (the
+/// raw-location path owns its events instead) — in either case the caller
+/// must return without touching propagation, leaving the event alone for
+/// whoever else is handling it.
+fn uncaptured_node(
+    entity: Entity,
+    id: PointerId,
+    nodes: &Query<&DomNode>,
+    parents: &Query<&ChildOf>,
+    captures: &PointerCaptures,
+) -> Option<NodeId> {
+    let node = resolve_dom_node(entity, nodes, parents)?;
+    if captures.0.contains_key(&js_pointer_id(id)) {
+        return None;
+    }
+    Some(node)
+}
+
+/// The common `MousePayload` for a pointer event: position + button state +
+/// the pointer identity fields derived from `id` (`pointerId`/`pointerType`/
+/// `isPrimary`).
+fn payload_for(pos: Vec2, button: u8, buttons: u8, id: PointerId, primary: &PrimaryTouch) -> MousePayload {
+    pointer_payload(pos, button, buttons, js_pointer_id(id), pointer_kind(id), pointer_is_primary(id, primary))
+}
+
+/// Observer: a pointer entering a target's bounds becomes DOM `pointerover`
+/// (bubbles) then `pointerenter` (not bubbling) — derived the same way
+/// `mouse_events_system` derives `mouseenter` from `mouseover`. Fires for
+/// every pointer type; a captured pointer is left to the raw-location path.
+pub fn on_pointer_over(
+    mut ev: On<PointerOver>,
+    nodes: Query<&DomNode>,
+    parents: Query<&ChildOf>,
+    mut pending: ResMut<PendingDomEvents>,
+    primary: Res<PrimaryTouch>,
+    captures: Res<PointerCaptures>,
+) {
+    let id = ev.pointer.id;
+    let Some(node) = uncaptured_node(ev.entity, id, &nodes, &parents, &captures) else { return };
+    ev.propagate(false);
+    let m = payload_for(ev.pointer.position, 0, 0, id, &primary);
+    let mods = Modifiers::default();
+    pending.0.push(PendingDomEvent::new(node, "pointerover").with_mouse(m).with_modifiers(mods));
+    let mut enter = PendingDomEvent::new(node, "pointerenter").with_mouse(m).with_modifiers(mods);
+    enter.bubbles = false;
+    pending.0.push(enter);
+}
+
+/// Observer: a pointer leaving a target's bounds becomes DOM `pointerout`
+/// (bubbles) then `pointerleave` (not bubbling) — the `on_pointer_over` mirror.
+pub fn on_pointer_out(
+    mut ev: On<PointerOut>,
+    nodes: Query<&DomNode>,
+    parents: Query<&ChildOf>,
+    mut pending: ResMut<PendingDomEvents>,
+    primary: Res<PrimaryTouch>,
+    captures: Res<PointerCaptures>,
+) {
+    let id = ev.pointer.id;
+    let Some(node) = uncaptured_node(ev.entity, id, &nodes, &parents, &captures) else { return };
+    ev.propagate(false);
+    let m = payload_for(ev.pointer.position, 0, 0, id, &primary);
+    let mods = Modifiers::default();
+    pending.0.push(PendingDomEvent::new(node, "pointerout").with_mouse(m).with_modifiers(mods));
+    let mut leave = PendingDomEvent::new(node, "pointerleave").with_mouse(m).with_modifiers(mods);
+    leave.bubbles = false;
+    pending.0.push(leave);
+}
+
+/// Observer: a pointer button pressed on a target becomes DOM `pointerdown`
+/// (button 0 down: `button = 0`, `buttons = 1`), for every pointer type —
+/// unlike `on_touch_press`, which only synthesizes the browser mouse-compat
+/// sequence, and only for touch.
+pub fn on_pointer_press(
+    mut ev: On<PointerPress>,
+    nodes: Query<&DomNode>,
+    parents: Query<&ChildOf>,
+    mut pending: ResMut<PendingDomEvents>,
+    primary: Res<PrimaryTouch>,
+    captures: Res<PointerCaptures>,
+) {
+    let id = ev.pointer.id;
+    let Some(node) = uncaptured_node(ev.entity, id, &nodes, &parents, &captures) else { return };
+    ev.propagate(false);
+    let m = payload_for(ev.pointer.position, 0, 1, id, &primary);
+    pending.0.push(PendingDomEvent::new(node, "pointerdown").with_mouse(m).with_modifiers(Modifiers::default()));
+}
+
+/// Observer: a pointer button released on a target becomes DOM `pointerup`
+/// (button 0 up: `button = 0`, `buttons = 0`).
+pub fn on_pointer_release(
+    mut ev: On<PointerRelease>,
+    nodes: Query<&DomNode>,
+    parents: Query<&ChildOf>,
+    mut pending: ResMut<PendingDomEvents>,
+    primary: Res<PrimaryTouch>,
+    captures: Res<PointerCaptures>,
+) {
+    let id = ev.pointer.id;
+    let Some(node) = uncaptured_node(ev.entity, id, &nodes, &parents, &captures) else { return };
+    ev.propagate(false);
+    let m = payload_for(ev.pointer.position, 0, 0, id, &primary);
+    pending.0.push(PendingDomEvent::new(node, "pointerup").with_mouse(m).with_modifiers(Modifiers::default()));
+}
+
+/// Observer: a pointer moving over a target becomes DOM `pointermove`.
+pub fn on_pointer_move(
+    mut ev: On<PointerMove>,
+    nodes: Query<&DomNode>,
+    parents: Query<&ChildOf>,
+    mut pending: ResMut<PendingDomEvents>,
+    primary: Res<PrimaryTouch>,
+    captures: Res<PointerCaptures>,
+) {
+    let id = ev.pointer.id;
+    let Some(node) = uncaptured_node(ev.entity, id, &nodes, &parents, &captures) else { return };
+    ev.propagate(false);
+    let m = payload_for(ev.pointer.position, 0, 0, id, &primary);
+    pending.0.push(PendingDomEvent::new(node, "pointermove").with_mouse(m).with_modifiers(Modifiers::default()));
+}
+
+/// Observer: a pointer's gesture is canceled (palm rejection, the browser
+/// taking a touch over for its own scroll/zoom, …) becomes DOM `pointercancel`.
+pub fn on_pointer_cancel(
+    mut ev: On<PointerCancel>,
+    nodes: Query<&DomNode>,
+    parents: Query<&ChildOf>,
+    mut pending: ResMut<PendingDomEvents>,
+    primary: Res<PrimaryTouch>,
+    captures: Res<PointerCaptures>,
+) {
+    let id = ev.pointer.id;
+    let Some(node) = uncaptured_node(ev.entity, id, &nodes, &parents, &captures) else { return };
+    ev.propagate(false);
+    let m = payload_for(ev.pointer.position, 0, 0, id, &primary);
+    pending.0.push(PendingDomEvent::new(node, "pointercancel").with_mouse(m).with_modifiers(Modifiers::default()));
 }
 
 /// Focus a resolved node and enqueue its `click` (+ checkbox `change`) DOM event.
