@@ -6,6 +6,8 @@ pub enum Command {
     Noop,
     Click {
         locator: crate::locator::LocatorSpec,
+        #[serde(default)]
+        modifiers: Vec<String>,
     },
     Fill {
         locator: crate::locator::LocatorSpec,
@@ -17,21 +19,31 @@ pub enum Command {
     },
     Hover {
         locator: crate::locator::LocatorSpec,
+        #[serde(default)]
+        modifiers: Vec<String>,
     },
     MouseDown {
         locator: crate::locator::LocatorSpec,
+        #[serde(default)]
+        modifiers: Vec<String>,
     },
     MouseUp {
         locator: crate::locator::LocatorSpec,
+        #[serde(default)]
+        modifiers: Vec<String>,
     },
     MoveTo {
         locator: crate::locator::LocatorSpec,
+        #[serde(default)]
+        modifiers: Vec<String>,
     },
     /// Composite drag gesture: `mousedown` on `from`, then the `moveTo`
     /// hover+move bookkeeping and `mouseup` on `to`.
     DragTo {
         from: crate::locator::LocatorSpec,
         to: crate::locator::LocatorSpec,
+        #[serde(default)]
+        modifiers: Vec<String>,
     },
     Expect {
         /// "visible" | "text" | "count" | "class" | "attribute" | "screenshot"

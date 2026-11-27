@@ -70,6 +70,7 @@ struct ActionInFlight {
     id: u64,
     locator: LocatorSpec,
     kind: PendingActionKind,
+    mods: Modifiers,
     remaining: usize,
     action: String,
 }
@@ -333,45 +334,45 @@ fn step_running(world: &mut World, run: &mut RunState) {
                         abi::resolve(e, q.id, r#"{"ok":true,"value":null}"#)
                     });
                 }
-                Command::Click { locator } => {
+                Command::Click { locator, modifiers } => {
                     let action = format!("click {}", locator_label(locator));
-                    start_action(world, q.id, locator.clone(), PendingActionKind::Click, action, work);
+                    start_action(world, q.id, locator.clone(), PendingActionKind::Click, crate::driver::parse_modifiers(modifiers), action, work);
                 }
-                Command::Hover { locator } => {
+                Command::Hover { locator, modifiers } => {
                     let action = format!("hover {}", locator_label(locator));
-                    start_action(world, q.id, locator.clone(), PendingActionKind::Hover, action, work);
+                    start_action(world, q.id, locator.clone(), PendingActionKind::Hover, crate::driver::parse_modifiers(modifiers), action, work);
                 }
-                Command::MouseDown { locator } => {
+                Command::MouseDown { locator, modifiers } => {
                     let action = format!("mouseDown {}", locator_label(locator));
-                    start_action(world, q.id, locator.clone(), PendingActionKind::MouseDown, action, work);
+                    start_action(world, q.id, locator.clone(), PendingActionKind::MouseDown, crate::driver::parse_modifiers(modifiers), action, work);
                 }
-                Command::MouseUp { locator } => {
+                Command::MouseUp { locator, modifiers } => {
                     let action = format!("mouseUp {}", locator_label(locator));
-                    start_action(world, q.id, locator.clone(), PendingActionKind::MouseUp, action, work);
+                    start_action(world, q.id, locator.clone(), PendingActionKind::MouseUp, crate::driver::parse_modifiers(modifiers), action, work);
                 }
-                Command::MoveTo { locator } => {
+                Command::MoveTo { locator, modifiers } => {
                     let action = format!("moveTo {}", locator_label(locator));
-                    start_action(world, q.id, locator.clone(), PendingActionKind::MoveTo, action, work);
+                    start_action(world, q.id, locator.clone(), PendingActionKind::MoveTo, crate::driver::parse_modifiers(modifiers), action, work);
                 }
-                Command::DragTo { from, to } => {
+                Command::DragTo { from, to, modifiers } => {
                     let action = format!("dragTo {} -> {}", locator_label(from), locator_label(to));
                     start_action(
                         world, q.id, from.clone(),
-                        PendingActionKind::DragTo { to: to.clone() }, action, work,
+                        PendingActionKind::DragTo { to: to.clone() }, crate::driver::parse_modifiers(modifiers), action, work,
                     );
                 }
                 Command::Fill { locator, text } => {
                     let action = format!("fill {} {:?}", locator_label(locator), text);
                     start_action(
                         world, q.id, locator.clone(),
-                        PendingActionKind::Fill { text: text.clone() }, action, work,
+                        PendingActionKind::Fill { text: text.clone() }, Modifiers::default(), action, work,
                     );
                 }
                 Command::Press { locator, key } => {
                     let action = format!("press {} {:?}", locator_label(locator), key);
                     start_action(
                         world, q.id, locator.clone(),
-                        PendingActionKind::Press { key: key.clone() }, action, work,
+                        PendingActionKind::Press { key: key.clone() }, Modifiers::default(), action, work,
                     );
                 }
                 Command::Expect { matcher, locator, expected, .. } => {
@@ -418,7 +419,7 @@ fn step_running(world: &mut World, run: &mut RunState) {
         let mut still_actions = Vec::new();
         for mut a in std::mem::take(&mut work.pending_actions) {
             if !resolve_nodes(world, &a.locator).is_empty() {
-                perform_action(world, &a.locator, &a.kind, &mut work.last_hovered);
+                perform_action(world, &a.locator, &a.kind, a.mods, &mut work.last_hovered);
                 work.inflight.push((a.id, SETTLE_TICKS, a.action));
                 continue;
             }
@@ -769,15 +770,16 @@ fn start_action(
     id: u64,
     locator: LocatorSpec,
     kind: PendingActionKind,
+    mods: Modifiers,
     action: String,
     work: &mut TestWork,
 ) {
     if resolve_nodes(world, &locator).is_empty() {
         work.pending_actions.push(ActionInFlight {
-            id, locator, kind, remaining: ACTION_TIMEOUT_ITERS, action,
+            id, locator, kind, mods, remaining: ACTION_TIMEOUT_ITERS, action,
         });
     } else {
-        perform_action(world, &locator, &kind, &mut work.last_hovered);
+        perform_action(world, &locator, &kind, mods, &mut work.last_hovered);
         work.inflight.push((id, SETTLE_TICKS, action));
     }
 }
@@ -786,22 +788,23 @@ fn perform_action(
     world: &mut World,
     spec: &LocatorSpec,
     kind: &PendingActionKind,
+    mods: Modifiers,
     last_hovered: &mut Option<NodeId>,
 ) {
     match kind {
-        PendingActionKind::Click => dispatch(world, spec, "click"),
-        PendingActionKind::Hover => hover(world, spec, last_hovered),
-        PendingActionKind::MouseDown => mouse_dispatch(world, spec, "mousedown", 1),
-        PendingActionKind::MouseUp => mouse_dispatch(world, spec, "mouseup", 1),
+        PendingActionKind::Click => dispatch(world, spec, "click", mods),
+        PendingActionKind::Hover => hover(world, spec, mods, last_hovered),
+        PendingActionKind::MouseDown => mouse_dispatch(world, spec, "mousedown", 1, mods),
+        PendingActionKind::MouseUp => mouse_dispatch(world, spec, "mouseup", 1, mods),
         PendingActionKind::MoveTo => {
-            hover(world, spec, last_hovered);
-            mouse_dispatch(world, spec, "mousemove", 1);
+            hover(world, spec, mods, last_hovered);
+            mouse_dispatch(world, spec, "mousemove", 1, mods);
         }
         PendingActionKind::DragTo { to } => {
-            mouse_dispatch(world, spec, "mousedown", 1);
-            hover(world, to, last_hovered);
-            mouse_dispatch(world, to, "mousemove", 1);
-            mouse_dispatch(world, to, "mouseup", 1);
+            mouse_dispatch(world, spec, "mousedown", 1, mods);
+            hover(world, to, mods, last_hovered);
+            mouse_dispatch(world, to, "mousemove", 1, mods);
+            mouse_dispatch(world, to, "mouseup", 1, mods);
         }
         PendingActionKind::Fill { text } => fill(world, spec, text),
         PendingActionKind::Press { key } => press(world, spec, key),
@@ -813,14 +816,23 @@ fn perform_action(
 /// returns zeros today, so there is no real screen position to compute. Drop
 /// resolution in specs keys off `event.target` (which the locator controls),
 /// not coordinates, so the zeroed `clientX`/`clientY` cost nothing.
-fn push_mouse_event(world: &mut World, node: NodeId, event: &str, bubbles: bool, buttons: u8) {
-    let mut e = PendingDomEvent::new(node, event).with_mouse(MousePayload {
-        client_x: 0.0,
-        client_y: 0.0,
-        button: 0,
-        buttons,
-        ..Default::default()
-    });
+fn push_mouse_event(
+    world: &mut World,
+    node: NodeId,
+    event: &str,
+    bubbles: bool,
+    buttons: u8,
+    mods: Modifiers,
+) {
+    let mut e = PendingDomEvent::new(node, event)
+        .with_mouse(MousePayload {
+            client_x: 0.0,
+            client_y: 0.0,
+            button: 0,
+            buttons,
+            ..Default::default()
+        })
+        .with_modifiers(mods);
     e.bubbles = bubbles;
     world.resource_mut::<PendingDomEvents>().0.push(e);
 }
@@ -828,32 +840,32 @@ fn push_mouse_event(world: &mut World, node: NodeId, event: &str, bubbles: bool,
 /// Resolve `spec`'s first node and push a single bubbling mouse event
 /// (`mousedown`/`mouseup`/`mousemove`) at it with the given `buttons` mask.
 /// No-op if the locator resolves to nothing.
-fn mouse_dispatch(world: &mut World, spec: &LocatorSpec, event: &str, buttons: u8) {
+fn mouse_dispatch(world: &mut World, spec: &LocatorSpec, event: &str, buttons: u8, mods: Modifiers) {
     let Some(&node) = resolve_nodes(world, spec).first() else {
         return;
     };
-    push_mouse_event(world, node, event, true, buttons);
+    push_mouse_event(world, node, event, true, buttons, mods);
 }
 
 /// Faithful hover transition against `last_hovered`: mirrors `driver::hover`
 /// (see its doc comment) — driven by locator identity rather than real
 /// pointer movement. No-op if the locator resolves to nothing.
-fn hover(world: &mut World, spec: &LocatorSpec, last_hovered: &mut Option<NodeId>) {
+fn hover(world: &mut World, spec: &LocatorSpec, mods: Modifiers, last_hovered: &mut Option<NodeId>) {
     let Some(&node) = resolve_nodes(world, spec).first() else {
         return;
     };
     if let Some(prev) = *last_hovered {
         if prev != node {
-            push_mouse_event(world, prev, "mouseout", true, 0);
-            push_mouse_event(world, prev, "mouseleave", false, 0);
+            push_mouse_event(world, prev, "mouseout", true, 0, mods);
+            push_mouse_event(world, prev, "mouseleave", false, 0, mods);
         }
     }
-    push_mouse_event(world, node, "mouseover", true, 0);
-    push_mouse_event(world, node, "mouseenter", false, 0);
+    push_mouse_event(world, node, "mouseover", true, 0, mods);
+    push_mouse_event(world, node, "mouseenter", false, 0, mods);
     *last_hovered = Some(node);
 }
 
-fn dispatch(world: &mut World, spec: &LocatorSpec, event: &str) {
+fn dispatch(world: &mut World, spec: &LocatorSpec, event: &str, mods: Modifiers) {
     let Some(&node) = resolve_nodes(world, spec).first() else {
         return;
     };
@@ -863,7 +875,7 @@ fn dispatch(world: &mut World, spec: &LocatorSpec, event: &str) {
         let rt = world.remove_non_send::<UiRuntime>().expect("runtime");
         {
             let mut pending = world.resource_mut::<PendingDomEvents>();
-            click_effect(&rt, node, Modifiers::default(), &mut pending);
+            click_effect(&rt, node, mods, &mut pending);
         }
         world.insert_non_send(rt);
         return;
