@@ -64,6 +64,67 @@ pub enum Command {
         #[serde(default)]
         value: serde_json::Value,
     },
+    // `rename_all` on the enum only renames variant tags (the `"type"` value);
+    // it does not cascade to a variant's own fields (the other variants never
+    // needed it — `modifiers`/`locator`/`text`/`key` are camelCase-neutral).
+    // `pointer_id`/`pointer_type` are the first fields that need it, so each
+    // of these three variants repeats `rename_all` for its own fields.
+    #[serde(rename_all = "camelCase")]
+    PointerDown {
+        locator: crate::locator::LocatorSpec,
+        #[serde(default)]
+        modifiers: Vec<String>,
+        #[serde(default = "default_pointer_id")]
+        pointer_id: u32,
+        #[serde(default = "default_pointer_type")]
+        pointer_type: String,
+        #[serde(default)]
+        x: f32,
+        #[serde(default)]
+        y: f32,
+    },
+    #[serde(rename_all = "camelCase")]
+    PointerMove {
+        locator: crate::locator::LocatorSpec,
+        #[serde(default)]
+        modifiers: Vec<String>,
+        #[serde(default = "default_pointer_id")]
+        pointer_id: u32,
+        #[serde(default = "default_pointer_type")]
+        pointer_type: String,
+        #[serde(default)]
+        x: f32,
+        #[serde(default)]
+        y: f32,
+    },
+    #[serde(rename_all = "camelCase")]
+    PointerUp {
+        locator: crate::locator::LocatorSpec,
+        #[serde(default)]
+        modifiers: Vec<String>,
+        #[serde(default = "default_pointer_id")]
+        pointer_id: u32,
+        #[serde(default = "default_pointer_type")]
+        pointer_type: String,
+        #[serde(default)]
+        x: f32,
+        #[serde(default)]
+        y: f32,
+    },
+}
+
+/// Default `pointer_id` for a hand-written `PointerDown`/`PointerMove`/`PointerUp`
+/// command JSON that omits it. The prelude always sends one explicitly (see
+/// `pointerCmd` in `prelude.js`); this exists to keep `serde` happy and to
+/// document the W3C default of pointer 1.
+fn default_pointer_id() -> u32 {
+    1
+}
+
+/// Default `pointer_type` for a hand-written pointer command JSON that omits
+/// it, mirroring `default_pointer_id`.
+fn default_pointer_type() -> String {
+    "mouse".into()
 }
 
 #[derive(Clone, Debug)]

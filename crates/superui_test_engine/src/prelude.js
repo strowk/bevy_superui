@@ -113,6 +113,23 @@ if (!globalThis.__sstest) {
       async dragTo(target, opts) {
         return enqueue({ type: "dragTo", from: serialize(this), to: serialize(target), modifiers: (opts && opts.modifiers) || [] });
       },
+      async pointerDown(opts) { return enqueue(pointerCmd("pointerDown", this, opts)); },
+      async pointerMove(opts) { return enqueue(pointerCmd("pointerMove", this, opts)); },
+      async pointerUp(opts) { return enqueue(pointerCmd("pointerUp", this, opts)); },
+    };
+  };
+
+  // Fills in the W3C pointer-event defaults a locator's pointerDown/Move/Up
+  // call doesn't specify, so `pointerDown()` with no options still carries a
+  // valid primary-mouse identity.
+  const pointerCmd = function (type, loc, opts) {
+    opts = opts || {};
+    return {
+      type: type, locator: serialize(loc),
+      modifiers: opts.modifiers || [],
+      pointerId: opts.pointerId === undefined ? 1 : opts.pointerId,
+      pointerType: opts.pointerType || "mouse",
+      x: opts.x || 0, y: opts.y || 0,
     };
   };
 

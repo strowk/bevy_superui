@@ -7,6 +7,7 @@ use superui_bridge::{
     click_effect, Modifiers, MousePayload, PendingDomEvent, PendingDomEvents, UiRuntime,
 };
 use superui_dom::NodeId;
+use superui_js::PointerKind;
 
 use crate::abi::{self, RegisteredTest};
 use crate::command::Command;
@@ -34,6 +35,9 @@ enum PendingActionKind {
     DragTo { to: LocatorSpec },
     Fill { text: String },
     Press { key: String },
+    PointerDown { pointer_id: u32, pointer_type: String, x: f32, y: f32 },
+    PointerMove { pointer_id: u32, pointer_type: String, x: f32, y: f32 },
+    PointerUp { pointer_id: u32, pointer_type: String, x: f32, y: f32 },
 }
 
 /// An action command whose locator did not yet match any node. It re-checks the
@@ -295,6 +299,84 @@ fn run_one(app: &mut App, test: &RegisteredTest, opts: &RunOptions) -> TestResul
                         abi::resolve(e, q.id, r#"{"ok":true,"value":null}"#);
                     });
                 }
+                Command::PointerDown {
+                    locator,
+                    modifiers,
+                    pointer_id,
+                    pointer_type,
+                    x,
+                    y,
+                } => {
+                    let action = format!("pointerDown {}", locator_label(locator));
+                    start_action(
+                        app,
+                        q.id,
+                        locator.clone(),
+                        PendingActionKind::PointerDown {
+                            pointer_id: *pointer_id,
+                            pointer_type: pointer_type.clone(),
+                            x: *x,
+                            y: *y,
+                        },
+                        parse_modifiers(modifiers),
+                        action,
+                        &mut inflight,
+                        &mut pending_actions,
+                        &mut last_hovered,
+                    );
+                }
+                Command::PointerMove {
+                    locator,
+                    modifiers,
+                    pointer_id,
+                    pointer_type,
+                    x,
+                    y,
+                } => {
+                    let action = format!("pointerMove {}", locator_label(locator));
+                    start_action(
+                        app,
+                        q.id,
+                        locator.clone(),
+                        PendingActionKind::PointerMove {
+                            pointer_id: *pointer_id,
+                            pointer_type: pointer_type.clone(),
+                            x: *x,
+                            y: *y,
+                        },
+                        parse_modifiers(modifiers),
+                        action,
+                        &mut inflight,
+                        &mut pending_actions,
+                        &mut last_hovered,
+                    );
+                }
+                Command::PointerUp {
+                    locator,
+                    modifiers,
+                    pointer_id,
+                    pointer_type,
+                    x,
+                    y,
+                } => {
+                    let action = format!("pointerUp {}", locator_label(locator));
+                    start_action(
+                        app,
+                        q.id,
+                        locator.clone(),
+                        PendingActionKind::PointerUp {
+                            pointer_id: *pointer_id,
+                            pointer_type: pointer_type.clone(),
+                            x: *x,
+                            y: *y,
+                        },
+                        parse_modifiers(modifiers),
+                        action,
+                        &mut inflight,
+                        &mut pending_actions,
+                        &mut last_hovered,
+                    );
+                }
             }
         }
 
@@ -551,6 +633,15 @@ fn perform_action(
         }
         PendingActionKind::Fill { text } => fill(app, spec, text),
         PendingActionKind::Press { key } => press(app, spec, key),
+        PendingActionKind::PointerDown { pointer_id, pointer_type, x, y } => {
+            push_pointer_event(app, spec, "pointerdown", 1, *pointer_id, pointer_type, *x, *y, mods)
+        }
+        PendingActionKind::PointerMove { pointer_id, pointer_type, x, y } => {
+            push_pointer_event(app, spec, "pointermove", 1, *pointer_id, pointer_type, *x, *y, mods)
+        }
+        PendingActionKind::PointerUp { pointer_id, pointer_type, x, y } => {
+            push_pointer_event(app, spec, "pointerup", 0, *pointer_id, pointer_type, *x, *y, mods)
+        }
     }
 }
 
@@ -577,6 +668,49 @@ fn push_mouse_event(
         })
         .with_modifiers(mods);
     e.bubbles = bubbles;
+    app.world_mut()
+        .resource_mut::<PendingDomEvents>()
+        .0
+        .push(e);
+}
+
+/// Resolve `spec`'s first node and push a single bubbling W3C pointer event
+/// (`pointerdown`/`pointermove`/`pointerup`) at it, carrying the pointer
+/// identity (`pointerId`/`pointerType`/`isPrimary`) `dom.js` only attaches for
+/// event types spelled `"pointer*"` — unlike `push_mouse_event`, which builds
+/// a plain (non-pointer) payload for the compat mouse stream. No-op if the
+/// locator resolves to nothing.
+#[allow(clippy::too_many_arguments)]
+fn push_pointer_event(
+    app: &mut App,
+    spec: &LocatorSpec,
+    event: &str,
+    buttons: u8,
+    pointer_id: u32,
+    pointer_type: &str,
+    x: f32,
+    y: f32,
+    mods: Modifiers,
+) {
+    let Some(&node) = resolve_nodes(app, spec).first() else {
+        return;
+    };
+    let kind = match pointer_type {
+        "touch" => PointerKind::Touch,
+        _ => PointerKind::Mouse,
+    };
+    let mut e = PendingDomEvent::new(node, event)
+        .with_mouse(MousePayload {
+            client_x: x,
+            client_y: y,
+            button: 0,
+            buttons,
+            pointer_id,
+            pointer_type: kind,
+            is_primary: true,
+        })
+        .with_modifiers(mods);
+    e.bubbles = true;
     app.world_mut()
         .resource_mut::<PendingDomEvents>()
         .0
