@@ -7,6 +7,7 @@ use superui_bridge::{
     click_effect, Modifiers, MousePayload, PendingDomEvent, PendingDomEvents, UiRuntime,
 };
 use superui_dom::NodeId;
+use superui_js::PointerKind;
 
 use crate::abi::{self, RegisteredTest};
 use crate::command::Command;
@@ -34,6 +35,9 @@ enum PendingActionKind {
     DragTo { to: LocatorSpec },
     Fill { text: String },
     Press { key: String },
+    PointerDown { pointer_id: u32, pointer_type: String, x: f32, y: f32 },
+    PointerMove { pointer_id: u32, pointer_type: String, x: f32, y: f32 },
+    PointerUp { pointer_id: u32, pointer_type: String, x: f32, y: f32 },
 }
 
 /// An action command whose locator did not yet match any node. It re-checks the
@@ -43,9 +47,28 @@ struct ActionInFlight {
     id: u64,
     locator: LocatorSpec,
     kind: PendingActionKind,
+    mods: Modifiers,
     remaining: usize,
     /// Human-readable action label for the trace step.
     action: String,
+}
+
+/// Map Playwright-spelled modifier names (`"Shift"`, `"Control"`, `"Alt"`,
+/// `"Meta"`) to a `Modifiers` bitset. Unknown names are ignored rather than
+/// erroring, so a spec can pass a typo or a modifier this harness doesn't
+/// model yet without failing the action.
+pub(crate) fn parse_modifiers(names: &[String]) -> Modifiers {
+    let mut mods = Modifiers::default();
+    for name in names {
+        match name.as_str() {
+            "Shift" => mods.shift = true,
+            "Control" => mods.ctrl = true,
+            "Alt" => mods.alt = true,
+            "Meta" => mods.meta = true,
+            _ => {}
+        }
+    }
+    mods
 }
 
 /// An auto-waiting expect assertion being polled each frame until it passes or
@@ -136,72 +159,77 @@ fn run_one(app: &mut App, test: &RegisteredTest, opts: &RunOptions) -> TestResul
                         abi::resolve(e, q.id, r#"{"ok":true,"value":null}"#)
                     });
                 }
-                Command::Click { locator } => {
+                Command::Click { locator, modifiers } => {
                     let action = format!("click {}", locator_label(locator));
                     start_action(
                         app,
                         q.id,
                         locator.clone(),
                         PendingActionKind::Click,
+                        parse_modifiers(modifiers),
                         action,
                         &mut inflight,
                         &mut pending_actions,
                         &mut last_hovered,
                     );
                 }
-                Command::Hover { locator } => {
+                Command::Hover { locator, modifiers } => {
                     let action = format!("hover {}", locator_label(locator));
                     start_action(
                         app,
                         q.id,
                         locator.clone(),
                         PendingActionKind::Hover,
+                        parse_modifiers(modifiers),
                         action,
                         &mut inflight,
                         &mut pending_actions,
                         &mut last_hovered,
                     );
                 }
-                Command::MouseDown { locator } => {
+                Command::MouseDown { locator, modifiers } => {
                     let action = format!("mouseDown {}", locator_label(locator));
                     start_action(
                         app,
                         q.id,
                         locator.clone(),
                         PendingActionKind::MouseDown,
+                        parse_modifiers(modifiers),
                         action,
                         &mut inflight,
                         &mut pending_actions,
                         &mut last_hovered,
                     );
                 }
-                Command::MouseUp { locator } => {
+                Command::MouseUp { locator, modifiers } => {
                     let action = format!("mouseUp {}", locator_label(locator));
                     start_action(
                         app,
                         q.id,
                         locator.clone(),
                         PendingActionKind::MouseUp,
+                        parse_modifiers(modifiers),
                         action,
                         &mut inflight,
                         &mut pending_actions,
                         &mut last_hovered,
                     );
                 }
-                Command::MoveTo { locator } => {
+                Command::MoveTo { locator, modifiers } => {
                     let action = format!("moveTo {}", locator_label(locator));
                     start_action(
                         app,
                         q.id,
                         locator.clone(),
                         PendingActionKind::MoveTo,
+                        parse_modifiers(modifiers),
                         action,
                         &mut inflight,
                         &mut pending_actions,
                         &mut last_hovered,
                     );
                 }
-                Command::DragTo { from, to } => {
+                Command::DragTo { from, to, modifiers } => {
                     let action =
                         format!("dragTo {} -> {}", locator_label(from), locator_label(to));
                     start_action(
@@ -209,6 +237,7 @@ fn run_one(app: &mut App, test: &RegisteredTest, opts: &RunOptions) -> TestResul
                         q.id,
                         from.clone(),
                         PendingActionKind::DragTo { to: to.clone() },
+                        parse_modifiers(modifiers),
                         action,
                         &mut inflight,
                         &mut pending_actions,
@@ -222,6 +251,7 @@ fn run_one(app: &mut App, test: &RegisteredTest, opts: &RunOptions) -> TestResul
                         q.id,
                         locator.clone(),
                         PendingActionKind::Fill { text: text.clone() },
+                        Modifiers::default(),
                         action,
                         &mut inflight,
                         &mut pending_actions,
@@ -235,6 +265,7 @@ fn run_one(app: &mut App, test: &RegisteredTest, opts: &RunOptions) -> TestResul
                         q.id,
                         locator.clone(),
                         PendingActionKind::Press { key: key.clone() },
+                        Modifiers::default(),
                         action,
                         &mut inflight,
                         &mut pending_actions,
@@ -267,6 +298,84 @@ fn run_one(app: &mut App, test: &RegisteredTest, opts: &RunOptions) -> TestResul
                         e.emit(name, value);
                         abi::resolve(e, q.id, r#"{"ok":true,"value":null}"#);
                     });
+                }
+                Command::PointerDown {
+                    locator,
+                    modifiers,
+                    pointer_id,
+                    pointer_type,
+                    x,
+                    y,
+                } => {
+                    let action = format!("pointerDown {}", locator_label(locator));
+                    start_action(
+                        app,
+                        q.id,
+                        locator.clone(),
+                        PendingActionKind::PointerDown {
+                            pointer_id: *pointer_id,
+                            pointer_type: pointer_type.clone(),
+                            x: *x,
+                            y: *y,
+                        },
+                        parse_modifiers(modifiers),
+                        action,
+                        &mut inflight,
+                        &mut pending_actions,
+                        &mut last_hovered,
+                    );
+                }
+                Command::PointerMove {
+                    locator,
+                    modifiers,
+                    pointer_id,
+                    pointer_type,
+                    x,
+                    y,
+                } => {
+                    let action = format!("pointerMove {}", locator_label(locator));
+                    start_action(
+                        app,
+                        q.id,
+                        locator.clone(),
+                        PendingActionKind::PointerMove {
+                            pointer_id: *pointer_id,
+                            pointer_type: pointer_type.clone(),
+                            x: *x,
+                            y: *y,
+                        },
+                        parse_modifiers(modifiers),
+                        action,
+                        &mut inflight,
+                        &mut pending_actions,
+                        &mut last_hovered,
+                    );
+                }
+                Command::PointerUp {
+                    locator,
+                    modifiers,
+                    pointer_id,
+                    pointer_type,
+                    x,
+                    y,
+                } => {
+                    let action = format!("pointerUp {}", locator_label(locator));
+                    start_action(
+                        app,
+                        q.id,
+                        locator.clone(),
+                        PendingActionKind::PointerUp {
+                            pointer_id: *pointer_id,
+                            pointer_type: pointer_type.clone(),
+                            x: *x,
+                            y: *y,
+                        },
+                        parse_modifiers(modifiers),
+                        action,
+                        &mut inflight,
+                        &mut pending_actions,
+                        &mut last_hovered,
+                    );
                 }
             }
         }
@@ -307,7 +416,7 @@ fn run_one(app: &mut App, test: &RegisteredTest, opts: &RunOptions) -> TestResul
         let mut still_actions = Vec::new();
         for mut a in pending_actions.drain(..) {
             if !resolve_nodes(app, &a.locator).is_empty() {
-                perform_action(app, &a.locator, &a.kind, &mut last_hovered);
+                perform_action(app, &a.locator, &a.kind, a.mods, &mut last_hovered);
                 inflight.push((a.id, SETTLE_TICKS, a.action));
                 continue;
             }
@@ -477,6 +586,7 @@ fn start_action(
     id: u64,
     locator: LocatorSpec,
     kind: PendingActionKind,
+    mods: Modifiers,
     action: String,
     inflight: &mut Vec<(u64, usize, String)>,
     pending_actions: &mut Vec<ActionInFlight>,
@@ -487,11 +597,12 @@ fn start_action(
             id,
             locator,
             kind,
+            mods,
             remaining: ACTION_TIMEOUT_ITERS,
             action,
         });
     } else {
-        perform_action(app, &locator, &kind, last_hovered);
+        perform_action(app, &locator, &kind, mods, last_hovered);
         inflight.push((id, SETTLE_TICKS, action));
     }
 }
@@ -502,25 +613,35 @@ fn perform_action(
     app: &mut App,
     spec: &LocatorSpec,
     kind: &PendingActionKind,
+    mods: Modifiers,
     last_hovered: &mut Option<NodeId>,
 ) {
     match kind {
-        PendingActionKind::Click => dispatch(app, spec, "click"),
-        PendingActionKind::Hover => hover(app, spec, last_hovered),
-        PendingActionKind::MouseDown => mouse_dispatch(app, spec, "mousedown", 1),
-        PendingActionKind::MouseUp => mouse_dispatch(app, spec, "mouseup", 1),
+        PendingActionKind::Click => dispatch(app, spec, "click", mods),
+        PendingActionKind::Hover => hover(app, spec, mods, last_hovered),
+        PendingActionKind::MouseDown => mouse_dispatch(app, spec, "mousedown", 1, mods),
+        PendingActionKind::MouseUp => mouse_dispatch(app, spec, "mouseup", 1, mods),
         PendingActionKind::MoveTo => {
-            hover(app, spec, last_hovered);
-            mouse_dispatch(app, spec, "mousemove", 1);
+            hover(app, spec, mods, last_hovered);
+            mouse_dispatch(app, spec, "mousemove", 1, mods);
         }
         PendingActionKind::DragTo { to } => {
-            mouse_dispatch(app, spec, "mousedown", 1);
-            hover(app, to, last_hovered);
-            mouse_dispatch(app, to, "mousemove", 1);
-            mouse_dispatch(app, to, "mouseup", 1);
+            mouse_dispatch(app, spec, "mousedown", 1, mods);
+            hover(app, to, mods, last_hovered);
+            mouse_dispatch(app, to, "mousemove", 1, mods);
+            mouse_dispatch(app, to, "mouseup", 1, mods);
         }
         PendingActionKind::Fill { text } => fill(app, spec, text),
         PendingActionKind::Press { key } => press(app, spec, key),
+        PendingActionKind::PointerDown { pointer_id, pointer_type, x, y } => {
+            push_pointer_event(app, spec, "pointerdown", 1, *pointer_id, pointer_type, *x, *y, mods)
+        }
+        PendingActionKind::PointerMove { pointer_id, pointer_type, x, y } => {
+            push_pointer_event(app, spec, "pointermove", 1, *pointer_id, pointer_type, *x, *y, mods)
+        }
+        PendingActionKind::PointerUp { pointer_id, pointer_type, x, y } => {
+            push_pointer_event(app, spec, "pointerup", 0, *pointer_id, pointer_type, *x, *y, mods)
+        }
     }
 }
 
@@ -529,15 +650,67 @@ fn perform_action(
 /// returns zeros today, so there is no real screen position to compute. Drop
 /// resolution in specs keys off `event.target` (which the locator controls),
 /// not coordinates, so the zeroed `clientX`/`clientY` cost nothing.
-fn push_mouse_event(app: &mut App, node: NodeId, event: &str, bubbles: bool, buttons: u8) {
-    let mut e = PendingDomEvent::new(node, event).with_mouse(MousePayload {
-        client_x: 0.0,
-        client_y: 0.0,
-        button: 0,
-        buttons,
-        ..Default::default()
-    });
+fn push_mouse_event(
+    app: &mut App,
+    node: NodeId,
+    event: &str,
+    bubbles: bool,
+    buttons: u8,
+    mods: Modifiers,
+) {
+    let mut e = PendingDomEvent::new(node, event)
+        .with_mouse(MousePayload {
+            client_x: 0.0,
+            client_y: 0.0,
+            button: 0,
+            buttons,
+            ..Default::default()
+        })
+        .with_modifiers(mods);
     e.bubbles = bubbles;
+    app.world_mut()
+        .resource_mut::<PendingDomEvents>()
+        .0
+        .push(e);
+}
+
+/// Resolve `spec`'s first node and push a single bubbling W3C pointer event
+/// (`pointerdown`/`pointermove`/`pointerup`) at it, carrying the pointer
+/// identity (`pointerId`/`pointerType`/`isPrimary`) `dom.js` only attaches for
+/// event types spelled `"pointer*"` — unlike `push_mouse_event`, which builds
+/// a plain (non-pointer) payload for the compat mouse stream. No-op if the
+/// locator resolves to nothing.
+#[allow(clippy::too_many_arguments)]
+fn push_pointer_event(
+    app: &mut App,
+    spec: &LocatorSpec,
+    event: &str,
+    buttons: u8,
+    pointer_id: u32,
+    pointer_type: &str,
+    x: f32,
+    y: f32,
+    mods: Modifiers,
+) {
+    let Some(&node) = resolve_nodes(app, spec).first() else {
+        return;
+    };
+    let kind = match pointer_type {
+        "touch" => PointerKind::Touch,
+        _ => PointerKind::Mouse,
+    };
+    let mut e = PendingDomEvent::new(node, event)
+        .with_mouse(MousePayload {
+            client_x: x,
+            client_y: y,
+            button: 0,
+            buttons,
+            pointer_id,
+            pointer_type: kind,
+            is_primary: true,
+        })
+        .with_modifiers(mods);
+    e.bubbles = true;
     app.world_mut()
         .resource_mut::<PendingDomEvents>()
         .0
@@ -547,11 +720,11 @@ fn push_mouse_event(app: &mut App, node: NodeId, event: &str, bubbles: bool, but
 /// Resolve `spec`'s first node and push a single bubbling mouse event
 /// (`mousedown`/`mouseup`/`mousemove`) at it with the given `buttons` mask.
 /// No-op if the locator resolves to nothing.
-fn mouse_dispatch(app: &mut App, spec: &LocatorSpec, event: &str, buttons: u8) {
+fn mouse_dispatch(app: &mut App, spec: &LocatorSpec, event: &str, buttons: u8, mods: Modifiers) {
     let Some(&node) = resolve_nodes(app, spec).first() else {
         return;
     };
-    push_mouse_event(app, node, event, true, buttons);
+    push_mouse_event(app, node, event, true, buttons, mods);
 }
 
 /// Faithful hover transition against `last_hovered`: if the previously
@@ -562,22 +735,22 @@ fn mouse_dispatch(app: &mut App, spec: &LocatorSpec, event: &str, buttons: u8) {
 /// `superui_bridge::mouse::mouse_events_system`), driven here by locator
 /// identity instead of actual pointer movement. No-op if the locator resolves
 /// to nothing.
-fn hover(app: &mut App, spec: &LocatorSpec, last_hovered: &mut Option<NodeId>) {
+fn hover(app: &mut App, spec: &LocatorSpec, mods: Modifiers, last_hovered: &mut Option<NodeId>) {
     let Some(&node) = resolve_nodes(app, spec).first() else {
         return;
     };
     if let Some(prev) = *last_hovered {
         if prev != node {
-            push_mouse_event(app, prev, "mouseout", true, 0);
-            push_mouse_event(app, prev, "mouseleave", false, 0);
+            push_mouse_event(app, prev, "mouseout", true, 0, mods);
+            push_mouse_event(app, prev, "mouseleave", false, 0, mods);
         }
     }
-    push_mouse_event(app, node, "mouseover", true, 0);
-    push_mouse_event(app, node, "mouseenter", false, 0);
+    push_mouse_event(app, node, "mouseover", true, 0, mods);
+    push_mouse_event(app, node, "mouseenter", false, 0, mods);
     *last_hovered = Some(node);
 }
 
-fn dispatch(app: &mut App, spec: &LocatorSpec, event: &str) {
+fn dispatch(app: &mut App, spec: &LocatorSpec, event: &str, mods: Modifiers) {
     let Some(&node) = resolve_nodes(app, spec).first() else {
         return;
     };
@@ -590,7 +763,7 @@ fn dispatch(app: &mut App, spec: &LocatorSpec, event: &str) {
         let rt = app.world_mut().remove_non_send::<UiRuntime>().expect("runtime");
         {
             let mut pending = app.world_mut().resource_mut::<PendingDomEvents>();
-            click_effect(&rt, node, Modifiers::default(), &mut pending);
+            click_effect(&rt, node, mods, &mut pending);
         }
         app.world_mut().insert_non_send(rt);
         return;

@@ -109,6 +109,23 @@ fn primary_tap_press_enqueues_the_compat_sequence() {
 }
 
 #[test]
+fn primary_tap_carries_live_shift_modifier() {
+    let dom = Rc::new(RefCell::new(superui_html::parse_document("<div id='a'></div>")));
+    let mut app = test_app();
+    mount_touch(&mut app, dom.clone());
+    app.update();
+    let a = entity_of(&app, &dom, "a");
+
+    app.world_mut().resource_mut::<ButtonInput<KeyCode>>().press(KeyCode::ShiftLeft);
+    press(&mut app, a, PointerId::Touch(1), Vec2::new(1.0, 1.0));
+
+    let events = &app.world().resource::<PendingDomEvents>().0;
+    for e in events.iter() {
+        assert_eq!(e.modifiers.unwrap().shift, true, "event {} must carry live shift", e.type_);
+    }
+}
+
+#[test]
 fn secondary_concurrent_touch_press_enqueues_nothing() {
     let dom = Rc::new(RefCell::new(superui_html::parse_document("<div id='a'></div>")));
     let mut app = test_app();

@@ -158,12 +158,12 @@ fn touch_payload(pos: Vec2, button: u8, buttons: u8) -> MousePayload {
 
 /// Enqueue the browser compatibility mouse sequence for a primary-touch press:
 /// `mousemove`, `mouseover`, `mouseenter` (non-bubbling), then `mousedown`
-/// (button 0 down: `button = 0`, `buttons = 1`). All carry empty `Modifiers`
-/// (touch has no keyboard-modifier concept of its own) and the touch position.
-fn enqueue_touch_press(node: NodeId, pos: Vec2, pending: &mut PendingDomEvents) {
+/// (button 0 down: `button = 0`, `buttons = 1`). The sequence carries the live
+/// keyboard `mods` (a touch finger carries no modifier state of its own, but a
+/// keyboard key can still be held during the tap) and the touch position.
+fn enqueue_touch_press(node: NodeId, pos: Vec2, mods: Modifiers, pending: &mut PendingDomEvents) {
     let idle = touch_payload(pos, 0, 0);
     let down = touch_payload(pos, 0, 1);
-    let mods = Modifiers::default();
     pending.0.push(PendingDomEvent::new(node, "mousemove").with_mouse(idle).with_modifiers(mods));
     pending.0.push(PendingDomEvent::new(node, "mouseover").with_mouse(idle).with_modifiers(mods));
     let mut enter = PendingDomEvent::new(node, "mouseenter").with_mouse(idle).with_modifiers(mods);
@@ -184,6 +184,7 @@ pub fn on_touch_press(
     parents: Query<&ChildOf>,
     mut pending: ResMut<PendingDomEvents>,
     mut primary: ResMut<PrimaryTouch>,
+    keys: Res<ButtonInput<KeyCode>>,
 ) {
     // Touch only; a mouse (or other custom) pointer returns immediately without
     // touching propagation, same reasoning as `on_pointer_click`'s foreign-entity
@@ -200,15 +201,16 @@ pub fn on_touch_press(
         return;
     }
     primary.0 = Some(ev.pointer.id);
-    enqueue_touch_press(node, ev.pointer.position, &mut pending);
+    let mods = modifiers_now(&keys);
+    enqueue_touch_press(node, ev.pointer.position, mods, &mut pending);
 }
 
 /// Enqueue the browser compatibility mouse sequence for a primary-touch release:
-/// a single `mouseup` (button 0 up: `button = 0`, `buttons = 0`), bubbling, with
-/// empty `Modifiers` and the touch position (mirrors `enqueue_touch_press`).
-fn enqueue_touch_release(node: NodeId, pos: Vec2, pending: &mut PendingDomEvents) {
+/// a single `mouseup` (button 0 up: `button = 0`, `buttons = 0`), bubbling,
+/// carrying the live keyboard `mods` and the touch position (mirrors
+/// `enqueue_touch_press`).
+fn enqueue_touch_release(node: NodeId, pos: Vec2, mods: Modifiers, pending: &mut PendingDomEvents) {
     let up = touch_payload(pos, 0, 0);
-    let mods = Modifiers::default();
     pending.0.push(PendingDomEvent::new(node, "mouseup").with_mouse(up).with_modifiers(mods));
 }
 
@@ -223,6 +225,7 @@ pub fn on_touch_release(
     parents: Query<&ChildOf>,
     mut pending: ResMut<PendingDomEvents>,
     mut primary: ResMut<PrimaryTouch>,
+    keys: Res<ButtonInput<KeyCode>>,
 ) {
     let PointerId::Touch(_) = ev.pointer.id else { return };
     // Non-primary release ignored; leaves the primary slot untouched.
@@ -241,7 +244,8 @@ pub fn on_touch_release(
     // Ours: stop propagation so this fires once (mirror `on_pointer_click`), but
     // only once resolved — an unresolved release has nothing to claim.
     ev.propagate(false);
-    enqueue_touch_release(node, ev.pointer.position, &mut pending);
+    let mods = modifiers_now(&keys);
+    enqueue_touch_release(node, ev.pointer.position, mods, &mut pending);
 }
 
 /// Walk up from `entity` to the nearest ancestor that carries a [`DomNode`],
@@ -408,12 +412,13 @@ pub fn on_pointer_over(
     mut pending: ResMut<PendingDomEvents>,
     primary: Res<PrimaryTouch>,
     captures: Res<PointerCaptures>,
+    keys: Res<ButtonInput<KeyCode>>,
 ) {
     let id = ev.pointer.id;
     let Some(node) = uncaptured_node(ev.entity, id, &nodes, &parents, &captures) else { return };
     ev.propagate(false);
     let m = payload_for(ev.pointer.position, 0, 0, id, &primary);
-    let mods = Modifiers::default();
+    let mods = modifiers_now(&keys);
     pending.0.push(PendingDomEvent::new(node, "pointerover").with_mouse(m).with_modifiers(mods));
     let mut enter = PendingDomEvent::new(node, "pointerenter").with_mouse(m).with_modifiers(mods);
     enter.bubbles = false;
@@ -429,12 +434,13 @@ pub fn on_pointer_out(
     mut pending: ResMut<PendingDomEvents>,
     primary: Res<PrimaryTouch>,
     captures: Res<PointerCaptures>,
+    keys: Res<ButtonInput<KeyCode>>,
 ) {
     let id = ev.pointer.id;
     let Some(node) = uncaptured_node(ev.entity, id, &nodes, &parents, &captures) else { return };
     ev.propagate(false);
     let m = payload_for(ev.pointer.position, 0, 0, id, &primary);
-    let mods = Modifiers::default();
+    let mods = modifiers_now(&keys);
     pending.0.push(PendingDomEvent::new(node, "pointerout").with_mouse(m).with_modifiers(mods));
     let mut leave = PendingDomEvent::new(node, "pointerleave").with_mouse(m).with_modifiers(mods);
     leave.bubbles = false;
@@ -452,12 +458,13 @@ pub fn on_pointer_press(
     mut pending: ResMut<PendingDomEvents>,
     primary: Res<PrimaryTouch>,
     captures: Res<PointerCaptures>,
+    keys: Res<ButtonInput<KeyCode>>,
 ) {
     let id = ev.pointer.id;
     let Some(node) = uncaptured_node(ev.entity, id, &nodes, &parents, &captures) else { return };
     ev.propagate(false);
     let m = payload_for(ev.pointer.position, 0, 1, id, &primary);
-    pending.0.push(PendingDomEvent::new(node, "pointerdown").with_mouse(m).with_modifiers(Modifiers::default()));
+    pending.0.push(PendingDomEvent::new(node, "pointerdown").with_mouse(m).with_modifiers(modifiers_now(&keys)));
 }
 
 /// Observer: a pointer button released on a target becomes DOM `pointerup`
@@ -469,12 +476,13 @@ pub fn on_pointer_release(
     mut pending: ResMut<PendingDomEvents>,
     primary: Res<PrimaryTouch>,
     captures: Res<PointerCaptures>,
+    keys: Res<ButtonInput<KeyCode>>,
 ) {
     let id = ev.pointer.id;
     let Some(node) = uncaptured_node(ev.entity, id, &nodes, &parents, &captures) else { return };
     ev.propagate(false);
     let m = payload_for(ev.pointer.position, 0, 0, id, &primary);
-    pending.0.push(PendingDomEvent::new(node, "pointerup").with_mouse(m).with_modifiers(Modifiers::default()));
+    pending.0.push(PendingDomEvent::new(node, "pointerup").with_mouse(m).with_modifiers(modifiers_now(&keys)));
 }
 
 /// Observer: a pointer moving over a target becomes DOM `pointermove`.
@@ -485,12 +493,13 @@ pub fn on_pointer_move(
     mut pending: ResMut<PendingDomEvents>,
     primary: Res<PrimaryTouch>,
     captures: Res<PointerCaptures>,
+    keys: Res<ButtonInput<KeyCode>>,
 ) {
     let id = ev.pointer.id;
     let Some(node) = uncaptured_node(ev.entity, id, &nodes, &parents, &captures) else { return };
     ev.propagate(false);
     let m = payload_for(ev.pointer.position, 0, 0, id, &primary);
-    pending.0.push(PendingDomEvent::new(node, "pointermove").with_mouse(m).with_modifiers(Modifiers::default()));
+    pending.0.push(PendingDomEvent::new(node, "pointermove").with_mouse(m).with_modifiers(modifiers_now(&keys)));
 }
 
 /// Observer: a pointer's gesture is canceled (palm rejection, the browser
@@ -502,12 +511,13 @@ pub fn on_pointer_cancel(
     mut pending: ResMut<PendingDomEvents>,
     primary: Res<PrimaryTouch>,
     captures: Res<PointerCaptures>,
+    keys: Res<ButtonInput<KeyCode>>,
 ) {
     let id = ev.pointer.id;
     let Some(node) = uncaptured_node(ev.entity, id, &nodes, &parents, &captures) else { return };
     ev.propagate(false);
     let m = payload_for(ev.pointer.position, 0, 0, id, &primary);
-    pending.0.push(PendingDomEvent::new(node, "pointercancel").with_mouse(m).with_modifiers(Modifiers::default()));
+    pending.0.push(PendingDomEvent::new(node, "pointercancel").with_mouse(m).with_modifiers(modifiers_now(&keys)));
 }
 
 /// Focus a resolved node and enqueue its `click` (+ checkbox `change`) DOM event.

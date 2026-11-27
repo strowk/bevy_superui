@@ -101,18 +101,35 @@ if (!globalThis.__sstest) {
       },
       nth(i) { return makeLocator(steps, i); },
       first() { return this.nth(0); },
-      async click() { return enqueue({ type: "click", locator: serialize(this) }); },
+      async click(opts) { return enqueue({ type: "click", locator: serialize(this), modifiers: (opts && opts.modifiers) || [] }); },
       async fill(text) { return enqueue({ type: "fill", locator: serialize(this), text: String(text) }); },
       async press(key) { return enqueue({ type: "press", locator: serialize(this), key: String(key) }); },
-      async hover() { return enqueue({ type: "hover", locator: serialize(this) }); },
-      async mouseDown() { return enqueue({ type: "mouseDown", locator: serialize(this) }); },
-      async mouseUp() { return enqueue({ type: "mouseUp", locator: serialize(this) }); },
-      async moveTo() { return enqueue({ type: "moveTo", locator: serialize(this) }); },
+      async hover(opts) { return enqueue({ type: "hover", locator: serialize(this), modifiers: (opts && opts.modifiers) || [] }); },
+      async mouseDown(opts) { return enqueue({ type: "mouseDown", locator: serialize(this), modifiers: (opts && opts.modifiers) || [] }); },
+      async mouseUp(opts) { return enqueue({ type: "mouseUp", locator: serialize(this), modifiers: (opts && opts.modifiers) || [] }); },
+      async moveTo(opts) { return enqueue({ type: "moveTo", locator: serialize(this), modifiers: (opts && opts.modifiers) || [] }); },
       // Playwright-shaped drag: `source.dragTo(target)` — mousedown on this
       // locator, then the moveTo bookkeeping + mouseup on `target`.
-      async dragTo(target) {
-        return enqueue({ type: "dragTo", from: serialize(this), to: serialize(target) });
+      async dragTo(target, opts) {
+        return enqueue({ type: "dragTo", from: serialize(this), to: serialize(target), modifiers: (opts && opts.modifiers) || [] });
       },
+      async pointerDown(opts) { return enqueue(pointerCmd("pointerDown", this, opts)); },
+      async pointerMove(opts) { return enqueue(pointerCmd("pointerMove", this, opts)); },
+      async pointerUp(opts) { return enqueue(pointerCmd("pointerUp", this, opts)); },
+    };
+  };
+
+  // Fills in the W3C pointer-event defaults a locator's pointerDown/Move/Up
+  // call doesn't specify, so `pointerDown()` with no options still carries a
+  // valid primary-mouse identity.
+  const pointerCmd = function (type, loc, opts) {
+    opts = opts || {};
+    return {
+      type: type, locator: serialize(loc),
+      modifiers: opts.modifiers || [],
+      pointerId: opts.pointerId === undefined ? 1 : opts.pointerId,
+      pointerType: opts.pointerType || "mouse",
+      x: opts.x || 0, y: opts.y || 0,
     };
   };
 
