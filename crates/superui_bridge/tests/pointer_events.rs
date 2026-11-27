@@ -729,6 +729,28 @@ mod pointer_observers {
     }
 
     #[test]
+    fn pointer_press_carries_live_shift_modifier() {
+        let dom = Rc::new(RefCell::new(superui_html::parse_document("<div id='a'></div>")));
+        let mut app = test_app();
+        mount_pointer(&mut app, dom.clone());
+        app.update();
+        let a = entity_of(&app, &dom, "a");
+
+        // Shift held when the press fires -> pointerdown reports shiftKey true.
+        app.world_mut().resource_mut::<ButtonInput<KeyCode>>().press(KeyCode::ShiftLeft);
+        trigger_press(&mut app, a, PointerId::Mouse, Vec2::new(1.0, 1.0));
+        let events = &app.world().resource::<PendingDomEvents>().0;
+        assert_eq!(events.last().unwrap().modifiers.unwrap().shift, true);
+
+        // Release and re-press: no modifier held -> shiftKey false.
+        app.world_mut().resource_mut::<PendingDomEvents>().0.clear();
+        app.world_mut().resource_mut::<ButtonInput<KeyCode>>().release(KeyCode::ShiftLeft);
+        trigger_press(&mut app, a, PointerId::Mouse, Vec2::new(1.0, 1.0));
+        let events = &app.world().resource::<PendingDomEvents>().0;
+        assert_eq!(events.last().unwrap().modifiers.unwrap().shift, false);
+    }
+
+    #[test]
     fn captured_pointer_is_skipped_by_the_observers() {
         let dom = Rc::new(RefCell::new(superui_html::parse_document("<div id='a'></div>")));
         let mut app = test_app();
